@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VKR", "VKR\VKR.vcxproj", "{ADED99C1-1815-4D12-AF62-B85B9764A3B1}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VKRClient", "VKRClient\VKRClient.vcxproj", "{33F72676-4323-4BEE-B5D7-AB6DCB2C260E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{ADED99C1-1815-4D12-AF62-B85B9764A3B1} = {ADED99C1-1815-4D12-AF62-B85B9764A3B1}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

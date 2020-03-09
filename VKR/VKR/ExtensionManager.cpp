@@ -2,6 +2,9 @@
 #include "VKRLog.h"
 #include "VKRDebug.h"
 
+#define VKR_PRINT_AVAILABLE_EXT 0
+#define VKR_PRINT_AVAILABLE_LAYERS 0
+
 namespace VKR
 {
 	ExtensionManager::ExtensionManager(VkPhysicalDevice device)
@@ -113,13 +116,14 @@ namespace VKR
 
 	void ExtensionManager::PrintAvailableExtensions()
 	{
+#if VKR_PRINT_AVAILABLE_EXT
 		if (m_device)
 		{
 			VKR_LOG("-------------------- AVAILABLE DEVICE EXTENSIONS --------------------");
 		}
 		else
 		{
-			VKR_LOG("-------------------- AVAILABLE INSTANCE EXTENSIONS --------------------");
+			VKR_LOG("------------------- AVAILABLE INSTANCE EXTENSIONS -------------------");
 		}
 
 		for (auto& ext : m_availableExt)
@@ -128,13 +132,14 @@ namespace VKR
 		}
 
 		VKR_LOG("---------------------------------------------------------------------");
+#endif
 	}
 
 	void ExtensionManager::PrintEnabledExtensions()
 	{
 		if (m_device) 
 		{
-			VKR_LOG("-------------------- ENABLED DEVICE EXTENSIONS --------------------");
+			VKR_LOG("--------------------- ENABLED DEVICE EXTENSIONS ---------------------");
 		}
 		else  
 		{
@@ -154,35 +159,34 @@ namespace VKR
 
 	void ExtensionManager::PrintAvailableLayers()
 	{
+#if VKR_PRINT_AVAILABLE_LAYERS
 		if (m_device)
 		{
-			VKR_LOG("-------------------- AVAILABLE DEVICE LAYERS --------------------");
+			VKR_LOG("---------------------- AVAILABLE DEVICE LAYERS ----------------------");
 		}
 		else
 		{
-			VKR_LOG("-------------------- AVAILABLE INSTANCE LAYERS --------------------");
+			VKR_LOG("--------------------- AVAILABLE INSTANCE LAYERS ---------------------");
 		}
 
 		for (auto& layer : m_availableLayers)
 		{
-			if (layer.second)
-			{
-				VKR_LOG(layer.first.c_str());
-			}
+			VKR_LOG(layer.first.c_str());
 		}
 
 		VKR_LOG("---------------------------------------------------------------------");
+#endif
 	}
 
 	void ExtensionManager::PrintEnabledLayers()
 	{
 		if (m_device)
 		{
-			VKR_LOG("-------------------- ENABLED DEVICE LAYERS --------------------");
+			VKR_LOG("----------------------- ENABLED DEVICE LAYERS -----------------------");
 		}
 		else
 		{
-			VKR_LOG("-------------------- ENABLED INSTANCE LAYERS --------------------");
+			VKR_LOG("---------------------- ENABLED INSTANCE LAYERS ----------------------");
 		}
 
 		for (auto& layer : m_availableLayers)

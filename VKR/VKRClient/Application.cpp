@@ -7,7 +7,7 @@
 #include <iostream>
 #include <chrono>
 
-#include "VulkanInstance.h"
+#include "Renderer.h"
 
 GLFWwindow* Application::m_window = nullptr;
 Input* Application::m_input = nullptr;
@@ -52,11 +52,11 @@ int Application::Init()
 
 	VKR_LOG("Window has been created.");
 
-	VKR::VulkanInstance ins;
 	uint32_t extCount = 0;
 	auto extNames = glfwGetRequiredInstanceExtensions(&extCount);
-	ins.Create(extNames, extCount);
-	ins.Destroy();
+	
+	VKR::RendererDesc rendererDesc = { extNames, extCount };
+	VKR::Renderer renderer(rendererDesc);
 
 	// Initialize input.
 	Input::Create();

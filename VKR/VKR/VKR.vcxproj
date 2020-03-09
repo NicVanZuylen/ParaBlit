@@ -142,7 +142,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Device.cpp" />
     <ClCompile Include="ExtensionManager.cpp" />
+    <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="VKRDebug.cpp" />
     <ClCompile Include="VKRLog.cpp" />
     <ClCompile Include="VulkanInstance.cpp" />
@@ -150,6 +152,7 @@
   <ItemGroup>
     <ClInclude Include="Device.h" />
     <ClInclude Include="ExtensionManager.h" />
+    <ClInclude Include="Renderer.h" />
     <ClInclude Include="VKRApi.h" />
     <ClInclude Include="VKRDebug.h" />
     <ClInclude Include="VKRLog.h" />

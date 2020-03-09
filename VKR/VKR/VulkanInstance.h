@@ -1,7 +1,8 @@
 #pragma once
-#include "vulkan/vulkan.h"
 #include "glfw3.h"
 #include "ExtensionManager.h"
+
+#include <vulkan/vulkan.h>
 
 namespace VKR 
 {
@@ -23,9 +24,17 @@ namespace VKR
 
 		VKR_API void Destroy();
 
+		VKR_API VkInstance GetHandle();
+
 	private:
 
+		// Create debug messenger to print validation messages.
+		inline VKR_API void CreateDebugMessenger();
+
+		inline VKR_API void DestroyDebugMessenger();
+
 		ExtensionManager m_instanceExtensionManager;
-		VkInstance m_instance;
+		VkDebugUtilsMessengerEXT m_messenger = VK_NULL_HANDLE;
+		VkInstance m_instance = VK_NULL_HANDLE;
 	};
 }

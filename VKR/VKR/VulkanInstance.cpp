@@ -1,7 +1,17 @@
 #include "VulkanInstance.h"
 #include "VKRDebug.h"
 #include "DynamicArray.h"
-#include "glfw3.h"
+
+#define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
+#define VK_LAYER_LUNARG_VALIDATION_NAME "VK_LAYER_LUNARG_standard_validation"
+
+#ifndef VKR_USE_DEBUG_MESSENGER
+#define VKR_USE_DEBUG_MESSENGER 1
+#endif
+
+#define VKR_SHOW_VALIDATION_ERRORS 1 && VKR_USE_DEBUG_MESSENGER
+#define VKR_SHOW_VALIDATION_WARNINGS 1 && VKR_USE_DEBUG_MESSENGER
+#define VKR_SHOW_VALIDATION_INFO 0 && VKR_USE_DEBUG_MESSENGER
 
 namespace VKR 
 {
@@ -19,11 +29,49 @@ namespace VKR
 	void VulkanInstance::EnableExtensions()  
 	{
 		m_instanceExtensionManager.PrintAvailableExtensions();
+
+		m_instanceExtensionManager.EnableExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	}
+
+	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback
+	(
+		VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+		VkDebugUtilsMessageTypeFlagsEXT type,
+		const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+		void* userData
+	)
+	{
+		switch (severity)
+		{
+#if VKR_SHOW_VALIDATION_ERRORS
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+			VKR_LOG_FORMAT("VALIDATION ERROR: %s", callbackData->pMessage);
+			break;
+#endif
+#if VKR_SHOW_VALIDATION_WARNINGS
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+			VKR_LOG_FORMAT("VALIDATION WARNING: %s", callbackData->pMessage);
+			break;
+#endif
+#if VKR_SHOW_VALIDATION_INFO
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+			VKR_LOG_FORMAT("VALIDATION INFO: %s", callbackData->pMessage);
+			break;
+#endif
+		default:
+			break;
+		}
+
+		return VK_FALSE;
 	}
 
 	void VulkanInstance::EnableLayers()
 	{
 		m_instanceExtensionManager.PrintAvailableLayers();
+
+		// Enable Khronos validation if available, otherwise use LunarG validation.
+		if (!m_instanceExtensionManager.EnableLayer(VK_LAYER_KHRONOS_VALIDATION_NAME))
+			VKR_ASSERT(m_instanceExtensionManager.EnableLayer(VK_LAYER_LUNARG_VALIDATION_NAME), "Could not enable a suitable validation layer.");
 	}
 
 	void VulkanInstance::Create(const char** requiredExtensions, uint32_t extCount)
@@ -32,7 +80,7 @@ namespace VKR
 		appInfo.apiVersion = VK_MAKE_VERSION(1, 1, VK_HEADER_VERSION);
 		appInfo.applicationVersion = 1;
 		appInfo.engineVersion = 1;
-		appInfo.pApplicationName = "VKR";
+		appInfo.pApplicationName = "VKR Client";
 		appInfo.pEngineName = "VKR";
 
 		VkInstanceCreateInfo cInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, nullptr };
@@ -63,14 +111,55 @@ namespace VKR
 
 		VKR_ERROR_CHECK(vkCreateInstance(&cInfo, nullptr, &m_instance), "Failed to create Vulkan instance!");
 		VKR_BREAK_ON_ERROR;
+
+		CreateDebugMessenger();
 	}
 
 	void VulkanInstance::Destroy()
 	{
 		if(m_instance != VK_NULL_HANDLE) 
 		{
+			DestroyDebugMessenger();
 			vkDestroyInstance(m_instance, nullptr);
 			m_instance = VK_NULL_HANDLE;
 		}
+	}
+
+	VKR_API VkInstance VulkanInstance::GetHandle()
+	{
+		return m_instance;
+	}
+
+	VKR_API void VulkanInstance::CreateDebugMessenger()
+	{
+#if VKR_USE_DEBUG_MESSENGER
+		VkDebugUtilsMessengerCreateInfoEXT messengerInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT, nullptr };
+		messengerInfo.flags = 0;
+		messengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | 
+			VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | 
+			VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		messengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | 
+			VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		messengerInfo.pfnUserCallback = &DebugCallback;
+		messengerInfo.pUserData = nullptr;
+
+		auto createFunc = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
+		VKR_ASSERT(createFunc);
+		VKR_ASSERT(m_instance);
+
+		createFunc(m_instance, &messengerInfo, nullptr, &m_messenger);
+		VKR_ASSERT(m_messenger);
+#endif
+	}
+
+	VKR_API void VulkanInstance::DestroyDebugMessenger()
+	{
+#if VKR_USE_DEBUG_MESSENGER
+		auto destroyFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
+		VKR_ASSERT(destroyFunc);
+
+		destroyFunc(m_instance, m_messenger, nullptr);
+		m_messenger = VK_NULL_HANDLE;
+#endif
 	}
 }
