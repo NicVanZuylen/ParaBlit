@@ -145,6 +145,7 @@
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="ExtensionManager.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="Swapchain.cpp" />
     <ClCompile Include="VKRDebug.cpp" />
     <ClCompile Include="VKRLog.cpp" />
     <ClCompile Include="VulkanInstance.cpp" />
@@ -153,6 +154,7 @@
     <ClInclude Include="Device.h" />
     <ClInclude Include="ExtensionManager.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="Swapchain.h" />
     <ClInclude Include="VKRApi.h" />
     <ClInclude Include="VKRDebug.h" />
     <ClInclude Include="VKRLog.h" />
