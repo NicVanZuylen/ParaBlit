@@ -202,7 +202,7 @@ namespace VKR
 
 	DynamicArray<const char*> ExtensionManager::GetEnabledExtensions()
 	{
-		DynamicArray<const char*> output(m_availableExt.size());
+		DynamicArray<const char*> output(static_cast<uint32_t>(m_availableExt.size()));
 
 		for (auto& ext : m_availableExt) 
 		{

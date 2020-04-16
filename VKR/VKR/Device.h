@@ -5,9 +5,6 @@
 
 namespace VKR 
 {
-	typedef unsigned int u32;
-	typedef unsigned long long u64;
-
 	class Device
 	{
 	public:
@@ -20,6 +17,16 @@ namespace VKR
 		Description: Find suitable physical device and create logical device with required extensions & features.
 		*/
 		VKR_API void Init(VkInstance instance);
+
+		/*
+		Description: Get the primary graphics queue family index.
+		Return Type: int
+		*/
+		VKR_API int GetGraphicsQueueFamilyIndex();
+
+		VKR_API VkDevice GetHandle();
+
+		VKR_API VkPhysicalDevice GetPhysicalDevice();
 
 	private:
 
@@ -36,6 +43,9 @@ namespace VKR
 
 		// Query and enable device validation layers.
 		inline VKR_API void EnableLayers(ExtensionManager& extManager);
+
+		// Enable necessary device features.
+		inline VKR_API void DisableUnecessaryFeatures();
 
 		// Create logical device.
 		inline VKR_API void CreateLogicalDevice();

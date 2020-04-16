@@ -18,12 +18,27 @@ namespace VKR
 		}
 	}
 
-	VKR_API void Device::Init(VkInstance instance)
+	void Device::Init(VkInstance instance)
 	{
 		VKR_ASSERT(instance, "Attempted to get device using null instance.");
 		m_instance = instance;
 		EnumDevice();
 		CreateLogicalDevice();
+	}
+
+	int Device::GetGraphicsQueueFamilyIndex()
+	{
+		return m_graphicsFamilyIndex;
+	}
+
+	VkDevice Device::GetHandle()
+	{
+		return m_device;
+	}
+
+	VkPhysicalDevice Device::GetPhysicalDevice()
+	{
+		return m_physicalDevice;
 	}
 
 	void Device::EnumDevice()
@@ -58,6 +73,27 @@ namespace VKR
 			}
 		}
 
+		// Print device information.
+		VKR_LOG_FORMAT("Chosen Physical Device: %s", m_physDeviceProperties.deviceName);
+		switch (m_physDeviceProperties.deviceType)
+		{
+		case VK_PHYSICAL_DEVICE_TYPE_CPU:
+			VKR_LOG("Physical Device Type: CPU");
+			break;
+		case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+			VKR_LOG("Physical Device Type: DISCRETE GPU");
+			break;
+		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+			VKR_LOG("Physical Device Type: INTEGRATED GPU");
+			break;
+		case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+			VKR_LOG("Physical Device Type: UNKNOWN");
+			break;
+		default:
+			VKR_LOG("Physical Device Type: UNKNOWN");
+			break;
+		}
+
 		// Make sure devices with enough score were found, if not we can't continue.
 		VKR_ASSERT(highestScore > 0, "No suitable physical devices found.");
 
@@ -65,7 +101,7 @@ namespace VKR
 		m_physicalDevice = devices[highestScoreIdx];
 	}
 
-	inline VKR_API u64 Device::GetDeviceScore(const VkPhysicalDeviceFeatures& features, const VkPhysicalDeviceProperties& properties)
+	inline u64 Device::GetDeviceScore(const VkPhysicalDeviceFeatures& features, const VkPhysicalDeviceProperties& properties)
 	{
 		u64 score = 0;
 
@@ -93,7 +129,7 @@ namespace VKR
 		return score;
 	}
 
-	VKR_API void Device::CreateQueues()
+	void Device::CreateQueues()
 	{
 		VKR_ASSERT(m_physicalDevice);
 
@@ -117,7 +153,7 @@ namespace VKR
 		VKR_ASSERT(m_graphicsFamilyIndex > -1, "Could not find suitable graphics queue family.");
 	}
 
-	VKR_API void Device::EnableExtensions(ExtensionManager& extManager)
+	void Device::EnableExtensions(ExtensionManager& extManager)
 	{
 		extManager.PrintAvailableExtensions();
 
@@ -125,17 +161,27 @@ namespace VKR
 		VKR_ASSERT(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
 	}
 
-	VKR_API void Device::EnableLayers(ExtensionManager& extManager)
+	void Device::EnableLayers(ExtensionManager& extManager)
 	{
 		extManager.PrintAvailableLayers();
 	}
 
-	VKR_API void Device::CreateLogicalDevice()
+	void Device::DisableUnecessaryFeatures()
+	{
+		// Disable uneccesary features.
+		m_physDeviceFeatures.wideLines = false;
+		m_physDeviceFeatures.largePoints = false;
+		m_physDeviceFeatures.multiViewport = false;
+		m_physDeviceFeatures.pipelineStatisticsQuery = false;
+	}
+
+	void Device::CreateLogicalDevice()
 	{
 		VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, nullptr };
 		createInfo.flags = 0;
 
 		CreateQueues();
+		DisableUnecessaryFeatures();
 
 		VkDeviceQueueCreateInfo queueInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, nullptr };
 		queueInfo.flags = 0;

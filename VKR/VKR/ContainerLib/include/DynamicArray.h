@@ -56,7 +56,7 @@ public:
 	}
 
 	// Move constructor.
-	DynArr(DynArr<T>&& other) 
+	DynArr(DynArr<T>&& other) noexcept
 	{
 		// Copy pointer from other array and set the other array's pointer to null to release ownership.
 		m_contents = other.m_contents;

@@ -125,12 +125,12 @@ namespace VKR
 		}
 	}
 
-	VKR_API VkInstance VulkanInstance::GetHandle()
+	VkInstance VulkanInstance::GetHandle()
 	{
 		return m_instance;
 	}
 
-	VKR_API void VulkanInstance::CreateDebugMessenger()
+	void VulkanInstance::CreateDebugMessenger()
 	{
 #if VKR_USE_DEBUG_MESSENGER
 		VkDebugUtilsMessengerCreateInfoEXT messengerInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT, nullptr };
@@ -152,7 +152,7 @@ namespace VKR
 #endif
 	}
 
-	VKR_API void VulkanInstance::DestroyDebugMessenger()
+	void VulkanInstance::DestroyDebugMessenger()
 	{
 #if VKR_USE_DEBUG_MESSENGER
 		auto destroyFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");

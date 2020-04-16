@@ -28,7 +28,7 @@ public:
 
 private:
 
-	static void CreateWindow(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen = false);
+	static void CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen = false);
 
 	// GLFW Callbacks
 	static void ErrorCallBack(int error, const char* desc);

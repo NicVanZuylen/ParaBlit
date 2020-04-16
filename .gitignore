@@ -386,6 +386,9 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 
+# Vulkan SDK
+[Vv]ulkanSDK/
+
 # End of https://www.gitignore.io/api/c++,visualstudio
 ProjectNStream/ProjectNStream/CollisionManager - Copy.cpp
 GraphicsProject/GraphicsProject/x64/Debug/

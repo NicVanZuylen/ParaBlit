@@ -1,12 +1,12 @@
 #include "Application.h"
 #include "Input.h"
 #include "VKRLog.h"
-
-#include "glfw3.h"
+#include "WindowHandle.h"
 
 #include <iostream>
 #include <chrono>
 
+#include "glfw3.h"
 #include "Renderer.h"
 
 GLFWwindow* Application::m_window = nullptr;
@@ -48,14 +48,15 @@ int Application::Init()
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	// Create window.
-	CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, m_isfullScreen);
+	CreateWindowObject(WINDOW_WIDTH, WINDOW_HEIGHT, m_isfullScreen);
 
 	VKR_LOG("Window has been created.");
-
+	
 	uint32_t extCount = 0;
 	auto extNames = glfwGetRequiredInstanceExtensions(&extCount);
-	
-	VKR::RendererDesc rendererDesc = { extNames, extCount };
+
+	VKR::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
+	VKR::RendererDesc rendererDesc = { extNames, extCount, &windowInfo };
 	VKR::Renderer renderer(rendererDesc);
 
 	// Initialize input.
@@ -95,11 +96,11 @@ void Application::Run()
 			// Recreate window.
 			if (m_isfullScreen) 
 			{
-			    CreateWindow(vidMode->width, vidMode->height, true);
+			    CreateWindowObject(vidMode->width, vidMode->height, true);
 			}
 			else 
 			{
-				CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, false);
+				CreateWindowObject(WINDOW_WIDTH, WINDOW_HEIGHT, false);
 			}
 
 			m_input->ResetStates();
@@ -143,7 +144,7 @@ void Application::Run()
 	}
 }
 
-void Application::CreateWindow(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen)
+void Application::CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen)
 {
 	if (m_window)
 		glfwDestroyWindow(m_window);
