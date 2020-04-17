@@ -8,18 +8,28 @@ namespace VKR
 	{
 	}
 
-	Swapchain::Swapchain(const SwapChainDesc& desc)
+	Swapchain::~Swapchain()
 	{
-		m_device = desc.m_device;
-		m_windowSurface = desc.m_windowSurface;
+	}
+
+	void Swapchain::Init(const SwapChainDesc& desc, Device* device, VkSurfaceKHR windowSurface)
+	{
+		VKR_ASSERT(m_device == nullptr);
+
+		m_device = device;
+		m_windowSurface = windowSurface;
 		m_width = desc.m_width;
 		m_height = desc.m_height;
 		m_imageCount = desc.m_imageCount;
 
+		VKR_ASSERT(m_device);
+		VKR_ASSERT(m_imageCount > 0, "Swap chain image count must be greater than zero.");
+		VKR_ASSERT(desc.m_presentMode < VKR_PRESENT_MODE_END_RANGE, "Invalid present mode.");
+
 		CreateSwapChain(desc);
 	}
 
-	Swapchain::~Swapchain()
+	VKR_API void Swapchain::Destroy()
 	{
 		if (m_handle)
 		{
@@ -32,6 +42,14 @@ namespace VKR
 	{
 		auto format = ChooseSurfaceFormat(desc);
 		auto surfaceCapabilities = GetSurfaceCapabilities();
+
+		VKR_ASSERT(GetDeviceSurfaceSupport() != VK_FALSE, "Physical device does not support surface.");
+		VKR_ASSERT(m_width <= surfaceCapabilities.currentExtent.width && m_height < surfaceCapabilities.currentExtent.height, "Swap chain width/height cannot be greater than window dimensions.");
+
+		if (m_width == 0)
+			m_width = surfaceCapabilities.currentExtent.width;
+		if (m_height == 0)
+			m_height = surfaceCapabilities.currentExtent.height;
 
 		VkSwapchainCreateInfoKHR swapChainInfo = { VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, nullptr };
 		swapChainInfo.surface = m_windowSurface;
@@ -60,6 +78,13 @@ namespace VKR
 		return surfaceCapabilities;
 	}
 
+	VkBool32 Swapchain::GetDeviceSurfaceSupport()
+	{
+		VkBool32 surfaceSupported = VK_FALSE;
+		vkGetPhysicalDeviceSurfaceSupportKHR(m_device->GetPhysicalDevice(), m_device->GetGraphicsQueueFamilyIndex(), m_windowSurface, &surfaceSupported);
+		return surfaceSupported;
+	}
+
 	VkSurfaceFormatKHR Swapchain::ChooseSurfaceFormat(const SwapChainDesc& desc)
 	{
 		VkSurfaceFormatKHR desiredFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
@@ -83,7 +108,8 @@ namespace VKR
 				return availableFormats[i];
 		}
 
-		VKR_LOG("WARNING: Desired swap chain format is not available on this device.");
+		if(availableFormats[0].format != desiredFormat.format || availableFormats[0].colorSpace != desiredFormat.colorSpace)
+			VKR_LOG("WARNING: Desired swap chain format is not available on this device.");
 		return availableFormats[0];
 	}
 
@@ -98,14 +124,18 @@ namespace VKR
 		VKR_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, presentModes.Data()));
 
 		auto bestMode = VK_PRESENT_MODE_FIFO_KHR;
+		if (bestMode == desc.m_presentMode)
+			return bestMode;
+
 		for (u32 i = 0; i < presentModes.Count(); ++i)
 		{
-			if (presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR && desc.m_useVSync)
+			if (presentModes[i] == desc.m_presentMode)
 				return presentModes[i]; // Always prefer mailbox, unless V-sync is not allowed in the desc.
 			else if (presentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR)
 				bestMode = presentModes[i];
 		}
 
+		VKR_LOG("WARNING: Preferred present mode not available, falling back to next available mode.");
 		return bestMode;
 	}
 }

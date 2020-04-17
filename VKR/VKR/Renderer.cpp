@@ -5,7 +5,7 @@
 
 namespace VKR 
 {
-	Renderer::Renderer(RendererDesc desc)
+	Renderer::Renderer(const RendererDesc& desc)
 	{
 		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
 		m_device.Init(m_vkInstance.GetHandle());
@@ -15,8 +15,14 @@ namespace VKR
 
 	Renderer::~Renderer()
 	{
+		m_swapchain.Destroy();
 		if (m_windowSurface)
 			vkDestroySurfaceKHR(m_vkInstance.GetHandle(), m_windowSurface, nullptr);
+	}
+
+	Device* Renderer::GetDevice()
+	{
+		return &m_device;
 	}
 
 	void Renderer::CreateWindowSurface(WindowDesc* windowInfo)
@@ -34,5 +40,11 @@ namespace VKR
 		VKR_ERROR_CHECK(vkCreateWin32SurfaceKHR(m_vkInstance.GetHandle(), &surfaceInfo, nullptr, &m_windowSurface));
 		VKR_ASSERT(m_windowSurface);
 #endif
+	}
+
+	VKR_API void Renderer::CreateSwapChain(const SwapChainDesc& desc)
+	{
+		m_swapchainDesc = desc; // Cache desc for swap chain re-creation if swap-chain is lost/outdated.
+		m_swapchain.Init(m_swapchainDesc, &m_device, m_windowSurface);
 	}
 }

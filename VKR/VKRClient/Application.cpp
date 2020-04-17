@@ -59,6 +59,14 @@ int Application::Init()
 	VKR::RendererDesc rendererDesc = { extNames, extCount, &windowInfo };
 	VKR::Renderer renderer(rendererDesc);
 
+	VKR::SwapChainDesc swapchainDesc;
+	swapchainDesc.m_width = 0;
+	swapchainDesc.m_height = 0;
+	swapchainDesc.m_presentMode = VKR::VKR_PRESENT_MODE_MAILBOX;
+	swapchainDesc.m_imageCount = 3;
+
+	renderer.CreateSwapChain(swapchainDesc);
+
 	// Initialize input.
 	Input::Create();
 	m_input = Input::GetInstance();

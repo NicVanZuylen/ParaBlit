@@ -1,6 +1,7 @@
 #pragma once
 #include "VulkanInstance.h"
 #include "Device.h"
+#include "Swapchain.h"
 
 #ifdef VKR_WINDOWS
 #include <Windows.h>
@@ -33,17 +34,24 @@ namespace VKR
 	{
 	public:
 
-		VKR_API Renderer(RendererDesc desc);
+		VKR_API Renderer(const RendererDesc& desc);
 
 		VKR_API ~Renderer();
 
+		VKR_API Device* GetDevice();
+
+		VKR_API void CreateSwapChain(const SwapChainDesc& desc);
+
 	private:
 
-		VKR_API void CreateWindowSurface(WindowDesc* windowHandle);
+		VKR_API inline void CreateWindowSurface(WindowDesc* windowHandle);
+
 
 		VulkanInstance m_vkInstance;
 		Device m_device;
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
+		SwapChainDesc m_swapchainDesc;
+		Swapchain m_swapchain;
 	};
 }
 
