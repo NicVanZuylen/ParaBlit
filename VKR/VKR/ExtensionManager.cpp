@@ -1,11 +1,11 @@
 #include "ExtensionManager.h"
-#include "VKRLog.h"
-#include "VKRDebug.h"
+#include "ParaBlitLog.h"
+#include "ParaBlitDebug.h"
 
-#define VKR_PRINT_AVAILABLE_EXT 0
-#define VKR_PRINT_AVAILABLE_LAYERS 0
+#define PB_PRINT_AVAILABLE_EXT 0
+#define PB_PRINT_AVAILABLE_LAYERS 0
 
-namespace VKR
+namespace PB
 {
 	ExtensionManager::ExtensionManager(VkPhysicalDevice device)
 	{
@@ -23,7 +23,7 @@ namespace VKR
 			uint32_t extensionCount = 0;
 			EnumerateExt(extensionCount, nullptr);
 
-			VKR_ASSERT(extensionCount > 0, "No extensions found!");
+			PB_ASSERT(extensionCount > 0, "No extensions found!");
 			DynamicArray<VkExtensionProperties> extProps(extensionCount);
 			extProps.SetCount(extProps.GetSize());
 			EnumerateExt(extensionCount, extProps.Data());
@@ -116,22 +116,22 @@ namespace VKR
 
 	void ExtensionManager::PrintAvailableExtensions()
 	{
-#if VKR_PRINT_AVAILABLE_EXT
+#if PB_PRINT_AVAILABLE_EXT
 		if (m_device)
 		{
-			VKR_LOG("-------------------- AVAILABLE DEVICE EXTENSIONS --------------------");
+			PB_LOG("-------------------- AVAILABLE DEVICE EXTENSIONS --------------------");
 		}
 		else
 		{
-			VKR_LOG("------------------- AVAILABLE INSTANCE EXTENSIONS -------------------");
+			PB_LOG("------------------- AVAILABLE INSTANCE EXTENSIONS -------------------");
 		}
 
 		for (auto& ext : m_availableExt)
 		{
-			VKR_LOG(ext.first.c_str());
+			PB_LOG(ext.first.c_str());
 		}
 
-		VKR_LOG("---------------------------------------------------------------------");
+		PB_LOG("---------------------------------------------------------------------");
 #endif
 	}
 
@@ -139,42 +139,42 @@ namespace VKR
 	{
 		if (m_device) 
 		{
-			VKR_LOG("--------------------- ENABLED DEVICE EXTENSIONS ---------------------");
+			PB_LOG("--------------------- ENABLED DEVICE EXTENSIONS ---------------------");
 		}
 		else  
 		{
-			VKR_LOG("-------------------- ENABLED INSTANCE EXTENSIONS --------------------");
+			PB_LOG("-------------------- ENABLED INSTANCE EXTENSIONS --------------------");
 		}
 
 		for (auto& ext : m_availableExt)
 		{
 			if (ext.second)
 			{
-				VKR_LOG(ext.first.c_str());
+				PB_LOG(ext.first.c_str());
 			}
 		}
 
-		VKR_LOG("---------------------------------------------------------------------");
+		PB_LOG("---------------------------------------------------------------------");
 	}
 
 	void ExtensionManager::PrintAvailableLayers()
 	{
-#if VKR_PRINT_AVAILABLE_LAYERS
+#if PB_PRINT_AVAILABLE_LAYERS
 		if (m_device)
 		{
-			VKR_LOG("---------------------- AVAILABLE DEVICE LAYERS ----------------------");
+			PB_LOG("---------------------- AVAILABLE DEVICE LAYERS ----------------------");
 		}
 		else
 		{
-			VKR_LOG("--------------------- AVAILABLE INSTANCE LAYERS ---------------------");
+			PB_LOG("--------------------- AVAILABLE INSTANCE LAYERS ---------------------");
 		}
 
 		for (auto& layer : m_availableLayers)
 		{
-			VKR_LOG(layer.first.c_str());
+			PB_LOG(layer.first.c_str());
 		}
 
-		VKR_LOG("---------------------------------------------------------------------");
+		PB_LOG("---------------------------------------------------------------------");
 #endif
 	}
 
@@ -182,22 +182,22 @@ namespace VKR
 	{
 		if (m_device)
 		{
-			VKR_LOG("----------------------- ENABLED DEVICE LAYERS -----------------------");
+			PB_LOG("----------------------- ENABLED DEVICE LAYERS -----------------------");
 		}
 		else
 		{
-			VKR_LOG("---------------------- ENABLED INSTANCE LAYERS ----------------------");
+			PB_LOG("---------------------- ENABLED INSTANCE LAYERS ----------------------");
 		}
 
 		for (auto& layer : m_availableLayers)
 		{
 			if (layer.second)
 			{
-				VKR_LOG(layer.first.c_str());
+				PB_LOG(layer.first.c_str());
 			}
 		}
 
-		VKR_LOG("---------------------------------------------------------------------");
+		PB_LOG("---------------------------------------------------------------------");
 	}
 
 	DynamicArray<const char*> ExtensionManager::GetEnabledExtensions()

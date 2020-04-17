@@ -1,35 +1,35 @@
 #pragma once
-#include "VKRApi.h"
+#include "ParaBlitApi.h"
 #include "ExtensionManager.h"
 
-namespace VKR 
+namespace PB 
 {
 	class VulkanInstance 
 	{
 	public:
 
-		VKR_API VulkanInstance();
+		PARABLIT_API VulkanInstance();
 
-		VKR_API ~VulkanInstance();
+		PARABLIT_API ~VulkanInstance();
 
 		// Setup instance extensions.
-		inline VKR_API void EnableExtensions();
+		inline PARABLIT_API void EnableExtensions();
 
 		// Setup instance layers.
-		inline VKR_API void EnableLayers();
+		inline PARABLIT_API void EnableLayers();
 
-		VKR_API void Create(const char** requiredExtensions, uint32_t extCount);
+		PARABLIT_API void Create(const char** requiredExtensions, uint32_t extCount);
 
-		VKR_API void Destroy();
+		PARABLIT_API void Destroy();
 
-		VKR_API VkInstance GetHandle();
+		PARABLIT_API VkInstance GetHandle();
 
 	private:
 
 		// Create debug messenger to print validation messages.
-		inline VKR_API void CreateDebugMessenger();
+		inline PARABLIT_API void CreateDebugMessenger();
 
-		inline VKR_API void DestroyDebugMessenger();
+		inline PARABLIT_API void DestroyDebugMessenger();
 
 		ExtensionManager m_instanceExtensionManager;
 		VkDebugUtilsMessengerEXT m_messenger = VK_NULL_HANDLE;

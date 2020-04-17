@@ -1,6 +1,6 @@
 #include "Application.h"
 #include "Input.h"
-#include "VKRLog.h"
+#include "ParaBlitLog.h"
 #include "WindowHandle.h"
 
 #include <iostream>
@@ -50,31 +50,31 @@ int Application::Init()
 	// Create window.
 	CreateWindowObject(WINDOW_WIDTH, WINDOW_HEIGHT, m_isfullScreen);
 
-	VKR_LOG("Window has been created.");
+	PB_LOG("Window has been created.");
 	
 	uint32_t extCount = 0;
 	auto extNames = glfwGetRequiredInstanceExtensions(&extCount);
 
-	VKR::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
-	VKR::RendererDesc rendererDesc = { extNames, extCount, &windowInfo };
-	VKR::IRenderer* renderer = VKR::CreateRenderer();
+	PB::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
+	PB::RendererDesc rendererDesc = { extNames, extCount, &windowInfo };
+	PB::IRenderer* renderer = PB::CreateRenderer();
 	renderer->Init(rendererDesc);
 	
-	VKR::SwapChainDesc swapchainDesc;
+	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;
 	swapchainDesc.m_height = 0;
-	swapchainDesc.m_presentMode = VKR::VKR_PRESENT_MODE_MAILBOX;
+	swapchainDesc.m_presentMode = PB::VKR_PRESENT_MODE_MAILBOX;
 	swapchainDesc.m_imageCount = 3;
 
 	renderer->CreateSwapChain(swapchainDesc);
 
-	VKR::DestroyRenderer(renderer);
+	PB::DestroyRenderer(renderer);
 
 	// Initialize input.
 	Input::Create();
 	m_input = Input::GetInstance();
 
-	VKR_LOG("Input initalized.");
+	PB_LOG("Input initalized.");
 
 	return 0;
 }
@@ -145,9 +145,9 @@ void Application::Run()
 		if(debugDisplayTime <= 0.0f) 
 		{
 			float frameTime = deltaTime * 1000.0f;
-			VKR_LOG_FORMAT("Frametime %f ms", frameTime);
-			VKR_LOG_FORMAT("Elapsed Time: %f", elapsedTime);
-			VKR_LOG_FORMAT("FPS: %i", (int)ceilf((1.0f / deltaTime)));
+			PB_LOG_FORMAT("Frametime %f ms", frameTime);
+			PB_LOG_FORMAT("Elapsed Time: %f", elapsedTime);
+			PB_LOG_FORMAT("FPS: %i", (int)ceilf((1.0f / deltaTime)));
 
 			debugDisplayTime = DEBUG_DISPLAY_TIME;
 		}
@@ -215,5 +215,5 @@ void Application::MouseScrollCallBack(GLFWwindow* window, double dXOffset, doubl
 
 void Application::WindowResizeCallback(GLFWwindow* window, int nWidth, int nHeight) 
 {
-	VKR_NOT_IMPLEMENTED;
+	PB_NOT_IMPLEMENTED;
 }

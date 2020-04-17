@@ -1,6 +1,6 @@
 #pragma once
 
-namespace VKR 
+namespace PB
 {
 	typedef unsigned char u8;
 	typedef unsigned short u16;
@@ -8,9 +8,4 @@ namespace VKR
 	typedef unsigned long long u64;
 }
 
-
-#ifdef VKR_EXPORT
-#define VKR_API __declspec(dllexport)
-#else
-#define VKR_API __declspec(dllimport)
-#endif
+#define PARABLIT_INTERFACE virtual

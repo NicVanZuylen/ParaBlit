@@ -18,12 +18,6 @@
     <ClCompile Include="ExtensionManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="VKRDebug.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VKRLog.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="VulkanInstance.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -39,21 +33,18 @@
     <ClCompile Include="IRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ParaBlitDebug.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ParaBlitLog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ExtensionManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VKRApi.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VKRDebug.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VKRLog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="VulkanInstance.h">
@@ -68,10 +59,19 @@
     <ClInclude Include="IRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="VKRInterface.h">
+    <ClInclude Include="ISwapChain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ISwapChain.h">
+    <ClInclude Include="ParaBlitApi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ParaBlitDebug.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ParaBlitInterface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ParaBlitLog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

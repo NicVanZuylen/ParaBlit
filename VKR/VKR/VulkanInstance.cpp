@@ -1,5 +1,5 @@
 #include "VulkanInstance.h"
-#include "VKRDebug.h"
+#include "ParaBlitDebug.h"
 #include "DynamicArray.h"
 
 #define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
@@ -13,7 +13,7 @@
 #define VKR_SHOW_VALIDATION_WARNINGS 1 && VKR_USE_DEBUG_MESSENGER
 #define VKR_SHOW_VALIDATION_INFO 0 && VKR_USE_DEBUG_MESSENGER
 
-namespace VKR 
+namespace PB 
 {
 	VulkanInstance::VulkanInstance()
 	{
@@ -45,12 +45,12 @@ namespace VKR
 		{
 #if VKR_SHOW_VALIDATION_ERRORS
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			VKR_LOG_FORMAT("VALIDATION ERROR: %s", callbackData->pMessage);
+			PB_LOG_FORMAT("VALIDATION ERROR: %s", callbackData->pMessage);
 			break;
 #endif
 #if VKR_SHOW_VALIDATION_WARNINGS
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			VKR_LOG_FORMAT("VALIDATION WARNING: %s", callbackData->pMessage);
+			PB_LOG_FORMAT("VALIDATION WARNING: %s", callbackData->pMessage);
 			break;
 #endif
 #if VKR_SHOW_VALIDATION_INFO
@@ -71,7 +71,7 @@ namespace VKR
 
 		// Enable Khronos validation if available, otherwise use LunarG validation.
 		if (!m_instanceExtensionManager.EnableLayer(VK_LAYER_KHRONOS_VALIDATION_NAME))
-			VKR_ASSERT(m_instanceExtensionManager.EnableLayer(VK_LAYER_LUNARG_VALIDATION_NAME), "Could not enable a suitable validation layer.");
+			PB_ASSERT(m_instanceExtensionManager.EnableLayer(VK_LAYER_LUNARG_VALIDATION_NAME), "Could not enable a suitable validation layer.");
 	}
 
 	void VulkanInstance::Create(const char** requiredExtensions, uint32_t extCount)
@@ -91,7 +91,7 @@ namespace VKR
 		m_instanceExtensionManager.Query();
 
 		// Setup extensions & layers for this instance.
-		VKR_ASSERT(requiredExtensions != nullptr || extCount == 0, "Valid extension name array not provided.");
+		PB_ASSERT(requiredExtensions != nullptr || extCount == 0, "Valid extension name array not provided.");
 		for (uint32_t i = 0; i < extCount; ++i)
 			m_instanceExtensionManager.EnableExtension(requiredExtensions[i]);
 
@@ -109,8 +109,8 @@ namespace VKR
 		cInfo.enabledLayerCount = enabledLayers.Count();
 		cInfo.ppEnabledLayerNames = enabledLayers.Data();
 
-		VKR_ERROR_CHECK(vkCreateInstance(&cInfo, nullptr, &m_instance), "Failed to create Vulkan instance!");
-		VKR_BREAK_ON_ERROR;
+		PB_ERROR_CHECK(vkCreateInstance(&cInfo, nullptr, &m_instance), "Failed to create Vulkan instance!");
+		PB_BREAK_ON_ERROR;
 
 		CreateDebugMessenger();
 	}
@@ -144,11 +144,11 @@ namespace VKR
 		messengerInfo.pUserData = nullptr;
 
 		auto createFunc = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
-		VKR_ASSERT(createFunc);
-		VKR_ASSERT(m_instance);
+		PB_ASSERT(createFunc);
+		PB_ASSERT(m_instance);
 
 		createFunc(m_instance, &messengerInfo, nullptr, &m_messenger);
-		VKR_ASSERT(m_messenger);
+		PB_ASSERT(m_messenger);
 #endif
 	}
 
@@ -156,7 +156,7 @@ namespace VKR
 	{
 #if VKR_USE_DEBUG_MESSENGER
 		auto destroyFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
-		VKR_ASSERT(destroyFunc);
+		PB_ASSERT(destroyFunc);
 
 		destroyFunc(m_instance, m_messenger, nullptr);
 		m_messenger = VK_NULL_HANDLE;

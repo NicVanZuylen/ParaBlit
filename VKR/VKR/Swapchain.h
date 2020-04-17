@@ -1,10 +1,10 @@
 #pragma once
 #include "ISwapChain.h"
 #include "DynamicArray.h"
-#include "VKRApi.h"
+#include "ParaBlitApi.h"
 #include <vulkan/vulkan.h>
 
-namespace VKR 
+namespace PB 
 {
 	class Device;
 
@@ -29,32 +29,32 @@ namespace VKR
 	{
 	public:
 
-		VKR_API Swapchain();
+		PARABLIT_API Swapchain();
 
-		VKR_API ~Swapchain();
+		PARABLIT_API ~Swapchain();
 
 		/*
 		Description: Create a swapchain using the provided swapchain description.
 		Param: const SwapChainDesc& desc
 		*/
-		VKR_API void Init(const SwapChainDesc& desc, Device* device, VkSurfaceKHR windowSurface);
+		PARABLIT_API void Init(const SwapChainDesc& desc, Device* device, VkSurfaceKHR windowSurface);
 
 		/*
 		Description: Destroy an existing swapchain if there is one.
 		*/
-		VKR_API void Destroy();
+		PARABLIT_API void Destroy();
 
 	private:
 
-		inline VKR_API void CreateSwapChain(const SwapChainDesc& desc);
+		inline PARABLIT_API void CreateSwapChain(const SwapChainDesc& desc);
 
-		inline VKR_API VkSurfaceCapabilitiesKHR GetSurfaceCapabilities();
+		inline PARABLIT_API VkSurfaceCapabilitiesKHR GetSurfaceCapabilities();
 
-		inline VKR_API VkBool32 GetDeviceSurfaceSupport();
+		inline PARABLIT_API VkBool32 GetDeviceSurfaceSupport();
 
-		inline VKR_API VkSurfaceFormatKHR ChooseSurfaceFormat(const SwapChainDesc& desc);
+		inline PARABLIT_API VkSurfaceFormatKHR ChooseSurfaceFormat(const SwapChainDesc& desc);
 
-		inline VKR_API VkPresentModeKHR ChoosePresentMode(const SwapChainDesc& desc);
+		inline PARABLIT_API VkPresentModeKHR ChoosePresentMode(const SwapChainDesc& desc);
 
 		VkSwapchainKHR m_handle;
 		Device* m_device = nullptr;

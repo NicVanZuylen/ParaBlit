@@ -1,8 +1,8 @@
 #include "Device.h"
 #include "DynamicArray.h"
-#include "VKRDebug.h"
+#include "ParaBlitDebug.h"
 
-namespace VKR 
+namespace PB 
 {
 	Device::Device()
 	{
@@ -20,7 +20,7 @@ namespace VKR
 
 	void Device::Init(VkInstance instance)
 	{
-		VKR_ASSERT(instance, "Attempted to get device using null instance.");
+		PB_ASSERT(instance, "Attempted to get device using null instance.");
 		m_instance = instance;
 		EnumDevice();
 		CreateLogicalDevice();
@@ -74,28 +74,28 @@ namespace VKR
 		}
 
 		// Print device information.
-		VKR_LOG_FORMAT("Chosen Physical Device: %s", m_physDeviceProperties.deviceName);
+		PB_LOG_FORMAT("Chosen Physical Device: %s", m_physDeviceProperties.deviceName);
 		switch (m_physDeviceProperties.deviceType)
 		{
 		case VK_PHYSICAL_DEVICE_TYPE_CPU:
-			VKR_LOG("Physical Device Type: CPU");
+			PB_LOG("Physical Device Type: CPU");
 			break;
 		case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-			VKR_LOG("Physical Device Type: DISCRETE GPU");
+			PB_LOG("Physical Device Type: DISCRETE GPU");
 			break;
 		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-			VKR_LOG("Physical Device Type: INTEGRATED GPU");
+			PB_LOG("Physical Device Type: INTEGRATED GPU");
 			break;
 		case VK_PHYSICAL_DEVICE_TYPE_OTHER:
-			VKR_LOG("Physical Device Type: UNKNOWN");
+			PB_LOG("Physical Device Type: UNKNOWN");
 			break;
 		default:
-			VKR_LOG("Physical Device Type: UNKNOWN");
+			PB_LOG("Physical Device Type: UNKNOWN");
 			break;
 		}
 
 		// Make sure devices with enough score were found, if not we can't continue.
-		VKR_ASSERT(highestScore > 0, "No suitable physical devices found.");
+		PB_ASSERT(highestScore > 0, "No suitable physical devices found.");
 
 		// Pick the device with the best score.
 		m_physicalDevice = devices[highestScoreIdx];
@@ -131,12 +131,12 @@ namespace VKR
 
 	void Device::CreateQueues()
 	{
-		VKR_ASSERT(m_physicalDevice);
+		PB_ASSERT(m_physicalDevice);
 
 		u32 queueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);
 
-		VKR_ASSERT(queueFamilyCount > 0, "No queue families found on device.");
+		PB_ASSERT(queueFamilyCount > 0, "No queue families found on device.");
 
 		DynamicArray<VkQueueFamilyProperties> queueFamilyProps(queueFamilyCount);
 		vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, queueFamilyProps.Data());
@@ -150,7 +150,7 @@ namespace VKR
 				m_graphicsFamilyIndex = i;
 		}
 
-		VKR_ASSERT(m_graphicsFamilyIndex > -1, "Could not find suitable graphics queue family.");
+		PB_ASSERT(m_graphicsFamilyIndex > -1, "Could not find suitable graphics queue family.");
 	}
 
 	void Device::EnableExtensions(ExtensionManager& extManager)
@@ -158,7 +158,7 @@ namespace VKR
 		extManager.PrintAvailableExtensions();
 
 		// Enable swapchain extension, we are useless without this.
-		VKR_ASSERT(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
+		PB_ASSERT(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
 	}
 
 	void Device::EnableLayers(ExtensionManager& extManager)
@@ -211,7 +211,7 @@ namespace VKR
 		createInfo.enabledLayerCount = enabledLayers.Count();
 		createInfo.ppEnabledLayerNames = enabledLayers.Data();
 
-		VKR_ERROR_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device), "Could not create logical device.");
-		VKR_ASSERT(m_device);
+		PB_ERROR_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device), "Could not create logical device.");
+		PB_ASSERT(m_device);
 	}
 }

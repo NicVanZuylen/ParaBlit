@@ -1,9 +1,9 @@
 #define VK_USE_PLATFORM_WIN32_KHR
-#include "VKRApi.h"
+#include "ParaBlitApi.h"
 #include "Renderer.h"
-#include "VKRDebug.h"
+#include "ParaBlitDebug.h"
 
-namespace VKR 
+namespace PB 
 {
 	Renderer::Renderer()
 	{
@@ -26,7 +26,7 @@ namespace VKR
 
 	void Renderer::CreateWindowSurface(WindowDesc* windowInfo)
 	{
-#ifdef VKR_WINDOWS
+#ifdef PARABLIT_WINDOWS
 		VkWin32SurfaceCreateInfoKHR surfaceInfo =
 		{
 			VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -36,12 +36,12 @@ namespace VKR
 			windowInfo->m_handle
 		};
 
-		VKR_ERROR_CHECK(vkCreateWin32SurfaceKHR(m_vkInstance.GetHandle(), &surfaceInfo, nullptr, &m_windowSurface));
-		VKR_ASSERT(m_windowSurface);
+		PB_ERROR_CHECK(vkCreateWin32SurfaceKHR(m_vkInstance.GetHandle(), &surfaceInfo, nullptr, &m_windowSurface));
+		PB_ASSERT(m_windowSurface);
 #endif
 	}
 
-	VKR_API void Renderer::CreateSwapChain(const SwapChainDesc& desc)
+	void Renderer::CreateSwapChain(const SwapChainDesc& desc)
 	{
 		m_swapchainDesc = desc; // Cache desc for swap chain re-creation if swap-chain is lost/outdated.
 		m_swapchain.Init(m_swapchainDesc, &m_device, m_windowSurface);

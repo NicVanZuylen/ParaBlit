@@ -1,8 +1,8 @@
 #include "Swapchain.h"
-#include "VKRDebug.h"
+#include "ParaBlitDebug.h"
 #include "Device.h"
 
-namespace VKR
+namespace PB
 {
 	Swapchain::Swapchain()
 	{
@@ -14,7 +14,7 @@ namespace VKR
 
 	void Swapchain::Init(const SwapChainDesc& desc, Device* device, VkSurfaceKHR windowSurface)
 	{
-		VKR_ASSERT(m_device == nullptr);
+		PB_ASSERT(m_device == nullptr);
 
 		m_device = device;
 		m_windowSurface = windowSurface;
@@ -22,14 +22,14 @@ namespace VKR
 		m_height = desc.m_height;
 		m_imageCount = desc.m_imageCount;
 
-		VKR_ASSERT(m_device);
-		VKR_ASSERT(m_imageCount > 0, "Swap chain image count must be greater than zero.");
-		VKR_ASSERT(desc.m_presentMode < VKR_PRESENT_MODE_END_RANGE, "Invalid present mode.");
+		PB_ASSERT(m_device);
+		PB_ASSERT(m_imageCount > 0, "Swap chain image count must be greater than zero.");
+		PB_ASSERT(desc.m_presentMode < VKR_PRESENT_MODE_END_RANGE, "Invalid present mode.");
 
 		CreateSwapChain(desc);
 	}
 
-	VKR_API void Swapchain::Destroy()
+	PARABLIT_API void Swapchain::Destroy()
 	{
 		if (m_handle)
 		{
@@ -44,8 +44,8 @@ namespace VKR
 		auto format = ChooseSurfaceFormat(desc);
 		auto surfaceCapabilities = GetSurfaceCapabilities();
 
-		VKR_ASSERT(GetDeviceSurfaceSupport() != VK_FALSE, "Physical device does not support surface.");
-		VKR_ASSERT(m_width <= surfaceCapabilities.currentExtent.width && m_height < surfaceCapabilities.currentExtent.height, "Swap chain width/height cannot be greater than window dimensions.");
+		PB_ASSERT(GetDeviceSurfaceSupport() != VK_FALSE, "Physical device does not support surface.");
+		PB_ASSERT(m_width <= surfaceCapabilities.currentExtent.width && m_height < surfaceCapabilities.currentExtent.height, "Swap chain width/height cannot be greater than window dimensions.");
 
 		if (m_width == 0)
 			m_width = surfaceCapabilities.currentExtent.width;
@@ -67,14 +67,14 @@ namespace VKR
 		swapChainInfo.clipped = VK_TRUE;
 		swapChainInfo.oldSwapchain = VK_NULL_HANDLE;
 
-		VKR_ERROR_CHECK(vkCreateSwapchainKHR(m_device->GetHandle(), &swapChainInfo, nullptr, &m_handle));
-		VKR_ASSERT(m_handle);
+		PB_ERROR_CHECK(vkCreateSwapchainKHR(m_device->GetHandle(), &swapChainInfo, nullptr, &m_handle));
+		PB_ASSERT(m_handle);
 	}
 
 	VkSurfaceCapabilitiesKHR Swapchain::GetSurfaceCapabilities()
 	{
 		VkSurfaceCapabilitiesKHR surfaceCapabilities = {};
-		VKR_ERROR_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &surfaceCapabilities));
+		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &surfaceCapabilities));
 
 		return surfaceCapabilities;
 	}
@@ -91,11 +91,11 @@ namespace VKR
 		VkSurfaceFormatKHR desiredFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
 
 		u32 formatCount = 0;
-		VKR_ERROR_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_device->GetPhysicalDevice(), m_windowSurface, &formatCount, nullptr));
-		VKR_ASSERT(formatCount > 0);
+		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_device->GetPhysicalDevice(), m_windowSurface, &formatCount, nullptr));
+		PB_ASSERT(formatCount > 0);
 
 		DynamicArray<VkSurfaceFormatKHR> availableFormats(formatCount);
-		VKR_ERROR_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_device->GetPhysicalDevice(), m_windowSurface, &formatCount, availableFormats.Data()));
+		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_device->GetPhysicalDevice(), m_windowSurface, &formatCount, availableFormats.Data()));
 
 		if (availableFormats.Count() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
 		{
@@ -110,19 +110,19 @@ namespace VKR
 		}
 
 		if(availableFormats[0].format != desiredFormat.format || availableFormats[0].colorSpace != desiredFormat.colorSpace)
-			VKR_LOG("WARNING: Desired swap chain format is not available on this device.");
+			PB_LOG("WARNING: Desired swap chain format is not available on this device.");
 		return availableFormats[0];
 	}
 
 	VkPresentModeKHR Swapchain::ChoosePresentMode(const SwapChainDesc& desc)
 	{
 		u32 presentModeCount = 0;
-		VKR_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, nullptr));
-		VKR_ASSERT(presentModeCount > 0);
+		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, nullptr));
+		PB_ASSERT(presentModeCount > 0);
 
 		DynamicArray<VkPresentModeKHR> presentModes(presentModeCount);
 		presentModes.SetCount(presentModeCount);
-		VKR_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, presentModes.Data()));
+		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, presentModes.Data()));
 
 		auto bestMode = VK_PRESENT_MODE_FIFO_KHR;
 		if (bestMode == desc.m_presentMode)
@@ -136,7 +136,7 @@ namespace VKR
 				bestMode = presentModes[i];
 		}
 
-		VKR_LOG("WARNING: Preferred present mode not available, falling back to next available mode.");
+		PB_LOG("WARNING: Preferred present mode not available, falling back to next available mode.");
 		return bestMode;
 	}
 }

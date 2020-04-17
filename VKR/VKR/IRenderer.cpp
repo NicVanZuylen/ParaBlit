@@ -1,7 +1,7 @@
 #include "IRenderer.h"
 #include "Renderer.h"
 
-namespace VKR 
+namespace PB 
 {
 	IRenderer* CreateRenderer()
 	{

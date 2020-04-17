@@ -1,7 +1,7 @@
 #pragma once
-#include "VKRInterface.h"
+#include "ParaBlitInterface.h"
 
-namespace VKR 
+namespace PB 
 {
 	enum EPresentMode : u16
 	{

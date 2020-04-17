@@ -1,15 +1,15 @@
 #pragma once
-#include "VKRApi.h"
-#include "VKRInterface.h"
+#include "ParaBlitApi.h"
+#include "ParaBlitInterface.h"
 #include "ISwapChain.h"
 
-#ifdef VKR_WINDOWS
+#ifdef PARABLIT_WINDOWS
 #include <Windows.h>
 #endif
 
-namespace VKR 
+namespace PB 
 {
-#ifdef VKR_WINDOWS
+#ifdef PARABLIT_WINDOWS
 	struct Win32WindowInfo
 	{
 		struct HINSTANCE__* m_instance;
@@ -32,13 +32,13 @@ namespace VKR
 	class IRenderer
 	{
 	public:
-		VKR_INTERFACE void Init(const RendererDesc& desc) = 0;
-		VKR_INTERFACE void CreateSwapChain(const SwapChainDesc& desc) = 0;
+		PARABLIT_INTERFACE void Init(const RendererDesc& desc) = 0;
+		PARABLIT_INTERFACE void CreateSwapChain(const SwapChainDesc& desc) = 0;
 
 	private:
-		VKR_INTERFACE void CreateWindowSurface(WindowDesc* windowHandle) = 0;
+		PARABLIT_INTERFACE void CreateWindowSurface(WindowDesc* windowHandle) = 0;
 	};
 
-	VKR_API IRenderer* CreateRenderer();
-	VKR_API void DestroyRenderer(IRenderer*& renderer);
+	PARABLIT_API IRenderer* CreateRenderer();
+	PARABLIT_API void DestroyRenderer(IRenderer*& renderer);
 }

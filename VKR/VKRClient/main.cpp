@@ -1,12 +1,12 @@
 #include "Application.h"
 
-#ifdef VKR_WINDOWS
+#ifdef PARABLIT_WINDOWS
 #include <crtdbg.h>
 #endif
 
 int main() 
 {
-#ifdef VKR_WINDOWS
+#ifdef PARABLIT_WINDOWS
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
