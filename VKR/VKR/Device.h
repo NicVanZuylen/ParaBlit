@@ -1,7 +1,6 @@
 #pragma once
 #include "VKRApi.h"
 #include "ExtensionManager.h"
-#include <vulkan/vulkan.h>
 
 namespace VKR 
 {

@@ -1,16 +1,12 @@
 #define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
+#include "VKRApi.h"
 #include "Renderer.h"
 #include "VKRDebug.h"
 
 namespace VKR 
 {
-	Renderer::Renderer(const RendererDesc& desc)
+	Renderer::Renderer()
 	{
-		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
-		m_device.Init(m_vkInstance.GetHandle());
-
-		CreateWindowSurface(desc.m_windowInfo);
 	}
 
 	Renderer::~Renderer()
@@ -20,9 +16,12 @@ namespace VKR
 			vkDestroySurfaceKHR(m_vkInstance.GetHandle(), m_windowSurface, nullptr);
 	}
 
-	Device* Renderer::GetDevice()
+	void Renderer::Init(const RendererDesc& desc)
 	{
-		return &m_device;
+		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
+		m_device.Init(m_vkInstance.GetHandle());
+
+		CreateWindowSurface(desc.m_windowInfo);
 	}
 
 	void Renderer::CreateWindowSurface(WindowDesc* windowInfo)

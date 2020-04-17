@@ -36,6 +36,9 @@
     <ClCompile Include="Swapchain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="IRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h">
@@ -60,6 +63,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Swapchain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VKRInterface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ISwapChain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

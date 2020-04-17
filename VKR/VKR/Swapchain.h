@@ -1,4 +1,6 @@
 #pragma once
+#include "ISwapChain.h"
+#include "DynamicArray.h"
 #include "VKRApi.h"
 #include <vulkan/vulkan.h>
 
@@ -6,22 +8,22 @@ namespace VKR
 {
 	class Device;
 
-	enum EPresentMode : u16
-	{
-		VKR_PRESENT_MODE_IMMEDIATE,
-		VKR_PRESENT_MODE_MAILBOX,
-		VKR_PRESENT_MODE_FIFO,
-		VKR_PRESENT_MODE_FIFO_RELAXED,
-		VKR_PRESENT_MODE_END_RANGE,
-	};
+	//enum EPresentMode : u16
+	//{
+	//	VKR_PRESENT_MODE_IMMEDIATE,
+	//	VKR_PRESENT_MODE_MAILBOX,
+	//	VKR_PRESENT_MODE_FIFO,
+	//	VKR_PRESENT_MODE_FIFO_RELAXED,
+	//	VKR_PRESENT_MODE_END_RANGE,
+	//};
 
-	struct SwapChainDesc
-	{
-		u32 m_width = 0;                                      // Leave as zero to use the surface dimension.
-		u32 m_height = 0;                                     // Leave as zero to use the surface dimension.
-		EPresentMode m_presentMode = VKR_PRESENT_MODE_FIFO;
-		u16 m_imageCount = 3;
-	};
+	//struct SwapChainDesc
+	//{
+	//	u32 m_width = 0;                                      // Leave as zero to use the surface dimension.
+	//	u32 m_height = 0;                                     // Leave as zero to use the surface dimension.
+	//	EPresentMode m_presentMode = VKR_PRESENT_MODE_FIFO;
+	//	u16 m_imageCount = 3;
+	//};
 
 	class Swapchain
 	{
@@ -59,6 +61,7 @@ namespace VKR
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
 		u32 m_width;
 		u32 m_height;
+		DynamicArray<VkImage> m_swapchainImages;
 		u8 m_imageCount;
 	};
 }

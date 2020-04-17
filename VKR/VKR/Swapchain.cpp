@@ -34,6 +34,7 @@ namespace VKR
 		if (m_handle)
 		{
 			vkDestroySwapchainKHR(m_device->GetHandle(), m_handle, nullptr);
+			m_swapchainImages.Clear();
 			m_handle = VK_NULL_HANDLE;
 		}
 	}

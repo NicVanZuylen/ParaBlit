@@ -7,7 +7,7 @@
 #include <chrono>
 
 #include "glfw3.h"
-#include "Renderer.h"
+#include "IRenderer.h"
 
 GLFWwindow* Application::m_window = nullptr;
 Input* Application::m_input = nullptr;
@@ -57,15 +57,18 @@ int Application::Init()
 
 	VKR::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
 	VKR::RendererDesc rendererDesc = { extNames, extCount, &windowInfo };
-	VKR::Renderer renderer(rendererDesc);
-
+	VKR::IRenderer* renderer = VKR::CreateRenderer();
+	renderer->Init(rendererDesc);
+	
 	VKR::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;
 	swapchainDesc.m_height = 0;
 	swapchainDesc.m_presentMode = VKR::VKR_PRESENT_MODE_MAILBOX;
 	swapchainDesc.m_imageCount = 3;
 
-	renderer.CreateSwapChain(swapchainDesc);
+	renderer->CreateSwapChain(swapchainDesc);
+
+	VKR::DestroyRenderer(renderer);
 
 	// Initialize input.
 	Input::Create();

@@ -144,6 +144,7 @@
   <ItemGroup>
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="ExtensionManager.cpp" />
+    <ClCompile Include="IRenderer.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Swapchain.cpp" />
     <ClCompile Include="VKRDebug.cpp" />
@@ -153,10 +154,13 @@
   <ItemGroup>
     <ClInclude Include="Device.h" />
     <ClInclude Include="ExtensionManager.h" />
+    <ClInclude Include="IRenderer.h" />
+    <ClInclude Include="ISwapChain.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Swapchain.h" />
     <ClInclude Include="VKRApi.h" />
     <ClInclude Include="VKRDebug.h" />
+    <ClInclude Include="VKRInterface.h" />
     <ClInclude Include="VKRLog.h" />
     <ClInclude Include="VulkanInstance.h" />
   </ItemGroup>

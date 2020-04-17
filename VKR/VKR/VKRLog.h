@@ -1,5 +1,4 @@
 #pragma once
-#include "VKRApi.h"
 #include <iostream>
 
 #define VKR_LOG(message) printf("VKR LOG: "); printf(message); printf("\n")
