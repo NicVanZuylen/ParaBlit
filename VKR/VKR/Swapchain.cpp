@@ -1,6 +1,8 @@
 #include "Swapchain.h"
+#include "Renderer.h"
 #include "ParaBlitDebug.h"
 #include "Device.h"
+#include "Texture.h"
 
 namespace PB
 {
@@ -12,11 +14,12 @@ namespace PB
 	{
 	}
 
-	void Swapchain::Init(const SwapChainDesc& desc, Device* device, VkSurfaceKHR windowSurface)
+	void Swapchain::Init(const SwapChainDesc& desc, Renderer* renderer, VkSurfaceKHR windowSurface)
 	{
 		PB_ASSERT(m_device == nullptr);
 
-		m_device = device;
+		m_renderer = renderer;
+		m_device = m_renderer->GetDevice();
 		m_windowSurface = windowSurface;
 		m_width = desc.m_width;
 		m_height = desc.m_height;
@@ -29,14 +32,37 @@ namespace PB
 		CreateSwapChain(desc);
 	}
 
-	PARABLIT_API void Swapchain::Destroy()
+	void Swapchain::Destroy()
 	{
 		if (m_handle)
 		{
 			vkDestroySwapchainKHR(m_device->GetHandle(), m_handle, nullptr);
+
 			m_swapchainImages.Clear();
+			for (u32 i = 0; i < m_wrappedSwapchainImages.Count(); ++i)
+			{
+				m_wrappedSwapchainImages[i]->Destroy();
+				delete m_wrappedSwapchainImages[i];
+			}
+			m_wrappedSwapchainImages.Clear();
+
 			m_handle = VK_NULL_HANDLE;
 		}
+	}
+
+	VkSwapchainKHR Swapchain::GetHandle() const
+	{
+		return m_handle;
+	}
+
+	const VkSwapchainKHR* Swapchain::GetHandlePtr() const
+	{
+		return &m_handle;
+	}
+
+	u8 Swapchain::ImageCount()
+	{
+		return m_imageCount;
 	}
 
 	void Swapchain::CreateSwapChain(const SwapChainDesc& desc)
@@ -69,6 +95,8 @@ namespace PB
 
 		PB_ERROR_CHECK(vkCreateSwapchainKHR(m_device->GetHandle(), &swapChainInfo, nullptr, &m_handle));
 		PB_ASSERT(m_handle);
+
+		GetImages();
 	}
 
 	VkSurfaceCapabilitiesKHR Swapchain::GetSurfaceCapabilities()
@@ -138,5 +166,30 @@ namespace PB
 
 		PB_LOG("WARNING: Preferred present mode not available, falling back to next available mode.");
 		return bestMode;
+	}
+
+	void Swapchain::GetImages()
+	{
+		u32 imageCount = 0;
+		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, nullptr);
+		PB_ASSERT(imageCount > 0, "Attempting to retrieve swapchain images when no swapchain images currently exist.");
+
+		m_swapchainImages.SetSize(imageCount);
+		m_swapchainImages.SetCount(imageCount);
+		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, m_swapchainImages.Data());
+
+		m_wrappedSwapchainImages.SetSize(imageCount);
+		m_wrappedSwapchainImages.SetCount(imageCount);
+
+		// Wrap swapchain images into ParaBlit texture objects.
+		WrappedTextureDesc wrappedTextureDesc;
+		for (u32 i = 0; i < imageCount; ++i)
+		{
+			PB_ASSERT(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
+			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
+			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_RENDERTARGET;
+			m_wrappedSwapchainImages[i] = new Texture;
+			m_wrappedSwapchainImages[i]->Create(m_renderer, wrappedTextureDesc);
+		}
 	}
 }

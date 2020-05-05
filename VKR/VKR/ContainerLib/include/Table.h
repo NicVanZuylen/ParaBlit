@@ -28,18 +28,30 @@ public:
 
 	~Table() 
 	{
-		for (uint32_t i = 0; i < m_contents->Count(); ++i)
+		for (int i = 0; i < m_contents->Count(); ++i)
 			delete (*m_contents)[i];
 
-		for (uint32_t i = 0; i < m_pairs.Count(); ++i)
+		for (int i = 0; i < m_pairs.Count(); ++i)
 			delete m_pairs[i];
 
 		delete[] m_contents;
 	}
 
-	T& operator [] (const char* data)
+	// Overload for retreiving data with a C string.
+	inline T& operator [] (const char* data)
 	{
-		unsigned int hashID = Hash(data, (unsigned int)strlen(data));
+		return Get(data, std::strlen(data));
+	}
+
+	// Overload for retreiving data with a std::string.
+	inline T& operator [] (const std::string& data)
+	{
+		return Get(data.c_str(), data.size());
+	}
+
+	inline T& Get(const char* data, const size_t& nLength) 
+	{
+		unsigned int hashID = Hash(data, nLength);
 
 		// Restrict hash range to array size.
 		hashID %= m_size;
@@ -47,7 +59,7 @@ public:
 		// Get key-value pair array.
 		DynArr<HashTablePair<T>*>& arr = m_contents[hashID];
 
-		if (arr.Count() == 0) 
+		if (arr.Count() == 0)
 		{
 			arr.Push(CreatePair());
 			arr[0]->m_key = data;
@@ -56,26 +68,25 @@ public:
 		}
 
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		bool collisionDetected = false;
+		bool bCollisionDetected = false;
 #endif
 
-		// If the matching pair wasnt found assign the new value or find the existing matching pair.
-		for (uint32_t i = 0; i < arr.Count(); ++i)
+		// If the matching pair wasn't found assign the new value or find the existing matching pair.
+		for (int i = 0; i < arr.Count(); ++i)
 		{
 			HashTablePair<T>& pair = *arr[i];
-			const char* cKey = pair.m_key.c_str();
 
-			if (strcmp(data, pair.m_key.c_str()) == 0)
+			if (std::strcmp(data, pair.m_key.c_str()) == 0)
 			{
 				// Existing matching pair found.
 				return pair.m_value;
 			}
 
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-			if (!collisionDetected) 
+			if (!bCollisionDetected)
 			{
 				std::cout << "Table Warning: Hash collision detected!" << std::endl;
-				collisionDetected = true;
+				bCollisionDetected = true;
 			}
 #endif
 		}
@@ -85,23 +96,23 @@ public:
 		int index = arr.Count();
 		arr.Push(CreatePair());
 		arr[index]->m_key = data;
-		
+
 		return arr[index]->m_value;
 	}
 
 private:
 
 	// BKDR Hash
-	inline int Hash(const char*& data, const unsigned int& size)
+	inline int Hash(const char*& data, const size_t& size)
 	{
-		int nHash = 0;
+		size_t nHash = 0;
 
-		for (unsigned int i = 0; i < size; ++i)
+		for (size_t i = 0; i < size; ++i)
 		{
-			nHash = (1313 * nHash) + data[i];
+			nHash = (1313ULL * nHash) + data[i];
 		}
 
-		return (nHash & 0x7FFFFFFF);
+		return (nHash & 0x7FFFFFFFULL);
 	}
 
 	inline HashTablePair<T>* CreatePair() 

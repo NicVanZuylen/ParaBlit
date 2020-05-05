@@ -1,4 +1,5 @@
 #pragma once
+#include "ParaBlitApi.h"
 #include "ParaBlitLog.h"
 #include "vulkan/vulkan.h"
 #include <iostream>

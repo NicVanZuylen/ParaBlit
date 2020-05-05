@@ -11,7 +11,7 @@
 
 #define DynamicArray DynArr
 
-template <typename T>
+template <typename T, typename... Args>
 class DynArr
 {
 public:
@@ -56,7 +56,7 @@ public:
 	}
 
 	// Move constructor.
-	DynArr(DynArr<T>&& other) noexcept
+	DynArr(DynArr<T>&& other) 
 	{
 		// Copy pointer from other array and set the other array's pointer to null to release ownership.
 		m_contents = other.m_contents;
@@ -82,6 +82,11 @@ public:
 	{
 		if (m_contents)
 			delete[] m_contents;
+	}
+
+	void Invalidate()
+	{
+		m_contents = nullptr;
 	}
 
 	// Getters
@@ -199,7 +204,19 @@ public:
 	}
 
 	/*
-	Description: Insert a new value uint32_to the provided index.
+	Description: Constructs a new a value to the end of the array, and expands the array if there is no room for the new value. Requires a default constructor and move assignment operator.
+	Speed: O(1), Possible Mem Alloc & Free
+	*/
+	inline T& Emplace(Args&&... args) 
+	{
+		if (m_nCount >= m_nSize)
+			Expand();
+
+		return (m_contents[m_nCount++] = std::move(T(args...)));
+	}
+
+	/*
+	Description: Insert a new value to the provided index.
 	Speed: O(1), Possible Mem Alloc & Free
 	Param:
 		const T& value: The value to insert into this array.
@@ -503,6 +520,18 @@ public:
 	const T* Data() const
 	{
 		return m_contents;
+	}
+
+	// For range-based for loops:
+
+	T* begin()
+	{
+		return m_contents;
+	}
+
+	T* end()
+	{
+		return &m_contents[m_nCount];
 	}
 
 	typedef bool(*CompFunctionPtr)(T lhs, T rhs);

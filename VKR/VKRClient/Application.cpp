@@ -9,6 +9,7 @@
 #include "glfw3.h"
 #include "IRenderer.h"
 
+PB::IRenderer* Application::m_renderer = nullptr;
 GLFWwindow* Application::m_window = nullptr;
 Input* Application::m_input = nullptr;
 bool Application::m_isfullScreen = false;
@@ -23,16 +24,18 @@ Application::Application()
 
 Application::~Application()
 {
-	if (m_glfwInitialized)
-		glfwTerminate();
-	else
+	if (!m_glfwInitialized)
 		return;
+
+	PB::DestroyRenderer(m_renderer);
 
 	// Destroy window.
 	glfwDestroyWindow(m_window);
 
 	// Destroy input.
 	Input::Destroy();
+
+	glfwTerminate();
 }
 
 int Application::Init() 
@@ -46,7 +49,7 @@ int Application::Init()
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
+	
 	// Create window.
 	CreateWindowObject(WINDOW_WIDTH, WINDOW_HEIGHT, m_isfullScreen);
 
@@ -57,8 +60,8 @@ int Application::Init()
 
 	PB::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
 	PB::RendererDesc rendererDesc = { extNames, extCount, &windowInfo };
-	PB::IRenderer* renderer = PB::CreateRenderer();
-	renderer->Init(rendererDesc);
+	m_renderer = PB::CreateRenderer();
+	m_renderer->Init(rendererDesc);
 	
 	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;
@@ -66,9 +69,7 @@ int Application::Init()
 	swapchainDesc.m_presentMode = PB::VKR_PRESENT_MODE_MAILBOX;
 	swapchainDesc.m_imageCount = 3;
 
-	renderer->CreateSwapChain(swapchainDesc);
-
-	PB::DestroyRenderer(renderer);
+	m_renderer->CreateSwapChain(swapchainDesc);
 
 	// Initialize input.
 	Input::Create();
@@ -116,6 +117,10 @@ void Application::Run()
 
 			m_input->ResetStates();
 		}
+
+		m_renderer->BeginFrame();
+
+		m_renderer->EndFrame();
 
 		m_input->EndFrame();
 

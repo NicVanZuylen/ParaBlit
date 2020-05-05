@@ -3,6 +3,11 @@
 
 class Input;
 
+namespace PB
+{
+	class IRenderer;
+}
+
 struct GLFWwindow;
 
 #define DEBUG_DISPLAY_TIME 2.0f
@@ -38,6 +43,7 @@ private:
 	static void MouseScrollCallBack(GLFWwindow* window, double dXOffset, double dYOffset);
 	static void WindowResizeCallback(GLFWwindow* window, int nWidth, int nHeight);
 
+	static PB::IRenderer* m_renderer;
 	static GLFWwindow* m_window;
 	static Input* m_input;
 	static bool m_isfullScreen;

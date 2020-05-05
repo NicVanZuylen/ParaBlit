@@ -34,6 +34,8 @@ namespace PB
 	public:
 		PARABLIT_INTERFACE void Init(const RendererDesc& desc) = 0;
 		PARABLIT_INTERFACE void CreateSwapChain(const SwapChainDesc& desc) = 0;
+		PARABLIT_INTERFACE void BeginFrame() = 0;
+		PARABLIT_INTERFACE void EndFrame() = 0;
 
 	private:
 		PARABLIT_INTERFACE void CreateWindowSurface(WindowDesc* windowHandle) = 0;

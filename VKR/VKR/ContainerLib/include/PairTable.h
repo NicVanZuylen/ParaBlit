@@ -16,21 +16,18 @@ public:
 
 	PairTable()
 	{
-		m_size = 1000;
-		m_contents = new DynArr<PairTablePair<T>*>[m_size];
+		m_nSize = 1000;
+		m_contents = new DynArr<PairTablePair<T>*>[m_nSize];
 	}
 
-	PairTable(const unsigned int& size)
+	PairTable(size_t nSize)
 	{
-		m_size = size;
-		m_contents = new DynArr<PairTablePair<T>*>[m_size];
+		m_nSize = nSize;
+		m_contents = new DynArr<PairTablePair<T>*>[m_nSize];
 	}
 
 	~PairTable()
 	{
-		for (int i = 0; i < m_contents->Count(); ++i)
-			delete (*m_contents)[i];
-
 		for (int i = 0; i < m_pairs.Count(); ++i)
 			delete m_pairs[i];
 
@@ -40,31 +37,31 @@ public:
 	T& operator [] (U key)
 	{
 		const char* data = (const char*)&key;
-		int size = sizeof(U);
+		size_t nSize = sizeof(U);
 
-		unsigned int hashID = Hash(data, size);
+		size_t nHashID = Hash(data, nSize);
 
 		// Restrict hash range to array size.
-		hashID %= m_size;
+		nHashID %= m_nSize;
 
 		// Get key-value pair array.
-		DynArr<PairTablePair<T>*>& arr = m_contents[hashID];
+		DynArr<PairTablePair<T>*>& arr = m_contents[nHashID];
 
 		if (arr.Count() == 0)
 		{
-			int index = arr.Count();
+			size_t nIndex = arr.Count();
 			arr.Push(CreatePair());
-			arr[index]->m_key = data;
+			arr[nIndex]->m_key = data;
 
-			return arr[index]->m_value;
+			return arr[nIndex]->m_value;
 		}
 
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		bool collisionDetected = false;
+		bool bCollisionDetected = false;
 #endif
 
 		// If the matching pair wasnt found assign the new value or find the existing matching pair.
-		for (int i = 0; i < arr.Count(); ++i)
+		for (size_t i = 0; i < arr.Count(); ++i)
 		{
 			PairTablePair<T>& pair = *arr[i];
 			const char* cKey = pair.m_key.c_str();
@@ -76,31 +73,31 @@ public:
 			}
 
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-			if (!collisionDetected)
+			if (!bCollisionDetected)
 			{
 				std::cout << "Table Warning: Hash collision detected!" << std::endl;
-				collisionDetected = true;
+				bCollisionDetected = true;
 			}
 #endif
 		}
 
 		// In case of hash collision:
 
-		int index = arr.Count();
+		size_t nIndex = arr.Count();
 		arr.Push(CreatePair());
-		arr[index]->m_key = data;
+		arr[nIndex]->m_key = data;
 
-		return arr[index]->m_value;
+		return arr[nIndex]->m_value;
 	}
 
 private:
 
 	// BKDR Hash
-	inline int Hash(const char*& data, const unsigned int& size)
+	inline size_t Hash(const char*& data, const size_t& nSize)
 	{
-		int nHash = 0;
+		size_t nHash = 0;
 
-		for (unsigned int i = 0; i < size; ++i)
+		for (size_t i = 0; i < nSize; ++i)
 		{
 			nHash = (1313 * nHash) + data[i];
 		}
@@ -118,6 +115,6 @@ private:
 
 	DynArr<PairTablePair<T>*>* m_contents;
 	DynArr<PairTablePair<T>*> m_pairs;
-	unsigned int m_size;
+	size_t m_nSize;
 };
 #pragma once

@@ -2,28 +2,13 @@
 #include "ISwapChain.h"
 #include "DynamicArray.h"
 #include "ParaBlitApi.h"
-#include <vulkan/vulkan.h>
+#include "vulkan/vulkan.h"
 
 namespace PB 
 {
+	class Renderer;
 	class Device;
-
-	//enum EPresentMode : u16
-	//{
-	//	VKR_PRESENT_MODE_IMMEDIATE,
-	//	VKR_PRESENT_MODE_MAILBOX,
-	//	VKR_PRESENT_MODE_FIFO,
-	//	VKR_PRESENT_MODE_FIFO_RELAXED,
-	//	VKR_PRESENT_MODE_END_RANGE,
-	//};
-
-	//struct SwapChainDesc
-	//{
-	//	u32 m_width = 0;                                      // Leave as zero to use the surface dimension.
-	//	u32 m_height = 0;                                     // Leave as zero to use the surface dimension.
-	//	EPresentMode m_presentMode = VKR_PRESENT_MODE_FIFO;
-	//	u16 m_imageCount = 3;
-	//};
+	class Texture;
 
 	class Swapchain
 	{
@@ -37,12 +22,18 @@ namespace PB
 		Description: Create a swapchain using the provided swapchain description.
 		Param: const SwapChainDesc& desc
 		*/
-		PARABLIT_API void Init(const SwapChainDesc& desc, Device* device, VkSurfaceKHR windowSurface);
+		PARABLIT_API void Init(const SwapChainDesc& desc, Renderer* renderer, VkSurfaceKHR windowSurface);
 
 		/*
 		Description: Destroy an existing swapchain if there is one.
 		*/
 		PARABLIT_API void Destroy();
+
+		PARABLIT_API VkSwapchainKHR GetHandle() const;
+
+		PARABLIT_API const VkSwapchainKHR* GetHandlePtr() const;
+
+		PARABLIT_API u8 ImageCount();
 
 	private:
 
@@ -56,13 +47,17 @@ namespace PB
 
 		inline PARABLIT_API VkPresentModeKHR ChoosePresentMode(const SwapChainDesc& desc);
 
-		VkSwapchainKHR m_handle;
+		inline PARABLIT_API void GetImages();
+
+		VkSwapchainKHR m_handle = VK_NULL_HANDLE;
+		Renderer* m_renderer = nullptr;
 		Device* m_device = nullptr;
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
-		u32 m_width;
-		u32 m_height;
+		u32 m_width = 0;
+		u32 m_height = 0;
 		DynamicArray<VkImage> m_swapchainImages;
-		u8 m_imageCount;
+		DynamicArray<Texture*> m_wrappedSwapchainImages;
+		u8 m_imageCount = 0;
 	};
 }
 

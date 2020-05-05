@@ -143,26 +143,36 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CommandContext.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="ExtensionManager.cpp" />
     <ClCompile Include="IRenderer.cpp" />
+    <ClCompile Include="PBUtil.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="RenderPassCache.cpp" />
+    <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="Swapchain.cpp" />
     <ClCompile Include="ParaBlitDebug.cpp" />
     <ClCompile Include="ParaBlitLog.cpp" />
+    <ClCompile Include="Texture.cpp" />
     <ClCompile Include="VulkanInstance.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CommandContext.h" />
     <ClInclude Include="Device.h" />
     <ClInclude Include="ExtensionManager.h" />
     <ClInclude Include="IRenderer.h" />
     <ClInclude Include="ISwapChain.h" />
+    <ClInclude Include="PBUtil.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="RenderPassCache.h" />
+    <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="Swapchain.h" />
     <ClInclude Include="ParaBlitApi.h" />
     <ClInclude Include="ParaBlitDebug.h" />
     <ClInclude Include="ParaBlitInterface.h" />
     <ClInclude Include="ParaBlitLog.h" />
+    <ClInclude Include="Texture.h" />
     <ClInclude Include="VulkanInstance.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

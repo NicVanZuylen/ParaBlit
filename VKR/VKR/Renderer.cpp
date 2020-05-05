@@ -1,6 +1,6 @@
 #define VK_USE_PLATFORM_WIN32_KHR
-#include "ParaBlitApi.h"
 #include "Renderer.h"
+#include "ParaBlitApi.h"
 #include "ParaBlitDebug.h"
 
 namespace PB 
@@ -14,6 +14,18 @@ namespace PB
 		m_swapchain.Destroy();
 		if (m_windowSurface)
 			vkDestroySurfaceKHR(m_vkInstance.GetHandle(), m_windowSurface, nullptr);
+
+		// Destroy sync objects.
+		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
+		{
+			vkDestroyFence(m_device.GetHandle(), m_frameInfos[i].m_frameFence, nullptr);
+			vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAquireSempahore, nullptr);
+			vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_frameSemaphore, nullptr);
+		}
+		m_frameInfos.SetCount(0);
+
+		// Destroy master command pool (will free master command buffers).
+		vkDestroyCommandPool(m_device.GetHandle(), m_masterCmdPool, nullptr);
 	}
 
 	void Renderer::Init(const RendererDesc& desc)
@@ -22,6 +34,82 @@ namespace PB
 		m_device.Init(m_vkInstance.GetHandle());
 
 		CreateWindowSurface(desc.m_windowInfo);
+		CreateSyncObjects();
+		CreateMasterCmdBuffers();
+
+		vkGetDeviceQueue(m_device.GetHandle(), m_device.GetGraphicsQueueFamilyIndex(), 0, &m_presentQueue);
+		PB_ASSERT(m_presentQueue);
+	}
+
+	void Renderer::CreateSwapChain(const SwapChainDesc& desc)
+	{
+		m_swapchainDesc = desc; // Cache desc for swap chain re-creation if swap-chain is lost/outdated.
+		m_swapchain.Init(m_swapchainDesc, this, m_windowSurface);
+	}
+
+	Device* Renderer::GetDevice()
+	{
+		return &m_device;
+	}
+
+	VkCommandBuffer Renderer::AllocateCommandBuffer()
+	{
+		if (m_freeContextCmdBuffers.Count() > 0) // Return an available existing command buffer if possible.
+		{
+			VkCommandBuffer nextAvailable = m_freeContextCmdBuffers[m_freeContextCmdBuffers.Count() - 1];
+			m_freeContextCmdBuffers.Pop();
+			return nextAvailable;
+		}
+
+		// ...Otherwise allocate a new one.
+		VkCommandBuffer newCmdBuf;
+		VkCommandBufferAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr };
+		allocInfo.commandBufferCount = 1;
+		allocInfo.commandPool = m_masterCmdPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+
+		vkAllocateCommandBuffers(m_device.GetHandle(), &allocInfo, &newCmdBuf);
+		PB_ASSERT(newCmdBuf);
+		return newCmdBuf;
+	}
+
+	void Renderer::ReturnCommandBuffer(VkCommandBuffer& cmdBuf, bool priority)
+	{
+		if (priority)
+			m_frameInfos[m_curFrameInfoIdx].m_prioritySubmittedContextBuffers.Push(cmdBuf);
+		else
+			m_frameInfos[m_curFrameInfoIdx].m_submittedContextCmdBuffers.Push(cmdBuf);
+		cmdBuf = VK_NULL_HANDLE;
+	}
+
+	void Renderer::BeginFrame()
+	{
+		if (m_curFrameInfoIdx < m_swapchain.ImageCount() - 1)
+			++m_curFrameInfoIdx;
+		else
+			m_curFrameInfoIdx = 0;
+
+		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
+		m_freeContextCmdBuffers += curFrameInfo.m_submittedContextCmdBuffers; // Append submitted command buffers to free buffer array, as they can now be modified.
+		curFrameInfo.m_prioritySubmittedContextBuffers.Clear();
+		curFrameInfo.m_submittedContextCmdBuffers.Clear();
+		PB_ASSERT(curFrameInfo.m_state == PB_FRAME_STATE_IN_FLIGHT || curFrameInfo.m_state == PB_FRAME_STATE_OPEN);
+
+		// Wait for frame to finish if it's still in-flight.
+		vkWaitForFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence, VK_TRUE, ~(0ULL));
+		vkResetFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence);
+
+		curFrameInfo.m_state = PB_FRAME_STATE_OPEN;
+
+		PB_ASSERT(curFrameInfo.m_frameSemaphore);
+		PB_ERROR_CHECK(vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx), "Failed to acquire next swapchain image.");
+	}
+
+	void Renderer::EndFrame()
+	{
+		InlineContextCmdBuffers();
+		SubmitFrame();
+		Present();
 	}
 
 	void Renderer::CreateWindowSurface(WindowDesc* windowInfo)
@@ -41,9 +129,107 @@ namespace PB
 #endif
 	}
 
-	void Renderer::CreateSwapChain(const SwapChainDesc& desc)
+	void Renderer::CreateSyncObjects()
 	{
-		m_swapchainDesc = desc; // Cache desc for swap chain re-creation if swap-chain is lost/outdated.
-		m_swapchain.Init(m_swapchainDesc, &m_device, m_windowSurface);
+		VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT }; // Create fences already signalled, to indicate frames are not in-flight.
+		VkSemaphoreCreateInfo semaphoreInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0 };
+
+		m_frameInfos.SetCount(PB_FRAME_IN_FLIGHT_COUNT);
+		for (u32 i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
+		{
+			FrameInfo& frameInfo = m_frameInfos[i];
+			vkCreateFence(m_device.GetHandle(), &fenceInfo, nullptr, &frameInfo.m_frameFence);
+			PB_ASSERT(frameInfo.m_frameFence);
+			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &frameInfo.m_imageAquireSempahore);
+			PB_ASSERT(frameInfo.m_imageAquireSempahore);
+			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &frameInfo.m_frameSemaphore);
+			PB_ASSERT(frameInfo.m_frameSemaphore);
+		}
+	}
+
+	void Renderer::CreateMasterCmdBuffers()
+	{
+		VkCommandPoolCreateInfo cmdPoolInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr };
+		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		cmdPoolInfo.queueFamilyIndex = m_device.GetGraphicsQueueFamilyIndex();
+		
+		PB_ERROR_CHECK(vkCreateCommandPool(m_device.GetHandle(), &cmdPoolInfo, nullptr, &m_masterCmdPool), "Failed to create master command pool.");
+		PB_ASSERT(m_masterCmdPool);
+
+		// Allocate and assign master command buffers to frame infos.
+		VkCommandBufferAllocateInfo cmdAllocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr };
+		cmdAllocInfo.commandBufferCount = m_frameInfos.Count();
+		cmdAllocInfo.commandPool = m_masterCmdPool;
+		cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+		m_masterCmdBuffers.SetCount(m_frameInfos.Count());
+		PB_ERROR_CHECK(vkAllocateCommandBuffers(m_device.GetHandle(), &cmdAllocInfo, m_masterCmdBuffers.Data()));
+
+		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
+			m_frameInfos[i].m_masterCommandBuffer = m_masterCmdBuffers[i];
+	}
+
+	void Renderer::InlineContextCmdBuffers()
+	{
+		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
+
+		// Begin master command buffer recording.
+		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr };
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		beginInfo.pInheritanceInfo = nullptr;
+
+		vkBeginCommandBuffer(curFrameInfo.m_masterCommandBuffer, &beginInfo);
+
+		// Batch-inline priority command buffers first.
+		if(curFrameInfo.m_prioritySubmittedContextBuffers.Count() > 0)
+			vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, curFrameInfo.m_prioritySubmittedContextBuffers.Count(), curFrameInfo.m_prioritySubmittedContextBuffers.Data());
+
+		// Batch-inline command buffers.
+		if (curFrameInfo.m_submittedContextCmdBuffers.Count() > 0)
+			vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, curFrameInfo.m_submittedContextCmdBuffers.Count(), curFrameInfo.m_submittedContextCmdBuffers.Data());
+
+		// End master command buffer recording.
+		vkEndCommandBuffer(curFrameInfo.m_masterCommandBuffer);
+	}
+
+	void Renderer::SubmitFrame()
+	{
+		// TODO: End master command buffer recording before submission.
+
+		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
+
+		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr };
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &curFrameInfo.m_masterCommandBuffer;
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = &curFrameInfo.m_frameSemaphore;
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = &curFrameInfo.m_imageAquireSempahore;
+		
+		// Wait for color attachment output before signalling the frame semaphore.
+		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		submitInfo.pWaitDstStageMask = waitStages;
+
+		// Signal the frame fence when frame commands have finished execution.
+		PB_ERROR_CHECK(vkQueueSubmit(m_presentQueue, 1, &submitInfo, curFrameInfo.m_frameFence), "Failed to submit master frame command buffer.");
+	}
+
+	void Renderer::Present()
+	{
+		PB_ASSERT(m_curFrameInfoIdx != m_lastFrameInfoIdx, "Must call BeginFrame() before EndFrame().");
+
+		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
+
+		VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, nullptr };
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = m_swapchain.GetHandlePtr();
+		presentInfo.pResults = nullptr;
+		presentInfo.pWaitSemaphores = &curFrameInfo.m_frameSemaphore;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pImageIndices = &curFrameInfo.m_presentImageIdx;
+
+		PB_ERROR_CHECK(vkQueuePresentKHR(m_presentQueue, &presentInfo), "Failed to present swapchain image.");
+
+		curFrameInfo.m_state = PB_FRAME_STATE_IN_FLIGHT;
 	}
 }
