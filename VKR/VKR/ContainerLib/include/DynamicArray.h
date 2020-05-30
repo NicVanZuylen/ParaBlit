@@ -7,173 +7,301 @@
 #define CONTAINER_DEBUG_IMPLEMENTATION
 #endif
 
-#define ASSERT_VALID assert(m_contents && "Dynamic Array Error: Attempting to perform operation with invalid contents!")
+#define CONTAINER_ASSERT_VALID assert(m_contents && "Dynamic Array Error: Attempting to perform operation with invalid contents!")
 
-#define DynamicArray DynArr
+#pragma warning (push)
+// IntelliSense isn't smart enough to release that m_fixedContents is a local array and thus always initialized. So we disable it. 6011 is a direct result of m_fixedContents being assigned to m_contents.
+#pragma warning(disable : 26495)
+#pragma warning(disable : 6011)
 
-template <typename T, typename... Args>
-class DynArr
+template <typename T, uint32_t StartSize = 0, typename... Args>
+class DynamicArray
 {
 public:
 
-	// Default expansion rate is 10.
-	DynArr()
+	DynamicArray()
 	{
-		m_nExpandRate = 1;
-		m_nSize = 1;
-		m_nCount = 0;
-		m_contents = new T[m_nSize];
+		m_expandRate = 1;
+		m_count = 0;
+		
+		if constexpr (StartSize > 0)
+		{
+			m_contents = reinterpret_cast<T*>(m_fixedContents); // Use fixed contents initially if thier size is above zero.
+			m_size = StartSize;
+		}
+		else
+		{
+			m_contents = new T[1];
+			memset(m_contents, 0, sizeof(T));
+			m_size = 1;
+		}
 	}
 
-	DynArr(uint32_t nSize, uint32_t nExpandRate = 1)
+	DynamicArray(uint32_t size, uint16_t expandRate = 1)
 	{
-		// Ensure start size and expand rate are never below 1.
-		if (nSize < 1)
-			nSize = 1;
+		m_expandRate = 1;
+		m_count = 0;
 
-		if (nExpandRate < 1)
-			nExpandRate = 1;
-
-		m_nExpandRate = nExpandRate;
-		m_nSize = nSize;
-		m_nCount = 0;
-		m_contents = new T[m_nSize];
+		if (size > StartSize)
+		{
+			m_contents = new T[size];
+			m_size = size;
+		}
+		else
+		{
+			if constexpr (StartSize > 0)
+			{
+				m_contents = reinterpret_cast<T*>(m_fixedContents);
+				m_size = StartSize;
+			}
+			else
+			{
+				m_contents = new T[size];
+				m_size = size;
+			}
+		}
 	}
 
-	// Copy constructor.
-	DynArr(const DynArr<T>& other)
+	// Copy Constructor
+	DynamicArray(const DynamicArray<T, StartSize>& other)
 	{
 		// Copy properties...
-		m_nCount = other.m_nCount;
-		m_nSize = other.m_nSize;
-		m_nExpandRate = other.m_nExpandRate;
+		m_count = other.Count();
+		m_size = m_count;
+		m_expandRate = other.GetExpandRate();
 
 		// Allocate contents equal to the other's count.
-		m_contents = new T[m_nCount];
+		if (other.Count() <= StartSize)
+		{
+			m_contents = reinterpret_cast<T*>(m_fixedContents);
+			m_size = StartSize;
+		}
+		else
+			m_contents = new T[m_count];
 
 		// Copy contents.
-		std::memcpy(m_contents, other.m_contents, m_nCount * sizeof(T));
+		std::memcpy(m_contents, other.Data(), m_count * sizeof(T));
+	}
+
+	// Different Template Copy constructor.
+	template<typename U, uint32_t OtherStartSize>
+	DynamicArray(const DynamicArray<U, OtherStartSize>& other)
+	{
+		// Copy properties...
+		m_count = other.Count();
+		m_size = m_count;
+		m_expandRate = other.GetExpandRate();
+
+		// Allocate contents equal to the other's count.
+		if (other.Count() <= StartSize)
+		{
+			m_contents = reinterpret_cast<T*>(m_fixedContents);
+			m_size = StartSize;
+		}
+		else
+			m_contents = new T[m_count];
+
+		// Copy contents.
+		std::memcpy(m_contents, other.Data(), m_count * sizeof(T));
 	}
 
 	// Move constructor.
-	DynArr(DynArr<T>&& other) 
+	DynamicArray(DynamicArray<T, StartSize>&& other)
 	{
-		// Copy pointer from other array and set the other array's pointer to null to release ownership.
-		m_contents = other.m_contents;
-		other.m_contents = nullptr;
+		m_count = other.m_count;
+		m_size = other.m_size;
+		m_expandRate = other.m_expandRate;
 
-		m_nCount = other.m_nCount;
-		m_nSize = other.m_nSize;
-		m_nExpandRate = other.m_nExpandRate;
+		// Copy pointer from other array and set the other array's pointer to null to release ownership.
+		if (other.m_contents != reinterpret_cast<T*>(other.m_fixedContents))
+		{
+			m_contents = other.m_contents;
+		}
+		else if (m_count <= StartSize) // Other two cases still need a copy, as we can't steal the other array's local fixed contexts.
+		{
+			m_contents = reinterpret_cast<T*>(m_fixedContents);
+			std::memcpy(m_contents, other.m_contents, m_count);
+			m_size = StartSize;
+		}
+
+		other.m_contents = nullptr;
 	}
 
-	DynArr(const std::initializer_list<T>& list) 
+	DynamicArray(const char* cString)
 	{
-		m_contents = new T[list.size()];
-		m_nCount = static_cast<uint32_t>(list.size());
-		m_nSize = m_nCount;
-		m_nExpandRate = 1;
+		m_expandRate = 1;
+		m_count = static_cast<uint32_t>(std::strlen(cString)) + 1;
+
+		if (m_count <= StartSize)
+		{
+			m_contents = reinterpret_cast<T*>(m_fixedContents);
+			std::memcpy(m_contents, cString, m_count - 1);
+			m_contents[m_count - 1] = '\0';
+			m_size = StartSize;
+		}
+		else
+		{
+			m_size = m_count;
+			m_contents = new char[m_size];
+			std::memcpy(m_contents, cString, m_count - 1);
+			m_contents[m_count - 1] = '\0';
+		}
+	}
+
+	DynamicArray(const std::initializer_list<T>& list)
+	{
+		m_count = static_cast<uint32_t>(list.size());
+		m_size = m_count;
+		if (m_size <= StartSize)
+		{
+			m_contents = reinterpret_cast<T*>(m_fixedContents);
+			m_size = StartSize;
+		}
+		else
+			m_contents = new T[m_size];
+		m_expandRate = 1;
 
 		// Copy initializer list contents into array.
 		std::memcpy(m_contents, list.begin(), list.size() * sizeof(T));
 	}
 
-	~DynArr()
+	inline ~DynamicArray()
 	{
-		if (m_contents)
-			delete[] m_contents;
+		Delete();
 	}
 
-	void Invalidate()
+	inline void Invalidate()
 	{
 		m_contents = nullptr;
 	}
 
 	// Getters
 
-	uint32_t GetExpandRate() const
+	inline uint32_t GetExpandRate() const
 	{
-		return m_nExpandRate;
+		return m_expandRate;
 	}
 
-	uint32_t GetSize() const
+	inline uint32_t GetSize() const
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 #endif
 
-		return m_nSize;
+		return m_size;
 	}
 
-	uint32_t Count() const
+	inline uint32_t Count() const
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 #endif
 
-		return m_nCount;
+		return m_count;
 	}
 
 	// Setters
 
-	void SetExpandRate(uint32_t nExpandRate)
+	inline void SetExpandRate(uint32_t nExpandRate)
 	{
-		m_nExpandRate = nExpandRate;
+		m_expandRate = nExpandRate;
 	}
 
 	// Assigment to initializer list.
 	void operator = (const std::initializer_list<T> list) 
 	{
-		if (m_contents)
-			delete[] m_contents;
+		Delete();
 
 		m_contents = new T[list.size()];
-		m_nCount = static_cast<uint32_t>(list.size());
-		m_nSize = m_nCount;
+		m_count = static_cast<uint32_t>(list.size());
+		m_size = m_count;
 
 		// Copy initializer list contents into array.
 		std::memcpy(m_contents, list.begin(), list.size() * sizeof(T));
 	}
 
-	// Copy assignment operator
-	DynArr& operator = (const DynArr<T>& other)
+	// Copy Constructor
+	DynamicArray& operator = (const DynamicArray<T, StartSize>& other)
 	{
 		// Copy properties...
-		m_nCount = other.m_nCount;
-		m_nExpandRate = other.m_nExpandRate;
+		m_count = other.Count();
+		m_expandRate = other.GetExpandRate();
 
 		// Allocate new array if this one is too small for the other's contents.
-		if (m_nSize < other.m_nCount)
-		{
-			m_nSize = other.m_nCount;
-
-			// Delete existing contents.
-			if (m_contents)
-				delete[] m_contents;
-
-			m_contents = new T[m_nSize];
-		}
+		if (m_size < m_count)
+			SetSize(m_count);
 
 		// Copy contents.
-		std::memcpy(m_contents, other.m_contents, other.m_nCount * sizeof(T));
+		std::memcpy(m_contents, other.Data(), m_count * sizeof(T));
+
+		return *this;
+	};
+
+	// Different Template Copy assignment operator
+	template<typename U, uint32_t OtherStartSize>
+	DynamicArray& operator = (const DynamicArray<U, OtherStartSize>& other)
+	{
+		// Copy properties...
+		m_count = other.Count();
+		m_expandRate = other.GetExpandRate();
+
+		// Allocate new array if this one is too small for the other's contents.
+		if (m_size < m_count)
+			SetSize(m_count);
+
+		// Copy contents.
+		std::memcpy(m_contents, other.Data(), m_count * sizeof(T));
+
+		return *this;
+	};
+
+	DynamicArray<char, StartSize>& operator = (const char* cString)
+	{
+		m_expandRate = 1;
+		m_count = static_cast<uint32_t>(std::strlen(cString)) + 1;
+
+		Delete();
+
+		if (m_count <= StartSize)
+		{
+			m_contents = m_fixedContents;
+			std::memcpy(m_contents, cString, m_count - 1);
+			m_contents[m_count - 1] = '\0';
+			m_size = StartSize;
+		}
+		else
+		{
+			m_size = m_count;
+			m_contents = new char[m_size];
+			std::memcpy(m_contents, cString, m_count - 1);
+			m_contents[m_count - 1] = '\0';
+		}
 
 		return *this;
 	}
 
 	// Move assignment operator.
-	DynArr& operator = (DynArr<T>&& other) noexcept
+	DynamicArray<T>& operator = (DynamicArray<T, StartSize>&& other) noexcept
 	{
-		// Delete old contents if they exist.
-		if (m_contents)
-			delete[] m_contents;
+		m_count = other.m_count;
+		m_size = m_count;
+		m_expandRate = other.m_expandRate;
+
+		Delete();
 
 		// Copy pointer from other array and set the other array's pointer to null to release ownership.
-		m_contents = other.m_contents;
-		other.m_contents = nullptr;
+		if (other.m_contents != reinterpret_cast<T*>(other.m_fixedContents))
+		{
+			m_contents = other.m_contents;
+		}
+		else if (m_count <= StartSize) // Other two cases still need a copy, as we can't steal the other array's local fixed contexts.
+		{
+			m_contents = reinterpret_cast<T*>(m_fixedContents);
+			std::memcpy(m_contents, other.m_contents, m_count);
+			m_size = StartSize;
+		}
 
-		m_nCount = other.m_nCount;
-		m_nSize = other.m_nSize;
-		m_nExpandRate = other.m_nExpandRate;
+		other.m_contents = nullptr;
 
 		return *this;
 	}
@@ -189,17 +317,17 @@ public:
 	inline void Push(const T& value)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 #endif
 
-		if (m_nCount < m_nSize)
+		if (m_count < m_size)
 		{
-			m_contents[m_nCount++] = value; // Copy new value into existing space in the array.
+			m_contents[m_count++] = value; // Copy new value into existing space in the array.
 		}
 		else 
 		{
-			Expand(); // Expand the array to make room for the new value.
-			m_contents[m_nCount++] = value;
+			SetSize(m_size + m_expandRate); // Expand the array to make room for the new value.
+			m_contents[m_count++] = value;
 		}
 	}
 
@@ -209,10 +337,10 @@ public:
 	*/
 	inline T& Emplace(Args&&... args) 
 	{
-		if (m_nCount >= m_nSize)
-			Expand();
+		if (m_count >= m_size)
+			SetSize(m_size + m_expandRate);
 
-		return (m_contents[m_nCount++] = std::move(T(args...)));
+		return (m_contents[m_count++] = std::move(T(args...)));
 	}
 
 	/*
@@ -225,22 +353,22 @@ public:
 	inline void Insert(const T& value, uint32_t nIndex) 
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
-		assert((nIndex >= 0 && nIndex <= m_nCount) && "Dynamic Array Error: Insertion index out of range.");
+		CONTAINER_ASSERT_VALID;
+		assert((nIndex >= 0 && nIndex <= m_count) && "Dynamic Array Error: Insertion index out of range.");
 #endif
 
 		// Make room for new value if there is none.
-		if (m_nCount >= m_nSize)
-			Expand();
+		if (m_count >= m_size)
+			SetSize(m_size + m_expandRate);
 
 		// Shift values further down the array.
-		uint32_t nCopySize = (m_nSize - (nIndex + 1)) * sizeof(T);
+		uint32_t nCopySize = (m_size - (nIndex + 1)) * sizeof(T);
 
 		// Move contents.
 		std::memcpy(&m_contents[nIndex + 1], &m_contents[nIndex], nCopySize);
 
 		m_contents[nIndex] = value;
-		++m_nCount;
+		++m_count;
 	}
 
 	/*
@@ -250,29 +378,29 @@ public:
 		const DynArr<T>& arr: The array to insert onto this one.
 		uint32_t nIndex: The index in this array to insert arr into.
 	*/
-	inline void Insert(const DynArr<T> arr, uint32_t nIndex)
+	template<typename U, uint32_t OtherStartSize>
+	inline void Insert(const DynamicArray<U, OtherStartSize>& arr, uint32_t nIndex)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
-		assert((nIndex >= 0 && nIndex <= m_nCount) && "Dynamic Array Error: Insertion index out of range.");
+		CONTAINER_ASSERT_VALID;
+		assert((nIndex >= 0 && nIndex <= m_count) && "Dynamic Array Error: Insertion index out of range.");
 #endif
-
-		uint32_t nNewSize = m_nCount + arr.m_nCount;
+		uint32_t nNewSize = m_count + arr.m_count;
 
 		// Make room for new value if there is not enough.
-		if (m_nSize < nNewSize)
+		if (m_size < nNewSize)
 			SetSize(nNewSize);
 
 		// Shift values further down the array.
-		uint32_t nCopySize = (m_nSize - (nIndex + arr.m_nCount)) * sizeof(T);
+		uint32_t nCopySize = (m_size - (nIndex + arr.m_count)) * sizeof(T);
 
 		// Move contents.
-		std::memcpy(&m_contents[nIndex + arr.m_nCount], &m_contents[nIndex], nCopySize);
+		std::memcpy(&m_contents[nIndex + arr.m_count], &m_contents[nIndex], nCopySize);
 
 		// Copy other array into the gap.
-		std::memcpy(&m_contents[nIndex], arr.m_contents, arr.m_nCount * sizeof(T));
+		std::memcpy(&m_contents[nIndex], arr.m_contents, arr.m_count * sizeof(T));
 
-		m_nCount = nNewSize;
+		m_count = nNewSize;
 	}
 
 	/*
@@ -281,47 +409,56 @@ public:
 	Param:
 	    const DynArr<T>& other: The array to append onto this one.
 	*/
-	void Append(const DynArr<T>& other) 
+	template<typename U, uint32_t OtherStartSize>
+	inline void Append(const DynamicArray<U, OtherStartSize>& other)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
-		assert(other.m_nCount > 0 && "Dynamic Array Error: Attempted to append zero length array.");
+		CONTAINER_ASSERT_VALID;
+		assert(other.Count() > 0 && "Dynamic Array Error: Attempted to append zero length array.");
 #else
-		if (other.m_nCount == 0)
+		if (other.Count() == 0)
 			return;
 #endif
-
-		uint32_t nNewLength = m_nCount + other.m_nCount;
-		uint32_t nOtherSize = other.m_nCount * sizeof(T);
-
-		if(m_nSize < nNewLength) 
-		{
-			T* tmpContents = new T[nNewLength];
-
-			// Copy old contents of this array to the new array.
-			std::memcpy(tmpContents, m_contents, m_nCount * sizeof(T));
-
-			// Delete old contents.
-			delete[] m_contents;
-
-			// Assign new contents.
-			m_contents = tmpContents;
-
-			m_nSize = nNewLength;
-		}
+		uint32_t newSize = m_count + other.Count();
+		if(newSize > m_size)
+			SetSize(newSize);
 
 		// Copy contents from other array uint32_to this one.
-		std::memcpy(&m_contents[m_nCount], other.m_contents, other.m_nCount * sizeof(T));
+		std::memcpy(&m_contents[m_count], other.Data(), other.Count() * sizeof(U));
 
 		// Set new size and count.
-		m_nCount = nNewLength;
-		m_nSize = nNewLength;
+		m_count = newSize;
 	}
 
 	// Append using += operator.
-	inline void operator += (const DynArr<T>& other) 
+	template<typename U, uint32_t OtherStartSize>
+	inline void operator += (const DynamicArray<U, OtherStartSize>& other)
 	{
 		Append(other);
+	}
+
+	/*
+	Description: Extend contents with the values of a another C string.
+	Speed: O(1), Possible Mem Alloc & Free
+	Param:
+		const char* cString:
+	*/
+	inline void Append(const char* cString)
+	{
+		uint32_t length = static_cast<uint32_t>(std::strlen(cString));
+		uint32_t newSize = m_count + length;
+		if (newSize > m_size)
+			SetSize(newSize);
+
+		memcpy(&m_contents[m_count - 1], cString, length);
+		m_contents[newSize - 1] = '\0';
+		m_count = newSize;
+	}
+	
+	// Append C string using += operator.
+	inline void operator += (const char* cString)
+	{
+		Append(cString);
 	}
 
 	/*
@@ -332,18 +469,28 @@ public:
 	inline void SetSize(uint32_t nSize) 
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 		assert(nSize > 0 && "Dynamic Array Error: Attempted to resize array to zero.");
 #endif
-
 		// Nothing needs to be done if the sizes are equal.
-		if (m_nSize == nSize)
+		if (m_size == nSize)
 			return;
 
-		T* tmpContents = new T[nSize];
+		m_size = nSize;
+
+		T* tmpContents;
+		if (m_size > StartSize)
+		{
+			tmpContents = new T[m_size];
+		}
+		else
+		{
+			tmpContents = m_contents = reinterpret_cast<T*>(m_fixedContents);
+			m_size = StartSize;
+		}
 
 		uint32_t nNewSize = nSize * sizeof(T);
-		uint32_t nOldSize = m_nCount * sizeof(T);
+		uint32_t nOldSize = m_count * sizeof(T);
 
 		// Copy old contents to new array. If the new array is smaller, elements beyond its size will be lost.
 		if(nNewSize < nOldSize)
@@ -351,17 +498,11 @@ public:
 		else
 			std::memcpy(tmpContents, m_contents, nOldSize);
 
-		// Delete old array.
-		delete[] m_contents;
-
-		// Assign new array.
+		Delete();
 		m_contents = tmpContents;
 
-		// Set size and count.
-		m_nSize = nSize;
-
-		if (m_nCount > m_nSize)
-			m_nCount = m_nSize;
+		if (m_count > m_size)
+			m_count = m_size;
 	}
 
 	/*
@@ -373,11 +514,10 @@ public:
 	inline void SetCount(uint32_t nCount) 
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
-		assert(nCount <= m_nSize && "Dynamic Array Error: Attempting to set count to a value higher than the internal array size.");
+		CONTAINER_ASSERT_VALID;
+		assert(nCount <= m_size && "Dynamic Array Error: Attempting to set count to a value higher than the internal array size.");
 #endif
-
-		m_nCount = nCount;
+		m_count = nCount;
 	}
 
 	// Pop (remove)
@@ -389,11 +529,10 @@ public:
 	inline void Pop()
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 #endif
-
-		if (m_nCount > 0)
-			--m_nCount;
+		if (m_count > 0)
+			--m_count;
 	}
 
 	/*
@@ -403,11 +542,11 @@ public:
 	inline void Pop(const T value) 
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 #endif
 
 		// Search through array for matching value and remove it if found.
-		for (uint32_t i = 0; i < m_nCount; ++i) 
+		for (uint32_t i = 0; i < m_count; ++i) 
 		{
 			if (std::memcmp(&m_contents[i], &value, sizeof(T)) == 0) 
 			{
@@ -424,19 +563,19 @@ public:
 	inline void PopAt(const uint32_t& nIndex)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
-		assert((nIndex >= 0 && nIndex < m_nCount) && "Dynamic Array Error: Subscript index out of range.");
+		CONTAINER_ASSERT_VALID;
+		assert((nIndex >= 0 && nIndex < m_count) && "Dynamic Array Error: Subscript index out of range.");
 #endif
 
-		if(nIndex < m_nSize - 1) 
+		if(nIndex < m_size - 1) 
 		{
 			// Overlap contents of removed index with the contents after it.
-			uint32_t nCopySize = (m_nSize - (nIndex + 1)) * sizeof(T);
+			uint32_t nCopySize = (m_size - (nIndex + 1)) * sizeof(T);
 			std::memcpy(&m_contents[nIndex], &m_contents[nIndex + 1], nCopySize);
 		}
 
 		// Decrease used slot count.
-		--m_nCount;
+		--m_count;
 	}
 
 	/*
@@ -446,20 +585,28 @@ public:
 	void ShrinkToFit()
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 #endif
 
+		if (m_contents == m_fixedContents)
+			return;
+
 		// Calculate amount of memory to free.
-		m_nSize = m_nCount;
+		if (m_count > StartSize)
+			m_size = m_count;
+		else
+			m_size = StartSize;
 
 		// Temporary pointer to the new array.
-		T* tmpContents = new T[m_nSize];
+		T* tmpContents = m_fixedContents;
+		if (m_size != StartSize)
+			tmpContents = new T[m_size];
 
 		// Copy old contents to new content array.
-		std::memcpy(tmpContents, m_contents, m_nSize * sizeof(T));
+		std::memcpy(tmpContents, m_contents, m_size * sizeof(T));
 
 		// m_contents is no longer useful, delete it.
-		delete[] m_contents;
+		Delete();
 
 		// Then set m_contents to the address of tmpContents
 		m_contents = tmpContents;
@@ -470,11 +617,11 @@ public:
 	Return Type: T&
 	Speed: O(1)
 	*/
-	T& operator [] (uint32_t nIndex)
+	T& operator [] (const uint32_t& nIndex)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION_FULL
-		ASSERT_VALID;
-		assert((nIndex < m_nCount && nIndex >= 0) && "Dynamic Array Error: Subscript index out of range.");
+		CONTAINER_ASSERT_VALID;
+		assert((nIndex < m_count && nIndex >= 0) && "Dynamic Array Error: Subscript index out of range.");
 #endif
 		return m_contents[nIndex];
 	}
@@ -484,11 +631,11 @@ public:
 	Return Type: const T&
 	Speed: O(1)
 	*/
-	const T& operator [] (uint32_t nIndex) const
+	const T& operator [] (const uint32_t& nIndex) const
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION_FULL
-		ASSERT_VALID;
-		assert((nIndex < m_nCount && nIndex >= 0) && "Dynamic Array Error: Subscript index out of range.");
+		CONTAINER_ASSERT_VALID;
+		assert((nIndex < m_count && nIndex >= 0) && "Dynamic Array Error: Subscript index out of range.");
 #endif
 		return m_contents[nIndex];
 	}
@@ -499,7 +646,7 @@ public:
 	*/
 	inline void Clear()
 	{
-		m_nCount = 0;
+		m_count = 0;
 	}
 
 	/*
@@ -507,7 +654,7 @@ public:
 	Return Type: T*
 	Speed: O(1)
 	*/
-	T* Data() 
+	inline T* Data() 
 	{
 		return m_contents;
 	}
@@ -517,12 +664,22 @@ public:
 	Return Type: const T*
 	Speed: O(1)
 	*/
-	const T* Data() const
+	inline const T* Data() const
 	{
 		return m_contents;
 	}
 
-	// For range-based for loops:
+	/*
+	Description: Expose a pointer to the internal array as a C String.
+	Return Type: const T*
+	Speed: O(1)
+	*/
+	inline const char* CString() const
+	{
+		return reinterpret_cast<char*>(m_contents);
+	}
+
+	// Walking functions
 
 	T* begin()
 	{
@@ -531,7 +688,35 @@ public:
 
 	T* end()
 	{
-		return &m_contents[m_nCount];
+		return &m_contents[m_count];
+	}
+
+	const T* begin() const
+	{
+		return m_contents;
+	}
+
+	const T* end() const
+	{
+		return &m_contents[m_count];
+	}
+
+	T& Back()
+	{
+#ifdef CONTAINER_DEBUG_IMPLEMENTATION
+		assert(m_count > 0 && "Dynamic Array Error: No back element to access.");
+#endif
+
+		return m_contents[m_count - 1];
+	}
+
+	const T& Back() const
+	{
+#ifdef CONTAINER_DEBUG_IMPLEMENTATION
+		assert(m_count > 0 && "Dynamic Array Error: No back element to access.");
+#endif
+
+		return m_contents[m_count - 1];
 	}
 
 	typedef bool(*CompFunctionPtr)(T lhs, T rhs);
@@ -540,7 +725,7 @@ public:
 	void QuickSort(uint32_t nStart, uint32_t nEnd, CompFunctionPtr sortFunc)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		ASSERT_VALID;
+		CONTAINER_ASSERT_VALID;
 #endif
 
 		if (nStart < nEnd) // Is false when finished.
@@ -557,7 +742,7 @@ public:
 private:
 
 	// Partition function for quick sort algorithm.
-	uint32_t Partition(uint32_t nStart, uint32_t nEnd, CompFunctionPtr sortFunc)
+	inline uint32_t Partition(uint32_t nStart, uint32_t nEnd, CompFunctionPtr sortFunc)
 	{
 		T nPivot = operator[](nEnd - 1);
 
@@ -592,45 +777,22 @@ private:
 		return smallPartition;
 	}
 
-	// Expand function.
-	inline void Expand()
+	inline void Delete()
 	{
-		// Temporary pointer to the new array.
-		uint32_t nNewSize = m_nSize + m_nExpandRate;
-
-		T* tmpContents = new T[nNewSize];
-
-		// Copy old contents to new content array.
-		std::memcpy(tmpContents, m_contents, m_nSize * sizeof(T));
-
-		// m_contents is no longer useful, delete it.
-		delete[] m_contents;
-
-		// Then set m_contents to the address of tmpContents
-		m_contents = tmpContents;
-
-		// Set new size value.
-		m_nSize = nNewSize;
+		if (m_contents && m_contents != reinterpret_cast<T*>(m_fixedContents))
+			delete[] m_contents;
 	}
 
-	T* m_contents = nullptr;
-	uint32_t m_nExpandRate;
-	uint32_t m_nSize;
-	uint32_t m_nCount;
+	T* m_contents = reinterpret_cast<T*>(m_fixedContents);
+	uint32_t m_size;
+	uint32_t m_count;
+	uint16_t m_expandRate;
+	char m_fixedContents[2 + (StartSize * sizeof(T))]; // 2 Bytes for padding + additional bytes needed for the StartSize * Type.
 };
 
-// Append two arrays using the + operator.
-template<typename T>
-inline DynArr<T> operator + (const DynArr<T>& first, const DynArr<T> second) 
-{
-#ifdef CONTAINER_DEBUG_IMPLEMENTATION
-	assert(first.Data() && second.Data() && "Dynamic Array Error: Attempting to append to or from an invalid array!");
-#endif
+using String = DynamicArray<char>;
 
-	// Create new array with enough space for both input arrays.
-	DynArr<T> newArray(first.Count() + second.Count(), first.GetExpandRate());
-	newArray = first; // Copy first array.
-	newArray += second; // Append second array.
+template<uint32_t Size = 0>
+using SizedString = DynamicArray<char, Size>;
 
-	return newArray;
-}
+#pragma warning(pop)

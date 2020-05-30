@@ -14,7 +14,7 @@ public:
 
 	Queue(const int& arraySize, const int& arrayExpandRate)
 	{
-		m_contents = DynArr<T>(arraySize, arrayExpandRate);
+		m_contents = DynamicArray<T>(arraySize, arrayExpandRate);
 	}
 
 	~Queue() 
@@ -77,5 +77,5 @@ public:
 
 private:
 
-	DynArr<T> m_contents;
+	DynamicArray<T> m_contents;
 };

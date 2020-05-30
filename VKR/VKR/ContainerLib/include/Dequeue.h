@@ -14,7 +14,7 @@ public:
 
 	Dequeue(const int& arraySize, const int& arrayExpandRate)
 	{
-		m_contents = DynArr<T>(arraySize, arrayExpandRate);
+		m_contents = DynamicArray<T>(arraySize, arrayExpandRate);
 	}
 
 	~Dequeue()
@@ -103,5 +103,5 @@ public:
 
 private:
 
-	DynArr<T> m_contents;
+	DynamicArray<T> m_contents;
 };

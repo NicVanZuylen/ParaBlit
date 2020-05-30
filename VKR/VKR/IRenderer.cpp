@@ -10,7 +10,7 @@ namespace PB
 
 	void DestroyRenderer(IRenderer*& renderer)
 	{
-		delete static_cast<Renderer*>(renderer);
+		delete reinterpret_cast<Renderer*>(renderer);
 		renderer = nullptr;
 	}
 }

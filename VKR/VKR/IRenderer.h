@@ -33,7 +33,14 @@ namespace PB
 	{
 	public:
 		PARABLIT_INTERFACE void Init(const RendererDesc& desc) = 0;
-		PARABLIT_INTERFACE void CreateSwapChain(const SwapChainDesc& desc) = 0;
+
+		/*
+		Description: Create a swapchain for the renderer with the provided desc. The renderer will automatically present images to the window with it.
+		Return Type: ISwapChain*
+		Param:
+			const SwapChainDesc& desc
+		*/
+		PARABLIT_INTERFACE ISwapChain* CreateSwapChain(const SwapChainDesc& desc) = 0;
 		PARABLIT_INTERFACE void BeginFrame() = 0;
 		PARABLIT_INTERFACE void EndFrame() = 0;
 

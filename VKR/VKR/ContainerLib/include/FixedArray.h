@@ -19,23 +19,17 @@ public:
 	}
 
 	// Copy constructor.
-	FixedArray(const FixedArray<T, Size>& other)
+	template<typename U, uint32_t OtherSize>
+	FixedArray(const FixedArray<U, OtherSize>& other)
 	{
 		// Copy properties...
 		m_nCount = other.m_nCount;
 
 		// Copy contents.
-		std::memcpy(m_contents, other.m_contents, Size * sizeof(T));
-	}
-
-	// Move constructor.
-	FixedArray(DynArr<T>&& other)
-	{
-		// Copy pointer from other array and set the other array's pointer to null to release ownership.
-		m_contents = other.m_contents;
-		other.m_contents = nullptr;
-
-		m_nCount = other.m_nCount;
+		if (Size <= OtherSize)
+			std::memcpy(m_contents, other.Data(), Size * sizeof(T));
+		else
+			std::memcpy(m_contents, other.Data(), OtherSize * sizeof(T));
 	}
 
 	FixedArray(const std::initializer_list<T>& list)
@@ -63,7 +57,7 @@ public:
 	// Setters
 
 	// Assigment to initializer list.
-	void operator = (const std::initializer_list<T> list) 
+	void operator = (const std::initializer_list<T> list)
 	{
 		uint32_t nListSize = static_cast<uint32_t>(list.size());
 		if (nListSize > Size)
@@ -75,25 +69,17 @@ public:
 	}
 
 	// Copy assignment operator
-	FixedArray<T, Size>& operator = (const FixedArray<T, Size>& other)
+	template<typename U, uint32_t OtherSize>
+	FixedArray<T, Size>& operator = (const FixedArray<U, OtherSize>& other)
 	{
 		// Copy properties...
-		m_nCount = other.m_nCount;
+		m_nCount = other.Count();
 
 		// Copy contents.
-		std::memcpy(m_contents, other.m_contents, Size * sizeof(T));
-
-		return *this;
-	}
-
-	// Move assignment operator.
-	FixedArray<T, Size>& operator = (FixedArray<T, Size>&& other) noexcept
-	{
-		// Copy pointer from other array and set the other array's pointer to null to release ownership.
-		m_contents = other.m_contents;
-		other.m_contents = nullptr;
-
-		m_nCount = other.m_nCount;
+		if(Size <= OtherSize)
+			std::memcpy(m_contents, other.Data(), Size * sizeof(T));
+		else
+			std::memcpy(m_contents, other.Data(), OtherSize * sizeof(T));
 
 		return *this;
 	}
@@ -104,12 +90,12 @@ public:
 	Description: Appends a value to the end of the array, and expands the array if there is no room for the new value.
 	Speed: O(1), Possible Mem Alloc & Free
 	Param:
-	    const T& value: The new value to append.
+		const T& value: The new value to append.
 	*/
 	inline void Push(const T& value)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		assert(m_nCount < Size, "Fixed Array Error: Attempted overflowing push.");
+		assert(m_nCount < Size && "Fixed Array Error: Attempted overflowing push.");
 #endif
 
 		m_contents[m_nCount++] = value;
@@ -119,10 +105,10 @@ public:
 	Description: Constructs a new a value to the end of the array, and expands the array if there is no room for the new value. Requires a default constructor and move assignment operator.
 	Speed: O(1), Possible Mem Alloc & Free
 	*/
-	inline T& Emplace(Args&&... args) 
+	inline T& Emplace(Args&&... args)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		assert(m_nCount < Size, "Fixed Array Error: Attempted overflowing enplacement.");
+		assert(m_nCount < Size && "Fixed Array Error: Attempted overflowing enplacement.");
 #endif
 
 		return (m_contents[m_nCount++] = std::move(T(args...)));
@@ -135,7 +121,7 @@ public:
 		const T& value: The value to insert into this array.
 		uint32_t nIndex: The index to insert the value into.
 	*/
-	inline void Insert(const T& value, uint32_t nIndex) 
+	inline void Insert(const T& value, uint32_t nIndex)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
 		assert((nIndex >= 0 && nIndex <= m_nCount && m_nCount < Size) && "Fixed Array Error: Insertion index out of range.");
@@ -158,23 +144,22 @@ public:
 		const FixedArray<T, Size>& arr: The array to insert onto this one.
 		uint32_t nIndex: The index in this array to insert arr into.
 	*/
-	inline void Insert(const FixedArray<T, Size> arr, uint32_t nIndex)
+	template<typename U, uint32_t OtherSize>
+	inline void Insert(const FixedArray<U, OtherSize> arr, uint32_t nIndex)
 	{
-		uint32_t nNewSize = m_nCount + arr.m_nCount;
+		uint32_t nNewSize = m_nCount + arr.Count();
 
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		assert((nIndex >= 0 && nIndex <= m_nCount && nNewSize <= Size) && "Dynamic Array Error: Insertion index out of range.");
+		assert((nIndex >= 0 && nIndex <= m_nCount && nNewSize <= Size) && "Dynamic Array Error: Insertion index out of range or not enough room for insertion.");
 #endif
-
-
 		// Shift values further down the array.
-		uint32_t nCopySize = (Size - (nIndex + arr.m_nCount)) * sizeof(T);
+		uint32_t nCopySize = (Size - (nIndex + arr.Count())) * sizeof(T);
 
 		// Move contents.
-		std::memcpy(&m_contents[nIndex + arr.m_nCount], &m_contents[nIndex], nCopySize);
+		std::memcpy(&m_contents[nIndex + arr.Count()], &m_contents[nIndex], nCopySize);
 
 		// Copy other array into the gap.
-		std::memcpy(&m_contents[nIndex], arr.m_contents, arr.m_nCount * sizeof(T));
+		std::memcpy(&m_contents[nIndex], arr.Data(), arr.Count() * sizeof(T));
 
 		m_nCount = nNewSize;
 	}
@@ -183,30 +168,37 @@ public:
 	Description: Extend contents with the values of another fixed array.
 	Speed: O(1)
 	Param:
-	    const FixedArray<T, Size>& other: The array to append onto this one.
+		const FixedArray<T, Size>& other: The array to append onto this one.
 	*/
-	void Append(const FixedArray<T, Size>& other) 
+	template<typename U, uint32_t OtherSize>
+	inline void Append(const FixedArray<U, OtherSize>& other)
 	{
-		uint32_t nNewLength = m_nCount + other.m_nCount;
+		uint32_t nNewLength = m_nCount + other.Count();
 
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
-		assert(other.m_nCount > 0 && nNewLength <= Size && "Fixed Array Error: Attempted to append zero length array or not enough room in internal array.");
+		assert(other.Count() > 0 && "Fixed Array Error: Attempted to append zero length array.");
 #else
 		if (other.m_nCount == 0)
 			return;
 #endif
 
-		uint32_t nOtherSize = other.m_nCount * sizeof(T);
+		uint32_t nOtherSize = other.Count() * sizeof(T);
+		if (nNewLength > Size)
+		{
+			nNewLength = Size;
+			nOtherSize = (Size - m_nCount) * sizeof(T);
+		}
 
 		// Copy contents from other array uint32_to this one.
-		std::memcpy(&m_contents[m_nCount], other.m_contents, other.m_nCount * sizeof(T));
+		std::memcpy(&m_contents[m_nCount], other.Data(), nOtherSize);
 
 		// Set new size and count.
 		m_nCount = nNewLength;
 	}
 
 	// Append using += operator.
-	inline void operator += (const FixedArray<T, Size>& other) 
+	template<typename U, uint32_t OtherSize>
+	inline void operator += (const FixedArray<U, OtherSize>& other)
 	{
 		Append(other);
 	}
@@ -215,9 +207,9 @@ public:
 	Description: Set the count of the dynamic array. (UNSAFE)
 	Speed: O(1)
 	Param:
-	    uint32_t nCount: The new amount of "valid" elements in this array.
+		uint32_t nCount: The new amount of "valid" elements in this array.
 	*/
-	inline void SetCount(uint32_t nCount) 
+	inline void SetCount(uint32_t nCount)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION
 		assert(nCount <= Size && "Fixed Array Error: Attempting to set count to a value higher than the internal array size.");
@@ -242,12 +234,12 @@ public:
 	Description: Index through all objects in the array and remove the first element matching the input value (Slow).
 	Speed: O(n)
 	*/
-	inline void Pop(const T value) 
+	inline void Pop(const T value)
 	{
 		// Search through array for matching value and remove it if found.
-		for (uint32_t i = 0; i < m_nCount; ++i) 
+		for (uint32_t i = 0; i < m_nCount; ++i)
 		{
-			if (std::memcmp(&m_contents[i], &value, sizeof(T)) == 0) 
+			if (std::memcmp(&m_contents[i], &value, sizeof(T)) == 0)
 			{
 				PopAt(i);
 				return;
@@ -265,7 +257,7 @@ public:
 		assert((nIndex >= 0 && nIndex < m_nCount) && "Fixed Array Error: Subscript index out of range.");
 #endif
 
-		if(nIndex < Size - 1) 
+		if (nIndex < Size - 1)
 		{
 			// Overlap contents of removed index with the contents after it.
 			uint32_t nCopySize = (Size - (nIndex + 1)) * sizeof(T);
@@ -284,7 +276,7 @@ public:
 	T& operator [] (uint32_t nIndex)
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION_FULL
-		assert((nIndex < m_nCount && nIndex >= 0) && "Fixed Array Error: Subscript index out of range.");
+		assert((nIndex < m_nCount&& nIndex >= 0) && "Fixed Array Error: Subscript index out of range.");
 #endif
 		return m_contents[nIndex];
 	}
@@ -297,7 +289,7 @@ public:
 	const T& operator [] (uint32_t nIndex) const
 	{
 #ifdef CONTAINER_DEBUG_IMPLEMENTATION_FULL
-		assert((nIndex < m_nCount && nIndex >= 0) && "Fixed Array Error: Subscript index out of range.");
+		assert((nIndex < m_nCount&& nIndex >= 0) && "Fixed Array Error: Subscript index out of range.");
 #endif
 		return m_contents[nIndex];
 	}
@@ -316,7 +308,7 @@ public:
 	Return Type: T*
 	Speed: O(1)
 	*/
-	T* Data() 
+	T* Data()
 	{
 		return m_contents;
 	}
@@ -329,6 +321,26 @@ public:
 	const T* Data() const
 	{
 		return m_contents;
+	}
+
+	T* begin()
+	{
+		return m_contents;
+	}
+
+	T* end()
+	{
+		return &m_contents[m_nCount];
+	}
+
+	const T* begin() const
+	{
+		return m_contents;
+	}
+
+	const T* end() const
+	{
+		return &m_contents[m_nCount];
 	}
 
 	typedef bool(*CompFunctionPtr)(T lhs, T rhs);
@@ -388,19 +400,3 @@ private:
 	T m_contents[Size];
 	uint32_t m_nCount;
 };
-
-// Append two arrays using the + operator.
-template<typename T, int Size>
-inline FixedArray<T, Size> operator + (const FixedArray<T, Size>& first, const FixedArray<T, Size> second)
-{
-#ifdef CONTAINER_DEBUG_IMPLEMENTATION
-	assert(first.Data() && second.Data() && "Dynamic Array Error: Attempting to append to or from an invalid array!");
-#endif
-
-	// Create new array with enough space for both input arrays.
-	DynArr<T> newArray(first.Count() + second.Count(), first.GetExpandRate());
-	newArray = first; // Copy first array.
-	newArray += second; // Append second array.
-
-	return newArray;
-}

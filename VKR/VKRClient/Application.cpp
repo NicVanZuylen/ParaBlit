@@ -2,14 +2,17 @@
 #include "Input.h"
 #include "ParaBlitLog.h"
 #include "WindowHandle.h"
+#include "ICommandContext.h"
 
 #include <iostream>
 #include <chrono>
+#include <string>
 
 #include "glfw3.h"
 #include "IRenderer.h"
 
 PB::IRenderer* Application::m_renderer = nullptr;
+PB::ISwapChain* Application::m_swapchain = nullptr;
 GLFWwindow* Application::m_window = nullptr;
 Input* Application::m_input = nullptr;
 bool Application::m_isfullScreen = false;
@@ -38,8 +41,22 @@ Application::~Application()
 	glfwTerminate();
 }
 
-int Application::Init() 
+int Application::Init(int argumentCount, char** argumentVector)
 {
+	uint32_t windowWidth = WINDOW_WIDTH;
+	uint32_t windowHeight = WINDOW_HEIGHT;
+
+	for (int i = 0; i < argumentCount; ++i)
+	{
+		std::string arg = argumentVector[i];
+		if (arg[1] == 'w' && arg[2] == '=')
+			windowWidth = (uint32_t)std::atoi(&arg.c_str()[3]);
+		else if (arg[1] == 'h' && arg[2] == '=')
+			windowHeight = (uint32_t)std::atoi(&arg.c_str()[3]);
+		else if (arg[1] == 'f' && arg[2] == 's' && arg[3] == 0)
+			m_isfullScreen = true;
+	}
+
 	m_glfwInitialized = false;
 
 	if (!glfwInit())
@@ -51,7 +68,7 @@ int Application::Init()
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	
 	// Create window.
-	CreateWindowObject(WINDOW_WIDTH, WINDOW_HEIGHT, m_isfullScreen);
+	CreateWindowObject(windowWidth, windowHeight, m_isfullScreen);
 
 	PB_LOG("Window has been created.");
 	
@@ -64,12 +81,12 @@ int Application::Init()
 	m_renderer->Init(rendererDesc);
 	
 	PB::SwapChainDesc swapchainDesc;
-	swapchainDesc.m_width = 0;
+	swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 	swapchainDesc.m_height = 0;
 	swapchainDesc.m_presentMode = PB::VKR_PRESENT_MODE_MAILBOX;
 	swapchainDesc.m_imageCount = 3;
 
-	m_renderer->CreateSwapChain(swapchainDesc);
+	m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
 
 	// Initialize input.
 	Input::Create();
@@ -120,6 +137,16 @@ void Application::Run()
 
 		m_renderer->BeginFrame();
 
+		PB::CommandContextDesc contextDesc;
+		contextDesc.m_renderer = m_renderer;
+		PB::SCommandContext cmdContext(m_renderer);
+		cmdContext->Init(contextDesc);
+
+		cmdContext->Begin();
+
+		cmdContext->End();
+		cmdContext->Return();
+
 		m_renderer->EndFrame();
 
 		m_input->EndFrame();
@@ -168,11 +195,11 @@ void Application::CreateWindowObject(const unsigned int& nWidth, const unsigned 
 	// Create window.
 	if(bFullScreen) 
 	{
-		m_window = glfwCreateWindow(nWidth, nHeight, "Vulkan Test", glfwGetPrimaryMonitor(), 0);
+		m_window = glfwCreateWindow(nWidth, nHeight, "ParaBlit Render Engine Client", glfwGetPrimaryMonitor(), 0);
 	}
 	else 
 	{
-		m_window = glfwCreateWindow(nWidth, nHeight, "Vulkan Test", 0, 0);
+		m_window = glfwCreateWindow(nWidth, nHeight, "ParaBlit Render Engine Client", 0, 0);
 	}
 
 	// Set key callback...

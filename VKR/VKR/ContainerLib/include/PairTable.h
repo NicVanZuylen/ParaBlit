@@ -17,13 +17,13 @@ public:
 	PairTable()
 	{
 		m_nSize = 1000;
-		m_contents = new DynArr<PairTablePair<T>*>[m_nSize];
+		m_contents = new DynamicArray<PairTablePair<T>*>[m_nSize];
 	}
 
 	PairTable(size_t nSize)
 	{
 		m_nSize = nSize;
-		m_contents = new DynArr<PairTablePair<T>*>[m_nSize];
+		m_contents = new DynamicArray<PairTablePair<T>*>[m_nSize];
 	}
 
 	~PairTable()
@@ -45,7 +45,7 @@ public:
 		nHashID %= m_nSize;
 
 		// Get key-value pair array.
-		DynArr<PairTablePair<T>*>& arr = m_contents[nHashID];
+		DynamicArray<PairTablePair<T>*>& arr = m_contents[nHashID];
 
 		if (arr.Count() == 0)
 		{
@@ -113,8 +113,8 @@ private:
 		return newPair;
 	}
 
-	DynArr<PairTablePair<T>*>* m_contents;
-	DynArr<PairTablePair<T>*> m_pairs;
+	DynamicArray<PairTablePair<T>*>* m_contents;
+	DynamicArray<PairTablePair<T>*> m_pairs;
 	size_t m_nSize;
 };
 #pragma once

@@ -3,6 +3,7 @@
 #include "ParaBlitDebug.h"
 #include "Device.h"
 #include "Texture.h"
+#include "PBUtil.h"
 
 namespace PB
 {
@@ -39,12 +40,11 @@ namespace PB
 			vkDestroySwapchainKHR(m_device->GetHandle(), m_handle, nullptr);
 
 			m_swapchainImages.Clear();
-			for (u32 i = 0; i < m_wrappedSwapchainImages.Count(); ++i)
+			for (u32 i = 0; i < m_swapchainImages.Count(); ++i)
 			{
-				m_wrappedSwapchainImages[i]->Destroy();
-				delete m_wrappedSwapchainImages[i];
+				m_wrappedSwapchainImages[i].Destroy();
 			}
-			m_wrappedSwapchainImages.Clear();
+			delete[] m_wrappedSwapchainImages;
 
 			m_handle = VK_NULL_HANDLE;
 		}
@@ -60,9 +60,14 @@ namespace PB
 		return &m_handle;
 	}
 
-	u8 Swapchain::ImageCount()
+	ITexture* Swapchain::GetImage(u32 imageIndex)
 	{
-		return m_imageCount;
+		return reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[imageIndex]);
+	}
+
+	u32 Swapchain::GetImageCount()
+	{
+		return m_swapchainImages.Count();
 	}
 
 	void Swapchain::CreateSwapChain(const SwapChainDesc& desc)
@@ -96,7 +101,7 @@ namespace PB
 		PB_ERROR_CHECK(vkCreateSwapchainKHR(m_device->GetHandle(), &swapChainInfo, nullptr, &m_handle));
 		PB_ASSERT(m_handle);
 
-		GetImages();
+		WrapImages();
 	}
 
 	VkSurfaceCapabilitiesKHR Swapchain::GetSurfaceCapabilities()
@@ -168,7 +173,7 @@ namespace PB
 		return bestMode;
 	}
 
-	void Swapchain::GetImages()
+	void Swapchain::WrapImages()
 	{
 		u32 imageCount = 0;
 		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, nullptr);
@@ -178,18 +183,35 @@ namespace PB
 		m_swapchainImages.SetCount(imageCount);
 		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, m_swapchainImages.Data());
 
-		m_wrappedSwapchainImages.SetSize(imageCount);
-		m_wrappedSwapchainImages.SetCount(imageCount);
+		m_wrappedSwapchainImages = new Texture[imageCount];
 
 		// Wrap swapchain images into ParaBlit texture objects.
-		WrappedTextureDesc wrappedTextureDesc;
+		WrappedTextureDesc wrappedTextureDesc = {};
 		for (u32 i = 0; i < imageCount; ++i)
 		{
 			PB_ASSERT(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
 			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
 			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_RENDERTARGET;
-			m_wrappedSwapchainImages[i] = new Texture;
-			m_wrappedSwapchainImages[i]->Create(m_renderer, wrappedTextureDesc);
+			m_wrappedSwapchainImages[i].Create(m_renderer, wrappedTextureDesc);
 		}
+
+		// Transition images to initial layout (present)
+
+		CommandContextDesc cmdContextDesc;
+		cmdContextDesc.m_flags = PB_COMMAND_CONTEXT_PRIORITY; // We want these transitions to happen before anything else.
+		cmdContextDesc.m_renderer = m_renderer;
+		cmdContextDesc.m_usage = PB_COMMAND_CONTEXT_USAGE_GRAPHICS;
+
+		CommandContext internalContext;
+		MakeInternalContext(internalContext, m_renderer);
+		internalContext.Begin();
+
+		for (u32 i = 0; i < imageCount; ++i)
+		{
+			internalContext.CmdTransitionTexture(reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[i]), PB_TEXTURE_STATE_PRESENT);
+		}
+
+		internalContext.End();
+		internalContext.Return();
 	}
 }

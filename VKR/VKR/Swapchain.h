@@ -10,7 +10,7 @@ namespace PB
 	class Device;
 	class Texture;
 
-	class Swapchain
+	class Swapchain : public ISwapChain
 	{
 	public:
 
@@ -33,7 +33,10 @@ namespace PB
 
 		PARABLIT_API const VkSwapchainKHR* GetHandlePtr() const;
 
-		PARABLIT_API u8 ImageCount();
+		// Interface functions. Descriptions can be found in ISwapChain.h.
+
+		PARABLIT_API ITexture* GetImage(u32 imageIndex) override;
+		PARABLIT_API u32 GetImageCount() override;
 
 	private:
 
@@ -47,7 +50,7 @@ namespace PB
 
 		inline PARABLIT_API VkPresentModeKHR ChoosePresentMode(const SwapChainDesc& desc);
 
-		inline PARABLIT_API void GetImages();
+		inline PARABLIT_API void WrapImages();
 
 		VkSwapchainKHR m_handle = VK_NULL_HANDLE;
 		Renderer* m_renderer = nullptr;
@@ -56,7 +59,7 @@ namespace PB
 		u32 m_width = 0;
 		u32 m_height = 0;
 		DynamicArray<VkImage> m_swapchainImages;
-		DynamicArray<Texture*> m_wrappedSwapchainImages;
+		Texture* m_wrappedSwapchainImages = nullptr;
 		u8 m_imageCount = 0;
 	};
 }

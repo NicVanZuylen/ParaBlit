@@ -95,7 +95,7 @@ namespace PB
 		}
 
 		// Make sure devices with enough score were found, if not we can't continue.
-		PB_ASSERT(highestScore > 0, "No suitable physical devices found.");
+		PB_ASSERT(highestScore > 0 && "No suitable physical devices found.");
 
 		// Pick the device with the best score.
 		m_physicalDevice = devices[highestScoreIdx];

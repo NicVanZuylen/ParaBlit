@@ -6,6 +6,7 @@ class Input;
 namespace PB
 {
 	class IRenderer;
+	class ISwapChain;
 }
 
 struct GLFWwindow;
@@ -15,7 +16,7 @@ struct GLFWwindow;
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 
-#define FRAMERATE_CAP 10000.0f
+#define FRAMERATE_CAP 120.0f
 
 #define DISPLAY_FRAME_TIME
 
@@ -27,7 +28,7 @@ public:
 
 	~Application();
 
-	int Init();
+	int Init(int argumentCount, char** argumentVector);
 
 	void Run();
 
@@ -44,13 +45,14 @@ private:
 	static void WindowResizeCallback(GLFWwindow* window, int nWidth, int nHeight);
 
 	static PB::IRenderer* m_renderer;
+	static PB::ISwapChain* m_swapchain;
 	static GLFWwindow* m_window;
 	static Input* m_input;
 	static bool m_isfullScreen;
 	static bool m_glfwInitialized;
 
-	float deltaTime;
-	float elapsedTime;
-	float debugDisplayTime;
+	float deltaTime = 0.0f;
+	float elapsedTime = 0.0f;
+	float debugDisplayTime = 0.0f;
 };
 

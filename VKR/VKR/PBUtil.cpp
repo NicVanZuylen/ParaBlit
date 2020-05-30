@@ -3,7 +3,7 @@
 
 namespace PB
 {
-	TextureState ConvertImageLayouttoPBState(VkImageLayout layout)
+	ETextureState ConvertImageLayouttoPBState(VkImageLayout layout)
 	{
 		switch (layout)
 		{
@@ -40,7 +40,7 @@ namespace PB
 		}
 	}
 
-    VkImageLayout ConvertPBStateToImageLayout(TextureState state)
+    VkImageLayout ConvertPBStateToImageLayout(ETextureState state)
     {
         switch (state)
         {
@@ -66,33 +66,18 @@ namespace PB
         }
     }
 
-    VkImageMemoryBarrier CreateImageBarrier(VkPipelineStageFlags& srcStageFlags, VkPipelineStageFlags& dstStageFlags, VkImage image, TextureState oldState, TextureState newState, VkImageAspectFlags aspectMask, u32 firstMip, u32 mipCount, u32 firstArrayElement, u32 arrayCount)
+    VkPipelineStageFlags GetSrcStatePipelineFlags(ETextureState srcState)
     {
-        VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, nullptr };
-        barrier.image = image;
-        barrier.oldLayout = ConvertPBStateToImageLayout(oldState);
-        barrier.newLayout = ConvertPBStateToImageLayout(newState);
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-        // TODO: Implement transitions for multiple mips/array elements.
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = firstMip;
-        barrier.subresourceRange.levelCount = mipCount;
-        barrier.subresourceRange.baseArrayLayer = firstArrayElement;
-        barrier.subresourceRange.layerCount = arrayCount;
-
-        switch (oldState)
+        switch (srcState)
         {
         case PB::PB_TEXTURE_STATE_NONE:
-            PB_NOT_IMPLEMENTED;
+            return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             break;
         case PB::PB_TEXTURE_STATE_SAMPLED:
             PB_NOT_IMPLEMENTED;
             break;
         case PB::PB_TEXTURE_STATE_RENDERTARGET:
-            barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            srcStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             break;
         case PB::PB_TEXTURE_STATE_DEPTHTARGET:
             PB_NOT_IMPLEMENTED;
@@ -113,39 +98,161 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         }
-
-        switch (newState)
-        {
-        case PB::PB_TEXTURE_STATE_NONE:
-            PB_NOT_IMPLEMENTED;
-            break;
-        case PB::PB_TEXTURE_STATE_SAMPLED:
-            PB_NOT_IMPLEMENTED;
-            break;
-        case PB::PB_TEXTURE_STATE_RENDERTARGET:
-            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            dstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            break;
-        case PB::PB_TEXTURE_STATE_DEPTHTARGET:
-            PB_NOT_IMPLEMENTED;
-            break;
-        case PB::PB_TEXTURE_STATE_RAW:
-            PB_NOT_IMPLEMENTED;
-            break;
-        case PB::PB_TEXTURE_STATE_COPY_SRC:
-            PB_NOT_IMPLEMENTED;
-            break;
-        case PB::PB_TEXTURE_STATE_COPY_DST:
-            PB_NOT_IMPLEMENTED;
-            break;
-        case PB::PB_TEXTURE_STATE_PRESENT:
-            PB_NOT_IMPLEMENTED;
-            break;
-        default:
-            PB_NOT_IMPLEMENTED;
-            break;
-        }
-
-        return barrier;
     }
+
+    VkPipelineStageFlags GetDstStatePipelineFlags(ETextureState dstState)
+    {
+        switch (dstState)
+        {
+        case PB::PB_TEXTURE_STATE_NONE:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_SAMPLED:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+            return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            break;
+        case PB::PB_TEXTURE_STATE_DEPTHTARGET:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_RAW:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_COPY_SRC:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_COPY_DST:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_PRESENT:
+            return VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+            break;
+        default:
+            PB_NOT_IMPLEMENTED;
+            break;
+        }
+    }
+
+    VkAccessFlags GetSrcAccessFlags(ETextureState srcState)
+    {
+        switch (srcState)
+        {
+        case PB::PB_TEXTURE_STATE_NONE:
+            return static_cast<VkAccessFlagBits>(0);
+            break;
+        case PB::PB_TEXTURE_STATE_SAMPLED:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+            return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            break;
+        case PB::PB_TEXTURE_STATE_DEPTHTARGET:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_RAW:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_COPY_SRC:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_COPY_DST:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_PRESENT:
+            PB_NOT_IMPLEMENTED;
+            break;
+        default:
+            PB_NOT_IMPLEMENTED;
+            break;
+        }
+    }
+
+    VkAccessFlags GetDstAccessFlags(ETextureState dstState)
+    {
+        switch (dstState)
+        {
+        case PB::PB_TEXTURE_STATE_NONE:
+            return static_cast<VkAccessFlagBits>(0);
+            break;
+        case PB::PB_TEXTURE_STATE_SAMPLED:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+            return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            break;
+        case PB::PB_TEXTURE_STATE_DEPTHTARGET:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_RAW:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_COPY_SRC:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_COPY_DST:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::PB_TEXTURE_STATE_PRESENT:
+            return VK_ACCESS_MEMORY_READ_BIT;
+            break;
+        default:
+            PB_NOT_IMPLEMENTED;
+            break;
+        }
+    }
+
+	VkFormat ConvertPBFormatToVkFormat(ETextureFormat format)
+	{
+        switch (format)
+        {
+        case PB_TEXTURE_FORMAT_UNKNOWN:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB_TEXTURE_FORMAT_R8_UNORM:
+            return VK_FORMAT_R8_UNORM;
+            break;
+        case PB_TEXTURE_FORMAT_R8G8_UNORM:
+            return VK_FORMAT_R8G8_UNORM;
+            break;
+        case PB_TEXTURE_FORMAT_R8G8B8_UNORM:
+            return VK_FORMAT_R8G8B8_UNORM;
+            break;
+        case PB_TEXTURE_FORMAT_R8G8B8A8_UNORM:
+            return VK_FORMAT_R8G8B8A8_UNORM;
+            break;
+        default:
+            PB_NOT_IMPLEMENTED;
+            break;
+        }
+	}
+
+	VkPipelineStageFlags ConvertPBAttachmentUsageToStageFlags(EAttachmentUsage usage)
+	{
+        switch (usage)
+        {
+        case PB_ATTACHMENT_USAGE_NONE:
+            return 0;
+        case PB_ATTACHMENT_USAGE_COLOR:
+            return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        case PB_ATTACHMENT_USAGE_DEPTHSTENCIL:
+            return VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        case PB_ATTACHMENT_USAGE_READ:
+            return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        default:
+            return 0;
+        }
+	}
+
+	void MakeInternalContext(CommandContext& context, Renderer* renderer)
+	{
+        CommandContextDesc desc;
+        desc.m_flags = PB_COMMAND_CONTEXT_PRIORITY;
+        desc.m_usage = PB_COMMAND_CONTEXT_USAGE_GRAPHICS;
+        desc.m_renderer = reinterpret_cast<IRenderer*>(renderer);
+
+        // Initialize and flag as internal.
+        context.Init(desc);
+        context.SetIsInternal();
+	}
 }

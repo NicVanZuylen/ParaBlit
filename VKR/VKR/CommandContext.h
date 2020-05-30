@@ -1,8 +1,12 @@
 #pragma once
+#include "ICommandContext.h"
 #include "ParaBlitApi.h"
+#include "Texture.h"
 #include "vulkan/vulkan.h"
 
-#define PB_LOG_COMMAND_CONTEXT_STATE 1
+#include <unordered_map>
+
+#define PB_LOG_COMMAND_CONTEXT_STATE 0
 
 #if PB_LOG_COMMAND_CONTEXT_STATE
 #define PB_COMMAND_CONTEXT_LOG PB_LOG_FORMAT
@@ -12,73 +16,41 @@
 
 namespace PB 
 {
-	class IRenderer;
 	class Renderer;
+	class Texture;
 
-	struct Float4
-	{
-		float r, g, b, a;
-	};
-
-	struct Rect
-	{
-		u32 x, y, w, h;
-	};
-
-	struct ClearDesc
-	{
-		Float4 m_color;
-		Rect m_region;
-		u32 m_attachmentIndex;
-	};
-
-	enum ECmdContextState : u8
-	{
-		PB_COMMAND_CONTEXT_STATE_OPEN,
-		PB_COMMAND_CONTEXT_STATE_RECORDING,
-		PB_COMMAND_CONTEXT_STATE_MAX
-	};
-
-	enum ECommandContextUsage : u8
-	{
-		PB_COMMAND_CONTEXT_USAGE_GRAPHICS,
-		PB_COMMAND_CONTEXT_USAGE_COMPUTE,
-		PB_COMMAND_CONTEXT_USAGE_COPY,
-		PB_COMMAND_CONTEXT_USAGE_MAX
-	};
-
-	enum ECommandContextFlags : u8
-	{
-		PB_COMMAND_CONTEXT_NONE,
-		PB_COMMAND_CONTEXT_PRIORITY,
-		PB_COMMAND_CONTEXT_MAX
-	};
-
-	struct CommandContextDesc
-	{
-		IRenderer* m_renderer = nullptr;
-		ECommandContextUsage m_usage = PB_COMMAND_CONTEXT_USAGE_GRAPHICS;
-		ECommandContextFlags m_flags = PB_COMMAND_CONTEXT_NONE;
-	};
-
-	class CommandContext
+	class CommandContext : public ICommandContext
 	{
 	public:
 		PARABLIT_API CommandContext();
 
 		PARABLIT_API ~CommandContext();
 
-		PARABLIT_API void Init(CommandContextDesc& desc);
+		// Interface functions. Descriptions can be found in ICommandContext.h
 
-		PARABLIT_API void Begin();
+		PARABLIT_API void Init(CommandContextDesc& desc) override;
+		PARABLIT_API void Begin() override;
+		PARABLIT_API void End() override;
+		PARABLIT_API void Return() override;
+		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
+		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState newState, SubresourceRange subResourceRange = {}) override;
 
-		PARABLIT_API void End();
+		PARABLIT_API bool GetIsPriority();
+
+		/*
+		Description: Flag this command context as internal.
+		*/
+		PARABLIT_API void SetIsInternal();
+
+		PARABLIT_API bool GetIsInternal();
 
 		PARABLIT_API ECmdContextState GetState();
 
 		PARABLIT_API VkCommandBuffer GetCmdBuffer();
 
-		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount);
+		PARABLIT_API void Invalidate();
+
+		PARABLIT_API Renderer* GetRenderer();
 
 	private:
 
@@ -88,7 +60,8 @@ namespace PB
 		VkCommandBuffer m_cmdBuffer = VK_NULL_HANDLE;
 		ECmdContextState m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
 		ECommandContextUsage m_usage = PB_COMMAND_CONTEXT_USAGE_COPY; // Copy by default since any device queue is capable of copy operations.
-		bool m_priority;
+		bool m_isPriority : 1;
+		bool m_isInternal : 1;
 	};
 }
 
