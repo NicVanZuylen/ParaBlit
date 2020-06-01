@@ -6,6 +6,7 @@
 #include "Swapchain.h"
 #include "Dequeue.h"
 #include "CmdContextPool.h"
+#include "RenderPassCache.h"
 
 #include <mutex>
 
@@ -51,6 +52,8 @@ namespace PB
 
 		PARABLIT_API Device* GetDevice();
 
+		PARABLIT_API IRenderPassCache* GetRenderPassCache() override;
+
 		PARABLIT_API VkCommandBuffer AllocateCommandBuffer();
 
 		PARABLIT_API void ReturnCommandBuffer(CommandContext& context);
@@ -82,6 +85,7 @@ namespace PB
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
 		SwapChainDesc m_swapchainDesc;
 		Swapchain m_swapchain;
+		RenderPassCache m_renderPassCache;
 
 		// Frame State
 		VkQueue m_presentQueue = VK_NULL_HANDLE;

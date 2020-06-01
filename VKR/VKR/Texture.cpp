@@ -24,7 +24,7 @@ namespace PB
 		m_availableStates = desc.m_usageFlags;
 		m_ownsImage = false;
 
-		PB_ASSERT(((m_availableStates & m_currentState) || m_currentState == PB_TEXTURE_STATE_NONE) > 0);
+		PB_ASSERT(((m_availableStates & m_currentState) || m_currentState == PB_TEXTURE_STATE_NONE));
 	}
 
 	void Texture::Destroy()

@@ -19,6 +19,8 @@ namespace PB
 		if (m_windowSurface)
 			vkDestroySurfaceKHR(m_vkInstance.GetHandle(), m_windowSurface, nullptr);
 
+		m_renderPassCache.Destroy();
+
 		// Destroy sync objects.
 		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
 		{
@@ -36,6 +38,7 @@ namespace PB
 	{
 		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
 		m_device.Init(m_vkInstance.GetHandle());
+		m_renderPassCache.Init(&m_device);
 
 		CreateWindowSurface(desc.m_windowInfo);
 		CreateSyncObjects();
@@ -55,6 +58,11 @@ namespace PB
 	Device* Renderer::GetDevice()
 	{
 		return &m_device;
+	}
+
+	IRenderPassCache* Renderer::GetRenderPassCache()
+	{
+		return &m_renderPassCache;
 	}
 
 	VkCommandBuffer Renderer::AllocateCommandBuffer()

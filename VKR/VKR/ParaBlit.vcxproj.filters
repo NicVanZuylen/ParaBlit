@@ -125,5 +125,8 @@
     <ClInclude Include="MurmurHash3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="IRenderPassCache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

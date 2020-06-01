@@ -62,6 +62,7 @@ namespace PB
             return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         default:
             PB_NOT_IMPLEMENTED;
+            return VK_IMAGE_LAYOUT_UNDEFINED;
             break;
         }
     }
@@ -98,6 +99,7 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         }
+        return PB_TEXTURE_STATE_NONE;
     }
 
     VkPipelineStageFlags GetDstStatePipelineFlags(ETextureState dstState)
@@ -132,6 +134,7 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         }
+        return 0;
     }
 
     VkAccessFlags GetSrcAccessFlags(ETextureState srcState)
@@ -166,6 +169,8 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         }
+
+        return PB_TEXTURE_STATE_NONE;
     }
 
     VkAccessFlags GetDstAccessFlags(ETextureState dstState)
@@ -200,6 +205,7 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         }
+        return 0;
     }
 
 	VkFormat ConvertPBFormatToVkFormat(ETextureFormat format)
@@ -225,6 +231,7 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         }
+        return VK_FORMAT_UNDEFINED;
 	}
 
 	VkPipelineStageFlags ConvertPBAttachmentUsageToStageFlags(EAttachmentUsage usage)

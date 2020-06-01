@@ -10,6 +10,17 @@ namespace PB
 	extern VkResult errCheckRes;
 };
 
+#ifdef _DEBUG
+
 #define PB_ERROR_CHECK(func, message) PB::errCheckRes = func; if(PB::errCheckRes) { printf("ParaBlit Vulkan Error: %i \n", PB::errCheckRes); }
 #define PB_ASSERT(condition, message) assert(condition, message)
 #define PB_BREAK_ON_ERROR PB_ASSERT(PB::errCheckRes == 0, "ParaBlit Vulkan Error Detected")
+
+#else
+
+#define PB_ERROR_CHECK(func, message) func
+#define PB_ASSERT
+#define PB_BREAK_ON_ERROR
+
+#endif
+

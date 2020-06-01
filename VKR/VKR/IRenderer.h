@@ -2,6 +2,7 @@
 #include "ParaBlitApi.h"
 #include "ParaBlitInterface.h"
 #include "ISwapChain.h"
+#include "IRenderPassCache.h"
 
 #ifdef PARABLIT_WINDOWS
 #include <Windows.h>
@@ -43,6 +44,8 @@ namespace PB
 		PARABLIT_INTERFACE ISwapChain* CreateSwapChain(const SwapChainDesc& desc) = 0;
 		PARABLIT_INTERFACE void BeginFrame() = 0;
 		PARABLIT_INTERFACE void EndFrame() = 0;
+
+		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;
 
 	private:
 		PARABLIT_INTERFACE void CreateWindowSurface(WindowDesc* windowHandle) = 0;

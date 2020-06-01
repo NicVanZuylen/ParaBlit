@@ -216,7 +216,7 @@ namespace PB
 
 	DynamicArray<const char*> ExtensionManager::GetEnabledLayers()
 	{
-		DynamicArray<const char*> output(m_availableLayers.size());
+		DynamicArray<const char*> output(static_cast<uint32_t>(m_availableLayers.size()));
 
 		for (auto& ext : m_availableLayers)
 		{

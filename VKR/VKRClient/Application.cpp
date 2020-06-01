@@ -3,6 +3,7 @@
 #include "ParaBlitLog.h"
 #include "WindowHandle.h"
 #include "ICommandContext.h"
+#include "DynamicArray.h"
 
 #include <iostream>
 #include <chrono>
@@ -136,6 +137,24 @@ void Application::Run()
 		}
 
 		m_renderer->BeginFrame();
+
+		PB::RenderPassDesc rpDesc;
+		PB::AttachmentDesc attachments[] =
+		{
+			{ PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM, PB::PB_TEXTURE_STATE_RENDERTARGET, PB::PB_TEXTURE_STATE_RENDERTARGET, PB::PB_ATTACHMENT_START_ACTION_NONE },
+		};
+		PB::SubpassDesc subpassDescs[] =
+		{
+			{ {PB::PB_ATTACHMENT_USAGE_COLOR, 0, PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM} },
+			{ {PB::PB_ATTACHMENT_USAGE_COLOR, 0, PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM} }
+		};
+
+		rpDesc.m_attachments = attachments;
+		rpDesc.m_attachmentCount = _countof(attachments);
+		rpDesc.m_subpasses = subpassDescs;
+		rpDesc.m_subpassCount = _countof(subpassDescs);
+
+		m_renderer->GetRenderPassCache()->GetRenderPass(rpDesc);
 
 		PB::CommandContextDesc contextDesc;
 		contextDesc.m_renderer = m_renderer;

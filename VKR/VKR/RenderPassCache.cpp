@@ -7,13 +7,13 @@
 
 namespace PB
 {
-	RenderPassDesc::RenderPassDesc(AttachmentDesc* attachments, SubpassDesc* subpasses, u32 attachmentCount, u32 subpassCount)
+	/*RenderPassDesc::RenderPassDesc(AttachmentDesc* attachments, SubpassDesc* subpasses, u32 attachmentCount, u32 subpassCount)
 	{
 		m_attachmentCount = attachmentCount;
 		m_subpassCount = subpassCount;
 		m_attachments = attachments;
 		m_subpasses = subpasses;
-	}
+	}*/
 
 	bool RenderPassDesc::operator==(const RenderPassDesc& desc) const
 	{
@@ -52,14 +52,15 @@ namespace PB
 		m_cache.clear();
 	}
 
-	VkRenderPass RenderPassCache::GetRenderPass(const RenderPassDesc& desc)
+	RenderPass RenderPassCache::GetRenderPass(const RenderPassDesc& desc)
 	{
 		// Look for the render pass in the map using the desc as the key. If a matching render pass is not found, create a new one.
 		auto it = m_cache.find(desc);
 		if (it == m_cache.end())
 		{
 			auto newPass = CreateRenderPass(desc);
-			m_cache[desc] = newPass;
+			if(newPass != VK_NULL_HANDLE)
+				m_cache[desc] = static_cast<VkRenderPass>(newPass);
 			return newPass;
 		}
 		else
@@ -68,6 +69,10 @@ namespace PB
 
 	inline void InitializeAttachmentDesc(VkAttachmentDescription& desc, const AttachmentDesc& pbDesc)
 	{
+		PB_ASSERT(pbDesc.m_expectedState != PB_TEXTURE_STATE_NONE);
+		PB_ASSERT(pbDesc.m_finalState != PB_TEXTURE_STATE_NONE);
+		PB_ASSERT(pbDesc.m_format != PB_TEXTURE_FORMAT_UNKNOWN);
+
 		desc.initialLayout = ConvertPBStateToImageLayout(pbDesc.m_expectedState);
 		desc.finalLayout = ConvertPBStateToImageLayout(pbDesc.m_finalState);
 		desc.format = ConvertPBFormatToVkFormat(pbDesc.m_format);
@@ -83,7 +88,7 @@ namespace PB
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 			break;
 		default:
-			PB_NOT_IMPLEMENTED;
+			PB_ASSERT(false, "Invalid attachment format provided.");
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			break;
 		}
@@ -98,6 +103,9 @@ namespace PB
 		PB_ASSERT(desc.m_subpassCount > 0, "Too little or too many subpasses specified.");
 		PB_ASSERT(desc.m_attachments);
 		PB_ASSERT(desc.m_subpasses);
+
+		if (!desc.m_subpasses || !desc.m_attachments)
+			return VK_NULL_HANDLE;
 
 		constexpr u32 softAttachmentLimit = 8;
 		constexpr u32 softSubpassLimit = 4;
@@ -124,7 +132,9 @@ namespace PB
 			VkAccessFlags dstAccess;
 		};
 		DynamicArray<VkSubpassDescription, softSubpassLimit> subpassDescs(desc.m_subpassCount, softSubpassLimit);
+		subpassDescs.SetCount(desc.m_subpassCount);
 		DynamicArray<SubpassData, softSubpassLimit> subpassDatas(desc.m_subpassCount, softSubpassLimit);
+		subpassDatas.SetCount(desc.m_subpassCount);
 
 		DynamicArray<u8, softSubpassLimit> subpassColorCounts(desc.m_subpassCount, softSubpassLimit);
 		DynamicArray<u8, softSubpassLimit> subpassDSCounts(desc.m_subpassCount, softSubpassLimit);
@@ -148,12 +158,15 @@ namespace PB
 			subpassDSCounts.Push(dsRefs.Count());
 			subpassReadCounts.Push(readRefs.Count());
 
+			VkPipelineStageFlags subpassDstStages = 0;
+
 			for (u32 j = 0; j < softAttachmentLimit; ++j)
 			{
 				auto& pbUsage = desc.m_subpasses[i].m_attachments[j];
-
-				if (pbUsage.m_attachmentFormat == PB_TEXTURE_FORMAT_UNKNOWN)
+				if (pbUsage.m_usage == PB_ATTACHMENT_USAGE_NONE)
 					break;
+
+				PB_ASSERT(pbUsage.m_attachmentIdx < desc.m_attachmentCount, "Invalid attachment index provided.");
 
 				VkPipelineStageFlags stage = 0; // Pipeline stage this attachment will be used in.
 				VkAccessFlags access = 0; // Access to the attachment required for it's usage here.
@@ -185,9 +198,11 @@ namespace PB
 					break;
 				}
 
-				// Attachment was used in a previous subpass.
+				subpassDstStages |= stage;
+
 				auto& attachment = attachmentDatas[pbUsage.m_attachmentIdx];
-				if (attachment.m_lastSubpass < 255)
+				// Attachment was used in a previous subpass.
+				if (attachment.m_lastSubpass < i && attachment.m_lastSubpassStage > 0)
 				{
 					depsDirty[attachment.m_lastSubpass] = true;
 
@@ -198,6 +213,7 @@ namespace PB
 					//dep.dstAccessMask |= access; // ??? TODO: Should we be setting the access to attachments for future subpasses here?
 					dep.srcStageMask |= attachment.m_lastSubpassStage;
 					dep.dstStageMask |= stage;
+					dep.dependencyFlags = 0;
 
 					// dstAccess should be whatever future subpass will require of this one.
 					subpassDatas[dep.srcSubpass].dstAccess |= access;
@@ -206,14 +222,31 @@ namespace PB
 				attachment.m_lastSubpassStage = stage;
 			}
 
-			// Add any dependencies on previous subpass to the overall dependency list here.
-			for (u32 j = 0; j < desc.m_subpassCount; ++j)
+			// If this is the first subpass we should add the external dependency instead of dependencies on other subpasses.
+			if (i == 0)
 			{
-				if (depsDirty[j])
+				VkSubpassDependency dep;
+				dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+				dep.dstSubpass = i;
+				dep.srcAccessMask = 0;
+				dep.dstAccessMask = subpassDatas[i].dstAccess;
+				dep.srcStageMask = subpassDstStages;
+				dep.dstStageMask = subpassDstStages;
+				dep.dependencyFlags = 0;
+
+				totalDeps.Push(dep);
+			}
+			else
+			{
+				// Add any dependencies on previous subpass to the overall dependency list here.
+				for (u32 j = 0; j < desc.m_subpassCount; ++j)
 				{
-					depsDirty[j] = false;
-					totalDeps.Push(subpassDeps[j]);
-					memset(&subpassDeps[j], 0, sizeof(VkSubpassDependency));
+					if (depsDirty[j])
+					{
+						depsDirty[j] = false;
+						totalDeps.Push(subpassDeps[j]);
+						memset(&subpassDeps[j], 0, sizeof(VkSubpassDependency));
+					}
 				}
 			}
 
@@ -224,7 +257,7 @@ namespace PB
 			subpassDesc.inputAttachmentCount = readRefs.Count() - subpassReadCounts[i];
 			subpassDesc.preserveAttachmentCount = 0;
 			subpassDesc.pColorAttachments = &colorRefs[subpassColorCounts[i]];
-			subpassDesc.pDepthStencilAttachment = &dsRefs[subpassDSCounts[i]];
+			subpassDesc.pDepthStencilAttachment = (dsRefs.Count() > subpassDSCounts[i]) ? &dsRefs[subpassDSCounts[i]] : nullptr;
 			subpassDesc.pInputAttachments = &readRefs[subpassReadCounts[i]];
 			subpassDesc.pPreserveAttachments = nullptr;
 			subpassDesc.pResolveAttachments = nullptr;

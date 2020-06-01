@@ -19,7 +19,7 @@ namespace PB
 		u32 m_width = 0;                                      // Leave as zero to use the surface dimension.
 		u32 m_height = 0;                                     // Leave as zero to use the surface dimension.
 		EPresentMode m_presentMode = VKR_PRESENT_MODE_FIFO;
-		u16 m_imageCount = 3;
+		u8 m_imageCount = 3;
 	};
 
 	class ISwapChain
