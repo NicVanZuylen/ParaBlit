@@ -7,14 +7,6 @@
 
 namespace PB
 {
-	/*RenderPassDesc::RenderPassDesc(AttachmentDesc* attachments, SubpassDesc* subpasses, u32 attachmentCount, u32 subpassCount)
-	{
-		m_attachmentCount = attachmentCount;
-		m_subpassCount = subpassCount;
-		m_attachments = attachments;
-		m_subpasses = subpasses;
-	}*/
-
 	bool RenderPassDesc::operator==(const RenderPassDesc& desc) const
 	{
 		return !(m_attachmentCount != desc.m_attachmentCount || m_subpassCount != desc.m_subpassCount
@@ -24,10 +16,11 @@ namespace PB
 
 	size_t RenderPassHasher::operator()(const RenderPassDesc& desc) const
 	{
+		PB_STATIC_ASSERT(sizeof(AttachmentDesc) % 16 == 0, "AttachmentDesc does not meet optimal alignment requirements for hashing.");
+		PB_STATIC_ASSERT(sizeof(SubpassDesc) % 16 == 0, "SubpassDesc does not meet optimal alignment requirements for hashing.");
+
 		auto attachmentHash = MurmurHash3_x64_64(desc.m_attachments, sizeof(AttachmentDesc) * desc.m_attachmentCount, 0);
-		auto subpassHash = MurmurHash3_x64_64(desc.m_subpasses, sizeof(SubpassDesc) * desc.m_subpassCount, 0);
-		size_t hashes[] = { attachmentHash, subpassHash };
-		return MurmurHash3_x64_64(hashes, _countof(hashes) * sizeof(size_t), 0);
+		return MurmurHash3_x64_64(desc.m_subpasses, sizeof(SubpassDesc) * desc.m_subpassCount, attachmentHash);
 	}
 
 	RenderPassCache::RenderPassCache()
@@ -92,7 +85,7 @@ namespace PB
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			break;
 		}
-		desc.storeOp = pbDesc.m_keepContents ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
+		desc.storeOp = pbDesc.m_keepContents ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		desc.samples = VK_SAMPLE_COUNT_1_BIT;
 		desc.flags = 0;
 	}

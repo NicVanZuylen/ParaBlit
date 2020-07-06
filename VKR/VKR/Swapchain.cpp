@@ -65,6 +65,16 @@ namespace PB
 		return reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[imageIndex]);
 	}
 
+	u32 Swapchain::GetWidth()
+	{
+		return m_width;
+	}
+
+	u32 Swapchain::GetHeight()
+	{
+		return m_height;
+	}
+
 	u32 Swapchain::GetImageCount()
 	{
 		return m_swapchainImages.Count();
@@ -191,16 +201,11 @@ namespace PB
 		{
 			PB_ASSERT(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
 			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
-			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_RENDERTARGET;
+			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_COLORTARGET;
 			m_wrappedSwapchainImages[i].Create(m_renderer, wrappedTextureDesc);
 		}
 
 		// Transition images to initial layout (present)
-
-		CommandContextDesc cmdContextDesc;
-		cmdContextDesc.m_flags = PB_COMMAND_CONTEXT_PRIORITY; // We want these transitions to happen before anything else.
-		cmdContextDesc.m_renderer = m_renderer;
-		cmdContextDesc.m_usage = PB_COMMAND_CONTEXT_USAGE_GRAPHICS;
 
 		CommandContext internalContext;
 		MakeInternalContext(internalContext, m_renderer);
@@ -208,7 +213,7 @@ namespace PB
 
 		for (u32 i = 0; i < imageCount; ++i)
 		{
-			internalContext.CmdTransitionTexture(reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[i]), PB_TEXTURE_STATE_PRESENT);
+			internalContext.CmdTransitionTexture(reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[i]), PB_TEXTURE_STATE_PRESENT, {});
 		}
 
 		internalContext.End();

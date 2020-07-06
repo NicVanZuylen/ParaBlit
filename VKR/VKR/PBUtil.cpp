@@ -12,9 +12,9 @@ namespace PB
         case VK_IMAGE_LAYOUT_GENERAL:
             return PB_TEXTURE_STATE_RAW;
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            return PB_TEXTURE_STATE_RENDERTARGET;
+            return PB_TEXTURE_STATE_COLORTARGET;
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-            return PB_TEXTURE_STATE_RENDERTARGET;
+            return PB_TEXTURE_STATE_DEPTHTARGET;
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
         case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
             return PB_TEXTURE_STATE_SAMPLED;
@@ -48,7 +48,7 @@ namespace PB
             return VK_IMAGE_LAYOUT_UNDEFINED;
         case PB::PB_TEXTURE_STATE_RAW:
             return VK_IMAGE_LAYOUT_GENERAL;
-        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+        case PB::PB_TEXTURE_STATE_COLORTARGET:
             return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         case PB::PB_TEXTURE_STATE_DEPTHTARGET:
             return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -67,6 +67,24 @@ namespace PB
         }
     }
 
+	VkImageUsageFlags ConvertPBAvailableStatesToUsageFlags(ETextureStateFlags availableStates)
+	{
+        VkImageUsageFlags vkFlags = 0;
+        if (availableStates & PB_TEXTURE_STATE_RAW)
+            PB_NOT_IMPLEMENTED;
+        if (availableStates & PB_TEXTURE_STATE_COLORTARGET)
+            vkFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        if (availableStates & PB_TEXTURE_STATE_DEPTHTARGET)
+            vkFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        if (availableStates & PB_TEXTURE_STATE_SAMPLED)
+            vkFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
+        if (availableStates & PB_TEXTURE_STATE_COPY_SRC)
+            vkFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        if (availableStates & PB_TEXTURE_STATE_COPY_DST)
+            vkFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        return vkFlags;
+	}
+
     VkPipelineStageFlags GetSrcStatePipelineFlags(ETextureState srcState)
     {
         switch (srcState)
@@ -77,7 +95,7 @@ namespace PB
         case PB::PB_TEXTURE_STATE_SAMPLED:
             PB_NOT_IMPLEMENTED;
             break;
-        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+        case PB::PB_TEXTURE_STATE_COLORTARGET:
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             break;
         case PB::PB_TEXTURE_STATE_DEPTHTARGET:
@@ -90,10 +108,10 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         case PB::PB_TEXTURE_STATE_COPY_DST:
-            PB_NOT_IMPLEMENTED;
+            return VK_PIPELINE_STAGE_TRANSFER_BIT;
             break;
         case PB::PB_TEXTURE_STATE_PRESENT:
-            PB_NOT_IMPLEMENTED;
+            return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             break;
         default:
             PB_NOT_IMPLEMENTED;
@@ -112,7 +130,7 @@ namespace PB
         case PB::PB_TEXTURE_STATE_SAMPLED:
             PB_NOT_IMPLEMENTED;
             break;
-        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+        case PB::PB_TEXTURE_STATE_COLORTARGET:
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             break;
         case PB::PB_TEXTURE_STATE_DEPTHTARGET:
@@ -125,7 +143,7 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         case PB::PB_TEXTURE_STATE_COPY_DST:
-            PB_NOT_IMPLEMENTED;
+            return VK_PIPELINE_STAGE_TRANSFER_BIT;
             break;
         case PB::PB_TEXTURE_STATE_PRESENT:
             return VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
@@ -147,7 +165,7 @@ namespace PB
         case PB::PB_TEXTURE_STATE_SAMPLED:
             PB_NOT_IMPLEMENTED;
             break;
-        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+        case PB::PB_TEXTURE_STATE_COLORTARGET:
             return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             break;
         case PB::PB_TEXTURE_STATE_DEPTHTARGET:
@@ -157,13 +175,13 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         case PB::PB_TEXTURE_STATE_COPY_SRC:
-            PB_NOT_IMPLEMENTED;
+            return VK_ACCESS_TRANSFER_READ_BIT;
             break;
         case PB::PB_TEXTURE_STATE_COPY_DST:
-            PB_NOT_IMPLEMENTED;
+            return VK_ACCESS_TRANSFER_WRITE_BIT;
             break;
         case PB::PB_TEXTURE_STATE_PRESENT:
-            PB_NOT_IMPLEMENTED;
+            return VK_ACCESS_MEMORY_READ_BIT;
             break;
         default:
             PB_NOT_IMPLEMENTED;
@@ -183,7 +201,7 @@ namespace PB
         case PB::PB_TEXTURE_STATE_SAMPLED:
             PB_NOT_IMPLEMENTED;
             break;
-        case PB::PB_TEXTURE_STATE_RENDERTARGET:
+        case PB::PB_TEXTURE_STATE_COLORTARGET:
             return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             break;
         case PB::PB_TEXTURE_STATE_DEPTHTARGET:
@@ -193,10 +211,10 @@ namespace PB
             PB_NOT_IMPLEMENTED;
             break;
         case PB::PB_TEXTURE_STATE_COPY_SRC:
-            PB_NOT_IMPLEMENTED;
+            return VK_ACCESS_TRANSFER_READ_BIT;
             break;
         case PB::PB_TEXTURE_STATE_COPY_DST:
-            PB_NOT_IMPLEMENTED;
+            return VK_ACCESS_TRANSFER_WRITE_BIT;
             break;
         case PB::PB_TEXTURE_STATE_PRESENT:
             return VK_ACCESS_MEMORY_READ_BIT;
@@ -227,6 +245,9 @@ namespace PB
         case PB_TEXTURE_FORMAT_R8G8B8A8_UNORM:
             return VK_FORMAT_R8G8B8A8_UNORM;
             break;
+        case PB_TEXTURE_FORMAT_B8G8R8A8_UNORM:
+            return VK_FORMAT_B8G8R8A8_UNORM;
+            break;
         default:
             PB_NOT_IMPLEMENTED;
             break;
@@ -249,6 +270,26 @@ namespace PB
         default:
             return 0;
         }
+	}
+
+	VkShaderStageFlagBits ConvertPBShaderStageToVK(EShaderStage stage)
+	{
+        switch (stage)
+        {
+        case PB_SHADER_STAGE_VERTEX:
+            return VK_SHADER_STAGE_VERTEX_BIT;
+            break;
+        case PB_SHADER_STAGE_FRAGMENT:
+            return VK_SHADER_STAGE_FRAGMENT_BIT;
+            break;
+        case PB_SHADER_STAGE_COUNT:
+            PB_NOT_IMPLEMENTED;
+            break;
+        default:
+            break;
+        }
+
+        return VK_SHADER_STAGE_VERTEX_BIT;
 	}
 
 	void MakeInternalContext(CommandContext& context, Renderer* renderer)

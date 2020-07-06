@@ -1,8 +1,10 @@
 #include "CommandContext.h"
+#include "FramebufferCache.h"
 #include "ParaBlitDebug.h"
 #include "PBUtil.h"
 #include "Renderer.h"
 #include "FixedArray.h"
+#include "Texture.h"
 
 namespace PB 
 {
@@ -10,6 +12,7 @@ namespace PB
 	{
 		m_isPriority = false;
 		m_isInternal = false;
+		m_activeRenderpass = false;
 	}
 
 	CommandContext::~CommandContext()
@@ -82,6 +85,11 @@ namespace PB
 		if (m_state != PB_COMMAND_CONTEXT_STATE_RECORDING)
 			return;
 
+		if (m_activeRenderpass)
+		{
+			m_activeRenderpass = false;
+			vkCmdEndRenderPass(m_cmdBuffer);
+		}
 		PB_ERROR_CHECK(vkEndCommandBuffer(m_cmdBuffer), "Failed to end command context recording.");
 		m_state = PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION;
 	}
@@ -93,6 +101,48 @@ namespace PB
 		PB_COMMAND_CONTEXT_LOG("Returned recorded command buffer [%X] from command context [%X].", m_cmdBuffer, this);
 		m_renderer->ReturnCommandBuffer(*this); // Give the command buffer back to the renderer for submission at the end of the frame.
 		m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
+	}
+
+	void CommandContext::CmdBeginRenderPass(RenderPass renderpass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount)
+	{
+		ValidateRecordingState();
+		PB_ASSERT(renderpass);
+		PB_ASSERT(attachmentViews);
+		PB_ASSERT(viewCount > 0);
+		if (m_activeRenderpass)
+			vkCmdEndRenderPass(m_cmdBuffer);
+
+		VkRenderPass pass = reinterpret_cast<VkRenderPass>(renderpass);
+		PB_ASSERT(pass);
+
+		FramebufferDesc fbDesc;
+		fbDesc.m_attachmentCount = static_cast<u32>(viewCount);
+		fbDesc.m_attachmentViews = attachmentViews;
+		fbDesc.m_renderPass = pass;
+		fbDesc.m_width = width;
+		fbDesc.m_height = height;
+		VkFramebuffer framebuffer = reinterpret_cast<VkFramebuffer>(m_renderer->GetFramebufferCache()->GetFramebuffer(fbDesc));
+		PB_ASSERT(framebuffer);
+
+		VkRenderPassBeginInfo beginInfo = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, nullptr };
+		beginInfo.framebuffer = framebuffer;
+		beginInfo.renderPass = pass;
+		beginInfo.renderArea.offset = { 0, 0 };
+		beginInfo.renderArea.extent = { width, height };
+		beginInfo.clearValueCount = clearColorCount;
+		beginInfo.pClearValues = reinterpret_cast<VkClearValue*>(clearColors);
+
+		vkCmdBeginRenderPass(m_cmdBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		m_activeRenderpass = true;
+	}
+
+	void CommandContext::CmdEndRenderPass()
+	{
+		if (m_activeRenderpass)
+		{
+			vkCmdEndRenderPass(m_cmdBuffer);
+			m_activeRenderpass = false;
+		}
 	}
 
 	bool CommandContext::GetIsPriority()
@@ -154,7 +204,7 @@ namespace PB
 		vkCmdClearAttachments(m_cmdBuffer, targetCount, clearAttachments.Data(), targetCount, clearRects.Data());
 	}
 
-	void CommandContext::CmdTransitionTexture(ITexture* texture, ETextureState newState, SubresourceRange subResourceRange)
+	void CommandContext::CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange)
 	{
 		ValidateRecordingState();
 		PB_ASSERT(texture);

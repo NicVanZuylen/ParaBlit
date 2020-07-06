@@ -36,6 +36,8 @@ namespace PB
 		// Interface functions. Descriptions can be found in ISwapChain.h.
 
 		PARABLIT_API ITexture* GetImage(u32 imageIndex) override;
+		PARABLIT_API u32 GetWidth();
+		PARABLIT_API u32 GetHeight();
 		PARABLIT_API u32 GetImageCount() override;
 
 	private:

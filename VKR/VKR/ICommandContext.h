@@ -1,58 +1,19 @@
 #pragma once
 #include "ParaBlitApi.h"
 #include "ParaBlitInterface.h"
-#include "ITexture.h"
+#include "ParaBlitDefs.h"
+#include "IRenderPassCache.h"
 
 namespace PB
 {
 	class IRenderer;
-
-	struct Float4
-	{
-		float r, g, b, a;
-	};
-
-	struct Rect
-	{
-		u32 x, y, w, h;
-	};
+	class ITexture;
 
 	struct ClearDesc
 	{
 		Float4 m_color;
 		Rect m_region;
 		u32 m_attachmentIndex;
-	};
-
-	struct SubresourceRange
-	{
-		u16 m_baseMip = 0;
-		u16 m_mipCount = 1;
-		u16 m_firstArrayElement = 0;
-		u16 m_arrayCount = 1;
-	};
-
-	enum ECmdContextState : u8
-	{
-		PB_COMMAND_CONTEXT_STATE_OPEN,
-		PB_COMMAND_CONTEXT_STATE_RECORDING,
-		PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION,
-		PB_COMMAND_CONTEXT_STATE_MAX
-	};
-
-	enum ECommandContextUsage : u8
-	{
-		PB_COMMAND_CONTEXT_USAGE_GRAPHICS,
-		PB_COMMAND_CONTEXT_USAGE_COMPUTE,
-		PB_COMMAND_CONTEXT_USAGE_COPY,
-		PB_COMMAND_CONTEXT_USAGE_MAX
-	};
-
-	enum ECommandContextFlags : u8
-	{
-		PB_COMMAND_CONTEXT_NONE,
-		PB_COMMAND_CONTEXT_PRIORITY,
-		PB_COMMAND_CONTEXT_MAX
 	};
 
 	struct CommandContextDesc
@@ -78,9 +39,22 @@ namespace PB
 
 		PARABLIT_INTERFACE void Return() = 0;
 
+		/*
+		Description: Begin a render pass using a render pass desc and provided attachments.
+		Param:
+			RenderPass renderPass: The render pass to use.
+			u32 width: The width of the render pass framebuffer.
+			u32 height: The height of the render pass framebuffer.
+			const TextureView* attachmentViews: Array of texture views for the render pass attachments.
+			const u32 viewCount: The amount of attachments to use in the render pass.
+		*/
+		PARABLIT_INTERFACE void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount) = 0;
+
+		PARABLIT_INTERFACE void CmdEndRenderPass() = 0;
+
 		PARABLIT_INTERFACE void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) = 0;
 
-		PARABLIT_INTERFACE void CmdTransitionTexture(ITexture* texture, ETextureState newState, SubresourceRange subResourceRange = {}) = 0;
+		PARABLIT_INTERFACE void CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange = {}) = 0;
 	};
 
 	ICommandContext* CreateCommandContext(IRenderer* renderer);

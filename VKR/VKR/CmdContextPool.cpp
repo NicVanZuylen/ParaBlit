@@ -18,6 +18,7 @@ namespace PB
 
 	ICommandContext* CmdContextPool::Allocate()
 	{
+		std::lock_guard<std::mutex> m_lock(m_allocatorLock);
 		if (m_gaps.Count() > 0)
 		{
 			ICommandContext* ptr = m_gaps[m_gaps.Count() - 1];
@@ -39,6 +40,7 @@ namespace PB
 
 	void CmdContextPool::Free(ICommandContext* contextAddress)
 	{
+		std::lock_guard<std::mutex> m_lock(m_allocatorLock);
 		m_gaps.Push(reinterpret_cast<CommandContext*>(contextAddress));
 	}
 }

@@ -3,6 +3,9 @@
 #include "ParaBlitInterface.h"
 #include "ISwapChain.h"
 #include "IRenderPassCache.h"
+#include "ITextureViewCache.h"
+#include "IShaderModule.h"
+#include "IPipelineCache.h"
 
 #ifdef PARABLIT_WINDOWS
 #include <Windows.h>
@@ -44,8 +47,14 @@ namespace PB
 		PARABLIT_INTERFACE ISwapChain* CreateSwapChain(const SwapChainDesc& desc) = 0;
 		PARABLIT_INTERFACE void BeginFrame() = 0;
 		PARABLIT_INTERFACE void EndFrame() = 0;
+		PARABLIT_INTERFACE void WaitIdle() = 0;
+
+		PARABLIT_INTERFACE u32 GetCurrentSwapchainImageIndex() = 0;
 
 		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;
+		PARABLIT_INTERFACE ITextureViewCache* GetTextureViewCache() = 0;
+		PARABLIT_INTERFACE IShaderModuleCache* GetShaderModuleCache() = 0;
+		PARABLIT_INTERFACE IPipelineCache* GetPipelineCache() = 0;
 
 	private:
 		PARABLIT_INTERFACE void CreateWindowSurface(WindowDesc* windowHandle) = 0;

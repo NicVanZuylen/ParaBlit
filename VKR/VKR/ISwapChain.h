@@ -35,6 +35,18 @@ namespace PB
 		PARABLIT_INTERFACE ITexture* GetImage(u32 imageIndex) = 0;
 
 		/*
+		Description: Get the width of the swapchain buffers.
+		Return Type: u32
+		*/
+		PARABLIT_INTERFACE u32 GetWidth() = 0;
+
+		/*
+		Description: Get the height of the swapchain buffers.
+		Return Type: u32
+		*/
+		PARABLIT_INTERFACE u32 GetHeight() = 0;
+
+		/*
 		Description: Get swapchain image count.
 		Return Type: u32
 		*/

@@ -48,4 +48,9 @@ namespace PB
 	{
 		return m_ptr;
 	}
+
+	bool SubresourceRange::operator==(const SubresourceRange& other) const
+	{
+		return m_arrayCount == other.m_arrayCount && m_firstArrayElement == other.m_firstArrayElement && m_mipCount == other.m_mipCount && m_baseMip == other.m_baseMip;
+	}
 }

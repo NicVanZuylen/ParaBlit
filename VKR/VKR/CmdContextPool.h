@@ -4,9 +4,10 @@
 #include "ICommandContext.h"
 #include "CommandContext.h"
 
+#include <mutex>
+
 namespace PB
 {
-	// TODO: Consider thread safety of the allocator. Do we make the pool thread safe? Or do we make a pool for every thread that will use one?
 	class CmdContextPool
 	{
 	public:
@@ -24,6 +25,7 @@ namespace PB
 		DynamicArray<CommandContext*> m_contextPages;
 		DynamicArray<ICommandContext*, 16> m_gaps;
 		uint32_t m_contextCount = 0;
+		std::mutex m_allocatorLock;
 	};
 }
 

@@ -7,6 +7,10 @@
 #include "Dequeue.h"
 #include "CmdContextPool.h"
 #include "RenderPassCache.h"
+#include "ImageView.h"
+#include "FramebufferCache.h"
+#include "ShaderModule.h"
+#include "PipelineCache.h"
 
 #include <mutex>
 
@@ -35,7 +39,7 @@ namespace PB
 		DynamicArray<VkCommandBuffer, 8> m_submittedContextCmdBuffers;		// Command context command buffers submitted for this frame, these will be emptied when the frame is next ready for use.
 		DynamicArray<VkCommandBuffer, 8> m_prioritySubmittedContextBuffers;	// Submitted context command buffers that will be executed before non-priority command buffers.
 		DynamicArray<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;		// Submitted context command buffers that will be executed before non-priority command buffers.
-
+		DynamicArray<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
 	};
 
 	class Renderer : public IRenderer
@@ -54,6 +58,14 @@ namespace PB
 
 		PARABLIT_API IRenderPassCache* GetRenderPassCache() override;
 
+		PARABLIT_API ITextureViewCache* GetTextureViewCache() override;
+
+		PARABLIT_API IShaderModuleCache* GetShaderModuleCache() override;
+
+		PARABLIT_API IPipelineCache* GetPipelineCache() override;
+
+		PARABLIT_API FramebufferCache* GetFramebufferCache();
+
 		PARABLIT_API VkCommandBuffer AllocateCommandBuffer();
 
 		PARABLIT_API void ReturnCommandBuffer(CommandContext& context);
@@ -63,6 +75,10 @@ namespace PB
 		PARABLIT_API void BeginFrame() override;
 
 		PARABLIT_API void EndFrame() override;
+
+		PARABLIT_API void WaitIdle() override;
+
+		PARABLIT_API u32 GetCurrentSwapchainImageIndex() override;
 
 		PARABLIT_API CmdContextPool& GetContextPool();
 
@@ -85,7 +101,13 @@ namespace PB
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
 		SwapChainDesc m_swapchainDesc;
 		Swapchain m_swapchain;
+
+		// Resource Cache
 		RenderPassCache m_renderPassCache;
+		TextureViewCache m_viewCache;
+		FramebufferCache m_framebufferCache;
+		ShaderCache m_shaderModuleCache;
+		PipelineCache m_pipelineCache;
 
 		// Frame State
 		VkQueue m_presentQueue = VK_NULL_HANDLE;

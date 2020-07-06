@@ -1,6 +1,8 @@
 #pragma once
 #include "ParaBlitApi.h"
 #include "ExtensionManager.h"
+#include "ParaBlitDefs.h"
+#include "DeviceAllocator.h"
 
 namespace PB 
 {
@@ -26,6 +28,18 @@ namespace PB
 		PARABLIT_API VkDevice GetHandle();
 
 		PARABLIT_API VkPhysicalDevice GetPhysicalDevice();
+
+		/*
+		Description: Get the memory type index for a specific memory type.
+		Return Type: u32
+		*/
+		PARABLIT_API u32 FindMemoryTypeIndex(const u32& typeFilter, const EMemoryType& memType);
+
+		/*
+		Description: Gets the memory allocator for allocating memory on this device.
+		Return Type: DeviceAllocator&
+		*/
+		PARABLIT_API DeviceAllocator& GetDeviceAllocator();
 
 	private:
 
@@ -53,8 +67,10 @@ namespace PB
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 		VkPhysicalDeviceFeatures m_physDeviceFeatures = {};
 		VkPhysicalDeviceProperties m_physDeviceProperties = {};
+		VkPhysicalDeviceMemoryProperties m_memoryProperties = {};
 		VkDevice m_device = VK_NULL_HANDLE;
 
 		int m_graphicsFamilyIndex = -1;
+		DeviceAllocator m_allocator;
 	};
 }

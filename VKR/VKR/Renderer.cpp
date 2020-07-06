@@ -19,7 +19,11 @@ namespace PB
 		if (m_windowSurface)
 			vkDestroySurfaceKHR(m_vkInstance.GetHandle(), m_windowSurface, nullptr);
 
+		m_pipelineCache.Destroy();
 		m_renderPassCache.Destroy();
+		m_framebufferCache.Destroy();
+		m_shaderModuleCache.Destroy();
+		m_viewCache.Destroy();
 
 		// Destroy sync objects.
 		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
@@ -39,6 +43,10 @@ namespace PB
 		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
 		m_device.Init(m_vkInstance.GetHandle());
 		m_renderPassCache.Init(&m_device);
+		m_viewCache.Init(&m_device);
+		m_framebufferCache.Init(&m_device);
+		m_shaderModuleCache.Init(&m_device);
+		m_pipelineCache.Init(&m_device);
 
 		CreateWindowSurface(desc.m_windowInfo);
 		CreateSyncObjects();
@@ -65,6 +73,26 @@ namespace PB
 		return &m_renderPassCache;
 	}
 
+	ITextureViewCache* Renderer::GetTextureViewCache()
+	{
+		return &m_viewCache;
+	}
+
+	IShaderModuleCache* Renderer::GetShaderModuleCache()
+	{
+		return &m_shaderModuleCache;
+	}
+
+	IPipelineCache* Renderer::GetPipelineCache()
+	{
+		return &m_pipelineCache;
+	}
+
+	FramebufferCache* Renderer::GetFramebufferCache()
+	{
+		return &m_framebufferCache;
+	}
+
 	VkCommandBuffer Renderer::AllocateCommandBuffer()
 	{
 		std::lock_guard<std::mutex> lock(m_contextCmdAllocLock); // Only one thread should be allocating command context buffers at any given time.
@@ -81,7 +109,7 @@ namespace PB
 		VkCommandBufferAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr };
 		allocInfo.commandBufferCount = 1;
 		allocInfo.commandPool = m_masterCmdPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
 		vkAllocateCommandBuffers(m_device.GetHandle(), &allocInfo, &newCmdBuf);
 		PB_ASSERT(newCmdBuf);
@@ -117,12 +145,16 @@ namespace PB
 			m_curFrameInfoIdx = 0;
 
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
-		m_freeContextCmdBuffers += curFrameInfo.m_submittedContextCmdBuffers; // Append submitted command buffers to free buffer array, as they can now be modified.
-		m_freeContextCmdBuffers += curFrameInfo.m_prioritySubmittedContextBuffers;
-		m_freeContextCmdBuffers += curFrameInfo.m_submittedInternalCmdBuffers;
+		m_freeContextCmdBuffers += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they can now be modified.
+		//m_freeContextCmdBuffers += curFrameInfo.m_submittedContextCmdBuffers; // Append submitted command buffers to free buffer array, as they can now be modified.
+		//m_freeContextCmdBuffers += curFrameInfo.m_prioritySubmittedContextBuffers;
+		//m_freeContextCmdBuffers += curFrameInfo.m_submittedInternalCmdBuffers;
+		curFrameInfo.m_submittedInternalCmdBuffers.Clear();
 		curFrameInfo.m_prioritySubmittedContextBuffers.Clear();
 		curFrameInfo.m_submittedContextCmdBuffers.Clear();
 		PB_ASSERT(curFrameInfo.m_state == PB_FRAME_STATE_IN_FLIGHT || curFrameInfo.m_state == PB_FRAME_STATE_OPEN);
+
+		// TODO: Optimization: The wait and aquire process should be moved to EndFrame() as all CPU-side code for this frame between here and EndFrame() is halted until the last frame with this index has completed GPU-side execution.
 
 		// Wait for frame to finish if it's still in-flight.
 		vkWaitForFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence, VK_TRUE, ~(0ULL));
@@ -139,6 +171,16 @@ namespace PB
 		InlineContextCmdBuffers();
 		SubmitFrame();
 		Present();
+	}
+
+	void Renderer::WaitIdle()
+	{
+		vkDeviceWaitIdle(m_device.GetHandle());
+	}
+
+	u32 Renderer::GetCurrentSwapchainImageIndex()
+	{
+		return m_frameInfos[m_curFrameInfoIdx].m_presentImageIdx;
 	}
 
 	CmdContextPool& Renderer::GetContextPool()
@@ -208,38 +250,49 @@ namespace PB
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
 
 		// Begin master command buffer recording.
-		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr };
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		beginInfo.pInheritanceInfo = nullptr;
+		//VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr };
+		//beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		//beginInfo.pInheritanceInfo = nullptr;
 
-		vkBeginCommandBuffer(curFrameInfo.m_masterCommandBuffer, &beginInfo);
+		//vkBeginCommandBuffer(curFrameInfo.m_masterCommandBuffer, &beginInfo);
 
-		// Batch-inline internal command buffers first.
-		if (m_internalCmdBuffers.Count() > 0)
-			vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, m_internalCmdBuffers.Count(), m_internalCmdBuffers.Data());
+		//// Batch-inline internal command buffers first.
+		//if (m_internalCmdBuffers.Count() > 0)
+		//	vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, m_internalCmdBuffers.Count(), m_internalCmdBuffers.Data());
 
-		curFrameInfo.m_submittedInternalCmdBuffers += m_internalCmdBuffers;
-		m_internalCmdBuffers.Clear();
+		//curFrameInfo.m_submittedInternalCmdBuffers += m_internalCmdBuffers;
+		//m_internalCmdBuffers.Clear();
 
-		// Batch-inline priority command buffers second.
-		if(curFrameInfo.m_prioritySubmittedContextBuffers.Count() > 0)
-			vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, curFrameInfo.m_prioritySubmittedContextBuffers.Count(), curFrameInfo.m_prioritySubmittedContextBuffers.Data());
+		//// Batch-inline priority command buffers second.
+		//if(curFrameInfo.m_prioritySubmittedContextBuffers.Count() > 0)
+		//	vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, curFrameInfo.m_prioritySubmittedContextBuffers.Count(), curFrameInfo.m_prioritySubmittedContextBuffers.Data());
 
-		// Batch-inline command buffers.
-		if (curFrameInfo.m_submittedContextCmdBuffers.Count() > 0)
-			vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, curFrameInfo.m_submittedContextCmdBuffers.Count(), curFrameInfo.m_submittedContextCmdBuffers.Data());
+		//// Batch-inline command buffers.
+		//if (curFrameInfo.m_submittedContextCmdBuffers.Count() > 0)
+		//	vkCmdExecuteCommands(curFrameInfo.m_masterCommandBuffer, curFrameInfo.m_submittedContextCmdBuffers.Count(), curFrameInfo.m_submittedContextCmdBuffers.Data());
 
-		// End master command buffer recording.
-		vkEndCommandBuffer(curFrameInfo.m_masterCommandBuffer);
+		//// End master command buffer recording.
+		//vkEndCommandBuffer(curFrameInfo.m_masterCommandBuffer);
+		
 	}
 
 	void Renderer::SubmitFrame()
 	{
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
 
+		curFrameInfo.m_submittedInternalCmdBuffers += m_internalCmdBuffers;
+		m_internalCmdBuffers.Clear();
+
+		curFrameInfo.m_enqueuedCmdBuffers.Clear();
+		curFrameInfo.m_enqueuedCmdBuffers += curFrameInfo.m_submittedInternalCmdBuffers;
+		curFrameInfo.m_enqueuedCmdBuffers += curFrameInfo.m_prioritySubmittedContextBuffers;
+		curFrameInfo.m_enqueuedCmdBuffers += curFrameInfo.m_submittedContextCmdBuffers;
+
 		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr };
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &curFrameInfo.m_masterCommandBuffer;
+		//submitInfo.commandBufferCount = 1;
+		//submitInfo.pCommandBuffers = &curFrameInfo.m_masterCommandBuffer;
+		submitInfo.commandBufferCount = curFrameInfo.m_enqueuedCmdBuffers.Count();
+		submitInfo.pCommandBuffers = curFrameInfo.m_enqueuedCmdBuffers.Data();
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = &curFrameInfo.m_frameSemaphore;
 		submitInfo.waitSemaphoreCount = 1;

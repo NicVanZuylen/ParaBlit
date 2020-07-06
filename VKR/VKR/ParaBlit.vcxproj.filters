@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Interface">
+      <UniqueIdentifier>{04858ae0-fc96-46d3-ac8c-e19a0674942b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ExtensionManager.cpp">
@@ -63,6 +66,24 @@
     <ClCompile Include="MurmurHash3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DeviceAllocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ITexture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FramebufferCache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PipelineCache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h">
@@ -78,12 +99,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Swapchain.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="IRenderer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ISwapChain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ParaBlitApi.h">
@@ -113,20 +128,53 @@
     <ClInclude Include="ResourceManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ICommandContext.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ITexture.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="CmdContextPool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="MurmurHash3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="IRenderPassCache.h">
+    <ClInclude Include="DeviceAllocator.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ISwapChain.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="IRenderPassCache.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="IRenderer.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="ICommandContext.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="ITexture.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ITextureViewCache.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="FramebufferCache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PipelineCache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderModule.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IShaderModule.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="ParaBlitDefs.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="IPipelineCache.h">
+      <Filter>Interface</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

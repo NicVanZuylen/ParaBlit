@@ -13,6 +13,7 @@ namespace PB
 	{
 		if (m_device)
 		{
+			m_allocator.Destroy();
 			vkDestroyDevice(m_device, nullptr);
 			m_device = VK_NULL_HANDLE;
 		}
@@ -24,6 +25,7 @@ namespace PB
 		m_instance = instance;
 		EnumDevice();
 		CreateLogicalDevice();
+		m_allocator.Init(this);
 	}
 
 	int Device::GetGraphicsQueueFamilyIndex()
@@ -39,6 +41,47 @@ namespace PB
 	VkPhysicalDevice Device::GetPhysicalDevice()
 	{
 		return m_physicalDevice;
+	}
+
+	inline VkMemoryPropertyFlags GetVkMemPropertyFlags(const EMemoryType& memType)
+	{
+		switch (memType)
+		{
+		case PB_MEMORY_TYPE_DEVICE_LOCAL:
+			return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			break;
+		case PB_MEMORY_TYPE_HOST_VISIBLE:
+			return VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+			break;
+		case PB_MEMORY_TYPE_END_RANGE:
+			PB_ASSERT(false, "Invalid memory type provided.");
+			return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			break;
+		default:
+			PB_NOT_IMPLEMENTED;
+			return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			break;
+		}
+		return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+	}
+
+	u32 Device::FindMemoryTypeIndex(const u32& typeFilter, const EMemoryType& memType)
+	{
+		VkMemoryPropertyFlags propertyFlags = GetVkMemPropertyFlags(memType);
+		for (u32 i = 0; i < m_memoryProperties.memoryTypeCount; ++i)
+		{
+			// Ensure the type is within the type filter and has the correct memory properties.
+			auto& type = m_memoryProperties.memoryTypes[i];
+			if (typeFilter & (1 << i) && (type.propertyFlags & propertyFlags) == propertyFlags)
+				return i;
+		}
+		PB_ASSERT(false, "Requested memory requirements are not supported.");
+		return 0;
+	}
+
+	DeviceAllocator& Device::GetDeviceAllocator()
+	{
+		return m_allocator;
 	}
 
 	void Device::EnumDevice()
@@ -60,6 +103,8 @@ namespace PB
 			vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 			VkPhysicalDeviceProperties deviceProperties;
 			vkGetPhysicalDeviceProperties(device, &deviceProperties);
+			VkPhysicalDeviceMemoryProperties memoryProperties;
+			vkGetPhysicalDeviceMemoryProperties(device, &memoryProperties);
 
 			u64 score = GetDeviceScore(deviceFeatures, deviceProperties);
 
@@ -70,11 +115,17 @@ namespace PB
 				highestScore = score;
 				m_physDeviceFeatures = deviceFeatures;
 				m_physDeviceProperties = deviceProperties;
+				m_memoryProperties = memoryProperties;
 			}
 		}
 
 		// Print device information.
 		PB_LOG_FORMAT("Chosen Physical Device: %s", m_physDeviceProperties.deviceName);
+
+		u32 majorVersion = VK_VERSION_MAJOR(m_physDeviceProperties.apiVersion);
+		u32 minorVersion = VK_VERSION_MINOR(m_physDeviceProperties.apiVersion);
+		u32 patchVersion = VK_VERSION_PATCH(m_physDeviceProperties.apiVersion);
+		std::cout << "PARABLIT LOG: Device API Version: " << majorVersion << "." << minorVersion << "." << patchVersion << "\n";
 		switch (m_physDeviceProperties.deviceType)
 		{
 		case VK_PHYSICAL_DEVICE_TYPE_CPU:
