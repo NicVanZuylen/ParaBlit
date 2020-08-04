@@ -50,8 +50,4 @@ namespace PB
 		*/
 		PARABLIT_INTERFACE void Create(IRenderer* renderer, const TextureDesc& desc) = 0;
 	};
-
-	PARABLIT_API ITexture* AllocateTexture();
-
-	PARABLIT_API void FreeTexture(ITexture* texture);
 }

@@ -90,6 +90,9 @@
     <ClCompile Include="StagingBufferAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CLib\Allocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h">
@@ -189,6 +192,9 @@
       <Filter>Interface</Filter>
     </ClInclude>
     <ClInclude Include="StagingBufferAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CLib\Allocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

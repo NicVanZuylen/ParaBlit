@@ -6,6 +6,7 @@
 #include "ITextureViewCache.h"
 #include "IShaderModule.h"
 #include "IPipelineCache.h"
+#include "ITexture.h"
 
 #ifdef PARABLIT_WINDOWS
 #include <Windows.h>
@@ -50,6 +51,9 @@ namespace PB
 		PARABLIT_INTERFACE void WaitIdle() = 0;
 
 		PARABLIT_INTERFACE u32 GetCurrentSwapchainImageIndex() = 0;
+
+		PARABLIT_INTERFACE ITexture* AllocateTexture(const TextureDesc& texDesc) = 0;
+		PARABLIT_INTERFACE void FreeTexture(ITexture* texture) = 0;
 
 		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;
 		PARABLIT_INTERFACE ITextureViewCache* GetTextureViewCache() = 0;

@@ -102,7 +102,6 @@ int Application::Init(int argumentCount, char** argumentVector)
 
 void Application::Run() 
 {
-	PB::ITexture* testTex = PB::AllocateTexture();
 	PB::TextureDesc testTexDesc;
 	testTexDesc.m_data.m_data = nullptr;
 	testTexDesc.m_data.m_size = 0;
@@ -112,8 +111,7 @@ void Application::Run()
 	testTexDesc.m_initOptions = PB::PB_TEXTURE_INIT_ZERO_INITIALIZE;
 	testTexDesc.m_width = m_swapchain->GetWidth();
 	testTexDesc.m_height = m_swapchain->GetHeight();
-
-	testTex->Create(m_renderer, testTexDesc);
+	PB::ITexture* testTex = m_renderer->AllocateTexture(testTexDesc);
 
 	PB::TextureViewDesc viewDesc = {};
 	viewDesc.m_texture = testTex;
@@ -287,7 +285,7 @@ void Application::Run()
 	}
 
 	m_renderer->WaitIdle();
-	PB::FreeTexture(testTex);
+	m_renderer->FreeTexture(testTex);
 }
 
 void Application::CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen)

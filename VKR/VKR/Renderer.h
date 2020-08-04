@@ -5,6 +5,7 @@
 #include "Device.h"
 #include "Swapchain.h"
 #include "CLib/Vector.h"
+#include "CLib/Allocator.h"
 #include "CmdContextPool.h"
 #include "RenderPassCache.h"
 #include "ImageView.h"
@@ -78,6 +79,10 @@ namespace PB
 
 		PARABLIT_API u32 GetCurrentSwapchainImageIndex() override;
 
+		PARABLIT_API ITexture* AllocateTexture(const TextureDesc& texDesc) override;
+
+		PARABLIT_API void FreeTexture(ITexture* texture) override;
+
 		PARABLIT_API CmdContextPool& GetContextPool();
 
 		u64 GetCurrentFrame();
@@ -101,6 +106,9 @@ namespace PB
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
 		SwapChainDesc m_swapchainDesc;
 		Swapchain m_swapchain;
+
+		// Misc
+		CLib::Allocator m_allocator;
 
 		// Resource Cache
 		RenderPassCache m_renderPassCache;

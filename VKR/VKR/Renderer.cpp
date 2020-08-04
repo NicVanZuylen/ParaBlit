@@ -184,6 +184,20 @@ namespace PB
 		return m_frameInfos[m_curFrameInfoIdx].m_presentImageIdx;
 	}
 
+	ITexture* Renderer::AllocateTexture(const TextureDesc& texDesc)
+	{
+		auto* internalTex = m_allocator.Alloc<Texture>();
+		internalTex->Create(this, texDesc);
+		return reinterpret_cast<ITexture*>(internalTex);
+	}
+
+	void Renderer::FreeTexture(ITexture* texture)
+	{
+		auto* internalTex = reinterpret_cast<Texture*>(texture);
+		internalTex->Destroy();
+		m_allocator.Free(internalTex);
+	}
+
 	CmdContextPool& Renderer::GetContextPool()
 	{
 		return m_contextPool;

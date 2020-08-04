@@ -146,6 +146,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BufferObject.cpp" />
+    <ClCompile Include="CLib\Allocator.cpp" />
     <ClCompile Include="CmdContextPool.cpp" />
     <ClCompile Include="CommandContext.cpp" />
     <ClCompile Include="Device.cpp" />
@@ -172,6 +173,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BufferObject.h" />
+    <ClInclude Include="CLib\Allocator.h" />
     <ClInclude Include="CmdContextPool.h" />
     <ClInclude Include="CommandContext.h" />
     <ClInclude Include="Device.h" />
