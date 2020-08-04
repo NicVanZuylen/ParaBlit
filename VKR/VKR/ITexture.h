@@ -1,6 +1,6 @@
 #pragma once
+#include "ParaBlitApi.h"
 #include "ParaBlitInterface.h"
-#include "ParaBlitDefs.h"
 
 namespace PB
 {

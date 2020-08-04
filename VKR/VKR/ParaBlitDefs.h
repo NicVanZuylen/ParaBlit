@@ -1,8 +1,12 @@
 #pragma once
-#include "ParaBlitApi.h"
 
 namespace PB
 {
+	typedef unsigned char u8;
+	typedef unsigned short u16;
+	typedef unsigned int u32;
+	typedef unsigned long long u64;
+
 	enum EMemoryType : u16
 	{
 		PB_MEMORY_TYPE_HOST_VISIBLE,
@@ -47,6 +51,20 @@ namespace PB
 		PB_ATTACHMENT_START_ACTION_NONE,
 		PB_ATTACHMENT_START_ACTION_CLEAR,
 		PB_ATTACHMENT_START_ACTION_LOAD
+	};
+
+	enum EBufferOptions
+	{
+		PB_BUFFER_OPTION_ZERO_INITIALIZE = 1,
+		PB_BUFFER_OPTION_CPU_ACCESSIBLE = 1 << 1,
+	};
+
+	enum EBufferUsage
+	{
+		PB_BUFFER_USAGE_UNIFORM = 1,
+		PB_BUFFER_USAGE_STORAGE = 1 << 1,
+		PB_BUFFER_USAGE_COPY_SRC = 1 << 2,
+		PB_BUFFER_USAGE_COPY_DST = 1 << 3
 	};
 
 	struct Float4
@@ -110,6 +128,9 @@ namespace PB
 	using Framebuffer = void*;
 	using ShaderModule = u64;
 	using Pipeline = u64;
+
+	using BufferOptions = u32;
+	using BufferUsage = u32;
 
 	struct SubresourceRange
 	{

@@ -1,8 +1,8 @@
 #pragma once
 #include "ParaBlitApi.h"
+#include "ParaBlitDefs.h"
 #include "Texture.h"
 #include "CommandContext.h"
-#include "RenderPassCache.h"
 
 namespace PB
 {
@@ -11,6 +11,8 @@ namespace PB
 	PARABLIT_API inline VkImageLayout ConvertPBStateToImageLayout(ETextureState state);
 
 	PARABLIT_API inline VkImageUsageFlags ConvertPBAvailableStatesToUsageFlags(ETextureStateFlags availableStates);
+
+	PARABLIT_API inline VkBufferUsageFlags ConvertPBBufferUsageToVkBufferUsage(BufferUsage usage);
 
 	PARABLIT_API inline VkPipelineStageFlags GetSrcStatePipelineFlags(ETextureState srcState);
 

@@ -11,12 +11,9 @@
 #include "FramebufferCache.h"
 #include "ShaderModule.h"
 #include "PipelineCache.h"
+#include "BufferObject.h"
 
 #include <mutex>
-
-#ifndef PB_FRAME_IN_FLIGHT_COUNT
-#define PB_FRAME_IN_FLIGHT_COUNT 3
-#endif // !PB_FRAME_IN_FLIGHT_COUNT
 
 namespace PB 
 {
@@ -40,6 +37,7 @@ namespace PB
 		DynamicArray<VkCommandBuffer, 8> m_prioritySubmittedContextBuffers;	// Submitted context command buffers that will be executed before non-priority command buffers.
 		DynamicArray<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;		// Submitted context command buffers that will be executed before non-priority command buffers.
 		DynamicArray<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
+		DynamicArray<BufferObject, 8> m_stagingBuffers;						// Staging buffers which are in flight for this frame. These will be deleted or re-used once the frame is complete.
 	};
 
 	class Renderer : public IRenderer
@@ -82,6 +80,8 @@ namespace PB
 
 		PARABLIT_API CmdContextPool& GetContextPool();
 
+		u64 GetCurrentFrame();
+
 	private:
 
 		PARABLIT_API inline void CreateWindowSurface(WindowDesc* windowHandle) override;
@@ -111,9 +111,10 @@ namespace PB
 
 		// Frame State
 		VkQueue m_presentQueue = VK_NULL_HANDLE;
+		VkCommandPool m_masterCmdPool = VK_NULL_HANDLE;
+		u64 m_currentFrame = 0;
 		u8 m_curFrameInfoIdx = 0;
 		u8 m_lastFrameInfoIdx = ~0;
-		VkCommandPool m_masterCmdPool = VK_NULL_HANDLE;
 		DynamicArray<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT> m_frameInfos;
 		DynamicArray<VkCommandBuffer, PB_FRAME_IN_FLIGHT_COUNT> m_masterCmdBuffers;
 		DynamicArray<VkCommandBuffer, 64> m_freeContextCmdBuffers;

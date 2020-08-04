@@ -84,6 +84,11 @@ namespace PB
 		return m_allocator;
 	}
 
+	StagingBufferAllocator& Device::GetStagingBufferAllocator()
+	{
+		return m_tempStagingBufferAllocator;
+	}
+
 	void Device::EnumDevice()
 	{
 		u32 deviceCount = 0;

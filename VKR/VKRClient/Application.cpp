@@ -220,11 +220,13 @@ void Application::Run()
 		PB::PipelineDesc pipelineDesc;
 		pipelineDesc.m_renderPass = renderPass;
 		pipelineDesc.m_subpass = 0;
+		pipelineDesc.m_renderArea = { 0, 0, m_swapchain->GetWidth(), m_swapchain->GetHeight() };
 		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_VERTEX] = vertModule;
 		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_FRAGMENT] = fragModule;
 		auto pipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 
-		DynamicArray<PB::Float4, 1> clearColors = { { 0.0f, 0.4f, 0.6f, 0.0f } };
+		//DynamicArray<PB::Float4, 1> clearColors = { { 0.0f, 0.4f, 0.6f, 0.0f } };
+		DynamicArray<PB::Float4, 1> clearColors = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 
 		PB::CommandContextDesc contextDesc;
 		contextDesc.m_renderer = m_renderer;
@@ -238,6 +240,8 @@ void Application::Run()
 
 		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_COLORTARGET);
 		cmdContext->CmdBeginRenderPass(renderPass, m_swapchain->GetWidth(), m_swapchain->GetHeight(), &swapchainTextureViews[swapChainIdx], 1, clearColors.Data(), clearColors.Count() );
+		cmdContext->CmdBindPipeline(pipeline);
+		cmdContext->CmdDraw(3);
 		cmdContext->CmdEndRenderPass();
 		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_PRESENT);
 		cmdContext->End();

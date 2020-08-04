@@ -55,6 +55,10 @@ namespace PB
 		PARABLIT_INTERFACE void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) = 0;
 
 		PARABLIT_INTERFACE void CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange = {}) = 0;
+
+		PARABLIT_INTERFACE void CmdBindPipeline(Pipeline pipeline) = 0;
+
+		PARABLIT_INTERFACE void CmdDraw(u32 vertexCount) = 0;
 	};
 
 	ICommandContext* CreateCommandContext(IRenderer* renderer);

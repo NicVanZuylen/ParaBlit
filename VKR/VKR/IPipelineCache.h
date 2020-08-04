@@ -10,6 +10,7 @@ namespace PB
 	{
 		PB::RenderPass m_renderPass = 0;
 		u64 m_subpass = 0;
+		PB::Rect m_renderArea = {};
 		PB::ShaderModule m_shaderModules[PB_SHADER_STAGE_COUNT] = {};
 
 		bool operator == (const PipelineDesc& other) const;

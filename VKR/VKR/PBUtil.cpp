@@ -85,6 +85,20 @@ namespace PB
         return vkFlags;
 	}
 
+	VkBufferUsageFlags ConvertPBBufferUsageToVkBufferUsage(BufferUsage usage)
+	{
+        VkBufferUsageFlags returnFlags = 0;
+        if (usage & PB_BUFFER_USAGE_UNIFORM)
+            returnFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        if (usage & PB_BUFFER_USAGE_STORAGE)
+            returnFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        if (usage & PB_BUFFER_USAGE_COPY_SRC)
+            returnFlags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        if (usage & PB_BUFFER_USAGE_COPY_DST)
+            returnFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        return returnFlags;
+	}
+
     VkPipelineStageFlags GetSrcStatePipelineFlags(ETextureState srcState)
     {
         switch (srcState)

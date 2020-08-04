@@ -146,12 +146,12 @@ namespace PB
 
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
 		m_freeContextCmdBuffers += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they can now be modified.
-		//m_freeContextCmdBuffers += curFrameInfo.m_submittedContextCmdBuffers; // Append submitted command buffers to free buffer array, as they can now be modified.
-		//m_freeContextCmdBuffers += curFrameInfo.m_prioritySubmittedContextBuffers;
-		//m_freeContextCmdBuffers += curFrameInfo.m_submittedInternalCmdBuffers;
 		curFrameInfo.m_submittedInternalCmdBuffers.Clear();
 		curFrameInfo.m_prioritySubmittedContextBuffers.Clear();
 		curFrameInfo.m_submittedContextCmdBuffers.Clear();
+		for (auto& stagingBuffer : curFrameInfo.m_stagingBuffers)
+			stagingBuffer.Destroy(); // TODO: We should probably find a way to re-use these instead of destroying them.
+		curFrameInfo.m_stagingBuffers.Clear();
 		PB_ASSERT(curFrameInfo.m_state == PB_FRAME_STATE_IN_FLIGHT || curFrameInfo.m_state == PB_FRAME_STATE_OPEN);
 
 		// TODO: Optimization: The wait and aquire process should be moved to EndFrame() as all CPU-side code for this frame between here and EndFrame() is halted until the last frame with this index has completed GPU-side execution.
@@ -171,6 +171,7 @@ namespace PB
 		InlineContextCmdBuffers();
 		SubmitFrame();
 		Present();
+		++m_currentFrame;
 	}
 
 	void Renderer::WaitIdle()
@@ -186,6 +187,11 @@ namespace PB
 	CmdContextPool& Renderer::GetContextPool()
 	{
 		return m_contextPool;
+	}
+
+	u64 Renderer::GetCurrentFrame()
+	{
+		return m_currentFrame;
 	}
 
 	void Renderer::CreateWindowSurface(WindowDesc* windowInfo)

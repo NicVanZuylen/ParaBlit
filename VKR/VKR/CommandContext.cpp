@@ -5,6 +5,7 @@
 #include "Renderer.h"
 #include "FixedArray.h"
 #include "Texture.h"
+#include "BufferObject.h"
 
 namespace PB 
 {
@@ -241,6 +242,29 @@ namespace PB
 		// TODO: Add functionality to batch transitions with the same stage masks. Batching will be optional is it may affect transition order.
 		vkCmdPipelineBarrier(m_cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
 		internalTex->SetState(newState);
+	}
+
+	void CommandContext::CmdBindPipeline(Pipeline pipeline)
+	{
+		VkPipeline vulkanPipeline = reinterpret_cast<VkPipeline>(pipeline);
+		vkCmdBindPipeline(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanPipeline);
+	}
+
+	void CommandContext::CmdDraw(u32 vertexCount)
+	{
+		vkCmdDraw(m_cmdBuffer, vertexCount, 1, 0, 0);
+	}
+
+	void CommandContext::CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size)
+	{
+		BufferObject* srcInternal = reinterpret_cast<BufferObject*>(src);
+		BufferObject* dstInternal = reinterpret_cast<BufferObject*>(dst);
+		
+		VkBufferCopy copyRegion;
+		copyRegion.size = size;
+		copyRegion.srcOffset = srcInternal->GetStart() + srcOffset;
+		copyRegion.dstOffset = dstInternal->GetStart() + dstOffset;
+		vkCmdCopyBuffer(m_cmdBuffer, srcInternal->GetHandle(), dstInternal->GetHandle(), 1, &copyRegion);
 	}
 
 	void CommandContext::ValidateRecordingState()

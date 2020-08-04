@@ -17,6 +17,7 @@
 namespace PB 
 {
 	class Renderer;
+	class IBufferObject;
 
 	class CommandContext : public ICommandContext
 	{
@@ -35,6 +36,9 @@ namespace PB
 		PARABLIT_API void CmdEndRenderPass() override;
 		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange) override;
+		PARABLIT_API void CmdBindPipeline(Pipeline pipeline) override;
+		PARABLIT_API void CmdDraw(u32 vertexCount) override;
+		PARABLIT_API void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size);
 
 		PARABLIT_API bool GetIsPriority();
 		

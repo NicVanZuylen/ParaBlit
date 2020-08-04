@@ -61,14 +61,14 @@ namespace PB
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(layout);
 
-		VkRect2D scissor = { 0, 0, 0, 0 };
+		VkRect2D scissor = { desc.m_renderArea.x, desc.m_renderArea.y, desc.m_renderArea.w, desc.m_renderArea.h };
 		VkViewport viewPort;
 		viewPort.minDepth = 0.0f;
 		viewPort.maxDepth = 1.0f;
-		viewPort.x = 0.0f;
-		viewPort.y = 0.0f;
-		viewPort.width = 0.0f;
-		viewPort.height = 0.0f;
+		viewPort.x = static_cast<float>(desc.m_renderArea.x);
+		viewPort.y = static_cast<float>(desc.m_renderArea.y);
+		viewPort.width = static_cast<float>(desc.m_renderArea.w);
+		viewPort.height = static_cast<float>(desc.m_renderArea.h);
 
 		VkPipelineViewportStateCreateInfo viewportState = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, nullptr };
 		viewportState.flags = 0;
@@ -102,11 +102,11 @@ namespace PB
 		rasterState.flags = 0;
 		rasterState.cullMode = VK_CULL_MODE_NONE;
 		rasterState.depthBiasEnable = VK_FALSE;
-		rasterState.depthClampEnable = VK_TRUE;
+		rasterState.depthClampEnable = VK_FALSE;
 		rasterState.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterState.lineWidth = 1.0f;
 		rasterState.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterState.rasterizerDiscardEnable = VK_TRUE;
+		rasterState.rasterizerDiscardEnable = VK_FALSE;
 
 		VkPipelineDepthStencilStateCreateInfo depthStencilState = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO, nullptr };
 		depthStencilState.maxDepthBounds = 1.0f;
@@ -118,7 +118,26 @@ namespace PB
 		depthStencilState.stencilTestEnable = VK_FALSE;
 		depthStencilState.flags = 0;
 
+		VkPipelineColorBlendAttachmentState attachmentState = {};
+		attachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		attachmentState.blendEnable = VK_FALSE;
+		attachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		attachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+		attachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+		attachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		attachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		attachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+
 		VkPipelineColorBlendStateCreateInfo colorBlendState = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, nullptr };
+		colorBlendState.flags = 0;
+		colorBlendState.attachmentCount = 1;
+		colorBlendState.pAttachments = &attachmentState;
+		colorBlendState.logicOp = VK_LOGIC_OP_COPY;
+		colorBlendState.logicOpEnable = VK_FALSE;
+		colorBlendState.blendConstants[0] = 0.0f;
+		colorBlendState.blendConstants[1] = 0.0f;
+		colorBlendState.blendConstants[2] = 0.0f;
+		colorBlendState.blendConstants[3] = 0.0f;
 
 		// We need viewport and scissor states to be dynamic to support window resizing without re-creating all pipelines, since doing so could take a considerable amount of time in complex scenes.
 		VkDynamicState dynamicStates[] =
@@ -152,7 +171,7 @@ namespace PB
 		pipelineInfo.basePipelineIndex = 0;
 		pipelineInfo.layout = layout;
 		pipelineInfo.pViewportState = &viewportState;
-		pipelineInfo.pDynamicState = &dynamicStatesInfo;
+		pipelineInfo.pDynamicState = nullptr;
 		pipelineInfo.pVertexInputState = &vertexInputState;
 		pipelineInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineInfo.pTessellationState = nullptr;

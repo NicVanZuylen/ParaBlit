@@ -3,6 +3,7 @@
 #include "ExtensionManager.h"
 #include "ParaBlitDefs.h"
 #include "DeviceAllocator.h"
+#include "StagingBufferAllocator.h"
 
 namespace PB 
 {
@@ -41,6 +42,12 @@ namespace PB
 		*/
 		PARABLIT_API DeviceAllocator& GetDeviceAllocator();
 
+		/*
+		Description: Gets the temporary staging buffer allocator.
+		Return Type: StagingBufferAllocator&
+		*/
+		StagingBufferAllocator& GetStagingBufferAllocator();
+
 	private:
 
 		// Enumerate physical devices and use the most suitable one.
@@ -72,5 +79,6 @@ namespace PB
 
 		int m_graphicsFamilyIndex = -1;
 		DeviceAllocator m_allocator;
+		StagingBufferAllocator m_tempStagingBufferAllocator;
 	};
 }

@@ -1,13 +1,6 @@
 #pragma once
 
-namespace PB 
-{
-	typedef unsigned char u8;
-	typedef unsigned short u16;
-	typedef unsigned int u32;
-	typedef unsigned long long u64;
-}
-
+#include "ParaBlitDefs.h"
 
 #ifdef PARABLIT_EXPORT
 #define PARABLIT_API __declspec(dllexport)
