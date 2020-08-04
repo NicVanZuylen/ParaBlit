@@ -1,5 +1,5 @@
 #include "Device.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 #include "ParaBlitDebug.h"
 
 namespace PB 
@@ -94,7 +94,7 @@ namespace PB
 		u32 deviceCount = 0;
 		vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 
-		DynamicArray<VkPhysicalDevice> devices(deviceCount);
+		CLib::Vector<VkPhysicalDevice> devices(deviceCount);
 		vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.Data());
 
 		u32 highestScoreIdx = 0;
@@ -194,7 +194,7 @@ namespace PB
 
 		PB_ASSERT(queueFamilyCount > 0, "No queue families found on device.");
 
-		DynamicArray<VkQueueFamilyProperties> queueFamilyProps(queueFamilyCount);
+		CLib::Vector<VkQueueFamilyProperties> queueFamilyProps(queueFamilyCount);
 		vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, queueFamilyProps.Data());
 
 		for (u32 i = 0; i < queueFamilyCount; ++i)

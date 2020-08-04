@@ -24,8 +24,8 @@ namespace PB
 			EnumerateExt(extensionCount, nullptr);
 
 			PB_ASSERT(extensionCount > 0, "No extensions found!");
-			DynamicArray<VkExtensionProperties> extProps(extensionCount);
-			extProps.SetCount(extProps.GetSize());
+			CLib::Vector<VkExtensionProperties> extProps(extensionCount);
+			extProps.SetCount(extProps.Capacity());
 			EnumerateExt(extensionCount, extProps.Data());
 
 			for(uint32_t i = 0; i < extProps.Count(); ++i) 
@@ -40,8 +40,8 @@ namespace PB
 
 			if(layerCount > 0) 
 			{
-				DynamicArray<VkLayerProperties> layerProps(layerCount);
-				layerProps.SetCount(layerProps.GetSize());
+				CLib::Vector<VkLayerProperties> layerProps(layerCount);
+				layerProps.SetCount(layerProps.Capacity());
 				EnumerateLayers(layerCount, layerProps.Data());
 
 				for (uint32_t i = 0; i < layerProps.Count(); ++i)
@@ -200,29 +200,29 @@ namespace PB
 		PB_LOG("---------------------------------------------------------------------");
 	}
 
-	DynamicArray<const char*> ExtensionManager::GetEnabledExtensions()
+	CLib::Vector<const char*> ExtensionManager::GetEnabledExtensions()
 	{
-		DynamicArray<const char*> output(static_cast<uint32_t>(m_availableExt.size()));
+		CLib::Vector<const char*> output(static_cast<uint32_t>(m_availableExt.size()));
 
 		for (auto& ext : m_availableExt) 
 		{
 			// Only push enabled.
 			if(ext.second)
-				output.Push(ext.first.c_str());
+				output.PushBack(ext.first.c_str());
 		}
 
 		return output;
 	}
 
-	DynamicArray<const char*> ExtensionManager::GetEnabledLayers()
+	CLib::Vector<const char*> ExtensionManager::GetEnabledLayers()
 	{
-		DynamicArray<const char*> output(static_cast<uint32_t>(m_availableLayers.size()));
+		CLib::Vector<const char*> output(static_cast<uint32_t>(m_availableLayers.size()));
 
 		for (auto& ext : m_availableLayers)
 		{
 			// Only push enabled.
 			if(ext.second)
-				output.Push(ext.first.c_str());
+				output.PushBack(ext.first.c_str());
 		}
 
 		return output;

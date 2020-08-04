@@ -8,7 +8,7 @@ namespace PB
 	Renderer::Renderer()
 	{
 		for (u32 i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
-			m_frameInfos.Push(FrameInfo());
+			m_frameInfos.PushBack(FrameInfo());
 	}
 
 	Renderer::~Renderer()
@@ -100,7 +100,7 @@ namespace PB
 		if (m_freeContextCmdBuffers.Count() > 0) // Return an available existing command buffer if possible.
 		{
 			VkCommandBuffer nextAvailable = m_freeContextCmdBuffers[m_freeContextCmdBuffers.Count() - 1];
-			m_freeContextCmdBuffers.Pop();
+			m_freeContextCmdBuffers.PopBack();
 			return nextAvailable;
 		}
 
@@ -121,11 +121,11 @@ namespace PB
 		std::lock_guard<std::mutex> lock(m_contextCmdReturnLock); // Only one thread should be returning command context buffers at any given time.
 
 		if(context.GetIsInternal())
-			m_internalCmdBuffers.Push(context.GetCmdBuffer());
+			m_internalCmdBuffers.PushBack(context.GetCmdBuffer());
 		else if (context.GetIsPriority())
-			m_frameInfos[m_curFrameInfoIdx].m_prioritySubmittedContextBuffers.Push(context.GetCmdBuffer());
+			m_frameInfos[m_curFrameInfoIdx].m_prioritySubmittedContextBuffers.PushBack(context.GetCmdBuffer());
 		else
-			m_frameInfos[m_curFrameInfoIdx].m_submittedContextCmdBuffers.Push(context.GetCmdBuffer());
+			m_frameInfos[m_curFrameInfoIdx].m_submittedContextCmdBuffers.PushBack(context.GetCmdBuffer());
 		context.Invalidate(); // Invalidate internal command buffer.
 	}
 
@@ -133,7 +133,7 @@ namespace PB
 	{
 		std::lock_guard<std::mutex> lock(m_contextCmdReturnLock);
 
-		m_freeContextCmdBuffers.Push(context.GetCmdBuffer());
+		m_freeContextCmdBuffers.PushBack(context.GetCmdBuffer());
 		context.Invalidate();
 	}
 

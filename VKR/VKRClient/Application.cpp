@@ -3,7 +3,7 @@
 #include "ParaBlitLog.h"
 #include "WindowHandle.h"
 #include "ICommandContext.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 #include "QuickIO.h"
 
 #include <iostream>
@@ -152,14 +152,14 @@ void Application::Run()
 		delete[] triFragSpv;
 	}
 
-	DynamicArray<PB::TextureView, 3> swapchainTextureViews;
+	CLib::Vector<PB::TextureView, 3> swapchainTextureViews;
 	for (unsigned int i = 0; i < m_swapchain->GetImageCount(); ++i)
 	{
 		PB::TextureViewDesc desc = {};
 		desc.m_texture = m_swapchain->GetImage(i);
 		desc.m_renderer = m_renderer;
 		desc.m_format = PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM;
-		swapchainTextureViews.Push(m_renderer->GetTextureViewCache()->GetView(desc));
+		swapchainTextureViews.PushBack(m_renderer->GetTextureViewCache()->GetView(desc));
 	}
 
 	while(!glfwWindowShouldClose(m_window)) 
@@ -226,7 +226,7 @@ void Application::Run()
 		auto pipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 
 		//DynamicArray<PB::Float4, 1> clearColors = { { 0.0f, 0.4f, 0.6f, 0.0f } };
-		DynamicArray<PB::Float4, 1> clearColors = { { 0.0f, 0.0f, 0.0f, 0.0f } };
+		CLib::Vector<PB::Float4, 1> clearColors = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 
 		PB::CommandContextDesc contextDesc;
 		contextDesc.m_renderer = m_renderer;

@@ -3,7 +3,7 @@
 #include "ParaBlitDebug.h"
 #include "PBUtil.h"
 #include "Renderer.h"
-#include "FixedArray.h"
+#include "CLib/Vector.h"
 #include "Texture.h"
 #include "BufferObject.h"
 
@@ -187,8 +187,8 @@ namespace PB
 		PB_ASSERT(targetCount > 0);
 
 		// Convert clear descs to their Vulkan equivalent and issue the command.
-		FixedArray<VkClearAttachment, 16> clearAttachments;
-		FixedArray<VkClearRect, 16> clearRects;
+		CLib::Vector<VkClearAttachment, 16> clearAttachments;
+		CLib::Vector<VkClearRect, 16> clearRects;
 
 		for (u32 i = 0; i < targetCount; ++i)
 		{

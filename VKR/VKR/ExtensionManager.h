@@ -1,6 +1,6 @@
 #pragma once
 #include "ParaBlitApi.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 #include "vulkan/vulkan.h"
 #include <unordered_map>
 #include <string>
@@ -49,9 +49,9 @@ namespace PB
 		PARABLIT_API void PrintAvailableLayers();
 		PARABLIT_API void PrintEnabledLayers();
 
-		DynamicArray<const char*> GetEnabledExtensions();
+		CLib::Vector<const char*> GetEnabledExtensions();
 
-		DynamicArray<const char*> GetEnabledLayers();
+		CLib::Vector<const char*> GetEnabledLayers();
 
 	private:
 

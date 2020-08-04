@@ -1,6 +1,6 @@
 #include "VulkanInstance.h"
 #include "ParaBlitDebug.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 
 #define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
 #define VK_LAYER_LUNARG_VALIDATION_NAME "VK_LAYER_LUNARG_standard_validation"
@@ -101,11 +101,11 @@ namespace PB
 		m_instanceExtensionManager.PrintEnabledExtensions();
 		m_instanceExtensionManager.PrintEnabledLayers();
 
-		DynamicArray<const char*> enabledExtensions = m_instanceExtensionManager.GetEnabledExtensions();
+		CLib::Vector<const char*> enabledExtensions = m_instanceExtensionManager.GetEnabledExtensions();
 		cInfo.enabledExtensionCount = enabledExtensions.Count();
 		cInfo.ppEnabledExtensionNames = enabledExtensions.Data();
 
-		DynamicArray<const char*> enabledLayers = m_instanceExtensionManager.GetEnabledLayers();
+		CLib::Vector<const char*> enabledLayers = m_instanceExtensionManager.GetEnabledLayers();
 		cInfo.enabledLayerCount = enabledLayers.Count();
 		cInfo.ppEnabledLayerNames = enabledLayers.Data();
 

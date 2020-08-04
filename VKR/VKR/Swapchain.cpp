@@ -137,7 +137,7 @@ namespace PB
 		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_device->GetPhysicalDevice(), m_windowSurface, &formatCount, nullptr));
 		PB_ASSERT(formatCount > 0);
 
-		DynamicArray<VkSurfaceFormatKHR> availableFormats(formatCount);
+		CLib::Vector<VkSurfaceFormatKHR> availableFormats(formatCount);
 		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_device->GetPhysicalDevice(), m_windowSurface, &formatCount, availableFormats.Data()));
 
 		if (availableFormats.Count() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
@@ -163,7 +163,7 @@ namespace PB
 		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, nullptr));
 		PB_ASSERT(presentModeCount > 0);
 
-		DynamicArray<VkPresentModeKHR> presentModes(presentModeCount);
+		CLib::Vector<VkPresentModeKHR> presentModes(presentModeCount);
 		presentModes.SetCount(presentModeCount);
 		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, presentModes.Data()));
 
@@ -189,7 +189,7 @@ namespace PB
 		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, nullptr);
 		PB_ASSERT(imageCount > 0, "Attempting to retrieve swapchain images when no swapchain images currently exist.");
 
-		m_swapchainImages.SetSize(imageCount);
+		m_swapchainImages.Reserve(imageCount);
 		m_swapchainImages.SetCount(imageCount);
 		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, m_swapchainImages.Data());
 

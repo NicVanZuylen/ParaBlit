@@ -1,6 +1,6 @@
 #include "RenderPassCache.h"
 #include "MurmurHash3.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 #include "PBUtil.h"
 #include "ParaBlitDebug.h"
 #include "Device.h"
@@ -111,45 +111,45 @@ namespace PB
 			u8 m_lastSubpass = 255;
 			VkPipelineStageFlags m_lastSubpassStage = 0;
 		};
-		DynamicArray<VkAttachmentDescription, softAttachmentLimit> attachmentDescs(desc.m_attachmentCount, softAttachmentLimit);
-		DynamicArray<AttachmentData, softAttachmentLimit> attachmentDatas(desc.m_attachmentCount, softAttachmentLimit);
+		CLib::Vector<VkAttachmentDescription, softAttachmentLimit, softAttachmentLimit> attachmentDescs(desc.m_attachmentCount);
+		CLib::Vector<AttachmentData, softAttachmentLimit, softAttachmentLimit> attachmentDatas(desc.m_attachmentCount);
 
 		// Attachment references
-		DynamicArray<VkAttachmentReference, softAttachmentLimit> colorRefs(softAttachmentLimit, softAttachmentLimit);
-		DynamicArray<VkAttachmentReference, softAttachmentLimit> dsRefs(softAttachmentLimit, softAttachmentLimit);
-		DynamicArray<VkAttachmentReference, softAttachmentLimit> readRefs(softAttachmentLimit, softAttachmentLimit);
+		CLib::Vector<VkAttachmentReference, softAttachmentLimit, softAttachmentLimit> colorRefs(softAttachmentLimit);
+		CLib::Vector<VkAttachmentReference, softAttachmentLimit, softAttachmentLimit> dsRefs(softAttachmentLimit);
+		CLib::Vector<VkAttachmentReference, softAttachmentLimit, softAttachmentLimit> readRefs(softAttachmentLimit);
 
 		// Subpass data
 		struct SubpassData
 		{
 			VkAccessFlags dstAccess;
 		};
-		DynamicArray<VkSubpassDescription, softSubpassLimit> subpassDescs(desc.m_subpassCount, softSubpassLimit);
+		CLib::Vector<VkSubpassDescription, softSubpassLimit, softSubpassLimit> subpassDescs(desc.m_subpassCount);
 		subpassDescs.SetCount(desc.m_subpassCount);
-		DynamicArray<SubpassData, softSubpassLimit> subpassDatas(desc.m_subpassCount, softSubpassLimit);
+		CLib::Vector<SubpassData, softSubpassLimit, softSubpassLimit> subpassDatas(desc.m_subpassCount);
 		subpassDatas.SetCount(desc.m_subpassCount);
 
-		DynamicArray<u8, softSubpassLimit> subpassColorCounts(desc.m_subpassCount, softSubpassLimit);
-		DynamicArray<u8, softSubpassLimit> subpassDSCounts(desc.m_subpassCount, softSubpassLimit);
-		DynamicArray<u8, softSubpassLimit> subpassReadCounts(desc.m_subpassCount, softSubpassLimit);
+		CLib::Vector<u8, softSubpassLimit, softSubpassLimit> subpassColorCounts(desc.m_subpassCount);
+		CLib::Vector<u8, softSubpassLimit, softSubpassLimit> subpassDSCounts(desc.m_subpassCount);
+		CLib::Vector<u8, softSubpassLimit, softSubpassLimit> subpassReadCounts(desc.m_subpassCount);
 
 		// Initialize all attachment descs.
 		for (u32 i = 0; i < desc.m_attachmentCount; ++i)
 		{
 			if (i >= attachmentDescs.Count())
-				attachmentDescs.Push({});
+				attachmentDescs.PushBack({});
 			InitializeAttachmentDesc(attachmentDescs[i], desc.m_attachments[i]);
 		}
 
-		DynamicArray<VkSubpassDependency, softSubpassLimit> totalDeps(desc.m_subpassCount, softSubpassLimit);
+		CLib::Vector<VkSubpassDependency, softSubpassLimit, softSubpassLimit> totalDeps(desc.m_subpassCount);
 
-		DynamicArray<VkSubpassDependency, softSubpassLimit> subpassDeps(desc.m_subpassCount, softSubpassLimit);
-		DynamicArray<bool, softSubpassLimit> depsDirty(desc.m_subpassCount, softSubpassLimit);
+		CLib::Vector<VkSubpassDependency, softSubpassLimit, softSubpassLimit> subpassDeps(desc.m_subpassCount);
+		CLib::Vector<bool, softSubpassLimit, softSubpassLimit> depsDirty(desc.m_subpassCount);
 		for (u32 i = 0; i < desc.m_subpassCount; ++i)
 		{
-			subpassColorCounts.Push(colorRefs.Count());
-			subpassDSCounts.Push(dsRefs.Count());
-			subpassReadCounts.Push(readRefs.Count());
+			subpassColorCounts.PushBack(colorRefs.Count());
+			subpassDSCounts.PushBack(dsRefs.Count());
+			subpassReadCounts.PushBack(readRefs.Count());
 
 			VkPipelineStageFlags subpassDstStages = 0;
 
@@ -172,19 +172,19 @@ namespace PB
 					newRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 					stage |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 					access |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-					colorRefs.Push(newRef);
+					colorRefs.PushBack(newRef);
 					break;
 				case PB_ATTACHMENT_USAGE_DEPTHSTENCIL:
 					newRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 					stage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 					access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-					dsRefs.Push(newRef);
+					dsRefs.PushBack(newRef);
 					break;
 				case PB_ATTACHMENT_USAGE_READ:
 					newRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 					stage |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 					access |= VK_ACCESS_SHADER_READ_BIT;
-					readRefs.Push(newRef);
+					readRefs.PushBack(newRef);
 					break;
 				default:
 					PB_NOT_IMPLEMENTED;
@@ -227,7 +227,7 @@ namespace PB
 				dep.dstStageMask = subpassDstStages;
 				dep.dependencyFlags = 0;
 
-				totalDeps.Push(dep);
+				totalDeps.PushBack(dep);
 			}
 			else
 			{
@@ -237,7 +237,7 @@ namespace PB
 					if (depsDirty[j])
 					{
 						depsDirty[j] = false;
-						totalDeps.Push(subpassDeps[j]);
+						totalDeps.PushBack(subpassDeps[j]);
 						memset(&subpassDeps[j], 0, sizeof(VkSubpassDependency));
 					}
 				}

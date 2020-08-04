@@ -1,8 +1,7 @@
 #pragma once
-#include "CLibUtil.h"
 #include <memory>
 
-CLIB_NAMESPACE
+namespace CLib
 {
 	// Standard Custom Vector class by Nicholas Van Zuylen. Unsafe to contain objects that own dynamic memory including other vectors.
 	template<typename T, unsigned int FixedCapacity = 1, unsigned int ExpandRate = 1>
@@ -82,6 +81,14 @@ CLIB_NAMESPACE
 			return m_contents[m_count++];
 		}
 
+		inline T& PopBack()
+		{
+			if(m_count > 0)
+				return m_contents[m_count-- -1];
+			
+			return m_contents[0];
+		}
+
 		// Requires T to have a move constructor.
 		template<typename... Args>
 		inline T& PushBackInit(Args&&... args)
@@ -92,7 +99,8 @@ CLIB_NAMESPACE
 			return m_contents[m_count++] = std::move(T(args...));
 		}
 
-		inline void Append(const Vector<T>& other)
+		template<typename T, unsigned int OCapacity, unsigned int OExpandRate>
+		inline void Append(const Vector<T, OCapacity, OExpandRate>& other)
 		{
 			unsigned int newCount = m_count + other.Count();
 			if (newCount > m_capacity)
@@ -106,27 +114,28 @@ CLIB_NAMESPACE
 		}
 
 		inline void Reserve(const unsigned int& newCapacity) { SetCapacity(newCapacity); }
+		inline void SetCount(const unsigned int& newCount) { m_count = newCount; }
 		inline void Clear() { m_count = 0; }
 
 		// ---------------------------- Write Operators -------------------------------
 
 		// Copy assignment
-		template<typename T, unsigned int OCapacity, unsigned int OExpandRate>
-		inline Vector<T>& operator = (const Vector<T, OCapacity, OExpandRate>& other)
+		//template<typename T, unsigned int OCapacity, unsigned int OExpandRate>
+		inline Vector<T, FixedCapacity, ExpandRate>& operator = (const Vector<T, FixedCapacity, ExpandRate>& other)
 		{
 			CopyFrom(other);
 			return *this;
 		}
 
 		// Move assignment
-		inline Vector<T>& operator = (Vector<T, FixedCapacity, ExpandRate>&& other)
+		inline Vector<T, FixedCapacity, ExpandRate>& operator = (Vector<T, FixedCapacity, ExpandRate>&& other)
 		{
 			MoveFrom(other);
 			return *this;
 		}
 
 		// Initializer list assignment
-		inline Vector<T>& operator = (const std::initializer_list<T>& list)
+		inline Vector<T, FixedCapacity, ExpandRate>& operator = (const std::initializer_list<T>& list)
 		{
 			CopyFromInitList(list);
 			return *this;
@@ -226,6 +235,6 @@ CLIB_NAMESPACE
 		T* m_contents = reinterpret_cast<T*>(m_fixedContents);
 		unsigned int m_count = 0;
 		unsigned int m_capacity = FixedCapacity;
-		char m_fixedContents[sizeof(void*) + (FixedCapacity * sizeof(T))];
+		char m_fixedContents[sizeof(void*) + (FixedCapacity * sizeof(T))]{};
 	};
 }

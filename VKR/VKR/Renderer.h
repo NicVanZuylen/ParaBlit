@@ -4,7 +4,7 @@
 #include "VulkanInstance.h"
 #include "Device.h"
 #include "Swapchain.h"
-#include "Dequeue.h"
+#include "CLib/Vector.h"
 #include "CmdContextPool.h"
 #include "RenderPassCache.h"
 #include "ImageView.h"
@@ -33,11 +33,11 @@ namespace PB
 		VkCommandBuffer m_masterCommandBuffer = VK_NULL_HANDLE;				// Contains all recorded graphics commands for the frame.
 		EFrameState m_state = PB_FRAME_STATE_OPEN;							// TODO: Evaluate if this state enum is even needed outside of validation.
 		u32 m_presentImageIdx = 0;											// Swapchain image index.
-		DynamicArray<VkCommandBuffer, 8> m_submittedContextCmdBuffers;		// Command context command buffers submitted for this frame, these will be emptied when the frame is next ready for use.
-		DynamicArray<VkCommandBuffer, 8> m_prioritySubmittedContextBuffers;	// Submitted context command buffers that will be executed before non-priority command buffers.
-		DynamicArray<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;		// Submitted context command buffers that will be executed before non-priority command buffers.
-		DynamicArray<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
-		DynamicArray<BufferObject, 8> m_stagingBuffers;						// Staging buffers which are in flight for this frame. These will be deleted or re-used once the frame is complete.
+		CLib::Vector<VkCommandBuffer, 8> m_submittedContextCmdBuffers;		// Command context command buffers submitted for this frame, these will be emptied when the frame is next ready for use.
+		CLib::Vector<VkCommandBuffer, 8> m_prioritySubmittedContextBuffers;	// Submitted context command buffers that will be executed before non-priority command buffers.
+		CLib::Vector<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;		// Submitted context command buffers that will be executed before non-priority command buffers.
+		CLib::Vector<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
+		CLib::Vector<BufferObject, 8> m_stagingBuffers;						// Staging buffers which are in flight for this frame. These will be deleted or re-used once the frame is complete.
 	};
 
 	class Renderer : public IRenderer
@@ -115,10 +115,10 @@ namespace PB
 		u64 m_currentFrame = 0;
 		u8 m_curFrameInfoIdx = 0;
 		u8 m_lastFrameInfoIdx = ~0;
-		DynamicArray<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT> m_frameInfos;
-		DynamicArray<VkCommandBuffer, PB_FRAME_IN_FLIGHT_COUNT> m_masterCmdBuffers;
-		DynamicArray<VkCommandBuffer, 64> m_freeContextCmdBuffers;
-		DynamicArray<VkCommandBuffer, 32> m_internalCmdBuffers;
+		CLib::Vector<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT> m_frameInfos;
+		CLib::Vector<VkCommandBuffer, PB_FRAME_IN_FLIGHT_COUNT> m_masterCmdBuffers;
+		CLib::Vector<VkCommandBuffer, 64> m_freeContextCmdBuffers;
+		CLib::Vector<VkCommandBuffer, 32> m_internalCmdBuffers;
 		std::mutex m_contextCmdAllocLock;
 		std::mutex m_contextCmdReturnLock;
 		CmdContextPool m_contextPool;

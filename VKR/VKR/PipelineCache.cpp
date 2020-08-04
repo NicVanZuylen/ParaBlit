@@ -1,7 +1,7 @@
 #include "PipelineCache.h"
 #include "ParaBlitDebug.h"
 #include "Device.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 #include "PBUtil.h"
 #include "MurmurHash3.h"
 
@@ -151,7 +151,7 @@ namespace PB
 		dynamicStatesInfo.dynamicStateCount = _countof(dynamicStates);
 		dynamicStatesInfo.pDynamicStates = dynamicStates;
 
-		DynamicArray<VkPipelineShaderStageCreateInfo, PB_SHADER_STAGE_COUNT> shaderStages;
+		CLib::Vector<VkPipelineShaderStageCreateInfo, PB_SHADER_STAGE_COUNT> shaderStages;
 		for (u32 i = 0; i < PB_SHADER_STAGE_COUNT; ++i)
 		{
 			VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr };
@@ -160,7 +160,7 @@ namespace PB
 			stage.pName = "main";
 			stage.pSpecializationInfo = nullptr;
 			stage.stage = ConvertPBShaderStageToVK(static_cast<EShaderStage>(i));
-			shaderStages.Push(stage);
+			shaderStages.PushBack(stage);
 		}
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, nullptr };

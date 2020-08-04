@@ -1,6 +1,6 @@
 #pragma once
 #include "ParaBlitDefs.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 
 #include "vulkan/vulkan.h"
 
@@ -44,6 +44,6 @@ namespace PB
 		inline InternalBuffer AllocatePageBuffer(u32 size);
 
 		Device* m_device = nullptr;
-		DynamicArray<InternalBuffer, 32> m_bufferPages;
+		CLib::Vector<InternalBuffer, 32> m_bufferPages;
 	};
 }

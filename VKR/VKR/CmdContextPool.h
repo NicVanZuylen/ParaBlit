@@ -1,6 +1,6 @@
 #pragma once
 #include "ParaBlitApi.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 #include "ICommandContext.h"
 #include "CommandContext.h"
 
@@ -22,8 +22,8 @@ namespace PB
 
 	private:
 
-		DynamicArray<CommandContext*> m_contextPages;
-		DynamicArray<ICommandContext*, 16> m_gaps;
+		CLib::Vector<CommandContext*> m_contextPages;
+		CLib::Vector<ICommandContext*, 16> m_gaps;
 		uint32_t m_contextCount = 0;
 		std::mutex m_allocatorLock;
 	};

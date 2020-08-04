@@ -1,6 +1,6 @@
 #pragma once
 #include "ISwapChain.h"
-#include "DynamicArray.h"
+#include "CLib/Vector.h"
 #include "ParaBlitApi.h"
 #include "vulkan/vulkan.h"
 
@@ -60,7 +60,7 @@ namespace PB
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
 		u32 m_width = 0;
 		u32 m_height = 0;
-		DynamicArray<VkImage> m_swapchainImages;
+		CLib::Vector<VkImage, 3> m_swapchainImages;
 		Texture* m_wrappedSwapchainImages = nullptr;
 		u8 m_imageCount = 0;
 	};
