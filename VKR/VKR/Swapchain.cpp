@@ -27,8 +27,8 @@ namespace PB
 		m_imageCount = desc.m_imageCount;
 
 		PB_ASSERT(m_device);
-		PB_ASSERT(m_imageCount > 0, "Swap chain image count must be greater than zero.");
-		PB_ASSERT(desc.m_presentMode < VKR_PRESENT_MODE_END_RANGE, "Invalid present mode.");
+		PB_ASSERT_MSG(m_imageCount > 0, "Swap chain image count must be greater than zero.");
+		PB_ASSERT_MSG(desc.m_presentMode < VKR_PRESENT_MODE_END_RANGE, "Invalid present mode.");
 
 		CreateSwapChain(desc);
 	}
@@ -85,8 +85,8 @@ namespace PB
 		auto format = ChooseSurfaceFormat(desc);
 		auto surfaceCapabilities = GetSurfaceCapabilities();
 
-		PB_ASSERT(GetDeviceSurfaceSupport() != VK_FALSE, "Physical device does not support surface.");
-		PB_ASSERT(m_width <= surfaceCapabilities.currentExtent.width && m_height < surfaceCapabilities.currentExtent.height, "Swap chain width/height cannot be greater than window dimensions.");
+		PB_ASSERT_MSG(GetDeviceSurfaceSupport() != VK_FALSE, "Physical device does not support surface.");
+		PB_ASSERT_MSG(m_width <= surfaceCapabilities.currentExtent.width && m_height < surfaceCapabilities.currentExtent.height, "Swap chain width/height cannot be greater than window dimensions.");
 
 		if (m_width == 0)
 			m_width = surfaceCapabilities.currentExtent.width;
@@ -187,7 +187,7 @@ namespace PB
 	{
 		u32 imageCount = 0;
 		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, nullptr);
-		PB_ASSERT(imageCount > 0, "Attempting to retrieve swapchain images when no swapchain images currently exist.");
+		PB_ASSERT_MSG(imageCount > 0, "Attempting to retrieve swapchain images when no swapchain images currently exist.");
 
 		m_swapchainImages.Reserve(imageCount);
 		m_swapchainImages.SetCount(imageCount);
@@ -199,7 +199,7 @@ namespace PB
 		WrappedTextureDesc wrappedTextureDesc = {};
 		for (u32 i = 0; i < imageCount; ++i)
 		{
-			PB_ASSERT(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
+			PB_ASSERT_MSG(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
 			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
 			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_COLORTARGET;
 			m_wrappedSwapchainImages[i].Create(m_renderer, wrappedTextureDesc);

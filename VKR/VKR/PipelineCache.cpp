@@ -61,7 +61,7 @@ namespace PB
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(layout);
 
-		VkRect2D scissor = { desc.m_renderArea.x, desc.m_renderArea.y, desc.m_renderArea.w, desc.m_renderArea.h };
+		VkRect2D scissor = { static_cast<int64_t>(desc.m_renderArea.x), static_cast<int64_t>(desc.m_renderArea.y), desc.m_renderArea.w, desc.m_renderArea.h };
 		VkViewport viewPort;
 		viewPort.minDepth = 0.0f;
 		viewPort.maxDepth = 1.0f;

@@ -15,8 +15,8 @@ namespace PB
 
 	size_t FramebufferDescHasher::operator()(const FramebufferDesc& desc) const
 	{
-		auto descHash = MurmurHash3_x64_64(&desc, sizeof(FramebufferDesc) - sizeof(FramebufferDesc::m_attachmentViews), 0);
-		return MurmurHash3_x64_64(desc.m_attachmentViews, sizeof(TextureView) * desc.m_attachmentCount, descHash);
+		auto descHash = MurmurHash3_x64_64(&desc, static_cast<int>(sizeof(FramebufferDesc) - sizeof(FramebufferDesc::m_attachmentViews)), 0);
+		return MurmurHash3_x64_64(desc.m_attachmentViews, static_cast<int>(sizeof(TextureView) * desc.m_attachmentCount), descHash);
 	}
 
 	void FramebufferCache::Init(Device* device)

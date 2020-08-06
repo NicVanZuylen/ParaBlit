@@ -12,11 +12,11 @@ namespace PB
 
 #ifdef _DEBUG
 
-#define PB_ERROR_CHECK(func, message) PB::errCheckRes = func; if(PB::errCheckRes) { printf("ParaBlit Vulkan Error: %i \n", PB::errCheckRes); }
+#define PB_ERROR_CHECK(func) PB::errCheckRes = func; if(PB::errCheckRes) { printf("ParaBlit Vulkan Error: %i \n", PB::errCheckRes); }
 #define PB_ASSERT(condition) assert(condition)
 #define PB_ASSERT_MSG(condition, message) assert(condition && message);
 #define PB_STATIC_ASSERT(condition, message) static_assert(condition && message);
-#define PB_BREAK_ON_ERROR PB_ASSERT(PB::errCheckRes == 0, "ParaBlit Vulkan Error Detected")
+#define PB_BREAK_ON_ERROR PB_ASSERT_MSG(PB::errCheckRes == VK_SUCCESS, "Vulkan Error Detected.")
 
 #else
 

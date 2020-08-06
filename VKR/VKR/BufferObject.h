@@ -1,7 +1,6 @@
 #pragma once
 #include "IBufferObject.h"
 #include "ParaBlitApi.h"
-#include "ParaBlitDefs.h"
 #include "DeviceAllocator.h"
 #include "StagingBufferAllocator.h"
 
@@ -9,22 +8,14 @@
 
 namespace PB
 {
+	class IRenderer;
 	class Renderer;
-	class Device;
-
-	struct BufferObjectDesc
-	{
-		Renderer* m_renderer = nullptr;
-		BufferOptions m_options{};
-		BufferUsage m_usage{};
-		u64 m_bufferSize = 0;
-	};
 
 	class BufferObject : public IBufferObject
 	{
 	public:
 
-		void Create(const BufferObjectDesc& desc);
+		void Create(IRenderer* renderer, const BufferObjectDesc& desc) override;
 
 		void Destroy();
 

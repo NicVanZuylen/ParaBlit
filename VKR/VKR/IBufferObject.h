@@ -1,11 +1,29 @@
 #pragma once
 #include "ParaBlitInterface.h"
+#include "ParaBlitDefs.h"
 
 namespace PB
 {
+	class IRenderer;
+
+	struct BufferObjectDesc
+	{
+		BufferOptions m_options{};
+		BufferUsage m_usage{};
+		u32 m_bufferSize = 0;
+	};
+
 	class IBufferObject
 	{
 	public:
+
+		/*
+		Description: Create a new buffer object using a provided renderer and BufferObjectDesc.
+		Param:
+			IRenderer* renderer: The renderer this buffer will belong to and be usable by.
+			const BufferObjectDesc& desc: Structure describing the buffers's properties.
+		*/
+		PARABLIT_INTERFACE void Create(IRenderer* renderer, const BufferObjectDesc& desc) = 0;
 
 		/*
 		Description: Get the size of the buffer (this may not always be the size provided in the descriptor.

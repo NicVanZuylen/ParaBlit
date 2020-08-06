@@ -69,9 +69,6 @@
     <ClCompile Include="DeviceAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ITexture.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ImageView.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

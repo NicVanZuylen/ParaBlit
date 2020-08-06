@@ -196,7 +196,7 @@ void Application::Run()
 			m_input->ResetStates();
 		}
 
-		m_renderer->BeginFrame();
+		//m_renderer->BeginFrame();
 
 		PB::RenderPassDesc rpDesc;
 		PB::AttachmentDesc attachments[] =

@@ -38,7 +38,7 @@ namespace PB
 
 		PARABLIT_API inline ViewData CreateView(const TextureViewDesc& desc);
 
-		Device* m_device;
+		Device* m_device = nullptr;
 		std::unordered_map<TextureViewDesc, ViewData, TextureViewDescHasher> m_viewCache;
 	};
 }

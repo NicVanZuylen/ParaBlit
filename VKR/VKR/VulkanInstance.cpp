@@ -71,7 +71,7 @@ namespace PB
 
 		// Enable Khronos validation if available, otherwise use LunarG validation.
 		if (!m_instanceExtensionManager.EnableLayer(VK_LAYER_KHRONOS_VALIDATION_NAME))
-			PB_ASSERT(m_instanceExtensionManager.EnableLayer(VK_LAYER_LUNARG_VALIDATION_NAME), "Could not enable a suitable validation layer.");
+			PB_ASSERT_MSG(m_instanceExtensionManager.EnableLayer(VK_LAYER_LUNARG_VALIDATION_NAME), "Could not enable a suitable validation layer.");
 	}
 
 	void VulkanInstance::Create(const char** requiredExtensions, uint32_t extCount)
@@ -91,7 +91,7 @@ namespace PB
 		m_instanceExtensionManager.Query();
 
 		// Setup extensions & layers for this instance.
-		PB_ASSERT(requiredExtensions != nullptr || extCount == 0, "Valid extension name array not provided.");
+		PB_ASSERT_MSG(requiredExtensions != nullptr || extCount == 0, "Valid extension name array not provided.");
 		for (uint32_t i = 0; i < extCount; ++i)
 			m_instanceExtensionManager.EnableExtension(requiredExtensions[i]);
 
@@ -109,7 +109,7 @@ namespace PB
 		cInfo.enabledLayerCount = enabledLayers.Count();
 		cInfo.ppEnabledLayerNames = enabledLayers.Data();
 
-		PB_ERROR_CHECK(vkCreateInstance(&cInfo, nullptr, &m_instance), "Failed to create Vulkan instance!");
+		PB_ERROR_CHECK(vkCreateInstance(&cInfo, nullptr, &m_instance));
 		PB_BREAK_ON_ERROR;
 
 		CreateDebugMessenger();

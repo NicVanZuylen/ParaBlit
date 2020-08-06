@@ -41,7 +41,7 @@ namespace PB
 
 		PARABLIT_API Framebuffer CreateFramebuffer(const FramebufferDesc& desc);
 
-		Device* m_device;
+		Device* m_device = nullptr;
 		std::unordered_map<FramebufferDesc, Framebuffer, FramebufferDescHasher> m_cache;
 	};
 }

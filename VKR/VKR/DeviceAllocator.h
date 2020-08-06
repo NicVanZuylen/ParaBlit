@@ -33,9 +33,9 @@ namespace PB
 			EMemoryType m_memoryType = PB_MEMORY_TYPE_END_RANGE;
 			u16 m_alignmentOffset = 0;
 
-			inline VkDeviceSize AlignedOffset()
+			inline u32 AlignedOffset()
 			{
-				return static_cast<VkDeviceSize>(m_start) + m_alignmentOffset;
+				return m_start + m_alignmentOffset;
 			}
 		};
 

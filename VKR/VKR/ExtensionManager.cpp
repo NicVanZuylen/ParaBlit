@@ -23,7 +23,7 @@ namespace PB
 			uint32_t extensionCount = 0;
 			EnumerateExt(extensionCount, nullptr);
 
-			PB_ASSERT(extensionCount > 0, "No extensions found!");
+			PB_ASSERT_MSG(extensionCount > 0, "No extensions found!");
 			CLib::Vector<VkExtensionProperties> extProps(extensionCount);
 			extProps.SetCount(extProps.Capacity());
 			EnumerateExt(extensionCount, extProps.Data());

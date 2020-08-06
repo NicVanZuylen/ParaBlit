@@ -7,6 +7,7 @@
 #include "IShaderModule.h"
 #include "IPipelineCache.h"
 #include "ITexture.h"
+#include "IBufferObject.h"
 
 #ifdef PARABLIT_WINDOWS
 #include <Windows.h>
@@ -46,7 +47,6 @@ namespace PB
 			const SwapChainDesc& desc
 		*/
 		PARABLIT_INTERFACE ISwapChain* CreateSwapChain(const SwapChainDesc& desc) = 0;
-		PARABLIT_INTERFACE void BeginFrame() = 0;
 		PARABLIT_INTERFACE void EndFrame() = 0;
 		PARABLIT_INTERFACE void WaitIdle() = 0;
 

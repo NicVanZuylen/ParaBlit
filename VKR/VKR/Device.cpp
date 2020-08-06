@@ -21,7 +21,7 @@ namespace PB
 
 	void Device::Init(VkInstance instance)
 	{
-		PB_ASSERT(instance, "Attempted to get device using null instance.");
+		PB_ASSERT_MSG(instance, "Attempted to get device using null instance.");
 		m_instance = instance;
 		EnumDevice();
 		CreateLogicalDevice();
@@ -54,7 +54,7 @@ namespace PB
 			return VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 			break;
 		case PB_MEMORY_TYPE_END_RANGE:
-			PB_ASSERT(false, "Invalid memory type provided.");
+			PB_ASSERT_MSG(false, "Invalid memory type provided.");
 			return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			break;
 		default:
@@ -75,7 +75,7 @@ namespace PB
 			if (typeFilter & (1 << i) && (type.propertyFlags & propertyFlags) == propertyFlags)
 				return i;
 		}
-		PB_ASSERT(false, "Requested memory requirements are not supported.");
+		PB_ASSERT_MSG(false, "Requested memory requirements are not supported.");
 		return 0;
 	}
 
@@ -192,7 +192,7 @@ namespace PB
 		u32 queueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);
 
-		PB_ASSERT(queueFamilyCount > 0, "No queue families found on device.");
+		PB_ASSERT_MSG(queueFamilyCount > 0, "No queue families found on device.");
 
 		CLib::Vector<VkQueueFamilyProperties> queueFamilyProps(queueFamilyCount);
 		vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, queueFamilyProps.Data());
@@ -206,7 +206,7 @@ namespace PB
 				m_graphicsFamilyIndex = i;
 		}
 
-		PB_ASSERT(m_graphicsFamilyIndex > -1, "Could not find suitable graphics queue family.");
+		PB_ASSERT_MSG(m_graphicsFamilyIndex > -1, "Could not find suitable graphics queue family.");
 	}
 
 	void Device::EnableExtensions(ExtensionManager& extManager)
@@ -214,7 +214,7 @@ namespace PB
 		extManager.PrintAvailableExtensions();
 
 		// Enable swapchain extension, we are useless without this.
-		PB_ASSERT(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
+		PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
 	}
 
 	void Device::EnableLayers(ExtensionManager& extManager)
@@ -267,7 +267,8 @@ namespace PB
 		createInfo.enabledLayerCount = enabledLayers.Count();
 		createInfo.ppEnabledLayerNames = enabledLayers.Data();
 
-		PB_ERROR_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device), "Could not create logical device.");
+		PB_ERROR_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device));
+		PB_BREAK_ON_ERROR;
 		PB_ASSERT(m_device);
 	}
 }

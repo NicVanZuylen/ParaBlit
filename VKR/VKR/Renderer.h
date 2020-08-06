@@ -71,13 +71,15 @@ namespace PB
 
 		PARABLIT_API void ReturnOpenBuffer(CommandContext& context);
 
-		PARABLIT_API void BeginFrame() override;
-
 		PARABLIT_API void EndFrame() override;
 
 		PARABLIT_API void WaitIdle() override;
 
 		PARABLIT_API u32 GetCurrentSwapchainImageIndex() override;
+
+		PARABLIT_API IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc);
+
+		PARABLIT_API void FreeBuffer(IBufferObject* buffer);
 
 		PARABLIT_API ITexture* AllocateTexture(const TextureDesc& texDesc) override;
 
@@ -89,17 +91,20 @@ namespace PB
 
 	private:
 
-		PARABLIT_API inline void CreateWindowSurface(WindowDesc* windowHandle) override;
+		inline void CreateWindowSurface(WindowDesc* windowHandle) override;
 
-		PARABLIT_API inline void CreateSyncObjects();
+		inline void CreateSyncObjects();
 
-		PARABLIT_API inline void CreateCmdBuffers();
+		inline void CreateCmdBuffers();
 
-		PARABLIT_API inline void InlineContextCmdBuffers();
+		// Reset frame tracking to begin recording the next frame.
+		inline void BeginNextFrame();
 
-		PARABLIT_API inline void SubmitFrame();
+		inline void InlineContextCmdBuffers();
 
-		PARABLIT_API inline void Present();
+		inline void SubmitFrame();
+
+		inline void Present();
 
 		VulkanInstance m_vkInstance;
 		Device m_device;

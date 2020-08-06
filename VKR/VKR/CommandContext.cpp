@@ -73,7 +73,7 @@ namespace PB
 		VkResult res = vkBeginCommandBuffer(m_cmdBuffer, &beginInfo);
 		if (res != VK_SUCCESS)
 		{
-			PB_ASSERT(false, "Failed to begin command buffer recording.");
+			PB_ASSERT_MSG(false, "Failed to begin command buffer recording.");
 			m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
 		}
 
@@ -82,7 +82,7 @@ namespace PB
 
 	void CommandContext::End()
 	{
-		PB_ASSERT(m_state == PB_COMMAND_CONTEXT_STATE_RECORDING, "Cannot end recording of a command context that is not currently recording.");
+		PB_ASSERT_MSG(m_state == PB_COMMAND_CONTEXT_STATE_RECORDING, "Cannot end recording of a command context that is not currently recording.");
 		if (m_state != PB_COMMAND_CONTEXT_STATE_RECORDING)
 			return;
 
@@ -91,13 +91,13 @@ namespace PB
 			m_activeRenderpass = false;
 			vkCmdEndRenderPass(m_cmdBuffer);
 		}
-		PB_ERROR_CHECK(vkEndCommandBuffer(m_cmdBuffer), "Failed to end command context recording.");
+		PB_ERROR_CHECK(vkEndCommandBuffer(m_cmdBuffer));
 		m_state = PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION;
 	}
 
 	void CommandContext::Return()
 	{
-		PB_ASSERT(m_state == PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION, "Cannot submit command context that is not yet recorded or currently recording.");
+		PB_ASSERT_MSG(m_state == PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION, "Cannot submit command context that is not yet recorded or currently recording.");
 
 		PB_COMMAND_CONTEXT_LOG("Returned recorded command buffer [%X] from command context [%X].", m_cmdBuffer, this);
 		m_renderer->ReturnCommandBuffer(*this); // Give the command buffer back to the renderer for submission at the end of the frame.
@@ -262,14 +262,14 @@ namespace PB
 		
 		VkBufferCopy copyRegion;
 		copyRegion.size = size;
-		copyRegion.srcOffset = srcInternal->GetStart() + srcOffset;
-		copyRegion.dstOffset = dstInternal->GetStart() + dstOffset;
+		copyRegion.srcOffset = static_cast<VkDeviceSize>(srcInternal->GetStart()) + srcOffset;
+		copyRegion.dstOffset = static_cast<VkDeviceSize>(dstInternal->GetStart()) + dstOffset;
 		vkCmdCopyBuffer(m_cmdBuffer, srcInternal->GetHandle(), dstInternal->GetHandle(), 1, &copyRegion);
 	}
 
 	void CommandContext::ValidateRecordingState()
 	{
-		PB_ASSERT(m_state == PB_COMMAND_CONTEXT_STATE_RECORDING, "Command context must be recording in-order to issue commands.");
+		PB_ASSERT_MSG(m_state == PB_COMMAND_CONTEXT_STATE_RECORDING, "Command context must be recording in-order to issue commands.");
 		PB_ASSERT(m_cmdBuffer != VK_NULL_HANDLE);
 	}
 }

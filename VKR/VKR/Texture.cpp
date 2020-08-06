@@ -92,9 +92,9 @@ namespace PB
 
 	bool Texture::CreateImageResource(const TextureDesc& desc)
 	{
-		PB_ASSERT(desc.m_usageStates > 0, "No usage flags provided.");
-		PB_ASSERT((desc.m_usageStates & PB_TEXTURE_STATE_MAX) == 0, "Invalid texture usage flag provided.");
-		PB_ASSERT(desc.m_width > 0 && desc.m_height > 0, "Texture cannot be zero width or height.");
+		PB_ASSERT_MSG(desc.m_usageStates > 0, "No usage flags provided.");
+		PB_ASSERT_MSG((desc.m_usageStates & PB_TEXTURE_STATE_MAX) == 0, "Invalid texture usage flag provided.");
+		PB_ASSERT_MSG(desc.m_width > 0 && desc.m_height > 0, "Texture cannot be zero width or height.");
 
 		if (desc.m_usageStates == 0 || (desc.m_usageStates & PB_TEXTURE_STATE_MAX) > 0)
 			return false;
@@ -127,7 +127,7 @@ namespace PB
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(m_device->GetHandle(), m_image, &memRequirements);
 
-		PB_ASSERT(AllocateMemory(desc, memRequirements), "Failed to allocate memory for image.");
+		PB_ASSERT_MSG(AllocateMemory(desc, memRequirements), "Failed to allocate memory for image.");
 
 		// Bind memory block to this texture's image.
 		PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_memoryBlock.m_memory, m_memoryBlock.AlignedOffset()));
@@ -141,7 +141,7 @@ namespace PB
 		m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, PB_MEMORY_TYPE_DEVICE_LOCAL);
 		if (!m_memoryBlock.m_memory)
 		{
-			PB_ASSERT(false, "Failed to allocate texture memory block.");
+			PB_ASSERT_MSG(false, "Failed to allocate texture memory block.");
 			return false;
 		}
 		return true;
@@ -149,11 +149,11 @@ namespace PB
 
 	void Texture::InitializeMemory(const TextureDesc& desc)
 	{
-		PB_ASSERT(!((desc.m_initOptions & PB_TEXTURE_INIT_USE_DATA) && (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)), "Incompatible texture initialization flags provided: PB_TEXTURE_INIT_USE_DATA, and PB_TEXTURE_INIT_ZERO_INITIALIZE.");
+		PB_ASSERT_MSG(!((desc.m_initOptions & PB_TEXTURE_INIT_USE_DATA) && (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)), "Incompatible texture initialization flags provided: PB_TEXTURE_INIT_USE_DATA, and PB_TEXTURE_INIT_ZERO_INITIALIZE.");
 
 		if (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)
 		{
-			PB_ASSERT(m_availableStates & PB_TEXTURE_STATE_COPY_DST, "Cannot zero initialize an image which does not support copy dst.");
+			PB_ASSERT_MSG(m_availableStates & PB_TEXTURE_STATE_COPY_DST, "Cannot zero initialize an image which does not support copy dst.");
 
 			// TODO: Share an internal context for initialization of all resources, as making a context for every resource will quickly bloat the graphics queue with many contexts in complex scenes.
 			CommandContext internalContext;

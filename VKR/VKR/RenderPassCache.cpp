@@ -81,7 +81,7 @@ namespace PB
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 			break;
 		default:
-			PB_ASSERT(false, "Invalid attachment format provided.");
+			PB_ASSERT_MSG(false, "Invalid attachment format provided.");
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			break;
 		}
@@ -92,8 +92,8 @@ namespace PB
 
 	inline VkRenderPass RenderPassCache::CreateRenderPass(const RenderPassDesc& desc)
 	{
-		PB_ASSERT(desc.m_attachmentCount > 0 && desc.m_attachmentCount <= (desc.m_subpassCount * 8), "Too little or too many attachments specified.");
-		PB_ASSERT(desc.m_subpassCount > 0, "Too little or too many subpasses specified.");
+		PB_ASSERT_MSG(desc.m_attachmentCount > 0 && desc.m_attachmentCount <= (desc.m_subpassCount * 8), "Too little or too many attachments specified.");
+		PB_ASSERT_MSG(desc.m_subpassCount > 0, "Too little or too many subpasses specified.");
 		PB_ASSERT(desc.m_attachments);
 		PB_ASSERT(desc.m_subpasses);
 
@@ -159,7 +159,7 @@ namespace PB
 				if (pbUsage.m_usage == PB_ATTACHMENT_USAGE_NONE)
 					break;
 
-				PB_ASSERT(pbUsage.m_attachmentIdx < desc.m_attachmentCount, "Invalid attachment index provided.");
+				PB_ASSERT_MSG(pbUsage.m_attachmentIdx < desc.m_attachmentCount, "Invalid attachment index provided.");
 
 				VkPipelineStageFlags stage = 0; // Pipeline stage this attachment will be used in.
 				VkAccessFlags access = 0; // Access to the attachment required for it's usage here.
@@ -274,7 +274,7 @@ namespace PB
 		renderpassInfo.pSubpasses = subpassDescs.Data();
 
 		VkRenderPass newPass = VK_NULL_HANDLE;
-		PB_ERROR_CHECK(vkCreateRenderPass(m_device->GetHandle(), &renderpassInfo, nullptr, &newPass), "Failed to generate VkRenderPass");
+		PB_ERROR_CHECK(vkCreateRenderPass(m_device->GetHandle(), &renderpassInfo, nullptr, &newPass));
 		PB_ASSERT(newPass);
 		return newPass;
 	}

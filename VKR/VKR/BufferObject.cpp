@@ -5,9 +5,9 @@
 
 namespace PB
 {
-	void BufferObject::Create(const BufferObjectDesc& desc)
+	void BufferObject::Create(IRenderer* renderer, const BufferObjectDesc& desc)
 	{
-		m_renderer = desc.m_renderer;
+		m_renderer = reinterpret_cast<Renderer*>(renderer);
 		
 		CreateVkBuffer(desc);
 		InitializeMemory(desc);
@@ -42,9 +42,9 @@ namespace PB
 	u8* BufferObject::Map(u32 offset, u32 size)
 	{
 		void* data = nullptr;
-		if (m_memoryPage.m_memoryType = PB_MEMORY_TYPE_HOST_VISIBLE)
+		if (m_memoryPage.m_memoryType == PB_MEMORY_TYPE_HOST_VISIBLE)
 		{
-			vkMapMemory(m_renderer->GetDevice()->GetHandle(), m_memoryPage.m_memory, m_memoryPage.AlignedOffset() + offset, size, 0, &data);
+			vkMapMemory(m_renderer->GetDevice()->GetHandle(), m_memoryPage.m_memory, static_cast<VkDeviceSize>(m_memoryPage.AlignedOffset()) + offset, size, 0, &data);
 		}
 		return reinterpret_cast<u8*>(data);
 	}
@@ -133,7 +133,7 @@ namespace PB
 				auto device = m_renderer->GetDevice();
 
 				// Since this buffer's memory is not host visible, we'll need to create a temporary host visible staging buffer to zero-initialize, and copy over this one,
-				auto stagingBuffer = device->GetStagingBufferAllocator().NewTempStagingBuffer(desc.m_bufferSize, desc.m_renderer->GetCurrentFrame());
+				auto stagingBuffer = device->GetStagingBufferAllocator().NewTempStagingBuffer(desc.m_bufferSize, m_renderer->GetCurrentFrame());
 
 				u8* mapped = stagingBuffer.Map(device->GetHandle());
 				memset(mapped, 0, desc.m_bufferSize);

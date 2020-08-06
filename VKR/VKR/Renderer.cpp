@@ -99,9 +99,7 @@ namespace PB
 
 		if (m_freeContextCmdBuffers.Count() > 0) // Return an available existing command buffer if possible.
 		{
-			VkCommandBuffer nextAvailable = m_freeContextCmdBuffers[m_freeContextCmdBuffers.Count() - 1];
-			m_freeContextCmdBuffers.PopBack();
-			return nextAvailable;
+			return m_freeContextCmdBuffers.PopBack();
 		}
 
 		// ...Otherwise allocate a new one.
@@ -137,40 +135,25 @@ namespace PB
 		context.Invalidate();
 	}
 
-	void Renderer::BeginFrame()
+	void Renderer::EndFrame()
 	{
-		if (m_curFrameInfoIdx < m_swapchain.GetImageCount() - 1)
-			++m_curFrameInfoIdx;
-		else
-			m_curFrameInfoIdx = 0;
-
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
-		m_freeContextCmdBuffers += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they can now be modified.
-		curFrameInfo.m_submittedInternalCmdBuffers.Clear();
-		curFrameInfo.m_prioritySubmittedContextBuffers.Clear();
-		curFrameInfo.m_submittedContextCmdBuffers.Clear();
-		for (auto& stagingBuffer : curFrameInfo.m_stagingBuffers)
-			stagingBuffer.Destroy(); // TODO: We should probably find a way to re-use these instead of destroying them.
-		curFrameInfo.m_stagingBuffers.Clear();
-		PB_ASSERT(curFrameInfo.m_state == PB_FRAME_STATE_IN_FLIGHT || curFrameInfo.m_state == PB_FRAME_STATE_OPEN);
-
 		// TODO: Optimization: The wait and aquire process should be moved to EndFrame() as all CPU-side code for this frame between here and EndFrame() is halted until the last frame with this index has completed GPU-side execution.
 
 		// Wait for frame to finish if it's still in-flight.
 		vkWaitForFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence, VK_TRUE, ~(0ULL));
 		vkResetFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence);
 
+		m_freeContextCmdBuffers += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
 		curFrameInfo.m_state = PB_FRAME_STATE_OPEN;
 
 		PB_ASSERT(curFrameInfo.m_frameSemaphore);
-		PB_ERROR_CHECK(vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx), "Failed to acquire next swapchain image.");
-	}
+		PB_ERROR_CHECK(vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx));
 
-	void Renderer::EndFrame()
-	{
 		InlineContextCmdBuffers();
 		SubmitFrame();
 		Present();
+		BeginNextFrame();
 		++m_currentFrame;
 	}
 
@@ -182,6 +165,20 @@ namespace PB
 	u32 Renderer::GetCurrentSwapchainImageIndex()
 	{
 		return m_frameInfos[m_curFrameInfoIdx].m_presentImageIdx;
+	}
+
+	IBufferObject* Renderer::AllocateBuffer(const BufferObjectDesc& bufDesc)
+	{
+		auto* internalBuf = m_allocator.Alloc<BufferObject>();
+		internalBuf->Create(this, bufDesc);
+		return reinterpret_cast<IBufferObject*>(internalBuf);
+	}
+
+	void Renderer::FreeBuffer(IBufferObject* buffer)
+	{
+		auto* internalBuf = reinterpret_cast<BufferObject*>(buffer);
+		internalBuf->Destroy();
+		m_allocator.Free(internalBuf);
 	}
 
 	ITexture* Renderer::AllocateTexture(const TextureDesc& texDesc)
@@ -249,7 +246,7 @@ namespace PB
 		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		cmdPoolInfo.queueFamilyIndex = m_device.GetGraphicsQueueFamilyIndex();
 		
-		PB_ERROR_CHECK(vkCreateCommandPool(m_device.GetHandle(), &cmdPoolInfo, nullptr, &m_masterCmdPool), "Failed to create master command pool.");
+		PB_ERROR_CHECK(vkCreateCommandPool(m_device.GetHandle(), &cmdPoolInfo, nullptr, &m_masterCmdPool));
 		PB_ASSERT(m_masterCmdPool);
 
 		// Allocate and assign master command buffers to frame infos.
@@ -263,6 +260,23 @@ namespace PB
 
 		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
 			m_frameInfos[i].m_masterCommandBuffer = m_masterCmdBuffers[i];
+	}
+
+	void Renderer::BeginNextFrame()
+	{
+		if (m_curFrameInfoIdx < m_swapchain.GetImageCount() - 1)
+			++m_curFrameInfoIdx;
+		else
+			m_curFrameInfoIdx = 0;
+
+		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
+		curFrameInfo.m_submittedInternalCmdBuffers.Clear();
+		curFrameInfo.m_prioritySubmittedContextBuffers.Clear();
+		curFrameInfo.m_submittedContextCmdBuffers.Clear();
+		for (auto& stagingBuffer : curFrameInfo.m_stagingBuffers)
+			stagingBuffer.Destroy(); // TODO: We should probably find a way to re-use these instead of destroying them.
+		curFrameInfo.m_stagingBuffers.Clear();
+		PB_ASSERT(curFrameInfo.m_state == PB_FRAME_STATE_IN_FLIGHT || curFrameInfo.m_state == PB_FRAME_STATE_OPEN);
 	}
 
 	void Renderer::InlineContextCmdBuffers()
@@ -323,12 +337,12 @@ namespace PB
 		submitInfo.pWaitDstStageMask = waitStages;
 
 		// Signal the frame fence when frame commands have finished execution.
-		PB_ERROR_CHECK(vkQueueSubmit(m_presentQueue, 1, &submitInfo, curFrameInfo.m_frameFence), "Failed to submit master frame command buffer.");
+		PB_ERROR_CHECK(vkQueueSubmit(m_presentQueue, 1, &submitInfo, curFrameInfo.m_frameFence));
 	}
 
 	void Renderer::Present()
 	{
-		PB_ASSERT(m_curFrameInfoIdx != m_lastFrameInfoIdx, "Must call BeginFrame() before EndFrame().");
+		PB_ASSERT_MSG(m_curFrameInfoIdx != m_lastFrameInfoIdx, "Must call BeginFrame() before EndFrame().");
 
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
 
@@ -340,7 +354,7 @@ namespace PB
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pImageIndices = &curFrameInfo.m_presentImageIdx;
 
-		PB_ERROR_CHECK(vkQueuePresentKHR(m_presentQueue, &presentInfo), "Failed to present swapchain image.");
+		PB_ERROR_CHECK(vkQueuePresentKHR(m_presentQueue, &presentInfo));
 
 		curFrameInfo.m_state = PB_FRAME_STATE_IN_FLIGHT;
 	}

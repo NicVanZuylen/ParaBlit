@@ -27,7 +27,7 @@ namespace PB
 	{
 		std::lock_guard<std::mutex> lock(m_allocatorLock);
 
-		PB_ASSERT(requirements.size + requirements.alignment <= ~(0U), "Requested memory block is too large.");
+		PB_ASSERT_MSG(requirements.size + requirements.alignment <= ~(0U), "Requested memory block is too large.");
 		u32 requiredSize = static_cast<u32>(requirements.size + requirements.alignment);
 		// TODO: Ensure alignment requirements are met when setting the start parameter of page views.
 		auto sliceIt = m_availableBlocks[memType].lower_bound(requiredSize);
@@ -51,7 +51,7 @@ namespace PB
 			}
 			
 			// Calculate offset from start to meet memory alignment requirements.
-			slice.m_alignmentOffset = requirements.alignment + (slice.m_start % requirements.alignment);
+			slice.m_alignmentOffset = static_cast<u16>(requirements.alignment + (slice.m_start % requirements.alignment));
 
 			return slice;
 		}

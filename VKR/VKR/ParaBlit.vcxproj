@@ -156,7 +156,6 @@
     <ClCompile Include="ICommandContext.cpp" />
     <ClCompile Include="ImageView.cpp" />
     <ClCompile Include="IRenderer.cpp" />
-    <ClCompile Include="ITexture.cpp" />
     <ClCompile Include="MurmurHash3.cpp" />
     <ClCompile Include="PBUtil.cpp" />
     <ClCompile Include="PipelineCache.cpp" />
