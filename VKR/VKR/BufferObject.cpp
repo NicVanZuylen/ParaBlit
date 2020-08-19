@@ -8,7 +8,8 @@ namespace PB
 	void BufferObject::Create(IRenderer* renderer, const BufferObjectDesc& desc)
 	{
 		m_renderer = reinterpret_cast<Renderer*>(renderer);
-		
+		m_usage = desc.m_usage;
+
 		CreateVkBuffer(desc);
 		InitializeMemory(desc);
 	}
@@ -18,6 +19,9 @@ namespace PB
 		auto device = m_renderer->GetDevice();
 		if (m_handle != VK_NULL_HANDLE)
 		{
+			for (auto& viewDesc : m_viewDescs)
+				m_renderer->GetViewCache()->DestroyBufferView(viewDesc);
+
 			vkDestroyBuffer(device->GetHandle(), m_handle, nullptr);
 			PB_ASSERT(m_memoryPage.m_memory != VK_NULL_HANDLE);
 			device->GetDeviceAllocator().Free(m_memoryPage);
@@ -58,7 +62,7 @@ namespace PB
 	u8* BufferObject::BeginPopulate()
 	{
 		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
-		m_stagingBuffer = m_renderer->GetDevice()->GetStagingBufferAllocator().NewTempStagingBuffer(m_memoryPage.m_size, m_renderer->GetCurrentFrame());
+		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_memoryPage.m_size, m_renderer->GetCurrentFrame());
 		return m_stagingBuffer.Map(m_renderer->GetDevice()->GetHandle());
 	}
 
@@ -66,6 +70,7 @@ namespace PB
 	{
 		PB_ASSERT(m_stagingBuffer.m_parentBuffer && m_stagingBuffer.m_parentMemory);
 		m_stagingBuffer.Unmap(m_renderer->GetDevice()->GetHandle());
+		CopyStagingBuffer(m_stagingBuffer);
 		m_stagingBuffer.m_parentBuffer = VK_NULL_HANDLE;
 		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
 	}
@@ -74,7 +79,7 @@ namespace PB
 	{
 		PB_ASSERT(data && size);
 		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
-		m_stagingBuffer = m_renderer->GetDevice()->GetStagingBufferAllocator().NewTempStagingBuffer(m_memoryPage.m_size, m_renderer->GetCurrentFrame());
+		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_memoryPage.m_size, m_renderer->GetCurrentFrame());
 		auto vkDevice = m_renderer->GetDevice()->GetHandle();
 		u8* stagingData = m_stagingBuffer.Map(vkDevice);
 		memcpy(stagingData, data, size);
@@ -83,6 +88,22 @@ namespace PB
 		CopyStagingBuffer(m_stagingBuffer);
 		m_stagingBuffer.m_parentBuffer = VK_NULL_HANDLE;
 		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
+	}
+
+	BufferView BufferObject::GetView(BufferViewDesc& viewDesc)
+	{
+		viewDesc.m_buffer = this;
+		return m_renderer->GetViewCache()->GetBufferView(viewDesc);
+	}
+
+	void BufferObject::RegisterView(const BufferViewDesc& desc)
+	{
+		m_viewDescs.PushBack() = desc;
+	}
+
+	BufferUsage BufferObject::GetUsage()
+	{
+		return m_usage;
 	}
 
 	inline void BufferObject::CreateVkBuffer(const BufferObjectDesc& desc)
@@ -96,7 +117,12 @@ namespace PB
 		bufferInfo.pQueueFamilyIndices = &graphicsQueue;
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		bufferInfo.size = desc.m_bufferSize;
+
 		bufferInfo.usage = ConvertPBBufferUsageToVkBufferUsage(desc.m_usage);
+
+		// Add transfer dst if this is a device local buffer which is zero-initialized.
+		if ((desc.m_options & PB_BUFFER_OPTION_ZERO_INITIALIZE) && !(desc.m_options & PB_BUFFER_OPTION_CPU_ACCESSIBLE))
+			bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
 		PB_ASSERT(m_handle == VK_NULL_HANDLE);
 		PB_ERROR_CHECK(vkCreateBuffer(device->GetHandle(), &bufferInfo, nullptr, &m_handle));
@@ -109,7 +135,7 @@ namespace PB
 		if (desc.m_options & PB_BUFFER_OPTION_CPU_ACCESSIBLE)
 			memType = PB_MEMORY_TYPE_HOST_VISIBLE;
 
-		m_memoryPage = device->GetDeviceAllocator().Alloc(bufferMemRequirements, memType);
+		m_memoryPage = device->GetDeviceAllocator().Alloc(bufferMemRequirements, memType, desc.m_bufferSize);
 
 		PB_ERROR_CHECK(vkBindBufferMemory(device->GetHandle(), m_handle, m_memoryPage.m_memory, m_memoryPage.AlignedOffset()));
 		PB_BREAK_ON_ERROR;
@@ -133,7 +159,7 @@ namespace PB
 				auto device = m_renderer->GetDevice();
 
 				// Since this buffer's memory is not host visible, we'll need to create a temporary host visible staging buffer to zero-initialize, and copy over this one,
-				auto stagingBuffer = device->GetStagingBufferAllocator().NewTempStagingBuffer(desc.m_bufferSize, m_renderer->GetCurrentFrame());
+				auto stagingBuffer = device->GetTempBufferAllocator().NewTempBuffer(desc.m_bufferSize, m_renderer->GetCurrentFrame());
 
 				u8* mapped = stagingBuffer.Map(device->GetHandle());
 				memset(mapped, 0, desc.m_bufferSize);
@@ -144,7 +170,7 @@ namespace PB
 		}
 	}
 
-	inline void BufferObject::CopyStagingBuffer(const StagingBuffer& buffer)
+	inline void BufferObject::CopyStagingBuffer(const TempBuffer& buffer)
 	{
 		CommandContext internalContext;
 		MakeInternalContext(internalContext, m_renderer);

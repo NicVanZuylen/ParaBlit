@@ -3,6 +3,7 @@
 #include "ParaBlitApi.h"
 #include "DeviceAllocator.h"
 #include "StagingBufferAllocator.h"
+#include "ITextureViewCache.h"
 
 #include "vulkan/vulkan.h"
 
@@ -35,18 +36,26 @@ namespace PB
 
 		void Populate(u8* data, u32 size) override;
 
+		BufferView GetView(BufferViewDesc& viewDesc) override;
+
+		void RegisterView(const BufferViewDesc& desc);
+
+		BufferUsage GetUsage();
+
 	private:
 
 		inline void CreateVkBuffer(const BufferObjectDesc& desc);
 
 		inline void InitializeMemory(const BufferObjectDesc& desc);
 
-		inline void CopyStagingBuffer(const StagingBuffer& buffer);
+		inline void CopyStagingBuffer(const TempBuffer& buffer);
 
 		Renderer* m_renderer = nullptr;
 		VkBuffer m_handle = VK_NULL_HANDLE;
-		StagingBuffer m_stagingBuffer{};
+		TempBuffer m_stagingBuffer{};
 		DeviceAllocator::PageView m_memoryPage{};
+		BufferUsage m_usage = 0;
+		CLib::Vector<BufferViewDesc, 1, 4> m_viewDescs;
 	};
 };
 

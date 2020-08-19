@@ -43,10 +43,10 @@ namespace PB
 		PARABLIT_API DeviceAllocator& GetDeviceAllocator();
 
 		/*
-		Description: Gets the temporary staging buffer allocator.
-		Return Type: StagingBufferAllocator&
+		Description: Gets the temporary buffer allocator.
+		Return Type: TempBufferAllocator&
 		*/
-		StagingBufferAllocator& GetStagingBufferAllocator();
+		TempBufferAllocator& GetTempBufferAllocator();
 
 	private:
 
@@ -72,13 +72,15 @@ namespace PB
 
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
-		VkPhysicalDeviceFeatures m_physDeviceFeatures = {};
-		VkPhysicalDeviceProperties m_physDeviceProperties = {};
+		VkPhysicalDeviceFeatures2 m_physDeviceFeatures = {};
+		VkPhysicalDeviceDescriptorIndexingFeatures m_physDeviceDescIndexingFeatures = {};
+		VkPhysicalDeviceProperties2 m_physDeviceProperties = {};
+		VkPhysicalDeviceDescriptorIndexingProperties m_physDeviceDescIndexingProps = {};
 		VkPhysicalDeviceMemoryProperties m_memoryProperties = {};
 		VkDevice m_device = VK_NULL_HANDLE;
 
 		int m_graphicsFamilyIndex = -1;
 		DeviceAllocator m_allocator;
-		StagingBufferAllocator m_tempStagingBufferAllocator;
+		TempBufferAllocator m_tempStagingBufferAllocator;
 	};
 }

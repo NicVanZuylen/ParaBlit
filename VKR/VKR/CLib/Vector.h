@@ -1,8 +1,12 @@
 #pragma once
 #include <memory>
+#include <functional>
 
 namespace CLib
 {
+	static std::function<void*(unsigned long long)> vectorAllocFunc = malloc;
+	static std::function<void(void*)> vectorFreeFunc = free;
+
 	// Standard Custom Vector class by Nicholas Van Zuylen. Unsafe to contain objects that own dynamic memory including other vectors.
 	template<typename T, unsigned int FixedCapacity = 1, unsigned int ExpandRate = 1>
 	class Vector
@@ -196,14 +200,16 @@ namespace CLib
 
 		inline T* Alloc(const unsigned int& capacity)
 		{
-			return new T[capacity];
+			//return new T[capacity];
+			return reinterpret_cast<T*>(vectorAllocFunc(sizeof(T) * capacity));
 		}
 
 		inline void Free(T* mem)
 		{
 			if (mem != reinterpret_cast<T*>(m_fixedContents) && mem)
 			{
-				delete mem;
+				//delete mem;
+				vectorFreeFunc(mem);
 			}
 		}
 

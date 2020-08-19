@@ -1,6 +1,10 @@
 #pragma once
 #include "ITextureViewCache.h"
 #include "ICommandContext.h"
+#include "DescriptorRegistry.h"
+#include "IBufferObject.h"
+#include "ITexture.h"
+#include "IBufferObject.h"
 
 #include "vulkan/vulkan.h"
 
@@ -15,31 +19,51 @@ namespace PB
 		size_t operator()(const TextureViewDesc& desc) const;				// Unordered map hashing operator.
 	};
 
-	struct ViewData
+	struct BufferViewDescHasher
 	{
-		VkImageView m_view = VK_NULL_HANDLE;
+		size_t operator()(const BufferViewDesc& desc) const;
 	};
 
-	class TextureViewCache : public ITextureViewCache
+	struct SamplerDescHasher
+	{
+		size_t operator()(const SamplerDesc& desc) const;
+	};
+
+	class ViewCache
 	{
 	public:
 
-		TextureViewCache();
+		ViewCache();
 
-		~TextureViewCache();
+		~ViewCache();
 
 		void Init(Device* device);
 
 		void Destroy();
 
-		PARABLIT_API TextureView GetView(const TextureViewDesc& desc) override;
+		PARABLIT_API TextureView GetTextureView(const TextureViewDesc& desc);
+
+		void DestroyTextureView(const TextureViewDesc& desc);
+
+		BufferView GetBufferView(const BufferViewDesc& desc);
+
+		void DestroyBufferView(const BufferViewDesc& desc);
+
+		Sampler GetSampler(const SamplerDesc& desc);
 
 	private:
 
-		PARABLIT_API inline ViewData CreateView(const TextureViewDesc& desc);
+		inline TextureViewData CreateTextureView(const TextureViewDesc& desc);
+
+		inline BufferViewData CreateBufferView(const BufferViewDesc& desc);
+
+		inline SamplerData CreateSampler(const SamplerDesc& desc);
 
 		Device* m_device = nullptr;
-		std::unordered_map<TextureViewDesc, ViewData, TextureViewDescHasher> m_viewCache;
+		std::unordered_map<TextureViewDesc, TextureViewData, TextureViewDescHasher> m_texViewCache;
+		std::unordered_map<BufferViewDesc, BufferViewData, BufferViewDescHasher> m_bufViewCache;
+		std::unordered_map<SamplerDesc, SamplerData, SamplerDescHasher> m_samplerCache;
+		DescriptorRegistry m_descriptorRegistry;
 	};
 }
 

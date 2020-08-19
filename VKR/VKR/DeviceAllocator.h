@@ -39,7 +39,7 @@ namespace PB
 			}
 		};
 
-		PARABLIT_API PageView Alloc(const VkMemoryRequirements& requirements, const EMemoryType& memType);
+		PARABLIT_API PageView Alloc(const VkMemoryRequirements& requirements, const EMemoryType& memType, u32 desiredSize);
 
 		PARABLIT_API void Free(PageView& pageView);
 

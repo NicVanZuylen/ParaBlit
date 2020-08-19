@@ -58,6 +58,8 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdBindPipeline(Pipeline pipeline) = 0;
 
+		PARABLIT_INTERFACE void CmdBindResources(const BindingLayout& layout) = 0;
+
 		PARABLIT_INTERFACE void CmdDraw(u32 vertexCount) = 0;
 	};
 

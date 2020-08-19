@@ -7,6 +7,7 @@
 
 namespace PB
 {
+	class Renderer;
 	class Device;
 
 	struct PipelineDescHasher
@@ -24,7 +25,7 @@ namespace PB
 	{
 	public:
 
-		void Init(Device* device);
+		void Init(Renderer* renderer);
 
 		void Destroy();
 
@@ -35,6 +36,7 @@ namespace PB
 		PipelineData CreatePipeline(const PipelineDesc& desc);
 
 		Device* m_device = nullptr;
+		VkDescriptorSetLayout m_driSetLayout = VK_NULL_HANDLE;
 		std::unordered_map<PipelineDesc, PipelineData, PipelineDescHasher> m_pipelineCache;
 	};
 };

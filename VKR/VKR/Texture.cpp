@@ -55,18 +55,24 @@ namespace PB
 
 	void Texture::Destroy()
 	{
-		if (m_ownsImage && m_image)
+		if (m_image)
 		{
-			vkDestroyImage(m_device->GetHandle(), m_image, nullptr);
-			m_image = VK_NULL_HANDLE;
+			for (auto& viewDesc : m_viewDescs)
+				m_renderer->GetViewCache()->DestroyTextureView(viewDesc);
 
-			// Free memory block.
-			m_device->GetDeviceAllocator().Free(m_memoryBlock);
+			if (m_ownsImage)
+			{
+				vkDestroyImage(m_device->GetHandle(), m_image, nullptr);
+				m_image = VK_NULL_HANDLE;
 
-			m_currentState = PB_TEXTURE_STATE_NONE;
-			m_availableStates = PB_TEXTURE_STATE_NONE;
-			m_format = PB_TEXTURE_FORMAT_UNKNOWN;
-			m_ownsImage = true;
+				// Free memory block.
+				m_device->GetDeviceAllocator().Free(m_memoryBlock);
+
+				m_currentState = PB_TEXTURE_STATE_NONE;
+				m_availableStates = PB_TEXTURE_STATE_NONE;
+				m_format = PB_TEXTURE_FORMAT_UNKNOWN;
+				m_ownsImage = true;
+			}
 		}
 	}
 
@@ -88,6 +94,17 @@ namespace PB
 	ETextureState Texture::GetState()
 	{
 		return m_currentState;
+	}
+
+	TextureView Texture::GetView(TextureViewDesc& viewDesc)
+	{
+		viewDesc.m_texture = this;
+		return m_renderer->GetViewCache()->GetTextureView(viewDesc);
+	}
+
+	void Texture::RegisterView(const TextureViewDesc& desc)
+	{
+		m_viewDescs.PushBack() = desc;
 	}
 
 	bool Texture::CreateImageResource(const TextureDesc& desc)
@@ -138,7 +155,7 @@ namespace PB
 
 	bool Texture::AllocateMemory(const TextureDesc& desc, const VkMemoryRequirements& memRequirements)
 	{
-		m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, PB_MEMORY_TYPE_DEVICE_LOCAL);
+		m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, PB_MEMORY_TYPE_DEVICE_LOCAL, static_cast<u32>(memRequirements.size));
 		if (!m_memoryBlock.m_memory)
 		{
 			PB_ASSERT_MSG(false, "Failed to allocate texture memory block.");

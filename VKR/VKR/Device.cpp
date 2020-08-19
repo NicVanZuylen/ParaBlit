@@ -11,6 +11,8 @@ namespace PB
 
 	Device::~Device()
 	{
+		m_tempStagingBufferAllocator.Destroy();
+
 		if (m_device)
 		{
 			m_allocator.Destroy();
@@ -26,6 +28,7 @@ namespace PB
 		EnumDevice();
 		CreateLogicalDevice();
 		m_allocator.Init(this);
+		m_tempStagingBufferAllocator.Create(this);
 	}
 
 	int Device::GetGraphicsQueueFamilyIndex()
@@ -84,7 +87,7 @@ namespace PB
 		return m_allocator;
 	}
 
-	StagingBufferAllocator& Device::GetStagingBufferAllocator()
+	TempBufferAllocator& Device::GetTempBufferAllocator()
 	{
 		return m_tempStagingBufferAllocator;
 	}
@@ -104,14 +107,22 @@ namespace PB
 			const VkPhysicalDevice& device = devices[i];
 
 			// Get device features & properties, used to calculate a suitablility score.
-			VkPhysicalDeviceFeatures deviceFeatures;
-			vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-			VkPhysicalDeviceProperties deviceProperties;
-			vkGetPhysicalDeviceProperties(device, &deviceProperties);
+			VkPhysicalDeviceFeatures2 deviceFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+			m_physDeviceDescIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+			deviceFeatures.pNext = &m_physDeviceDescIndexingFeatures;
+			vkGetPhysicalDeviceFeatures(device, &deviceFeatures.features);
+			vkGetPhysicalDeviceFeatures2(device, &deviceFeatures);
+
+			VkPhysicalDeviceProperties2 deviceProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+			m_physDeviceDescIndexingProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+			deviceProperties.pNext = &m_physDeviceDescIndexingProps;
+			vkGetPhysicalDeviceProperties(device, &deviceProperties.properties);
+			vkGetPhysicalDeviceProperties2(device, &deviceProperties);
+
 			VkPhysicalDeviceMemoryProperties memoryProperties;
 			vkGetPhysicalDeviceMemoryProperties(device, &memoryProperties);
 
-			u64 score = GetDeviceScore(deviceFeatures, deviceProperties);
+			u64 score = GetDeviceScore(deviceFeatures.features, deviceProperties.properties);
 
 			// Track the device with the best score.
 			if (score > highestScore)
@@ -119,19 +130,21 @@ namespace PB
 				highestScoreIdx = i;
 				highestScore = score;
 				m_physDeviceFeatures = deviceFeatures;
+				m_physDeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+				m_physDeviceDescIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
 				m_physDeviceProperties = deviceProperties;
 				m_memoryProperties = memoryProperties;
 			}
 		}
 
 		// Print device information.
-		PB_LOG_FORMAT("Chosen Physical Device: %s", m_physDeviceProperties.deviceName);
+		PB_LOG_FORMAT("Chosen Physical Device: %s", m_physDeviceProperties.properties.deviceName);
 
-		u32 majorVersion = VK_VERSION_MAJOR(m_physDeviceProperties.apiVersion);
-		u32 minorVersion = VK_VERSION_MINOR(m_physDeviceProperties.apiVersion);
-		u32 patchVersion = VK_VERSION_PATCH(m_physDeviceProperties.apiVersion);
+		u32 majorVersion = VK_VERSION_MAJOR(m_physDeviceProperties.properties.apiVersion);
+		u32 minorVersion = VK_VERSION_MINOR(m_physDeviceProperties.properties.apiVersion);
+		u32 patchVersion = VK_VERSION_PATCH(m_physDeviceProperties.properties.apiVersion);
 		std::cout << "PARABLIT LOG: Device API Version: " << majorVersion << "." << minorVersion << "." << patchVersion << "\n";
-		switch (m_physDeviceProperties.deviceType)
+		switch (m_physDeviceProperties.properties.deviceType)
 		{
 		case VK_PHYSICAL_DEVICE_TYPE_CPU:
 			PB_LOG("Physical Device Type: CPU");
@@ -177,7 +190,7 @@ namespace PB
 		suitable &= features.shaderSampledImageArrayDynamicIndexing;
 		suitable &= features.shaderStorageImageArrayDynamicIndexing;
 		suitable &= features.shaderStorageBufferArrayDynamicIndexing;
-		suitable &= (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU || m_physDeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
+		suitable &= (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU || m_physDeviceProperties.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
 
 		if (suitable == VK_FALSE)
 			score = 0;
@@ -225,10 +238,18 @@ namespace PB
 	void Device::DisableUnecessaryFeatures()
 	{
 		// Disable uneccesary features.
-		m_physDeviceFeatures.wideLines = false;
-		m_physDeviceFeatures.largePoints = false;
-		m_physDeviceFeatures.multiViewport = false;
-		m_physDeviceFeatures.pipelineStatisticsQuery = false;
+		m_physDeviceFeatures.features.wideLines = false;
+		m_physDeviceFeatures.features.largePoints = false;
+		m_physDeviceFeatures.features.multiViewport = false;
+		m_physDeviceFeatures.features.pipelineStatisticsQuery = false;
+
+		m_physDeviceDescIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_FALSE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind = VK_FALSE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind = VK_FALSE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind = VK_FALSE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingUpdateUnusedWhilePending = VK_FALSE;
 	}
 
 	void Device::CreateLogicalDevice()
@@ -248,14 +269,15 @@ namespace PB
 
 		createInfo.queueCreateInfoCount = 1;
 		createInfo.pQueueCreateInfos = &queueInfo;
-		createInfo.pEnabledFeatures = &m_physDeviceFeatures;
+		createInfo.pEnabledFeatures = nullptr;
+		createInfo.pNext = &m_physDeviceFeatures;
 
 		// Query and enable extensions & validation layers for the device.
 		ExtensionManager extManager(m_physicalDevice);
 		extManager.Query();
 		EnableExtensions(extManager);
 		EnableLayers(extManager);
-
+		
 		extManager.PrintEnabledExtensions();
 		extManager.PrintAvailableLayers();
 

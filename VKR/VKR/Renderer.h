@@ -25,6 +25,17 @@ namespace PB
 		PB_FRAME_STATE_IN_FLIGHT
 	};
 
+	// A Dynamic Resource Index (DRI) buffer is a dynamic uniform buffer that contains indices used for descriptor indexing for an entire frame. 
+	// A shader will view part of this buffer using dynamic offsets to access the indices for its resources.
+	struct DRIBuffer
+	{
+		BufferObject m_buffer;
+		BufferObject m_stagingBuffer;
+		VkDescriptorSet m_descSet = VK_NULL_HANDLE;
+		u32 m_currentOffset = 0;
+		bool m_isFull = false;
+	};
+
 	struct FrameInfo // Stores the overall state of a single frame.
 	{
 		VkImage m_presentImage = VK_NULL_HANDLE;
@@ -39,11 +50,15 @@ namespace PB
 		CLib::Vector<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;		// Submitted context command buffers that will be executed before non-priority command buffers.
 		CLib::Vector<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
 		CLib::Vector<BufferObject, 8> m_stagingBuffers;						// Staging buffers which are in flight for this frame. These will be deleted or re-used once the frame is complete.
+		CLib::Vector<DRIBuffer> m_driBuffers;								// Contains dynamic resource indices (DRI) for indexing descriptors in shaders. Each buffer also has an associated descriptor set for binding it.
 	};
 
 	class Renderer : public IRenderer
 	{
 	public:
+
+		static constexpr const u32 DRIBufferSize = UINT16_MAX; // TODO: Ensure this is less than or equal to the uniform buffer size device limit.
+		static constexpr const u32 MaxDRIBufferCountPerFrame = 3;
 
 		PARABLIT_API Renderer();
 
@@ -57,7 +72,7 @@ namespace PB
 
 		PARABLIT_API IRenderPassCache* GetRenderPassCache() override;
 
-		PARABLIT_API ITextureViewCache* GetTextureViewCache() override;
+		PARABLIT_API ViewCache* GetViewCache();
 
 		PARABLIT_API IShaderModuleCache* GetShaderModuleCache() override;
 
@@ -77,15 +92,21 @@ namespace PB
 
 		PARABLIT_API u32 GetCurrentSwapchainImageIndex() override;
 
-		PARABLIT_API IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc);
+		PARABLIT_API IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc) override;
 
-		PARABLIT_API void FreeBuffer(IBufferObject* buffer);
+		PARABLIT_API void FreeBuffer(IBufferObject* buffer) override;
 
 		PARABLIT_API ITexture* AllocateTexture(const TextureDesc& texDesc) override;
 
 		PARABLIT_API void FreeTexture(ITexture* texture) override;
 
+		Sampler GetSampler(const SamplerDesc& samplerDesc);
+
 		PARABLIT_API CmdContextPool& GetContextPool();
+
+		DRIBuffer* GetDRIBuffer();
+
+		VkDescriptorSetLayout GetDRISetLayout();
 
 		u64 GetCurrentFrame();
 
@@ -96,6 +117,10 @@ namespace PB
 		inline void CreateSyncObjects();
 
 		inline void CreateCmdBuffers();
+
+		inline void CreateDRIPoolAndSetLayout();
+
+		inline void CreateDRIBuffer(DRIBuffer& buffer);
 
 		// Reset frame tracking to begin recording the next frame.
 		inline void BeginNextFrame();
@@ -117,7 +142,7 @@ namespace PB
 
 		// Resource Cache
 		RenderPassCache m_renderPassCache;
-		TextureViewCache m_viewCache;
+		ViewCache m_viewCache;
 		FramebufferCache m_framebufferCache;
 		ShaderCache m_shaderModuleCache;
 		PipelineCache m_pipelineCache;
@@ -125,6 +150,8 @@ namespace PB
 		// Frame State
 		VkQueue m_presentQueue = VK_NULL_HANDLE;
 		VkCommandPool m_masterCmdPool = VK_NULL_HANDLE;
+		VkDescriptorPool m_driBufferDescPool = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_driSetLayout = VK_NULL_HANDLE;
 		u64 m_currentFrame = 0;
 		u8 m_curFrameInfoIdx = 0;
 		u8 m_lastFrameInfoIdx = ~0;

@@ -39,6 +39,10 @@ namespace PB
 
 		PARABLIT_API ETextureState GetState();
 
+		TextureView GetView(TextureViewDesc& viewDesc) override;
+
+		void RegisterView(const TextureViewDesc& desc);
+
 	private:
 
 		PARABLIT_API inline bool CreateImageResource(const TextureDesc& desc);
@@ -55,6 +59,7 @@ namespace PB
 		ETextureState m_currentState = PB_TEXTURE_STATE_NONE;
 		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
 		bool m_ownsImage = true; // There may be some cases (Such as swap chain images), where the VkImage is already created for us. This flags (if false) for this object to not delete the VkImage when destroyed.
+		CLib::Vector<TextureViewDesc, 1, 8> m_viewDescs;
 	};
 }
 

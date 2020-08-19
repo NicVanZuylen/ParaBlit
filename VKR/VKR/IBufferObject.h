@@ -5,12 +5,22 @@
 namespace PB
 {
 	class IRenderer;
+	class IBufferObject;
 
 	struct BufferObjectDesc
 	{
 		BufferOptions m_options{};
 		BufferUsage m_usage{};
 		u32 m_bufferSize = 0;
+	};
+
+	struct BufferViewDesc
+	{
+		IBufferObject* m_buffer = nullptr;
+		u32 m_offset = 0;
+		u32 m_size = ~0u;
+
+		bool operator == (const BufferViewDesc& other) const;
 	};
 
 	class IBufferObject
@@ -35,10 +45,10 @@ namespace PB
 		Description: Map the internal contents of the buffer to a user-accessible pointer.
 		Return Type: u8*
 		Param:
-			u32 size: The size of the buffer region to map.
 			u32 offset: The offset of the buffer region to map.
+			u32 size: The size of the buffer region to map.
 		*/
-		PARABLIT_INTERFACE u8* Map(u32 size, u32 offset) = 0;
+		PARABLIT_INTERFACE u8* Map(u32 offset, u32 size) = 0;
 
 		/*
 		Description: Unmap the buffer, do not call this when the buffer isn't currently mapped.
@@ -63,5 +73,13 @@ namespace PB
 			u32 size: The size of the data copy.
 		*/
 		PARABLIT_INTERFACE void Populate(u8* data, u32 size) = 0;
+
+		/*
+		Description: Get a view of a range of this buffer object, used for shader bindings.
+		Return Type: BufferView
+		Param:
+			const BufferViewDesc& viewDesc: Structure describing the view's properties.
+		*/
+		PARABLIT_INTERFACE BufferView GetView(BufferViewDesc& viewDesc) = 0;
 	};
 }

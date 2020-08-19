@@ -3,10 +3,10 @@
 #include "ParaBlitInterface.h"
 #include "ISwapChain.h"
 #include "IRenderPassCache.h"
-#include "ITextureViewCache.h"
 #include "IShaderModule.h"
 #include "IPipelineCache.h"
 #include "ITexture.h"
+#include "ITextureViewCache.h"
 #include "IBufferObject.h"
 
 #ifdef PARABLIT_WINDOWS
@@ -54,9 +54,11 @@ namespace PB
 
 		PARABLIT_INTERFACE ITexture* AllocateTexture(const TextureDesc& texDesc) = 0;
 		PARABLIT_INTERFACE void FreeTexture(ITexture* texture) = 0;
+		PARABLIT_INTERFACE IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc) = 0;
+		PARABLIT_INTERFACE void FreeBuffer(IBufferObject* buffer) = 0;
+		PARABLIT_INTERFACE Sampler GetSampler(const SamplerDesc& samplerDesc) = 0;
 
-		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;
-		PARABLIT_INTERFACE ITextureViewCache* GetTextureViewCache() = 0;
+		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;;
 		PARABLIT_INTERFACE IShaderModuleCache* GetShaderModuleCache() = 0;
 		PARABLIT_INTERFACE IPipelineCache* GetPipelineCache() = 0;
 

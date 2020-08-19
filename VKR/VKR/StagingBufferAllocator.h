@@ -8,7 +8,7 @@ namespace PB
 {
 	class Device;
 
-	struct StagingBuffer
+	struct TempBuffer
 	{
 		u8* Map(VkDevice device);
 		void Unmap(VkDevice device);
@@ -19,7 +19,7 @@ namespace PB
 		u32 m_size;
 	};
 
-	class StagingBufferAllocator
+	class TempBufferAllocator
 	{
 	public:
 
@@ -27,8 +27,8 @@ namespace PB
 
 		void Destroy();
 
-		// Allocate memory for staging purposes, sub-allocate if possible. Lifetime is for as long as the buffer's frame it was allocated for is in flight.
-		StagingBuffer NewTempStagingBuffer(u32 size, u64 currentFrame);
+		// Allocate temporary buffer. Lifetime is for as long as the buffer's frame it was allocated for is in flight.
+		TempBuffer NewTempBuffer(u32 size, u64 currentFrame, EMemoryType memoryType = PB_MEMORY_TYPE_HOST_VISIBLE);
 
 	private:
 
@@ -41,9 +41,9 @@ namespace PB
 			u64 m_lastUsedFrame = 0;
 		};
 
-		inline InternalBuffer AllocatePageBuffer(u32 size);
+		inline InternalBuffer AllocatePageBuffer(EMemoryType memoryType);
 
 		Device* m_device = nullptr;
-		CLib::Vector<InternalBuffer, 32> m_bufferPages;
+		CLib::Vector<InternalBuffer, 32> m_bufferPages[PB_MEMORY_TYPE_END_RANGE];
 	};
 }

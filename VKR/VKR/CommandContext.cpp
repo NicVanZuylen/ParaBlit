@@ -92,6 +92,15 @@ namespace PB
 			vkCmdEndRenderPass(m_cmdBuffer);
 		}
 		PB_ERROR_CHECK(vkEndCommandBuffer(m_cmdBuffer));
+
+		// Unmap current DRI buffer.
+		if (m_currentDRIBuffer)
+		{
+			m_currentDRIBuffer->m_stagingBuffer.Unmap();
+			m_currentDRIBuffer = nullptr;
+			m_dynamicResourceIndices = nullptr;
+		}
+
 		m_state = PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION;
 	}
 
@@ -246,8 +255,13 @@ namespace PB
 
 	void CommandContext::CmdBindPipeline(Pipeline pipeline)
 	{
-		VkPipeline vulkanPipeline = reinterpret_cast<VkPipeline>(pipeline);
-		vkCmdBindPipeline(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanPipeline);
+		PipelineData* pipelineData = reinterpret_cast<PipelineData*>(pipeline);
+		vkCmdBindPipeline(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineData->m_pipeline);
+		m_curPipelineLayout = pipelineData->m_layout;
+
+		// Reset these since any descriptor bindings are invalidated when a pipeline is bound.
+		m_currentDRIBuffer = nullptr;
+		m_dynamicResourceIndices = nullptr;
 	}
 
 	void CommandContext::CmdDraw(u32 vertexCount)
@@ -265,6 +279,50 @@ namespace PB
 		copyRegion.srcOffset = static_cast<VkDeviceSize>(srcInternal->GetStart()) + srcOffset;
 		copyRegion.dstOffset = static_cast<VkDeviceSize>(dstInternal->GetStart()) + dstOffset;
 		vkCmdCopyBuffer(m_cmdBuffer, srcInternal->GetHandle(), dstInternal->GetHandle(), 1, &copyRegion);
+	}
+
+	void CommandContext::CmdBindResources(const BindingLayout& layout)
+	{
+		if (m_currentDRIBuffer == nullptr)
+		{
+			m_currentDRIBuffer = m_renderer->GetDRIBuffer();
+			m_dynamicResourceIndices = reinterpret_cast<int*>(m_currentDRIBuffer->m_stagingBuffer.Map(0, Renderer::DRIBufferSize));
+			vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 0, 1, &m_currentDRIBuffer->m_descSet, 1, &m_currentDRIBuffer->m_currentOffset);
+		}
+
+		if (layout.m_bindingLocation == PB_BINDING_LAYOUT_LOCATION_UNIFORM_BUFFER)
+		{
+			DRIBuffer* indexBuffer = m_currentDRIBuffer;
+
+			if (indexBuffer->m_currentOffset + layout.bufferCount + layout.textureCount + layout.samplerCount > Renderer::DRIBufferSize)
+			{
+				// Out of space in the current DRI buffer, get a new one.
+				m_currentDRIBuffer->m_stagingBuffer.Unmap();
+				m_currentDRIBuffer->m_isFull = true;
+
+				m_currentDRIBuffer = m_renderer->GetDRIBuffer();
+				m_dynamicResourceIndices = reinterpret_cast<int*>(m_currentDRIBuffer->m_stagingBuffer.Map(0, Renderer::DRIBufferSize));
+				vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 0, 1, &m_currentDRIBuffer->m_descSet, 1, &m_currentDRIBuffer->m_currentOffset);
+			}
+			u32& offset = indexBuffer->m_currentOffset;
+
+			for (u16 i = 0; i < layout.bufferCount; ++i, ++offset)
+			{
+				m_dynamicResourceIndices[offset] = reinterpret_cast<BufferViewData*>(layout.m_buffers[i])->m_descriptorIndex;
+			}
+			for (u16 i = 0; i < layout.textureCount; ++i, ++offset)
+			{
+				m_dynamicResourceIndices[offset] = reinterpret_cast<TextureViewData*>(layout.m_textures[i])->m_descriptorIndex;
+			}
+			for (u16 i = 0; i < layout.samplerCount; ++i, ++offset)
+			{
+				m_dynamicResourceIndices[offset] = reinterpret_cast<SamplerData*>(layout.m_samplers[i])->m_descriptorIndex;
+			}
+		}
+		else
+		{
+			PB_NOT_IMPLEMENTED;
+		}
 	}
 
 	void CommandContext::ValidateRecordingState()

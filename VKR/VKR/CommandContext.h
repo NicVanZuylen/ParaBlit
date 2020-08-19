@@ -3,6 +3,7 @@
 #include "ParaBlitApi.h"
 #include "ParaBlitDefs.h"
 #include "vulkan/vulkan.h"
+#include "StagingBufferAllocator.h"
 
 #include <unordered_map>
 
@@ -18,6 +19,8 @@ namespace PB
 {
 	class Renderer;
 	class IBufferObject;
+	
+	struct DRIBuffer;
 
 	class CommandContext : public ICommandContext
 	{
@@ -39,6 +42,7 @@ namespace PB
 		PARABLIT_API void CmdBindPipeline(Pipeline pipeline) override;
 		PARABLIT_API void CmdDraw(u32 vertexCount) override;
 		PARABLIT_API void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size);
+		void CmdBindResources(const BindingLayout& layout) override;
 
 		PARABLIT_API bool GetIsPriority();
 		
@@ -63,11 +67,14 @@ namespace PB
 
 		Renderer* m_renderer = nullptr;
 		VkCommandBuffer m_cmdBuffer = VK_NULL_HANDLE;
+		VkPipelineLayout m_curPipelineLayout = VK_NULL_HANDLE;
 		ECmdContextState m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
 		ECommandContextUsage m_usage = PB_COMMAND_CONTEXT_USAGE_COPY; // Copy by default since any device queue is capable of copy operations.
 		bool m_isPriority : 1;
 		bool m_isInternal : 1;
 		bool m_activeRenderpass : 1;
+		DRIBuffer* m_currentDRIBuffer = nullptr;
+		int* m_dynamicResourceIndices = nullptr;
 	};
 }
 

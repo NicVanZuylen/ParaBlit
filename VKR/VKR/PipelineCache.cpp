@@ -1,6 +1,6 @@
 #include "PipelineCache.h"
 #include "ParaBlitDebug.h"
-#include "Device.h"
+#include "Renderer.h"
 #include "CLib/Vector.h"
 #include "PBUtil.h"
 #include "MurmurHash3.h"
@@ -20,9 +20,10 @@ namespace PB
 		return MurmurHash3_x64_64(&desc, sizeof(PipelineDesc), 0);
 	}
 
-	void PipelineCache::Init(Device* device)
+	void PipelineCache::Init(Renderer* renderer)
 	{
-		m_device = device;
+		m_device = renderer->GetDevice();
+		m_driSetLayout = renderer->GetDRISetLayout();
 	}
 
 	void PipelineCache::Destroy()
@@ -32,6 +33,7 @@ namespace PB
 			vkDestroyPipelineLayout(m_device->GetHandle(), pipeline.second.m_layout, nullptr);
 			vkDestroyPipeline(m_device->GetHandle(), pipeline.second.m_pipeline, nullptr);
 		}
+		m_driSetLayout = VK_NULL_HANDLE;
 	}
 
 	Pipeline PipelineCache::GetPipeline(const PipelineDesc& desc)
@@ -40,11 +42,10 @@ namespace PB
 		if (it == m_pipelineCache.end())
 		{
 			auto newPipeline = CreatePipeline(desc);
-			m_pipelineCache[desc] = newPipeline;
-			return reinterpret_cast<Pipeline>(newPipeline.m_pipeline);
+			return reinterpret_cast<Pipeline>(&(m_pipelineCache[desc] = newPipeline));
 		}
 		else
-			return reinterpret_cast<Pipeline>(it->second.m_pipeline);
+			return reinterpret_cast<Pipeline>(&it->second);
 	}
 
 	PipelineData PipelineCache::CreatePipeline(const PipelineDesc& desc)
@@ -53,8 +54,8 @@ namespace PB
 		layoutInfo.flags = 0;
 		layoutInfo.pushConstantRangeCount = 0;
 		layoutInfo.pPushConstantRanges = nullptr;
-		layoutInfo.setLayoutCount = 0;
-		layoutInfo.pSetLayouts = nullptr;
+		layoutInfo.setLayoutCount = 1;
+		layoutInfo.pSetLayouts = &m_driSetLayout;
 
 		VkPipelineLayout layout = VK_NULL_HANDLE;
 		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &layout));

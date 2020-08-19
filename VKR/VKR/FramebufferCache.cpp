@@ -1,6 +1,8 @@
 #include "FramebufferCache.h"
 #include "Device.h"
 #include "ParaBlitDebug.h"
+#include "ImageView.h"
+#include "CLib/Vector.h"
 
 #include "vulkan/vulkan.h"
 #include "MurmurHash3.h"
@@ -46,14 +48,18 @@ namespace PB
 
 	Framebuffer FramebufferCache::CreateFramebuffer(const FramebufferDesc& desc)
 	{
+		CLib::Vector<VkImageView, 8> views;
+		for (u32 i = 0; i < desc.m_attachmentCount; ++i)
+			views.PushBack(reinterpret_cast<TextureViewData*>(desc.m_attachmentViews[i])->m_view);
+
 		VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, nullptr };
 		framebufferInfo.width = desc.m_width;
 		framebufferInfo.height = desc.m_height;
 		framebufferInfo.flags = 0;
 		framebufferInfo.layers = 1;
 		framebufferInfo.renderPass = reinterpret_cast<VkRenderPass>(desc.m_renderPass);
-		framebufferInfo.pAttachments = reinterpret_cast<VkImageView*>(desc.m_attachmentViews);
-		framebufferInfo.attachmentCount = static_cast<u32>(desc.m_attachmentCount);
+		framebufferInfo.pAttachments = views.Data();
+		framebufferInfo.attachmentCount = views.Count();
 
 		VkFramebuffer framebuffer = VK_NULL_HANDLE;
 		PB_ERROR_CHECK(vkCreateFramebuffer(m_device->GetHandle(), &framebufferInfo, nullptr, &framebuffer));

@@ -107,7 +107,7 @@ void Application::Run()
 	testTexDesc.m_data.m_size = 0;
 	testTexDesc.m_data.m_format = PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM;
 	testTexDesc.m_initialState = PB::PB_TEXTURE_STATE_COPY_DST;
-	testTexDesc.m_usageStates = PB::PB_TEXTURE_STATE_COLORTARGET;
+	testTexDesc.m_usageStates = PB::PB_TEXTURE_STATE_COLORTARGET | PB::PB_TEXTURE_STATE_SAMPLED;
 	testTexDesc.m_initOptions = PB::PB_TEXTURE_INIT_ZERO_INITIALIZE;
 	testTexDesc.m_width = m_swapchain->GetWidth();
 	testTexDesc.m_height = m_swapchain->GetHeight();
@@ -117,11 +117,24 @@ void Application::Run()
 	viewDesc.m_texture = testTex;
 	viewDesc.m_renderer = m_renderer;
 	viewDesc.m_format = PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM;
+	viewDesc.m_expectedState = PB::PB_TEXTURE_STATE_SAMPLED;
 
-	auto testView = m_renderer->GetTextureViewCache()->GetView(viewDesc);
+	auto testView = testTex->GetView(viewDesc);
 
 	PB::ShaderModule vertModule(0);
 	PB::ShaderModule fragModule(0);
+
+	PB::BufferObjectDesc bufferDesc;
+	bufferDesc.m_bufferSize = sizeof(PB::Float4);
+	bufferDesc.m_options = PB::PB_BUFFER_OPTION_ZERO_INITIALIZE;
+	bufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_UNIFORM;
+	PB::IBufferObject* testBuf = m_renderer->AllocateBuffer(bufferDesc);
+
+	PB::BufferViewDesc bufViewDesc;
+	bufViewDesc.m_buffer = testBuf;
+	bufViewDesc.m_offset = 0;
+	bufViewDesc.m_size = testBuf->GetSize();
+	PB::BufferView bufView = testBuf->GetView(bufViewDesc);
 
 	{
 		const char* vsPath = "TestAssets/Shaders/SPIR-V/vs_triangle.spv";
@@ -154,10 +167,11 @@ void Application::Run()
 	for (unsigned int i = 0; i < m_swapchain->GetImageCount(); ++i)
 	{
 		PB::TextureViewDesc desc = {};
-		desc.m_texture = m_swapchain->GetImage(i);
+		desc.m_texture = nullptr;
 		desc.m_renderer = m_renderer;
 		desc.m_format = PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM;
-		swapchainTextureViews.PushBack(m_renderer->GetTextureViewCache()->GetView(desc));
+		desc.m_expectedState = PB::PB_TEXTURE_STATE_COLORTARGET;
+		swapchainTextureViews.PushBack(m_swapchain->GetImage(i)->GetView(desc));
 	}
 
 	while(!glfwWindowShouldClose(m_window)) 
@@ -198,6 +212,13 @@ void Application::Run()
 
 		//m_renderer->BeginFrame();
 
+		PB::Float4* bufferData = (PB::Float4*)testBuf->BeginPopulate();
+		bufferData->x = 1.0f;
+		bufferData->y = 2.0f;
+		bufferData->z = 3.0f;
+		bufferData->w = 4.0f;
+		testBuf->EndPopulate();
+
 		PB::RenderPassDesc rpDesc;
 		PB::AttachmentDesc attachments[] =
 		{
@@ -223,7 +244,6 @@ void Application::Run()
 		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_FRAGMENT] = fragModule;
 		auto pipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 
-		//DynamicArray<PB::Float4, 1> clearColors = { { 0.0f, 0.4f, 0.6f, 0.0f } };
 		CLib::Vector<PB::Float4, 1> clearColors = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 
 		PB::CommandContextDesc contextDesc;
@@ -239,7 +259,14 @@ void Application::Run()
 		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_COLORTARGET);
 		cmdContext->CmdBeginRenderPass(renderPass, m_swapchain->GetWidth(), m_swapchain->GetHeight(), &swapchainTextureViews[swapChainIdx], 1, clearColors.Data(), clearColors.Count() );
 		cmdContext->CmdBindPipeline(pipeline);
-		cmdContext->CmdDraw(3);
+
+		PB::BindingLayout bindings{};
+		bindings.m_bindingLocation = PB::PB_BINDING_LAYOUT_LOCATION_UNIFORM_BUFFER;
+		bindings.bufferCount = 1;
+		bindings.m_buffers = &bufView;
+
+		cmdContext->CmdBindResources(bindings);
+		cmdContext->CmdDraw(6);
 		cmdContext->CmdEndRenderPass();
 		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_PRESENT);
 		cmdContext->End();
@@ -285,6 +312,7 @@ void Application::Run()
 	}
 
 	m_renderer->WaitIdle();
+	m_renderer->FreeBuffer(testBuf);
 	m_renderer->FreeTexture(testTex);
 }
 

@@ -149,6 +149,7 @@
     <ClCompile Include="CLib\Allocator.cpp" />
     <ClCompile Include="CmdContextPool.cpp" />
     <ClCompile Include="CommandContext.cpp" />
+    <ClCompile Include="DescriptorRegistry.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="DeviceAllocator.cpp" />
     <ClCompile Include="ExtensionManager.cpp" />
@@ -175,6 +176,7 @@
     <ClInclude Include="CLib\Allocator.h" />
     <ClInclude Include="CmdContextPool.h" />
     <ClInclude Include="CommandContext.h" />
+    <ClInclude Include="DescriptorRegistry.h" />
     <ClInclude Include="Device.h" />
     <ClInclude Include="DeviceAllocator.h" />
     <ClInclude Include="ExtensionManager.h" />

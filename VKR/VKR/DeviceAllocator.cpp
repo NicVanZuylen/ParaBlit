@@ -23,12 +23,12 @@ namespace PB
 		Reset();
 	}
 
-	DeviceAllocator::PageView DeviceAllocator::Alloc(const VkMemoryRequirements& requirements, const EMemoryType& memType)
+	DeviceAllocator::PageView DeviceAllocator::Alloc(const VkMemoryRequirements& requirements, const EMemoryType& memType, u32 desiredSize)
 	{
 		std::lock_guard<std::mutex> lock(m_allocatorLock);
 
 		PB_ASSERT_MSG(requirements.size + requirements.alignment <= ~(0U), "Requested memory block is too large.");
-		u32 requiredSize = static_cast<u32>(requirements.size + requirements.alignment);
+		const u32 requiredSize = static_cast<u32>(requirements.size);
 		// TODO: Ensure alignment requirements are met when setting the start parameter of page views.
 		auto sliceIt = m_availableBlocks[memType].lower_bound(requiredSize);
 		if (sliceIt != m_availableBlocks[memType].end())
@@ -68,11 +68,26 @@ namespace PB
 		PB_ERROR_CHECK(vkAllocateMemory(m_device->GetHandle(), &allocInfo, nullptr, &newPage.m_memory));
 		PB_ASSERT(newPage.m_memory);
 
+		PB_ASSERT(desiredSize <= requiredSize);
+
+		bool splitPage = (requiredSize - desiredSize) >= 32;
+		if (splitPage)
+		{
+			std::pair<u32, PageView> pair(requiredSize - desiredSize, {});
+			PageView& leftOverSlice = pair.second;
+			leftOverSlice.m_memory = newPage.m_memory;
+			leftOverSlice.m_memoryType = memType;
+			leftOverSlice.m_start = desiredSize;
+			leftOverSlice.m_size = requiredSize - desiredSize;
+			leftOverSlice.m_alignmentOffset = static_cast<u16>(requirements.alignment + (leftOverSlice.m_start % requirements.alignment));
+			m_availableBlocks[memType].insert(pair);
+		}
+
 		// Return a new view of the entire page for use.
 		PageView view;
 		view.m_memory = newPage.m_memory;
 		view.m_start = 0;
-		view.m_size = requiredSize;
+		view.m_size = splitPage ? desiredSize : requiredSize;
 		view.m_memoryType = memType;
 		view.m_alignmentOffset = 0;
 		return view;

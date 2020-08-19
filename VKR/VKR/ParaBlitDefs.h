@@ -124,8 +124,10 @@ namespace PB
 	};
 
 	using TextureView = void*;
+	using BufferView = void*;
 	using RenderPass = void*;
 	using Framebuffer = void*;
+	using Sampler = void*;
 	using ShaderModule = u64;
 	using Pipeline = u64;
 
@@ -140,5 +142,23 @@ namespace PB
 		u16 m_arrayCount = 1;
 
 		bool operator == (const SubresourceRange& other) const;
+	};
+
+	enum EBindingLayoutLocation : u16
+	{
+		PB_BINDING_LAYOUT_LOCATION_UNIFORM_BUFFER,	// Binding indices will be read from a bound uniform buffer. This approach is more useful when not drawing instanced geometry.
+													// ParaBlit will automatically allocate create, fill and bind the buffer containing the binding indices.
+		PB_BINDING_LAYOUT_LOCATION_INSTANCE			// Binding indices will be read from an instance buffer. This approach is preferable when drawing instanced geometry, to avoid a uniform buffer binding for each draw call using the layout.
+	};
+
+	struct BindingLayout
+	{
+		EBindingLayoutLocation m_bindingLocation = PB_BINDING_LAYOUT_LOCATION_UNIFORM_BUFFER;
+		u16 bufferCount = 0;
+		u16 textureCount = 0;
+		u16 samplerCount = 0;
+		BufferView* m_buffers = nullptr;
+		TextureView* m_textures = nullptr;
+		Sampler* m_samplers = nullptr;
 	};
 }
