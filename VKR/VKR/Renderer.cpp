@@ -484,7 +484,7 @@ namespace PB
 
 	void Renderer::BeginNextFrame()
 	{
-		if (m_curFrameInfoIdx < m_swapchain.GetImageCount() - 1)
+		if (m_curFrameInfoIdx + 1 < m_swapchain.GetImageCount() && m_curFrameInfoIdx + 1 < PB_FRAME_IN_FLIGHT_COUNT)
 			++m_curFrameInfoIdx;
 		else
 			m_curFrameInfoIdx = 0;

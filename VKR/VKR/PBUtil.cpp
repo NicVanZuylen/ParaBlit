@@ -187,7 +187,7 @@ namespace PB
             return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             break;
         case PB::PB_TEXTURE_STATE_DEPTHTARGET:
-            PB_NOT_IMPLEMENTED;
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             break;
         case PB::PB_TEXTURE_STATE_RAW:
             PB_NOT_IMPLEMENTED;

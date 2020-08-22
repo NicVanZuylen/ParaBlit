@@ -244,7 +244,7 @@ void Application::Run()
 		PB::RenderPassDesc rpDesc;
 		PB::AttachmentDesc attachments[] =
 		{
-			{ PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM, PB::PB_TEXTURE_STATE_COLORTARGET, PB::PB_TEXTURE_STATE_PRESENT, PB::PB_ATTACHMENT_START_ACTION_CLEAR },
+			{ PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM, PB::PB_TEXTURE_STATE_COLORTARGET, PB::PB_TEXTURE_STATE_COLORTARGET, PB::PB_ATTACHMENT_START_ACTION_CLEAR },
 			{ PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT, PB::PB_TEXTURE_STATE_DEPTHTARGET, PB::PB_TEXTURE_STATE_DEPTHTARGET, PB::PB_ATTACHMENT_START_ACTION_CLEAR, false },
 		};
 
@@ -278,7 +278,7 @@ void Application::Run()
 
 		CLib::Vector<PB::Float4, 2> clearColors = { { 0.0f, 0.0f, 0.0f, 0.0f } , { 1.0f, 1.0f, 1.0f, 1.0f } };
 
-		PB::CommandContextDesc contextDesc;
+		PB::CommandContextDesc contextDesc{};
 		contextDesc.m_renderer = m_renderer;
 		PB::SCommandContext cmdContext(m_renderer);
 		cmdContext->Init(contextDesc);
@@ -290,10 +290,6 @@ void Application::Run()
 
 		PB::TextureView attachmentViews[2] = { swapchainTextureViews[swapChainIdx], depthView };
 
-		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_COLORTARGET);
-		cmdContext->CmdTransitionTexture(depthTexture, PB::PB_TEXTURE_STATE_DEPTHTARGET);
-		cmdContext->CmdBeginRenderPass(renderPass, m_swapchain->GetWidth(), m_swapchain->GetHeight(), attachmentViews, 2, clearColors.Data(), clearColors.Count() );
-
 		PB::BindingLayout bindings{};
 		bindings.m_bindingLocation = PB::PB_BINDING_LAYOUT_LOCATION_DEFAULT;
 		bindings.m_bufferCount = 1;
@@ -301,6 +297,9 @@ void Application::Run()
 		PB::BufferView bufferViews[1] = { bufView };
 		bindings.m_buffers = bufferViews;
 
+		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_COLORTARGET);
+		cmdContext->CmdTransitionTexture(depthTexture, PB::PB_TEXTURE_STATE_DEPTHTARGET);
+		cmdContext->CmdBeginRenderPass(renderPass, m_swapchain->GetWidth(), m_swapchain->GetHeight(), attachmentViews, 2, clearColors.Data(), clearColors.Count() );
 		cmdContext->CmdBindPipeline(pipeline);
 		cmdContext->CmdBindResources(bindings);
 		cmdContext->CmdBindVertexBuffer(paintMesh->GetVertexBuffer(), paintMesh->GetIndexBuffer(), PB::PB_INDEX_TYPE_UINT32);
@@ -315,7 +314,6 @@ void Application::Run()
 		cmdContext->Return();
 
 		m_renderer->EndFrame();
-
 		m_input->EndFrame();
 
 		// End time...
