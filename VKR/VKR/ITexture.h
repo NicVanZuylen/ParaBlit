@@ -1,11 +1,11 @@
 #pragma once
 #include "ParaBlitApi.h"
 #include "ParaBlitInterface.h"
-#include "ITextureViewCache.h"
 
 namespace PB
 {
 	class ITexture;
+	class IRenderer;
 
 	enum ETextureInitOptions
 	{
@@ -67,5 +67,7 @@ namespace PB
 		PARABLIT_INTERFACE void Create(IRenderer* renderer, const TextureDesc& desc) = 0;
 
 		PARABLIT_INTERFACE TextureView GetView(TextureViewDesc& viewDesc) = 0;
+
+		PARABLIT_INTERFACE TextureView GetRenderTargetView(TextureViewDesc& viewDesc) = 0;
 	};
 }

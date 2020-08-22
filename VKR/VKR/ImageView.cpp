@@ -48,10 +48,10 @@ namespace PB
 	{
 	}
 
-	void ViewCache::Init(Device* device)
+	void ViewCache::Init(Device* device, VkDescriptorSet* outMasterSet, VkDescriptorSetLayout* outMasterSetLayout)
 	{
 		m_device = device;
-		m_descriptorRegistry.Create(device);
+		m_descriptorRegistry.Create(device, outMasterSet, outMasterSetLayout);
 	}
 
 	void ViewCache::Destroy()
@@ -69,19 +69,37 @@ namespace PB
 
 	TextureView ViewCache::GetTextureView(const TextureViewDesc& desc)
 	{
+		PB_ASSERT_MSG(desc.m_expectedState != PB_TEXTURE_STATE_COLORTARGET, "Cannot use GetTextureView to get a render target view. Use GetRenderTargetView instead.");
+
 		auto it = m_texViewCache.find(desc);
 		if (it == m_texViewCache.end())
 		{
 			auto& viewData = m_texViewCache[desc];
 			viewData = CreateTextureView(desc);
-			return &viewData;
+			return viewData.m_descriptorIndex;
 		}
 		else
-			return &it->second;
+			return it->second.m_descriptorIndex;
+	}
+
+	TextureView ViewCache::GetRenderTargetView(const TextureViewDesc& desc)
+	{
+		PB_ASSERT_MSG(desc.m_expectedState == PB_TEXTURE_STATE_COLORTARGET || desc.m_expectedState == PB_TEXTURE_STATE_DEPTHTARGET, "Cannot use GetRenderTargetView to get a non-render target view. Use GetTextureView instead.");
+
+		auto it = m_texViewCache.find(desc);
+		if (it == m_texViewCache.end())
+		{
+			auto& viewData = m_texViewCache[desc];
+			viewData = CreateTextureView(desc);
+			return reinterpret_cast<TextureView>(&viewData);
+		}
+		else
+			return reinterpret_cast<TextureView>(&it->second);
 	}
 
 	void ViewCache::DestroyTextureView(const TextureViewDesc& desc)
 	{
+		// TODO: Reset descriptor at the view's index to avoid submitting views of destroyed resources.
 		auto it = m_texViewCache.find(desc);
 		PB_ASSERT(it != m_texViewCache.end());
 		m_descriptorRegistry.FreeView(DESCRIPTORTYPE_TEXTURE, it->second.m_descriptorIndex);
@@ -104,9 +122,9 @@ namespace PB
 
 	void ViewCache::DestroyBufferView(const BufferViewDesc& desc)
 	{
+		// TODO: Reset descriptor at the view's index to avoid submitting views of destroyed resources.
 		auto it = m_bufViewCache.find(desc);
 		PB_ASSERT(it != m_bufViewCache.end());
-		m_descriptorRegistry.FreeView(DESCRIPTORTYPE_UNIFORM_BUFFER, it->second.m_descriptorIndex);
 		m_bufViewCache.erase(it);
 	}
 
@@ -117,10 +135,10 @@ namespace PB
 		{
 			auto& viewData = m_samplerCache[desc];
 			viewData = CreateSampler(desc);
-			return &viewData;
+			return viewData.m_descriptorIndex;
 		}
 		else
-			return &it->second;
+			return it->second.m_descriptorIndex;
 	}
 
 	TextureViewData ViewCache::CreateTextureView(const TextureViewDesc& desc)
@@ -128,12 +146,37 @@ namespace PB
 		Texture* internalTex = reinterpret_cast<Texture*>(desc.m_texture);
 		PB_ASSERT(internalTex->GetUsage() & desc.m_expectedState);
 
+		bool hasDepthPlane = false;
+		bool hasStencilPlane = false;
+		switch (desc.m_format)
+		{
+		case PB_TEXTURE_FORMAT_D16_UNORM:
+		case PB_TEXTURE_FORMAT_D32_FLOAT:
+			hasDepthPlane = true;
+			hasStencilPlane = false;
+			break;
+		case PB_TEXTURE_FORMAT_D16_UNORM_S8_UINT:
+		case PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT:
+		case PB_TEXTURE_FORMAT_D32_FLOAT_S8_UINT:
+			hasDepthPlane = true;
+			hasStencilPlane = true;
+			break;
+		default:
+			break;
+		}
+
 		VkImageViewCreateInfo imageViewInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, nullptr };
 		imageViewInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
 		imageViewInfo.flags = 0;
 		imageViewInfo.format = ConvertPBFormatToVkFormat(desc.m_format);
 		imageViewInfo.image = internalTex->GetImage();
 		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+		if(hasDepthPlane)
+			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		if(hasStencilPlane)
+			imageViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
 		imageViewInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewInfo.subresourceRange.layerCount = 1;
 		imageViewInfo.subresourceRange.baseMipLevel = 0;
@@ -164,7 +207,7 @@ namespace PB
 		viewData.m_buffer = reinterpret_cast<BufferObject*>(desc.m_buffer)->GetHandle();
 		viewData.m_offset = desc.m_offset;
 		viewData.m_size = desc.m_size;
-		m_descriptorRegistry.RegisterView(viewData);
+		reinterpret_cast<BufferObject*>(desc.m_buffer)->RegisterView(desc);
 		return viewData;
 	}
 

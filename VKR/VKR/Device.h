@@ -48,6 +48,18 @@ namespace PB
 		*/
 		TempBufferAllocator& GetTempBufferAllocator();
 
+		/*
+		Description: Gets the limits structure of this device.
+		Return Type const VkPhysicalDeviceLimits*
+		*/
+		const VkPhysicalDeviceLimits* GetDeviceLimits();
+
+		/*
+		Description: Gets the properties defining the descriptor indexing limites of the device.
+		Return Type const VkPhysicalDeviceDescriptorIndexingProperties*
+		*/
+		const VkPhysicalDeviceDescriptorIndexingProperties* GetDescriptorIndexingProperties();
+
 	private:
 
 		// Enumerate physical devices and use the most suitable one.

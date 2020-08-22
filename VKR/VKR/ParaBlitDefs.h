@@ -35,7 +35,12 @@ namespace PB
 		PB_TEXTURE_FORMAT_R8G8_UNORM,
 		PB_TEXTURE_FORMAT_R8G8B8_UNORM,
 		PB_TEXTURE_FORMAT_R8G8B8A8_UNORM,
-		PB_TEXTURE_FORMAT_B8G8R8A8_UNORM
+		PB_TEXTURE_FORMAT_B8G8R8A8_UNORM,
+		PB_TEXTURE_FORMAT_D16_UNORM,
+		PB_TEXTURE_FORMAT_D16_UNORM_S8_UINT,
+		PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT,
+		PB_TEXTURE_FORMAT_D32_FLOAT,
+		PB_TEXTURE_FORMAT_D32_FLOAT_S8_UINT,
 	};
 
 	enum EAttachmentUsage : u8
@@ -64,7 +69,29 @@ namespace PB
 		PB_BUFFER_USAGE_UNIFORM = 1,
 		PB_BUFFER_USAGE_STORAGE = 1 << 1,
 		PB_BUFFER_USAGE_COPY_SRC = 1 << 2,
-		PB_BUFFER_USAGE_COPY_DST = 1 << 3
+		PB_BUFFER_USAGE_COPY_DST = 1 << 3,
+		PB_BUFFER_USAGE_VERTEX = 1 << 4,
+		PB_BUFFER_USAGE_INDEX = 1 << 5
+	};
+
+	enum EVertexAttributeType
+	{
+		PB_VERTEX_ATTRIBUTE_NONE,
+		PB_VERTEX_ATTRIBUTE_FLOAT = sizeof(float),
+		PB_VERTEX_ATTRIBUTE_FLOAT2 = sizeof(float) * 2,
+		PB_VERTEX_ATTRIBUTE_FLOAT3 = sizeof(float) * 3,
+		PB_VERTEX_ATTRIBUTE_FLOAT4 = sizeof(float) * 4,
+	};
+
+	enum ECompareOP : u8
+	{
+		PB_COMPARE_OP_ALWAYS,
+		PB_COMPARE_OP_NEVER,
+		PB_COMPARE_OP_LEQUAL,
+		PB_COMPARE_OP_LESS,
+		PB_COMPARE_OP_EQUAL,
+		PB_COMPARE_OP_GREQUAL,
+		PB_COMPARE_OP_GREATER
 	};
 
 	struct Float4
@@ -123,11 +150,11 @@ namespace PB
 		PB_SHADER_STAGE_COUNT
 	};
 
-	using TextureView = void*;
 	using BufferView = void*;
+	using TextureView = long long;
+	using Sampler = long long;
 	using RenderPass = void*;
 	using Framebuffer = void*;
-	using Sampler = void*;
 	using ShaderModule = u64;
 	using Pipeline = u64;
 
@@ -146,17 +173,17 @@ namespace PB
 
 	enum EBindingLayoutLocation : u16
 	{
-		PB_BINDING_LAYOUT_LOCATION_UNIFORM_BUFFER,	// Binding indices will be read from a bound uniform buffer. This approach is more useful when not drawing instanced geometry.
+		PB_BINDING_LAYOUT_LOCATION_DEFAULT,			// Binding indices will be recorded into a DRI buffer, a UBO bound at location 0 in the shader.
 													// ParaBlit will automatically allocate create, fill and bind the buffer containing the binding indices.
 		PB_BINDING_LAYOUT_LOCATION_INSTANCE			// Binding indices will be read from an instance buffer. This approach is preferable when drawing instanced geometry, to avoid a uniform buffer binding for each draw call using the layout.
 	};
 
 	struct BindingLayout
 	{
-		EBindingLayoutLocation m_bindingLocation = PB_BINDING_LAYOUT_LOCATION_UNIFORM_BUFFER;
-		u16 bufferCount = 0;
-		u16 textureCount = 0;
-		u16 samplerCount = 0;
+		EBindingLayoutLocation m_bindingLocation = PB_BINDING_LAYOUT_LOCATION_DEFAULT;
+		u16 m_bufferCount = 0;
+		u16 m_textureCount = 0;
+		u16 m_samplerCount = 0;
 		BufferView* m_buffers = nullptr;
 		TextureView* m_textures = nullptr;
 		Sampler* m_samplers = nullptr;

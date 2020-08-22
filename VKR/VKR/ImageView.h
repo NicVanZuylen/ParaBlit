@@ -1,5 +1,5 @@
 #pragma once
-#include "ITextureViewCache.h"
+#include "IRenderer.h"
 #include "ICommandContext.h"
 #include "DescriptorRegistry.h"
 #include "IBufferObject.h"
@@ -37,11 +37,13 @@ namespace PB
 
 		~ViewCache();
 
-		void Init(Device* device);
+		void Init(Device* device, VkDescriptorSet* outMasterSet, VkDescriptorSetLayout* outMasterSetLayout);
 
 		void Destroy();
 
-		PARABLIT_API TextureView GetTextureView(const TextureViewDesc& desc);
+		TextureView GetTextureView(const TextureViewDesc& desc);
+
+		TextureView GetRenderTargetView(const TextureViewDesc& desc);
 
 		void DestroyTextureView(const TextureViewDesc& desc);
 

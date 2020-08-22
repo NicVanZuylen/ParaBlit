@@ -5,27 +5,6 @@
 
 namespace PB
 {
-	void DescriptorRegistry::RegisterView(BufferViewData& viewData)
-	{
-		viewData.m_descriptorIndex = GetDescriptorIndex(DESCRIPTORTYPE_UNIFORM_BUFFER);
-
-		// Assign this buffer to it's respective descriptor slot.
-		VkWriteDescriptorSet descriptorWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
-		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrite.dstSet = m_masterSet;
-		descriptorWrite.dstBinding = DESCRIPTORTYPE_UNIFORM_BUFFER;
-		descriptorWrite.dstArrayElement = viewData.m_descriptorIndex;
-
-		VkDescriptorBufferInfo bufInfo;
-		bufInfo.buffer = viewData.m_buffer;
-		bufInfo.offset = viewData.m_offset;
-		bufInfo.range = viewData.m_size;
-		descriptorWrite.pBufferInfo = &bufInfo;
-
-		vkUpdateDescriptorSets(m_device->GetHandle(), 1, &descriptorWrite, 0, nullptr);
-	}
-
 	inline VkDescriptorType GetDescTypeFromExpectedState(ETextureStateFlags state)
 	{
 		switch (state)
@@ -73,7 +52,7 @@ namespace PB
 		VkDescriptorImageInfo sampImgInfo{};
 		sampImgInfo.imageView = VK_NULL_HANDLE;
 		sampImgInfo.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		sampImgInfo.sampler = sampImgInfo.sampler;
+		sampImgInfo.sampler = samplerData.m_sampler;
 		sampWrite.pImageInfo = &sampImgInfo;
 
 		vkUpdateDescriptorSets(m_device->GetHandle(), 1, &sampWrite, 0, nullptr);
@@ -84,11 +63,13 @@ namespace PB
 		m_descriptorStates[type].m_freeDescriptors.PushBack(index);
 	}
 
-	void DescriptorRegistry::Create(Device* device)
+	void DescriptorRegistry::Create(Device* device, VkDescriptorSet* outMasterSet, VkDescriptorSetLayout* outMasterSetLayout)
 	{
 		m_device = device;
 		CreateDescriptorPool();
 		AllocateDescriptorSets();
+		*outMasterSet = m_masterSet;
+		*outMasterSetLayout = m_masterSetLayout;
 	}
 
 	void DescriptorRegistry::Destroy()
@@ -108,11 +89,7 @@ namespace PB
 
 	void DescriptorRegistry::CreateDescriptorPool()
 	{
-		CLib::Vector<VkDescriptorPoolSize, 3> poolSizes;
-
-		VkDescriptorPoolSize& uboPoolSize = poolSizes.PushBack();
-		uboPoolSize.descriptorCount = MaxUBODescriptors;
-		uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		CLib::Vector<VkDescriptorPoolSize, 2> poolSizes;
 
 		VkDescriptorPoolSize& texPoolSize = poolSizes.PushBack();
 		texPoolSize.descriptorCount = MaxTextureDescriptors;
@@ -136,34 +113,35 @@ namespace PB
 	void DescriptorRegistry::AllocateDescriptorSets()
 	{
 		// We're using descriptor indexing instead of the traditional method of binding descriptor sets. As such, we only create one descriptor set with a massive amount of available descriptors.
-
 		CLib::Vector<VkDescriptorSetLayoutBinding, 3> bindings;
-
-		VkDescriptorSetLayoutBinding& uboBinding = bindings.PushBack();
-		uboBinding.binding = DESCRIPTORTYPE_UNIFORM_BUFFER;
-		uboBinding.descriptorCount = MaxUBODescriptors;
-		uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		uboBinding.pImmutableSamplers = nullptr;
-		uboBinding.stageFlags = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		CLib::Vector<VkDescriptorBindingFlags, 3> bindingFlags;
 
 		VkDescriptorSetLayoutBinding& texBinding = bindings.PushBack();
 		texBinding.binding = DESCRIPTORTYPE_TEXTURE;
 		texBinding.descriptorCount = MaxTextureDescriptors;
 		texBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		texBinding.pImmutableSamplers = nullptr;
-		texBinding.stageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-
+		texBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindingFlags.PushBack() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+		
 		VkDescriptorSetLayoutBinding& samplerBinding = bindings.PushBack();
 		samplerBinding.binding = DESCRIPTORTYPE_SAMPLER;
 		samplerBinding.descriptorCount = MaxSamplers;
 		samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 		samplerBinding.pImmutableSamplers = nullptr;
-		samplerBinding.stageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindingFlags.PushBack() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+
+		// Binding flags for the bindings above, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT is required for descriptor indexing.
+		VkDescriptorSetLayoutBindingFlagsCreateInfo masterBindingFlagsInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, nullptr };
+		masterBindingFlagsInfo.bindingCount = bindingFlags.Count();
+		masterBindingFlagsInfo.pBindingFlags = bindingFlags.Data();
 
 		VkDescriptorSetLayoutCreateInfo masterSetLayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr };
 		masterSetLayoutInfo.flags = 0;
 		masterSetLayoutInfo.bindingCount = bindings.Count();
 		masterSetLayoutInfo.pBindings = bindings.Data();
+		masterSetLayoutInfo.pNext = &masterBindingFlagsInfo;
 
 		PB_ERROR_CHECK(vkCreateDescriptorSetLayout(m_device->GetHandle(), &masterSetLayoutInfo, nullptr, &m_masterSetLayout));
 		PB_BREAK_ON_ERROR;

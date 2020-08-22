@@ -28,5 +28,9 @@ namespace PB
 
 	PARABLIT_API inline VkShaderStageFlagBits ConvertPBShaderStageToVK(EShaderStage stage);
 
+	PARABLIT_API inline VkFormat PBVertexTypeToVkFormat(EVertexAttributeType type);
+
+	PARABLIT_API inline VkCompareOp PBCompareOPtoVKCompareOP(ECompareOP op);
+
 	PARABLIT_API inline void MakeInternalContext(CommandContext& context, Renderer* renderer);
 }

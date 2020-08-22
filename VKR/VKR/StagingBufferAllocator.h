@@ -41,7 +41,7 @@ namespace PB
 			u64 m_lastUsedFrame = 0;
 		};
 
-		inline InternalBuffer AllocatePageBuffer(EMemoryType memoryType);
+		inline void AllocatePageBuffer(EMemoryType memoryType, u32 desiredSize);
 
 		Device* m_device = nullptr;
 		CLib::Vector<InternalBuffer, 32> m_bufferPages[PB_MEMORY_TYPE_END_RANGE];

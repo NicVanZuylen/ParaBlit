@@ -101,7 +101,7 @@ namespace PB
 		swapChainInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 		swapChainInfo.presentMode = ChoosePresentMode(desc);
 		swapChainInfo.minImageCount = m_imageCount;
-		swapChainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		swapChainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		swapChainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		swapChainInfo.imageArrayLayers = 1;
 		swapChainInfo.preTransform = surfaceCapabilities.currentTransform;

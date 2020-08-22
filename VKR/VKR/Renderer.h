@@ -51,6 +51,7 @@ namespace PB
 		CLib::Vector<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
 		CLib::Vector<BufferObject, 8> m_stagingBuffers;						// Staging buffers which are in flight for this frame. These will be deleted or re-used once the frame is complete.
 		CLib::Vector<DRIBuffer> m_driBuffers;								// Contains dynamic resource indices (DRI) for indexing descriptors in shaders. Each buffer also has an associated descriptor set for binding it.
+		CLib::Vector<VkDescriptorSet, 16> m_submittedUBODescSets;			// Contains this frame's in-flight UBO descriptor sets.
 	};
 
 	class Renderer : public IRenderer
@@ -58,7 +59,7 @@ namespace PB
 	public:
 
 		static constexpr const u32 DRIBufferSize = UINT16_MAX; // TODO: Ensure this is less than or equal to the uniform buffer size device limit.
-		static constexpr const u32 MaxDRIBufferCountPerFrame = 3;
+		static constexpr const u32 MaxDRIBufferCount = 3;
 
 		PARABLIT_API Renderer();
 
@@ -108,6 +109,14 @@ namespace PB
 
 		VkDescriptorSetLayout GetDRISetLayout();
 
+		VkDescriptorSet GetMasterSet();
+
+		VkDescriptorSetLayout GetMasterSetLayout();
+
+		VkDescriptorSet GetUBOSet();
+
+		VkDescriptorSetLayout GetUBOSetLayout();
+
 		u64 GetCurrentFrame();
 
 	private:
@@ -118,7 +127,7 @@ namespace PB
 
 		inline void CreateCmdBuffers();
 
-		inline void CreateDRIPoolAndSetLayout();
+		inline void CreatePoolAndSetLayouts();
 
 		inline void CreateDRIBuffer(DRIBuffer& buffer);
 
@@ -146,16 +155,25 @@ namespace PB
 		FramebufferCache m_framebufferCache;
 		ShaderCache m_shaderModuleCache;
 		PipelineCache m_pipelineCache;
+		VkDescriptorSet m_masterResourceDescSet = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_masterSetLayout = VK_NULL_HANDLE;
+
+		// Shared descriptors
+		static constexpr const u32 maxUBOSets = 512;
+
+		VkCommandPool m_masterCmdPool = VK_NULL_HANDLE;
+		VkDescriptorPool m_sharedDescPool = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_driSetLayout = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
 
 		// Frame State
 		VkQueue m_presentQueue = VK_NULL_HANDLE;
-		VkCommandPool m_masterCmdPool = VK_NULL_HANDLE;
-		VkDescriptorPool m_driBufferDescPool = VK_NULL_HANDLE;
-		VkDescriptorSetLayout m_driSetLayout = VK_NULL_HANDLE;
 		u64 m_currentFrame = 0;
 		u8 m_curFrameInfoIdx = 0;
 		u8 m_lastFrameInfoIdx = ~0;
 		CLib::Vector<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT> m_frameInfos;
+		CLib::Vector<VkDescriptorSet, 16> m_uboDescSets;
+		CLib::Vector<VkDescriptorSet, 16> m_usedUBODescSets;
 		CLib::Vector<VkCommandBuffer, PB_FRAME_IN_FLIGHT_COUNT> m_masterCmdBuffers;
 		CLib::Vector<VkCommandBuffer, 64> m_freeContextCmdBuffers;
 		CLib::Vector<VkCommandBuffer, 32> m_internalCmdBuffers;

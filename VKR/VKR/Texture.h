@@ -41,7 +41,13 @@ namespace PB
 
 		TextureView GetView(TextureViewDesc& viewDesc) override;
 
+		TextureView GetRenderTargetView(TextureViewDesc& viewDesc) override;
+
 		void RegisterView(const TextureViewDesc& desc);
+
+		bool HasDepthPlane();
+
+		bool HasStencilPlane();
 
 	private:
 
@@ -58,7 +64,9 @@ namespace PB
 		ETextureStateFlags m_availableStates = PB_TEXTURE_STATE_NONE;
 		ETextureState m_currentState = PB_TEXTURE_STATE_NONE;
 		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
-		bool m_ownsImage = true; // There may be some cases (Such as swap chain images), where the VkImage is already created for us. This flags (if false) for this object to not delete the VkImage when destroyed.
+		bool m_ownsImage : 1; // There may be some cases (Such as swap chain images), where the VkImage is already created for us. This flags (if false) for this object to not delete the VkImage when destroyed.
+		bool m_hasDepthPlane : 1;
+		bool m_hasStencilPlane : 1;
 		CLib::Vector<TextureViewDesc, 1, 8> m_viewDescs;
 	};
 }

@@ -389,6 +389,9 @@ healthchecksdb
 # Vulkan SDK
 [Vv]ulkanSDK/
 
+# Mesh cache files
+*.mcache
+
 # End of https://www.gitignore.io/api/c++,visualstudio
 ProjectNStream/ProjectNStream/CollisionManager - Copy.cpp
 GraphicsProject/GraphicsProject/x64/Debug/

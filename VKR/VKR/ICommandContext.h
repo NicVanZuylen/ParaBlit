@@ -8,6 +8,7 @@ namespace PB
 {
 	class IRenderer;
 	class ITexture;
+	class IBufferObject;
 
 	struct ClearDesc
 	{
@@ -21,6 +22,12 @@ namespace PB
 		IRenderer* m_renderer = nullptr;
 		ECommandContextUsage m_usage = PB_COMMAND_CONTEXT_USAGE_GRAPHICS;
 		ECommandContextFlags m_flags = PB_COMMAND_CONTEXT_NONE;
+	};
+
+	enum EIndexType
+	{
+		PB_INDEX_TYPE_UINT16,
+		PB_INDEX_TYPE_UINT32
 	};
 
 	class ICommandContext
@@ -60,7 +67,11 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdBindResources(const BindingLayout& layout) = 0;
 
-		PARABLIT_INTERFACE void CmdDraw(u32 vertexCount) = 0;
+		PARABLIT_INTERFACE void CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType) = 0;
+
+		PARABLIT_INTERFACE void CmdDraw(u32 vertexCount, u32 instanceCount) = 0;
+
+		PARABLIT_INTERFACE void CmdDrawIndexed(u32 indexCount, u32 instanceCount) = 0;
 	};
 
 	ICommandContext* CreateCommandContext(IRenderer* renderer);

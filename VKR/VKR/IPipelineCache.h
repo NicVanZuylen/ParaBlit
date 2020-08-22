@@ -5,13 +5,24 @@
 
 namespace PB
 {
-	// TODO: Add more paramaters and update the == operator as more are needed.
+	struct VertexDesc
+	{
+		static constexpr const u32 MaxVertexAttributes = 7;
+		u32 vertexSize = 0;
+		EVertexAttributeType vertexAttributes[MaxVertexAttributes] = {};
+	};
+
+	// TODO: ONGOING: Add more paramaters and update the == operator as more are needed.
 	struct PipelineDesc
 	{
-		PB::RenderPass m_renderPass = 0;
-		u64 m_subpass = 0;
-		PB::Rect m_renderArea = {};
-		PB::ShaderModule m_shaderModules[PB_SHADER_STAGE_COUNT] = {};
+		RenderPass m_renderPass = 0;
+		Rect m_renderArea = {};
+		ShaderModule m_shaderModules[PB_SHADER_STAGE_COUNT] = {};
+		VertexDesc m_vertexDesc = {};
+		ECompareOP m_depthCompareOP = PB_COMPARE_OP_ALWAYS;
+		bool m_stencilTestEnable = false;
+		u16 m_subpass = 0;
+		u32 m_pad1 = 0;
 
 		bool operator == (const PipelineDesc& other) const;
 	};

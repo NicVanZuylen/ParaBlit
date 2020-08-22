@@ -35,6 +35,7 @@ namespace PB
 			PB_LOG("Failed to create texture resource.");
 			return;
 		}
+		m_ownsImage = true;
 
 		InitializeMemory(desc);
 	}
@@ -49,6 +50,8 @@ namespace PB
 		m_currentState = desc.m_currentUsage;
 		m_availableStates = desc.m_usageFlags;
 		m_ownsImage = false;
+		m_hasDepthPlane = false;
+		m_hasStencilPlane = false;
 
 		PB_ASSERT(((m_availableStates & m_currentState) || m_currentState == PB_TEXTURE_STATE_NONE));
 	}
@@ -102,9 +105,25 @@ namespace PB
 		return m_renderer->GetViewCache()->GetTextureView(viewDesc);
 	}
 
+	TextureView Texture::GetRenderTargetView(TextureViewDesc& viewDesc)
+	{
+		viewDesc.m_texture = this;
+		return m_renderer->GetViewCache()->GetRenderTargetView(viewDesc);
+	}
+
 	void Texture::RegisterView(const TextureViewDesc& desc)
 	{
 		m_viewDescs.PushBack() = desc;
+	}
+
+	bool Texture::HasDepthPlane()
+	{
+		return m_hasDepthPlane;
+	}
+
+	bool Texture::HasStencilPlane()
+	{
+		return m_hasStencilPlane;
 	}
 
 	bool Texture::CreateImageResource(const TextureDesc& desc)
@@ -115,6 +134,25 @@ namespace PB
 
 		if (desc.m_usageStates == 0 || (desc.m_usageStates & PB_TEXTURE_STATE_MAX) > 0)
 			return false;
+
+		switch (desc.m_data.m_format)
+		{
+		case PB_TEXTURE_FORMAT_D16_UNORM:
+		case PB_TEXTURE_FORMAT_D32_FLOAT:
+			m_hasDepthPlane = true;
+			m_hasStencilPlane = false;
+			break;
+		case PB_TEXTURE_FORMAT_D16_UNORM_S8_UINT:
+		case PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT:
+		case PB_TEXTURE_FORMAT_D32_FLOAT_S8_UINT:
+			m_hasDepthPlane = true;
+			m_hasStencilPlane = true;
+			break;
+		default:
+			m_hasDepthPlane = false;
+			m_hasStencilPlane = false;
+			break;
+		}
 
 		VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, nullptr };
 		imageInfo.format = ConvertPBFormatToVkFormat(m_format);
@@ -188,15 +226,26 @@ namespace PB
 			}
 
 			// Clear image to zero by clearing it with black.
-			VkClearColorValue clearColor = { 0, 0, 0, 0 };
 			VkImageSubresourceRange subresources;
-			subresources.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			subresources.baseMipLevel = 0;
 			subresources.baseArrayLayer = 0;
 			subresources.layerCount = 1;
 			subresources.levelCount = 1;
-			vkCmdClearColorImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(m_currentState), &clearColor, 1, &subresources); // TODO: Zero initialize support for depth-stencil images.
-
+			if (m_hasDepthPlane)
+			{
+				VkClearDepthStencilValue depthClear = { 0.0f, 1 };
+				subresources.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+				if (m_hasStencilPlane)
+					subresources.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+				vkCmdClearDepthStencilImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(m_currentState), &depthClear, 1, &subresources);
+			}
+			else
+			{
+				VkClearColorValue clearColor = { 0, 0, 0, 0 };
+				subresources.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				vkCmdClearColorImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(m_currentState), &clearColor, 1, &subresources);
+			}
+			
 			internalContext.End();
 			internalContext.Return();
 		}

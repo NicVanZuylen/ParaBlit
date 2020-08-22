@@ -3,7 +3,6 @@
 #include "ParaBlitApi.h"
 #include "DeviceAllocator.h"
 #include "StagingBufferAllocator.h"
-#include "ITextureViewCache.h"
 
 #include "vulkan/vulkan.h"
 
@@ -20,9 +19,9 @@ namespace PB
 
 		void Destroy();
 
-		VkBuffer GetHandle();
+		VkBuffer GetHandle() const;
 
-		u32 GetStart();
+		u32 GetStart() const;
 
 		u32 GetSize() override;
 
@@ -40,7 +39,7 @@ namespace PB
 
 		void RegisterView(const BufferViewDesc& desc);
 
-		BufferUsage GetUsage();
+		BufferUsage GetUsage() const;
 
 	private:
 
@@ -55,6 +54,7 @@ namespace PB
 		TempBuffer m_stagingBuffer{};
 		DeviceAllocator::PageView m_memoryPage{};
 		BufferUsage m_usage = 0;
+		u32 m_size;
 		CLib::Vector<BufferViewDesc, 1, 4> m_viewDescs;
 	};
 };

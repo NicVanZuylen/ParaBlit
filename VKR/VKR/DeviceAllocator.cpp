@@ -68,26 +68,26 @@ namespace PB
 		PB_ERROR_CHECK(vkAllocateMemory(m_device->GetHandle(), &allocInfo, nullptr, &newPage.m_memory));
 		PB_ASSERT(newPage.m_memory);
 
-		PB_ASSERT(desiredSize <= requiredSize);
+		//PB_ASSERT(desiredSize <= requiredSize);
 
-		bool splitPage = (requiredSize - desiredSize) >= 32;
-		if (splitPage)
-		{
-			std::pair<u32, PageView> pair(requiredSize - desiredSize, {});
-			PageView& leftOverSlice = pair.second;
-			leftOverSlice.m_memory = newPage.m_memory;
-			leftOverSlice.m_memoryType = memType;
-			leftOverSlice.m_start = desiredSize;
-			leftOverSlice.m_size = requiredSize - desiredSize;
-			leftOverSlice.m_alignmentOffset = static_cast<u16>(requirements.alignment + (leftOverSlice.m_start % requirements.alignment));
-			m_availableBlocks[memType].insert(pair);
-		}
+		//bool splitPage = (requiredSize - desiredSize) >= 32;
+		//if (splitPage)
+		//{
+		//	std::pair<u32, PageView> pair(requiredSize - desiredSize, {});
+		//	PageView& leftOverSlice = pair.second;
+		//	leftOverSlice.m_memory = newPage.m_memory;
+		//	leftOverSlice.m_memoryType = memType;
+		//	leftOverSlice.m_start = desiredSize;
+		//	leftOverSlice.m_size = requiredSize - desiredSize;
+		//	leftOverSlice.m_alignmentOffset = static_cast<u16>(requirements.alignment + (leftOverSlice.m_start % requirements.alignment));
+		//	m_availableBlocks[memType].insert(pair);
+		//}
 
 		// Return a new view of the entire page for use.
 		PageView view;
 		view.m_memory = newPage.m_memory;
 		view.m_start = 0;
-		view.m_size = splitPage ? desiredSize : requiredSize;
+		view.m_size = desiredSize;
 		view.m_memoryType = memType;
 		view.m_alignmentOffset = 0;
 		return view;

@@ -190,7 +190,7 @@
     <ClInclude Include="IShaderModule.h" />
     <ClInclude Include="ISwapChain.h" />
     <ClInclude Include="ITexture.h" />
-    <ClInclude Include="ITextureViewCache.h" />
+    <ClInclude Include="IViewCache.h" />
     <ClInclude Include="MurmurHash3.h" />
     <ClInclude Include="ParaBlitDefs.h" />
     <ClInclude Include="PBUtil.h" />

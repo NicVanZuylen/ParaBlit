@@ -37,6 +37,8 @@ namespace PB
 
 		Device* m_device = nullptr;
 		VkDescriptorSetLayout m_driSetLayout = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_masterSetLayout = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
 		std::unordered_map<PipelineDesc, PipelineData, PipelineDescHasher> m_pipelineCache;
 	};
 };

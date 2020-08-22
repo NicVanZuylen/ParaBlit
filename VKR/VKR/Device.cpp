@@ -92,6 +92,16 @@ namespace PB
 		return m_tempStagingBufferAllocator;
 	}
 
+	const VkPhysicalDeviceLimits* Device::GetDeviceLimits()
+	{
+		return &m_physDeviceProperties.properties.limits;
+	}
+
+	const VkPhysicalDeviceDescriptorIndexingProperties* Device::GetDescriptorIndexingProperties()
+	{
+		return &m_physDeviceDescIndexingProps;
+	}
+
 	void Device::EnumDevice()
 	{
 		u32 deviceCount = 0;
@@ -228,6 +238,9 @@ namespace PB
 
 		// Enable swapchain extension, we are useless without this.
 		PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
+
+		// Descriptor indexing is in the core, but this will shut up validation which complains about shaders requiring it.
+		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), "Could not enable descriptor indexing extension.");
 	}
 
 	void Device::EnableLayers(ExtensionManager& extManager)

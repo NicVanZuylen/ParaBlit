@@ -8,7 +8,6 @@ namespace PB
 {
 	enum EDescriptorType
 	{
-		DESCRIPTORTYPE_UNIFORM_BUFFER,
 		DESCRIPTORTYPE_TEXTURE,
 		DESCRIPTORTYPE_SAMPLER,
 
@@ -27,7 +26,6 @@ namespace PB
 	struct BufferViewData
 	{
 		VkBuffer m_buffer = VK_NULL_HANDLE;
-		u32 m_descriptorIndex = ~0u;
 		u32 m_offset = 0;
 		u32 m_size = ~0u;
 	};
@@ -42,11 +40,10 @@ namespace PB
 	{
 	public:
 
-		void Create(Device* device);
+		void Create(Device* device, VkDescriptorSet* outMasterSet, VkDescriptorSetLayout* outMasterSetLayout);
 
 		void Destroy();
 
-		void RegisterView(BufferViewData& viewData);
 		void RegisterView(TextureViewData& viewData);
 		void RegisterView(SamplerData& samplerData);
 
@@ -66,7 +63,6 @@ namespace PB
 		}
 
 		static constexpr const u32 MaxDescriptors = 0xFFFFFF;
-		static constexpr const u32 MaxUBODescriptors = 40000;
 		static constexpr const u32 MaxTextureDescriptors = 40000;
 		static constexpr const u32 MaxSamplers = 40000;
 
@@ -77,6 +73,10 @@ namespace PB
 		};
 		DescriptorState m_descriptorStates[DESCRIPTORTYPE_COUNT] = {};
 
+		// Contains uniform buffers.
+		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
+
+		// Contains all Texture, Sampler etc. descriptors.
 		VkDescriptorSetLayout m_masterSetLayout = VK_NULL_HANDLE;
 		VkDescriptorSet m_masterSet = VK_NULL_HANDLE;
 

@@ -4,6 +4,7 @@
 #include "CLib/Vector.h"
 #include "PBUtil.h"
 #include "MurmurHash3.h"
+#include "PBUtil.h"
 
 namespace PB
 {
@@ -24,6 +25,8 @@ namespace PB
 	{
 		m_device = renderer->GetDevice();
 		m_driSetLayout = renderer->GetDRISetLayout();
+		m_masterSetLayout = renderer->GetMasterSetLayout();
+		m_uboSetLayout = renderer->GetUBOSetLayout();
 	}
 
 	void PipelineCache::Destroy()
@@ -34,6 +37,8 @@ namespace PB
 			vkDestroyPipeline(m_device->GetHandle(), pipeline.second.m_pipeline, nullptr);
 		}
 		m_driSetLayout = VK_NULL_HANDLE;
+		m_masterSetLayout = VK_NULL_HANDLE;
+		m_uboSetLayout = VK_NULL_HANDLE;
 	}
 
 	Pipeline PipelineCache::GetPipeline(const PipelineDesc& desc)
@@ -54,8 +59,10 @@ namespace PB
 		layoutInfo.flags = 0;
 		layoutInfo.pushConstantRangeCount = 0;
 		layoutInfo.pPushConstantRanges = nullptr;
-		layoutInfo.setLayoutCount = 1;
-		layoutInfo.pSetLayouts = &m_driSetLayout;
+
+		VkDescriptorSetLayout setLayouts[3] = { m_driSetLayout, m_masterSetLayout, m_uboSetLayout };
+		layoutInfo.setLayoutCount = 3;
+		layoutInfo.pSetLayouts = setLayouts;
 
 		VkPipelineLayout layout = VK_NULL_HANDLE;
 		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &layout));
@@ -78,12 +85,33 @@ namespace PB
 		viewportState.viewportCount = 1;
 		viewportState.pViewports = &viewPort;
 
+		VkVertexInputBindingDescription vertexBindingDesc;
+		vertexBindingDesc.binding = 0;
+		vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		vertexBindingDesc.stride = desc.m_vertexDesc.vertexSize;
+
+		u32 vertexAttributeLocation = 0;
+		u32 totalVertexAttrOffset = 0;
+		CLib::Vector<VkVertexInputAttributeDescription, VertexDesc::MaxVertexAttributes> attrDescriptions;
+		for (auto& attrType : desc.m_vertexDesc.vertexAttributes)
+		{
+			if (attrType == PB_VERTEX_ATTRIBUTE_NONE)
+				break;
+
+			VkVertexInputAttributeDescription& vertexAttrDesc = attrDescriptions.PushBack();
+			vertexAttrDesc.binding = 0;
+			vertexAttrDesc.format = PBVertexTypeToVkFormat(attrType);
+			vertexAttrDesc.location = vertexAttributeLocation++;
+			vertexAttrDesc.offset = totalVertexAttrOffset;
+			totalVertexAttrOffset += static_cast<u32>(attrType);
+		}
+
 		VkPipelineVertexInputStateCreateInfo vertexInputState = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, nullptr };
 		vertexInputState.flags = 0;
-		vertexInputState.vertexAttributeDescriptionCount = 0;
-		vertexInputState.pVertexAttributeDescriptions = nullptr;
-		vertexInputState.vertexBindingDescriptionCount = 0;
-		vertexInputState.pVertexBindingDescriptions = nullptr;
+		vertexInputState.vertexAttributeDescriptionCount = attrDescriptions.Count();
+		vertexInputState.pVertexAttributeDescriptions = attrDescriptions.Data();
+		vertexInputState.vertexBindingDescriptionCount = 1;
+		vertexInputState.pVertexBindingDescriptions = &vertexBindingDesc;
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, nullptr };
 		inputAssemblyState.flags = 0;
@@ -101,10 +129,10 @@ namespace PB
 
 		VkPipelineRasterizationStateCreateInfo rasterState = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO, nullptr };
 		rasterState.flags = 0;
-		rasterState.cullMode = VK_CULL_MODE_NONE;
+		rasterState.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterState.depthBiasEnable = VK_FALSE;
 		rasterState.depthClampEnable = VK_FALSE;
-		rasterState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterState.lineWidth = 1.0f;
 		rasterState.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterState.rasterizerDiscardEnable = VK_FALSE;
@@ -113,10 +141,10 @@ namespace PB
 		depthStencilState.maxDepthBounds = 1.0f;
 		depthStencilState.minDepthBounds = 0.0f;
 		depthStencilState.depthBoundsTestEnable = VK_TRUE;
-		depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-		depthStencilState.depthTestEnable = VK_FALSE; // TODO: Depth testing support.
-		depthStencilState.depthWriteEnable = VK_FALSE;
-		depthStencilState.stencilTestEnable = VK_FALSE;
+		depthStencilState.depthCompareOp = PBCompareOPtoVKCompareOP(desc.m_depthCompareOP);
+		depthStencilState.depthTestEnable = desc.m_depthCompareOP != PB_COMPARE_OP_ALWAYS;
+		depthStencilState.depthWriteEnable = depthStencilState.depthTestEnable; // TODO: This should be a separate toggle from depth test.
+		depthStencilState.stencilTestEnable = desc.m_stencilTestEnable;
 		depthStencilState.flags = 0;
 
 		VkPipelineColorBlendAttachmentState attachmentState = {};

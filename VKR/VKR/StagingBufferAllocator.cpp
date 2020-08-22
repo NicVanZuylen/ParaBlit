@@ -66,7 +66,8 @@ namespace PB
 		}
 
 		// Out of page memory, allocate another page.
-		auto newPage = AllocatePageBuffer(memoryType);
+		AllocatePageBuffer(memoryType, size);
+		auto& newPage = m_bufferPages[memoryType].Back();
 		TempBuffer newView;
 		newView.m_parentBuffer = newPage.m_buffer;
 		newView.m_parentMemory = newPage.m_memory;
@@ -79,10 +80,12 @@ namespace PB
 		return newView;
 	}
 
-	inline TempBufferAllocator::InternalBuffer TempBufferAllocator::AllocatePageBuffer(EMemoryType memoryType)
+	inline void TempBufferAllocator::AllocatePageBuffer(EMemoryType memoryType, u32 desiredSize)
 	{
 		constexpr u32 pageAlignment = 64;
 		constexpr u32 pageSize = 512;
+
+		u32 requiredSize = pageSize >= desiredSize ? pageSize : desiredSize;
 
 		InternalBuffer& newPage = m_bufferPages[memoryType].PushBack();
 		auto queueFamilyIndex = static_cast<u32>(m_device->GetGraphicsQueueFamilyIndex());
@@ -92,7 +95,7 @@ namespace PB
 		bufferInfo.queueFamilyIndexCount = 1;
 		bufferInfo.pQueueFamilyIndices = &queueFamilyIndex;
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		bufferInfo.size = pageSize;
+		bufferInfo.size = requiredSize;
 		switch (memoryType)
 		{
 		case PB_MEMORY_TYPE_HOST_VISIBLE:
@@ -112,8 +115,8 @@ namespace PB
 
 		VkMemoryRequirements bufferMemRequirements;
 		vkGetBufferMemoryRequirements(m_device->GetHandle(), newPage.m_buffer, &bufferMemRequirements);
-		PB_ASSERT(bufferMemRequirements.size == pageSize);
-		newPage.m_size = static_cast<u32>(bufferMemRequirements.size);
+		PB_ASSERT(bufferMemRequirements.size >= requiredSize);
+		newPage.m_size = desiredSize;
 
 		VkMemoryAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr };
 		allocInfo.allocationSize = bufferMemRequirements.size;
@@ -124,7 +127,5 @@ namespace PB
 
 		PB_ERROR_CHECK(vkBindBufferMemory(m_device->GetHandle(), newPage.m_buffer, newPage.m_memory, 0));
 		PB_BREAK_ON_ERROR;
-
-		return newPage;
 	}
 }

@@ -61,14 +61,21 @@ namespace PB
 		m_renderPassCache.Destroy();
 		m_framebufferCache.Destroy();
 		m_shaderModuleCache.Destroy();
+
+		m_masterResourceDescSet = VK_NULL_HANDLE;
+		m_masterSetLayout = VK_NULL_HANDLE;
 		m_viewCache.Destroy();
 
 		// Destroy DRI buffer set layout and descriptor pool.
 		vkDestroyDescriptorSetLayout(m_device.GetHandle(), m_driSetLayout, nullptr);
 		m_driSetLayout = VK_NULL_HANDLE;
 
-		vkDestroyDescriptorPool(m_device.GetHandle(), m_driBufferDescPool, nullptr);
-		m_driBufferDescPool = VK_NULL_HANDLE;
+		// Destroy UBO set layout.
+		vkDestroyDescriptorSetLayout(m_device.GetHandle(), m_uboSetLayout, nullptr);
+		m_uboSetLayout = VK_NULL_HANDLE;
+
+		vkDestroyDescriptorPool(m_device.GetHandle(), m_sharedDescPool, nullptr);
+		m_sharedDescPool = VK_NULL_HANDLE;
 
 		// Destroy master command pool (will free master command buffers).
 		vkDestroyCommandPool(m_device.GetHandle(), m_masterCmdPool, nullptr);
@@ -79,12 +86,12 @@ namespace PB
 		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
 		m_device.Init(m_vkInstance.GetHandle());
 		m_renderPassCache.Init(&m_device);
-		m_viewCache.Init(&m_device);
+		m_viewCache.Init(&m_device, &m_masterResourceDescSet, &m_masterSetLayout);
 		m_framebufferCache.Init(&m_device);
 		m_shaderModuleCache.Init(&m_device);
 
 		// Needed for pipelines, so we create these before the pipeline cache.
-		CreateDRIPoolAndSetLayout();
+		CreatePoolAndSetLayouts();
 		for (u32 i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
 		{
 			DRIBuffer* newBuf = new(&m_frameInfos[i].m_driBuffers.PushBack()) DRIBuffer();
@@ -191,6 +198,9 @@ namespace PB
 		m_freeContextCmdBuffers += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
 		curFrameInfo.m_state = PB_FRAME_STATE_OPEN;
 
+		m_uboDescSets += curFrameInfo.m_submittedUBODescSets;
+		curFrameInfo.m_submittedUBODescSets.Clear();
+
 		PB_ASSERT(curFrameInfo.m_frameSemaphore);
 		PB_ERROR_CHECK(vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx));
 
@@ -251,6 +261,8 @@ namespace PB
 
 	DRIBuffer* Renderer::GetDRIBuffer()
 	{
+		// TODO: These buffers should really be moved to a frame info when they are allocated, they are currently shared across multiple frames in flight.
+
 		// Find the first non-full buffer, otherwise create a new one.
 		auto& driBuffers = m_frameInfos[m_curFrameInfoIdx].m_driBuffers;
 		for (auto& buffer : driBuffers)
@@ -266,6 +278,42 @@ namespace PB
 	VkDescriptorSetLayout Renderer::GetDRISetLayout()
 	{
 		return m_driSetLayout;
+	}
+
+	VkDescriptorSet Renderer::GetMasterSet()
+	{
+		return m_masterResourceDescSet;
+	}
+
+	VkDescriptorSetLayout Renderer::GetMasterSetLayout()
+	{
+		return m_masterSetLayout;
+	}
+
+	VkDescriptorSet Renderer::GetUBOSet()
+	{
+		if (m_uboDescSets.Count() > 0)
+		{
+			m_usedUBODescSets.PushBack(m_uboDescSets.PopBack());
+			return m_usedUBODescSets.Back();
+		}
+
+		VkDescriptorSetAllocateInfo uboSetAllocInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr };
+		uboSetAllocInfo.descriptorPool = m_sharedDescPool;
+		uboSetAllocInfo.descriptorSetCount = 1;
+		uboSetAllocInfo.pSetLayouts = &m_uboSetLayout;
+		uboSetAllocInfo.pNext = nullptr;
+		
+		VkDescriptorSet& descSet = m_usedUBODescSets.PushBack();
+		PB_ERROR_CHECK(vkAllocateDescriptorSets(m_device.GetHandle(), &uboSetAllocInfo, &descSet));
+		PB_BREAK_ON_ERROR;
+		PB_ASSERT(descSet);
+		return descSet;
+	}
+
+	VkDescriptorSetLayout Renderer::GetUBOSetLayout()
+	{
+		return m_uboSetLayout;
 	}
 
 	u64 Renderer::GetCurrentFrame()
@@ -330,41 +378,71 @@ namespace PB
 			m_frameInfos[i].m_masterCommandBuffer = m_masterCmdBuffers[i];
 	}
 
-	void Renderer::CreateDRIPoolAndSetLayout()
+	void Renderer::CreatePoolAndSetLayouts()
 	{
-		VkDescriptorPoolSize driPoolSize;
-		driPoolSize.descriptorCount = MaxDRIBufferCountPerFrame;
+		CLib::Vector<VkDescriptorPoolSize, 2> poolSizes;
+
+		VkDescriptorPoolSize& driPoolSize = poolSizes.PushBack();
+		driPoolSize.descriptorCount = MaxDRIBufferCount;
 		driPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
-		VkDescriptorPoolCreateInfo driPoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr };
-		driPoolInfo.flags = 0;
-		driPoolInfo.maxSets = MaxDRIBufferCountPerFrame * PB_FRAME_IN_FLIGHT_COUNT;
-		driPoolInfo.poolSizeCount = 1;
-		driPoolInfo.pPoolSizes = &driPoolSize;
+		VkDescriptorPoolSize& uboPoolSize = poolSizes.PushBack();
+		uboPoolSize.descriptorCount = (m_device.GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindUniformBuffers - 1) * maxUBOSets;
+		uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
-		PB_ERROR_CHECK(vkCreateDescriptorPool(m_device.GetHandle(), &driPoolInfo, nullptr, &m_driBufferDescPool));
+		VkDescriptorPoolCreateInfo sharedPoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr };
+		sharedPoolInfo.flags = 0;
+		sharedPoolInfo.maxSets = MaxDRIBufferCount * PB_FRAME_IN_FLIGHT_COUNT;
+
+		sharedPoolInfo.poolSizeCount = poolSizes.Count();
+		sharedPoolInfo.pPoolSizes = poolSizes.Data();
+
+		PB_ERROR_CHECK(vkCreateDescriptorPool(m_device.GetHandle(), &sharedPoolInfo, nullptr, &m_sharedDescPool));
 		PB_BREAK_ON_ERROR;
-		PB_ASSERT(m_driBufferDescPool);
+		PB_ASSERT(m_sharedDescPool);
 
 		VkDescriptorSetLayoutBinding driLayoutBinding;
 		driLayoutBinding.binding = 0;
 		driLayoutBinding.descriptorCount = 1;
 		driLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		driLayoutBinding.pImmutableSamplers = nullptr;
-		driLayoutBinding.stageFlags = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		driLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		VkDescriptorSetLayoutCreateInfo driLayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr };
-		driLayoutInfo.flags = 0;
-		driLayoutInfo.bindingCount = 1;
-		driLayoutInfo.pBindings = &driLayoutBinding;
+		VkDescriptorSetLayoutBinding uboLayoutBinding;
+		uboLayoutBinding.binding = 0;
+		uboLayoutBinding.descriptorCount = m_device.GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindUniformBuffers - 1;
+		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		uboLayoutBinding.pImmutableSamplers = nullptr;
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		PB_ERROR_CHECK(vkCreateDescriptorSetLayout(m_device.GetHandle(), &driLayoutInfo, nullptr, &m_driSetLayout));
+		// UBO sets may only be partially bound.
+		VkDescriptorBindingFlags uboBindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+		VkDescriptorSetLayoutBindingFlagsCreateInfo uboFlags{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, nullptr };
+		uboFlags.bindingCount = 1;
+		uboFlags.pBindingFlags = &uboBindingFlags;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr };
+		layoutInfo.flags = 0;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &driLayoutBinding;
+		layoutInfo.pNext = &uboFlags;
+
+		// DRI set layout
+		PB_ERROR_CHECK(vkCreateDescriptorSetLayout(m_device.GetHandle(), &layoutInfo, nullptr, &m_driSetLayout));
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(m_driSetLayout);
+
+		// UBO set layout
+		layoutInfo.pBindings = &uboLayoutBinding;
+		PB_ERROR_CHECK(vkCreateDescriptorSetLayout(m_device.GetHandle(), &layoutInfo, nullptr, &m_uboSetLayout));
+		PB_BREAK_ON_ERROR;
+		PB_ASSERT(m_uboSetLayout);
 	}
 
 	void Renderer::CreateDRIBuffer(DRIBuffer& buffer)
 	{
+		PB_ASSERT_MSG(DRIBufferSize <= m_device.GetDeviceLimits()->maxUniformBufferRange, "Device does not support large enough uniform buffers.");
+
 		BufferObjectDesc driBufferObjDesc;
 		driBufferObjDesc.m_bufferSize = DRIBufferSize;
 		driBufferObjDesc.m_options = 0;
@@ -377,7 +455,7 @@ namespace PB
 
 		// Allocate the descriptor set for the DRI buffer.
 		VkDescriptorSetAllocateInfo driAllocInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr };
-		driAllocInfo.descriptorPool = m_driBufferDescPool;
+		driAllocInfo.descriptorPool = m_sharedDescPool;
 		driAllocInfo.descriptorSetCount = 1;
 		driAllocInfo.pSetLayouts = &m_driSetLayout;
 
@@ -490,6 +568,9 @@ namespace PB
 		curFrameInfo.m_enqueuedCmdBuffers += curFrameInfo.m_prioritySubmittedContextBuffers;
 		curFrameInfo.m_enqueuedCmdBuffers += curFrameInfo.m_submittedContextCmdBuffers;
 
+		curFrameInfo.m_submittedUBODescSets += m_usedUBODescSets;
+		m_usedUBODescSets.Clear();
+
 		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr };
 		//submitInfo.commandBufferCount = 1;
 		//submitInfo.pCommandBuffers = &curFrameInfo.m_masterCommandBuffer;
@@ -499,13 +580,15 @@ namespace PB
 		submitInfo.pSignalSemaphores = &curFrameInfo.m_frameSemaphore;
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &curFrameInfo.m_imageAquireSempahore;
-		
+
 		// Wait for color attachment output before signalling the frame semaphore.
 		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		submitInfo.pWaitDstStageMask = waitStages;
 
 		// Signal the frame fence when frame commands have finished execution.
-		PB_ERROR_CHECK(vkQueueSubmit(m_presentQueue, 1, &submitInfo, curFrameInfo.m_frameFence));
+		VkResult error = VK_SUCCESS;
+		PB_ERROR_CHECK(error = vkQueueSubmit(m_presentQueue, 1, &submitInfo, curFrameInfo.m_frameFence));
+		PB_BREAK_ON_ERROR;
 	}
 
 	void Renderer::Present()

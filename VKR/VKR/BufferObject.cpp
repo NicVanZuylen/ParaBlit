@@ -9,6 +9,7 @@ namespace PB
 	{
 		m_renderer = reinterpret_cast<Renderer*>(renderer);
 		m_usage = desc.m_usage;
+		m_size = desc.m_bufferSize;
 
 		CreateVkBuffer(desc);
 		InitializeMemory(desc);
@@ -28,19 +29,20 @@ namespace PB
 		}
 	}
 
-	VkBuffer BufferObject::GetHandle()
+
+	VkBuffer BufferObject::GetHandle() const
 	{
 		return m_handle;
 	}
 
-	u32 BufferObject::GetStart()
+	u32 BufferObject::GetStart() const
 	{
 		return m_memoryPage.AlignedOffset();
 	}
 
 	u32 BufferObject::GetSize()
 	{
-		return m_memoryPage.m_size;
+		return m_size;
 	}
 
 	u8* BufferObject::Map(u32 offset, u32 size)
@@ -62,7 +64,8 @@ namespace PB
 	u8* BufferObject::BeginPopulate()
 	{
 		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
-		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_memoryPage.m_size, m_renderer->GetCurrentFrame());
+		PB_ASSERT_MSG(m_usage & PB_BUFFER_USAGE_COPY_DST, "Buffer Object must usable as a copy destination in order to use BeginPopulate().");
+		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_size, m_renderer->GetCurrentFrame());
 		return m_stagingBuffer.Map(m_renderer->GetDevice()->GetHandle());
 	}
 
@@ -79,7 +82,7 @@ namespace PB
 	{
 		PB_ASSERT(data && size);
 		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
-		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_memoryPage.m_size, m_renderer->GetCurrentFrame());
+		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_size, m_renderer->GetCurrentFrame());
 		auto vkDevice = m_renderer->GetDevice()->GetHandle();
 		u8* stagingData = m_stagingBuffer.Map(vkDevice);
 		memcpy(stagingData, data, size);
@@ -101,7 +104,7 @@ namespace PB
 		m_viewDescs.PushBack() = desc;
 	}
 
-	BufferUsage BufferObject::GetUsage()
+	BufferUsage BufferObject::GetUsage() const
 	{
 		return m_usage;
 	}
@@ -122,7 +125,10 @@ namespace PB
 
 		// Add transfer dst if this is a device local buffer which is zero-initialized.
 		if ((desc.m_options & PB_BUFFER_OPTION_ZERO_INITIALIZE) && !(desc.m_options & PB_BUFFER_OPTION_CPU_ACCESSIBLE))
+		{
 			bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+			m_usage |= PB_BUFFER_USAGE_COPY_DST;
+		}
 
 		PB_ASSERT(m_handle == VK_NULL_HANDLE);
 		PB_ERROR_CHECK(vkCreateBuffer(device->GetHandle(), &bufferInfo, nullptr, &m_handle));
@@ -175,6 +181,8 @@ namespace PB
 		CommandContext internalContext;
 		MakeInternalContext(internalContext, m_renderer);
 		internalContext.Begin();
+
+		PB_ASSERT(buffer.m_size <= m_size);
 
 		// Staging buffers don't use the IBufferObject API, so we'll have to issue the copy command here.
 		VkBufferCopy copyRegion{ buffer.m_offset, 0, buffer.m_size };

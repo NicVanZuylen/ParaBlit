@@ -1,7 +1,6 @@
 #pragma once
 #include "ParaBlitDefs.h"
 #include "RenderPassCache.h"
-#include "ITextureViewCache.h"
 
 #include <unordered_map>
 

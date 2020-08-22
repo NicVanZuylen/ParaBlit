@@ -20,14 +20,18 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="QuickIO.cpp" />
     <ClCompile Include="WindowHandle.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="Input.h" />
+    <ClInclude Include="Mesh.h" />
     <ClInclude Include="QuickIO.h" />
     <ClInclude Include="Time.h" />
     <ClInclude Include="WindowHandle.h" />
@@ -146,7 +150,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)VKR;$(ProjectDir)GLFW_3.2.1\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\glm\include;$(SolutionDir)VKR\ContainerLib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)VKR;$(ProjectDir)GLFW_3.2.1\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\glm\include;$(SolutionDir)VKR\ContainerLib\include;$(ProjectDir)TinyObjLoader\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>

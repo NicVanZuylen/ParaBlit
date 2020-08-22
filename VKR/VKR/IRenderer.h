@@ -6,7 +6,6 @@
 #include "IShaderModule.h"
 #include "IPipelineCache.h"
 #include "ITexture.h"
-#include "ITextureViewCache.h"
 #include "IBufferObject.h"
 
 #ifdef PARABLIT_WINDOWS
@@ -33,6 +32,29 @@ namespace PB
 
 		// Platform-native window info.
 		WindowDesc* m_windowInfo;
+	};
+
+	enum ESamplerFilter
+	{
+		PB_SAMPLER_FILTER_NEAREST,
+		PB_SAMPLER_FILTER_BILINEAR,
+	};
+
+	enum ESamplerRepeatMode
+	{
+		PB_SAMPLER_REPEAT_REPEAT,
+		PB_SAMPLER_REPEAT_MIRRORED_REPEAT,
+		PB_SAMPLER_REPEAT_CLAMP,
+	};
+
+	struct SamplerDesc
+	{
+		ESamplerFilter m_filter = PB_SAMPLER_FILTER_BILINEAR;
+		ESamplerFilter m_mipFilter = PB_SAMPLER_FILTER_BILINEAR;
+		ESamplerRepeatMode m_repeatMode = PB_SAMPLER_REPEAT_REPEAT;
+		float m_anisotropyLevels = 0.0f;
+
+		bool operator == (const SamplerDesc& other) const;
 	};
 
 	class IRenderer
