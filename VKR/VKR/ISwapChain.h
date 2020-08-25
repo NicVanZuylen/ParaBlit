@@ -7,18 +7,18 @@ namespace PB
 
 	enum EPresentMode : u16
 	{
-		VKR_PRESENT_MODE_IMMEDIATE,
-		VKR_PRESENT_MODE_MAILBOX,
-		VKR_PRESENT_MODE_FIFO,
-		VKR_PRESENT_MODE_FIFO_RELAXED,
-		VKR_PRESENT_MODE_END_RANGE,
+		PB_PRESENT_MODE_IMMEDIATE,
+		PB_PRESENT_MODE_MAILBOX,
+		PB_PRESENT_MODE_FIFO,
+		PB_PRESENT_MODE_FIFO_RELAXED,
+		PB_PRESENT_MODE_END_RANGE,
 	};
 
 	struct SwapChainDesc
 	{
 		u32 m_width = 0;                                      // Leave as zero to use the surface dimension.
 		u32 m_height = 0;                                     // Leave as zero to use the surface dimension.
-		EPresentMode m_presentMode = VKR_PRESENT_MODE_FIFO;
+		EPresentMode m_presentMode = PB_PRESENT_MODE_FIFO;
 		u8 m_imageCount = 3;
 	};
 

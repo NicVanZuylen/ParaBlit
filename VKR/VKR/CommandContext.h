@@ -35,7 +35,8 @@ namespace PB
 		PARABLIT_API void Begin() override;
 		PARABLIT_API void End() override;
 		PARABLIT_API void Return() override;
-		PARABLIT_API void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount) override;
+		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount) override;
+		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount) override;
 		PARABLIT_API void CmdEndRenderPass() override;
 		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange) override;
@@ -67,22 +68,16 @@ namespace PB
 
 		PARABLIT_API inline void ValidateRecordingState();
 
-		inline void PreDraw();
-
 		Renderer* m_renderer = nullptr;
 		Device* m_device = nullptr;
 		VkCommandBuffer m_cmdBuffer = VK_NULL_HANDLE;
 		VkPipelineLayout m_curPipelineLayout = VK_NULL_HANDLE;
-		DRIBuffer* m_currentDRIBuffer = nullptr;
-		int* m_dynamicResourceIndices = nullptr;
 		VkDescriptorSet m_currentUBOSet = VK_NULL_HANDLE;
 		ECmdContextState m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
 		ECommandContextUsage m_usage = PB_COMMAND_CONTEXT_USAGE_COPY; // Copy by default since any device queue is capable of copy operations.
 		bool m_isPriority : 1;
 		bool m_isInternal : 1;
 		bool m_activeRenderpass : 1;
-		bool m_uboBindingDirty : 1;
-		u32 m_currentUBOIndex = 0;
 	};
 }
 

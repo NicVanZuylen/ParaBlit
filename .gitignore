@@ -392,6 +392,9 @@ healthchecksdb
 # Mesh cache files
 *.mcache
 
+# TGA image files
+*.tga
+
 # End of https://www.gitignore.io/api/c++,visualstudio
 ProjectNStream/ProjectNStream/CollisionManager - Copy.cpp
 GraphicsProject/GraphicsProject/x64/Debug/

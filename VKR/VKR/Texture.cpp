@@ -251,7 +251,34 @@ namespace PB
 		}
 		else if (desc.m_initOptions & PB_TEXTURE_INIT_USE_DATA)
 		{
-			PB_NOT_IMPLEMENTED; // TODO: Create a staging buffer, map it with the user data and copy it to the image memory.
+			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentFrame());
+			auto* ptr = stagingBuffer.Map(m_device->GetHandle());
+
+			memcpy(ptr, desc.m_data.m_data, desc.m_data.m_size);
+
+			stagingBuffer.Unmap(m_device->GetHandle());
+
+			PB::CommandContext internalContext;
+			MakeInternalContext(internalContext, m_renderer);
+			internalContext.Begin();
+
+			PB::SubresourceRange subresources{};
+			internalContext.CmdTransitionTexture(this, PB_TEXTURE_STATE_COPY_DST, subresources);
+
+			VkBufferImageCopy region;
+			region.bufferOffset = stagingBuffer.m_offset;
+			region.bufferRowLength = desc.m_width;
+			region.bufferImageHeight = desc.m_height;
+			region.imageExtent = { desc.m_width, desc.m_height, 1 };
+			region.imageOffset = { 0, 0, 0 };
+			region.imageSubresource.layerCount = 1;
+			region.imageSubresource.baseArrayLayer = 0;
+			region.imageSubresource.mipLevel = 0;
+			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			vkCmdCopyBufferToImage(internalContext.GetCmdBuffer(), stagingBuffer.m_parentBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+			internalContext.End();
+			internalContext.Return();
 		}
 	}
 }

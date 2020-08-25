@@ -23,10 +23,11 @@ namespace PB
 	{
 		// Not required unless using the intialization option: PB_TEXTURE_INIT_USE_DATA.
 		void* m_data = nullptr; 
-		u16 m_size = 0;
+		u32 m_size = 0;
 
 		// Always required.
 		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
+		u16 m_pad0 = 0;
 	};
 
 	struct TextureDesc

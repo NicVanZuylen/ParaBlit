@@ -11,14 +11,23 @@ namespace PB
 {
 	bool FramebufferDesc::operator==(const FramebufferDesc& other) const
 	{
-		return m_renderPass == other.m_renderPass && m_width == other.m_width && m_height == other.m_height && m_attachmentCount == other.m_attachmentCount 
-			&& std::memcmp(m_attachmentViews, other.m_attachmentViews, sizeof(TextureView) * m_attachmentCount) == 0;
+		bool equal = m_renderPass == other.m_renderPass && m_width == other.m_width && m_height == other.m_height;
+		if (equal)
+		{
+			for (u32 i = 0; i < _countof(m_attachmentViews); ++i)
+			{
+				equal &= (m_attachmentViews[i] == other.m_attachmentViews[i]);
+			}
+		}
+		return equal;
 	}
 
 	size_t FramebufferDescHasher::operator()(const FramebufferDesc& desc) const
 	{
-		auto descHash = MurmurHash3_x64_64(&desc, static_cast<int>(sizeof(FramebufferDesc) - sizeof(FramebufferDesc::m_attachmentViews)), 0);
-		return MurmurHash3_x64_64(desc.m_attachmentViews, static_cast<int>(sizeof(TextureView) * desc.m_attachmentCount), descHash);
+		//auto descHash = MurmurHash3_x64_64(&desc, static_cast<int>(sizeof(FramebufferDesc) - sizeof(FramebufferDesc::m_attachmentViews)), 0);
+		//auto attachHash = MurmurHash3_x64_64(desc.m_attachmentViews, static_cast<int>(sizeof(TextureView) * desc.m_attachmentCount), descHash);
+		//return MurmurHash3_x64_64(&attachHash, sizeof(u64), descHash);
+		return MurmurHash3_x64_64(&desc, sizeof(FramebufferDesc), 0);
 	}
 
 	void FramebufferCache::Init(Device* device)
@@ -49,8 +58,12 @@ namespace PB
 	Framebuffer FramebufferCache::CreateFramebuffer(const FramebufferDesc& desc)
 	{
 		CLib::Vector<VkImageView, 8> views;
-		for (u32 i = 0; i < desc.m_attachmentCount; ++i)
-			views.PushBack(reinterpret_cast<TextureViewData*>(desc.m_attachmentViews[i])->m_view);
+		for (auto& view : desc.m_attachmentViews)
+		{
+			if (view == 0)
+				break;
+			views.PushBack(reinterpret_cast<TextureViewData*>(view)->m_view);
+		}
 
 		VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, nullptr };
 		framebufferInfo.width = desc.m_width;

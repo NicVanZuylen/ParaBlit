@@ -7,6 +7,7 @@
 #include "QuickIO.h"
 #include "Camera.h"
 #include "Mesh.h"
+#include "Texture.h"
 
 #include <iostream>
 #include <chrono>
@@ -90,7 +91,7 @@ int Application::Init(int argumentCount, char** argumentVector)
 	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 	swapchainDesc.m_height = 0;
-	swapchainDesc.m_presentMode = PB::VKR_PRESENT_MODE_MAILBOX;
+	swapchainDesc.m_presentMode = PB::PB_PRESENT_MODE_MAILBOX;
 	swapchainDesc.m_imageCount = 3;
 
 	m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
@@ -169,7 +170,7 @@ void Application::Run()
 		delete[] triFragSpv;
 	}
 
-	CLib::Vector<PB::TextureView, 3> swapchainTextureViews;
+	CLib::Vector<PB::TextureView> swapchainTextureViews;
 	for (unsigned int i = 0; i < m_swapchain->GetImageCount(); ++i)
 	{
 		PB::TextureViewDesc desc = {};
@@ -186,7 +187,20 @@ void Application::Run()
 	Mesh* detailsMesh = new Mesh(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_details.obj");
 	Mesh* glassMesh = new Mesh(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_glass.obj");
 
-	while(!glfwWindowShouldClose(m_window)) 
+	Texture* paintTexture = new Texture(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_diffuse.tga");
+	Texture* detailsTexture = new Texture(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_diffuse.tga");
+	Texture* glassTexture = new Texture(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_diffuse.tga");
+
+	PB::TextureViewDesc shaderResViewDesc{};
+	shaderResViewDesc.m_format = PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM;
+	shaderResViewDesc.m_renderer = m_renderer;
+	shaderResViewDesc.m_expectedState = PB::PB_TEXTURE_STATE_SAMPLED;
+
+	auto paintView = paintTexture->GetTexture()->GetView(shaderResViewDesc);
+	auto detailsView = detailsTexture->GetTexture()->GetView(shaderResViewDesc);
+	auto glassView = glassTexture->GetTexture()->GetView(shaderResViewDesc);
+
+	while (!glfwWindowShouldClose(m_window))
 	{
 		// Time
 		auto startTime = std::chrono::high_resolution_clock::now();
@@ -210,11 +224,11 @@ void Application::Run()
 			m_isfullScreen = !m_isfullScreen;
 
 			// Recreate window.
-			if (m_isfullScreen) 
+			if (m_isfullScreen)
 			{
-			    CreateWindowObject(vidMode->width, vidMode->height, true);
+				CreateWindowObject(vidMode->width, vidMode->height, true);
 			}
-			else 
+			else
 			{
 				CreateWindowObject(WINDOW_WIDTH, WINDOW_HEIGHT, false);
 			}
@@ -293,21 +307,33 @@ void Application::Run()
 		PB::BindingLayout bindings{};
 		bindings.m_bindingLocation = PB::PB_BINDING_LAYOUT_LOCATION_DEFAULT;
 		bindings.m_bufferCount = 1;
+		bindings.m_textureCount = 1;
+		bindings.m_textures = &paintView;
+		bindings.m_samplerCount = 1;
+		bindings.m_samplers = &testSampler;
 
 		PB::BufferView bufferViews[1] = { bufView };
 		bindings.m_buffers = bufferViews;
 
 		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_COLORTARGET);
 		cmdContext->CmdTransitionTexture(depthTexture, PB::PB_TEXTURE_STATE_DEPTHTARGET);
-		cmdContext->CmdBeginRenderPass(renderPass, m_swapchain->GetWidth(), m_swapchain->GetHeight(), attachmentViews, 2, clearColors.Data(), clearColors.Count() );
+		cmdContext->CmdBeginRenderPass(renderPass, m_swapchain->GetWidth(), m_swapchain->GetHeight(), attachmentViews, 2, clearColors.Data(), clearColors.Count());
 		cmdContext->CmdBindPipeline(pipeline);
+
 		cmdContext->CmdBindResources(bindings);
 		cmdContext->CmdBindVertexBuffer(paintMesh->GetVertexBuffer(), paintMesh->GetIndexBuffer(), PB::PB_INDEX_TYPE_UINT32);
 		cmdContext->CmdDrawIndexed(paintMesh->IndexCount(), 1);
+
+		bindings.m_textures = &detailsView;
+		cmdContext->CmdBindResources(bindings);
 		cmdContext->CmdBindVertexBuffer(detailsMesh->GetVertexBuffer(), detailsMesh->GetIndexBuffer(), PB::PB_INDEX_TYPE_UINT32);
 		cmdContext->CmdDrawIndexed(detailsMesh->IndexCount(), 1);
+
+		bindings.m_textures = &glassView;
+		cmdContext->CmdBindResources(bindings);
 		cmdContext->CmdBindVertexBuffer(glassMesh->GetVertexBuffer(), glassMesh->GetIndexBuffer(), PB::PB_INDEX_TYPE_UINT32);
 		cmdContext->CmdDrawIndexed(glassMesh->IndexCount(), 1);
+
 		cmdContext->CmdEndRenderPass();
 		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_PRESENT);
 		cmdContext->End();
@@ -352,6 +378,10 @@ void Application::Run()
 	}
 
 	m_renderer->WaitIdle();
+
+	delete paintTexture;
+	delete detailsTexture;
+	delete glassTexture;
 
 	delete paintMesh;
 	delete detailsMesh;

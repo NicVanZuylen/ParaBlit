@@ -24,7 +24,6 @@ namespace PB
 	void PipelineCache::Init(Renderer* renderer)
 	{
 		m_device = renderer->GetDevice();
-		m_driSetLayout = renderer->GetDRISetLayout();
 		m_masterSetLayout = renderer->GetMasterSetLayout();
 		m_uboSetLayout = renderer->GetUBOSetLayout();
 	}
@@ -36,7 +35,6 @@ namespace PB
 			vkDestroyPipelineLayout(m_device->GetHandle(), pipeline.second.m_layout, nullptr);
 			vkDestroyPipeline(m_device->GetHandle(), pipeline.second.m_pipeline, nullptr);
 		}
-		m_driSetLayout = VK_NULL_HANDLE;
 		m_masterSetLayout = VK_NULL_HANDLE;
 		m_uboSetLayout = VK_NULL_HANDLE;
 	}
@@ -57,11 +55,17 @@ namespace PB
 	{
 		VkPipelineLayoutCreateInfo layoutInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr };
 		layoutInfo.flags = 0;
-		layoutInfo.pushConstantRangeCount = 0;
-		layoutInfo.pPushConstantRanges = nullptr;
 
-		VkDescriptorSetLayout setLayouts[3] = { m_driSetLayout, m_masterSetLayout, m_uboSetLayout };
-		layoutInfo.setLayoutCount = 3;
+		VkPushConstantRange pushConstant;
+		pushConstant.offset = 0;
+		pushConstant.size = 128; // Minimum supported by vulkan spec.
+		pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		layoutInfo.pushConstantRangeCount = 1;
+		layoutInfo.pPushConstantRanges = &pushConstant;
+
+		VkDescriptorSetLayout setLayouts[] = { m_masterSetLayout, m_uboSetLayout };
+		layoutInfo.setLayoutCount = 2;
 		layoutInfo.pSetLayouts = setLayouts;
 
 		VkPipelineLayout layout = VK_NULL_HANDLE;

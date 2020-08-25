@@ -2,6 +2,7 @@
 #include "ParaBlitApi.h"
 #include "ParaBlitInterface.h"
 #include "ISwapChain.h"
+#include "IFramebufferCache.h"
 #include "IRenderPassCache.h"
 #include "IShaderModule.h"
 #include "IPipelineCache.h"
@@ -83,6 +84,7 @@ namespace PB
 		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;;
 		PARABLIT_INTERFACE IShaderModuleCache* GetShaderModuleCache() = 0;
 		PARABLIT_INTERFACE IPipelineCache* GetPipelineCache() = 0;
+		PARABLIT_INTERFACE IFramebufferCache* GetFramebufferCache() = 0;
 
 	private:
 		PARABLIT_INTERFACE void CreateWindowSurface(WindowDesc* windowHandle) = 0;

@@ -151,8 +151,8 @@ namespace PB
 	};
 
 	using BufferView = void*;
-	using TextureView = long long;
-	using Sampler = long long;
+	using TextureView = u64;
+	using Sampler = u64;
 	using RenderPass = void*;
 	using Framebuffer = void*;
 	using ShaderModule = u64;

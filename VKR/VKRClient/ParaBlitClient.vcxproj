@@ -25,6 +25,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="QuickIO.cpp" />
+    <ClCompile Include="Texture.cpp" />
     <ClCompile Include="WindowHandle.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -33,6 +34,7 @@
     <ClInclude Include="Input.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="QuickIO.h" />
+    <ClInclude Include="Texture.h" />
     <ClInclude Include="Time.h" />
     <ClInclude Include="WindowHandle.h" />
   </ItemGroup>
@@ -114,7 +116,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)VKR;$(ProjectDir)GLFW_3.2.1\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\glm\include;$(SolutionDir)VKR\ContainerLib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)STB;$(SolutionDir)VKR;$(ProjectDir)GLFW_3.2.1\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\glm\include;$(SolutionDir)VKR\ContainerLib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>

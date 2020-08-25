@@ -28,7 +28,7 @@ namespace PB
 
 		PB_ASSERT(m_device);
 		PB_ASSERT_MSG(m_imageCount > 0, "Swap chain image count must be greater than zero.");
-		PB_ASSERT_MSG(desc.m_presentMode < VKR_PRESENT_MODE_END_RANGE, "Invalid present mode.");
+		PB_ASSERT_MSG(desc.m_presentMode < PB_PRESENT_MODE_END_RANGE, "Invalid present mode.");
 
 		CreateSwapChain(desc);
 	}

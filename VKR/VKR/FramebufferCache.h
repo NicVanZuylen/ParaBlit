@@ -1,5 +1,5 @@
 #pragma once
-#include "ParaBlitDefs.h"
+#include "IFrameBufferCache.h"
 #include "RenderPassCache.h"
 
 #include <unordered_map>
@@ -8,25 +8,12 @@ namespace PB
 {
 	class Device;
 
-	struct FramebufferDesc
-	{
-		RenderPass m_renderPass = nullptr;
-		u32 m_width = 0;
-		u32 m_height = 0;
-		u64 m_attachmentCount = 0;
-		TextureView* m_attachmentViews = nullptr;
-
-		bool operator == (const FramebufferDesc& other) const;
-	};
-
-	using Framebuffer = void*;
-
 	struct FramebufferDescHasher
 	{
 		size_t operator()(const FramebufferDesc& desc) const;
 	};
 
-	class FramebufferCache
+	class FramebufferCache : public IFramebufferCache
 	{
 	public:
 
@@ -34,7 +21,7 @@ namespace PB
 
 		void Destroy();
 
-		PARABLIT_API Framebuffer GetFramebuffer(const FramebufferDesc& desc);
+		Framebuffer GetFramebuffer(const FramebufferDesc& desc) override;
 
 	private:
 

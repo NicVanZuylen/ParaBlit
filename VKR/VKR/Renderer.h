@@ -25,17 +25,6 @@ namespace PB
 		PB_FRAME_STATE_IN_FLIGHT
 	};
 
-	// A Dynamic Resource Index (DRI) buffer is a dynamic uniform buffer that contains indices used for descriptor indexing for an entire frame. 
-	// A shader will view part of this buffer using dynamic offsets to access the indices for its resources.
-	struct DRIBuffer
-	{
-		BufferObject m_buffer;
-		BufferObject m_stagingBuffer;
-		VkDescriptorSet m_descSet = VK_NULL_HANDLE;
-		u32 m_currentOffset = 0;
-		bool m_isFull = false;
-	};
-
 	struct FrameInfo // Stores the overall state of a single frame.
 	{
 		VkImage m_presentImage = VK_NULL_HANDLE;
@@ -50,7 +39,6 @@ namespace PB
 		CLib::Vector<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;		// Submitted context command buffers that will be executed before non-priority command buffers.
 		CLib::Vector<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
 		CLib::Vector<BufferObject, 8> m_stagingBuffers;						// Staging buffers which are in flight for this frame. These will be deleted or re-used once the frame is complete.
-		CLib::Vector<DRIBuffer> m_driBuffers;								// Contains dynamic resource indices (DRI) for indexing descriptors in shaders. Each buffer also has an associated descriptor set for binding it.
 		CLib::Vector<VkDescriptorSet, 16> m_submittedUBODescSets;			// Contains this frame's in-flight UBO descriptor sets.
 	};
 
@@ -58,8 +46,7 @@ namespace PB
 	{
 	public:
 
-		static constexpr const u32 DRIBufferSize = UINT16_MAX; // TODO: Ensure this is less than or equal to the uniform buffer size device limit.
-		static constexpr const u32 MaxDRIBufferCount = 3;
+		static constexpr const u32 MaxAllowedUBOSets = 512; // TODO: Ensure this is less than or equal to the uniform buffer size device limit.
 
 		PARABLIT_API Renderer();
 
@@ -79,7 +66,7 @@ namespace PB
 
 		PARABLIT_API IPipelineCache* GetPipelineCache() override;
 
-		PARABLIT_API FramebufferCache* GetFramebufferCache();
+		PARABLIT_API IFramebufferCache* GetFramebufferCache() override;
 
 		PARABLIT_API VkCommandBuffer AllocateCommandBuffer();
 
@@ -105,10 +92,6 @@ namespace PB
 
 		PARABLIT_API CmdContextPool& GetContextPool();
 
-		DRIBuffer* GetDRIBuffer();
-
-		VkDescriptorSetLayout GetDRISetLayout();
-
 		VkDescriptorSet GetMasterSet();
 
 		VkDescriptorSetLayout GetMasterSetLayout();
@@ -128,8 +111,6 @@ namespace PB
 		inline void CreateCmdBuffers();
 
 		inline void CreatePoolAndSetLayouts();
-
-		inline void CreateDRIBuffer(DRIBuffer& buffer);
 
 		// Reset frame tracking to begin recording the next frame.
 		inline void BeginNextFrame();
@@ -163,7 +144,6 @@ namespace PB
 
 		VkCommandPool m_masterCmdPool = VK_NULL_HANDLE;
 		VkDescriptorPool m_sharedDescPool = VK_NULL_HANDLE;
-		VkDescriptorSetLayout m_driSetLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
 
 		// Frame State
