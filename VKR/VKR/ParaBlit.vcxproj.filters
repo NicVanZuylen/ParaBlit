@@ -16,6 +16,9 @@
     <Filter Include="Interface">
       <UniqueIdentifier>{04858ae0-fc96-46d3-ac8c-e19a0674942b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="CLib">
+      <UniqueIdentifier>{9e0899a0-24b8-42ef-80d7-6be47ea0d07a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ExtensionManager.cpp">
@@ -84,14 +87,14 @@
     <ClCompile Include="StagingBufferAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CLib\Allocator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="DescriptorRegistry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ICommandContext.cpp">
       <Filter>Interface</Filter>
+    </ClCompile>
+    <ClCompile Include="CLib\Allocator.cpp">
+      <Filter>CLib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -191,9 +194,6 @@
     <ClInclude Include="StagingBufferAllocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CLib\Allocator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="DescriptorRegistry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -202,6 +202,9 @@
     </ClInclude>
     <ClInclude Include="IFrameBufferCache.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CLib\Allocator.h">
+      <Filter>CLib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

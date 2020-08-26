@@ -8,6 +8,7 @@
 #include "Camera.h"
 #include "Mesh.h"
 #include "Texture.h"
+#include "Shader.h"
 
 #include <iostream>
 #include <chrono>
@@ -19,6 +20,9 @@
 #include "glm/include/glm.hpp"
 #include "gtc/matrix_transform.hpp"
 
+using namespace PBClient;
+
+CLib::Allocator Application::m_allocator;
 PB::IRenderer* Application::m_renderer = nullptr;
 PB::ISwapChain* Application::m_swapchain = nullptr;
 GLFWwindow* Application::m_window = nullptr;
@@ -125,8 +129,8 @@ void Application::Run()
 	depthViewDesc.m_expectedState = PB::PB_TEXTURE_STATE_DEPTHTARGET;
 	auto depthView = depthTexture->GetRenderTargetView(depthViewDesc);
 	
-	PB::ShaderModule vertModule(0);
-	PB::ShaderModule fragModule(0);
+	Shader vertShader(m_renderer, "TestAssets/Shaders/SPIR-V/vs_triangle.spv", &m_allocator);
+	Shader fragShader(m_renderer, "TestAssets/Shaders/SPIR-V/fs_triangle.spv", &m_allocator);
 
 	PB::BufferObjectDesc bufferDesc;
 	bufferDesc.m_bufferSize = sizeof(glm::mat4) * 3;
@@ -142,33 +146,6 @@ void Application::Run()
 
 	PB::SamplerDesc samplerDesc;
 	PB::Sampler testSampler = m_renderer->GetSampler(samplerDesc);
-
-	{
-		const char* vsPath = "TestAssets/Shaders/SPIR-V/vs_triangle.spv";
-		char* triVertSpv = nullptr;
-		size_t triVertSpvSize = 0;
-		QIO::Load(vsPath, &triVertSpv, triVertSpvSize);
-
-		PB::ShaderModuleDesc moduleDesc;
-		moduleDesc.m_byteCode = triVertSpv;
-		moduleDesc.m_size = triVertSpvSize;
-		moduleDesc.m_key = vsPath;
-		moduleDesc.m_keySize = strlen(vsPath);
-		vertModule = m_renderer->GetShaderModuleCache()->GetModule(moduleDesc);
-		delete[] triVertSpv;
-
-		const char* fsPath = "TestAssets/Shaders/SPIR-V/fs_triangle.spv";
-		char* triFragSpv = nullptr;
-		size_t triFragSpvSize = 0;
-		QIO::Load(fsPath, &triFragSpv, triFragSpvSize);
-
-		moduleDesc.m_byteCode = triFragSpv;
-		moduleDesc.m_size = triFragSpvSize;
-		moduleDesc.m_key = fsPath;
-		moduleDesc.m_keySize = strlen(fsPath);
-		fragModule = m_renderer->GetShaderModuleCache()->GetModule(moduleDesc);
-		delete[] triFragSpv;
-	}
 
 	CLib::Vector<PB::TextureView> swapchainTextureViews;
 	for (unsigned int i = 0; i < m_swapchain->GetImageCount(); ++i)
@@ -278,8 +255,8 @@ void Application::Run()
 		pipelineDesc.m_renderPass = renderPass;
 		pipelineDesc.m_subpass = 0;
 		pipelineDesc.m_renderArea = { 0, 0, m_swapchain->GetWidth(), m_swapchain->GetHeight() };
-		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_VERTEX] = vertModule;
-		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_FRAGMENT] = fragModule;
+		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_VERTEX] = vertShader;
+		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_FRAGMENT] = fragShader;
 		pipelineDesc.m_depthCompareOP = PB::PB_COMPARE_OP_LEQUAL;
 
 		auto& vertexDesc = pipelineDesc.m_vertexDesc;

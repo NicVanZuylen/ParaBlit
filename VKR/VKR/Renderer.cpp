@@ -186,7 +186,6 @@ namespace PB
 		PB_ASSERT(curFrameInfo.m_frameSemaphore);
 		PB_ERROR_CHECK(vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx));
 
-		InlineContextCmdBuffers();
 		SubmitFrame();
 		Present();
 		BeginNextFrame();
@@ -277,6 +276,11 @@ namespace PB
 		return m_uboSetLayout;
 	}
 
+	CLib::Allocator& Renderer::GetAllocator()
+	{
+		return m_allocator;
+	}
+
 	u64 Renderer::GetCurrentFrame()
 	{
 		return m_currentFrame;
@@ -344,7 +348,7 @@ namespace PB
 		CLib::Vector<VkDescriptorPoolSize, 1> poolSizes;
 
 		VkDescriptorPoolSize& uboPoolSize = poolSizes.PushBack();
-		uboPoolSize.descriptorCount = (m_device.GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindUniformBuffers - 1) * maxUBOSets;
+		uboPoolSize.descriptorCount = (m_device.GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindUniformBuffers - 1) * MaxUBOSets;
 		uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
 		VkDescriptorPoolCreateInfo sharedPoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr };
@@ -394,16 +398,7 @@ namespace PB
 		curFrameInfo.m_submittedInternalCmdBuffers.Clear();
 		curFrameInfo.m_prioritySubmittedContextBuffers.Clear();
 		curFrameInfo.m_submittedContextCmdBuffers.Clear();
-		for (auto& stagingBuffer : curFrameInfo.m_stagingBuffers)
-			stagingBuffer.Destroy(); // TODO: We should probably find a way to re-use these instead of destroying them.
-		curFrameInfo.m_stagingBuffers.Clear();
 		PB_ASSERT(curFrameInfo.m_state == PB_FRAME_STATE_IN_FLIGHT || curFrameInfo.m_state == PB_FRAME_STATE_OPEN);
-	}
-
-	void Renderer::InlineContextCmdBuffers()
-	{
-		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
-		
 	}
 
 	void Renderer::SubmitFrame()

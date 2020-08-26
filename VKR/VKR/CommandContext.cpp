@@ -37,6 +37,12 @@ namespace PB
 
 			m_cmdBuffer = VK_NULL_HANDLE;
 		}
+
+		if (m_bindingState)
+		{
+			m_renderer->GetAllocator().Free(m_bindingState);
+			m_bindingState = nullptr;
+		}
 	}
 
 	void CommandContext::Init(CommandContextDesc& desc)
@@ -49,6 +55,8 @@ namespace PB
 		m_usage = desc.m_usage;
 		m_isPriority = (desc.m_flags & PB_COMMAND_CONTEXT_PRIORITY) > 0;
 		m_activeRenderpass = false;
+
+		m_bindingState = m_renderer->GetAllocator().Alloc<BindingState>();
 	}
 
 	void CommandContext::Begin()
@@ -93,8 +101,6 @@ namespace PB
 		}
 		PB_ERROR_CHECK(vkEndCommandBuffer(m_cmdBuffer));
 		PB_BREAK_ON_ERROR;
-
-		m_currentUBOSet = VK_NULL_HANDLE;
 
 		m_state = PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION;
 	}
@@ -287,8 +293,8 @@ namespace PB
 		VkDescriptorSet masterDescSet = m_renderer->GetMasterSet();
 		vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 0, 1, &masterDescSet, 0, nullptr);
 
-		if(m_currentUBOSet)
-			vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 1, 1, &m_currentUBOSet, 0, nullptr);
+		// Reset UBO binding state.
+		m_bindingState->m_boundUBOs.Clear();
 	}
 
 	void CommandContext::CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType)
@@ -356,18 +362,15 @@ namespace PB
 
 		if (layout.m_bindingLocation == PB_BINDING_LAYOUT_LOCATION_DEFAULT)
 		{
-			u32 offset = 0;
-			u32 dynamicIndices[32];
+			constexpr u32 MaxBindings = MaxPushConstantBytes / sizeof(u32);
 
-			// TODO: Remove indirection of getting maxDescriptorSetUpdateAfterBindUniformBuffers.
-			// Get a new UBO set if the current one doesn't have enough room for the table's UBOs.
-			//if (m_currentUBOIndex + layout.m_bufferCount > m_device->GetDescriptorIndexingProperties()->maxDescriptorSetUpdateAfterBindUniformBuffers - 2)
-			//{
-			//	m_currentUBOSet = m_renderer->GetUBOSet();
-			//	m_currentUBOIndex = 0;
-			//}
+			u32 offset = 0;
+			u32 dynamicIndices[MaxBindings];
+
+			PB_ASSERT(!(layout.m_bufferCount + layout.m_textureCount + layout.m_samplerCount > MaxBindings), "Maximum amount of bindings exceeded.");
 
 			CLib::Vector<VkDescriptorBufferInfo, 3> uboBufferInfos;
+			bool redundantUBOBinding = true;
 			for (u16 i = 0; i < layout.m_bufferCount; ++i, ++offset)
 			{
 				BufferViewData* viewData = reinterpret_cast<BufferViewData*>(layout.m_buffers[i]);
@@ -377,7 +380,39 @@ namespace PB
 				uboInfo.offset = viewData->m_offset;
 				uboInfo.range = viewData->m_size;
 
+				if (i < m_bindingState->m_boundUBOs.Count())
+				{
+					VkDescriptorBufferInfo& boundBuffer = m_bindingState->m_boundUBOs[i];
+					redundantUBOBinding &= uboInfo.buffer == boundBuffer.buffer;
+					redundantUBOBinding &= uboInfo.offset == boundBuffer.offset;
+					redundantUBOBinding &= uboInfo.range == boundBuffer.range;
+				}
+				else
+					redundantUBOBinding = false;
+
 				dynamicIndices[offset] = i;
+			}
+
+			if (!redundantUBOBinding)
+			{
+				VkDescriptorSet uboSet = m_renderer->GetUBOSet();
+
+				// Update binding state.
+				m_bindingState->m_boundUBOs = uboBufferInfos;
+
+				// Update UBO descriptors.
+				VkWriteDescriptorSet uboWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
+				uboWrite.descriptorCount = uboBufferInfos.Count();
+				uboWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				uboWrite.dstArrayElement = 0;
+				uboWrite.dstBinding = 0;
+				uboWrite.dstSet = uboSet;
+				uboWrite.pBufferInfo = uboBufferInfos.Data();
+				uboWrite.pImageInfo = nullptr;
+				uboWrite.pTexelBufferView = nullptr;
+
+				vkUpdateDescriptorSets(m_device->GetHandle(), 1, &uboWrite, 0, nullptr);
+				vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 1, 1, &uboSet, 0, nullptr);
 			}
 
 			// Texture and sampler views are actually just descriptor indices, so we can just copy these.
@@ -391,25 +426,6 @@ namespace PB
 			}
 
 			vkCmdPushConstants(m_cmdBuffer, m_curPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, offset * sizeof(u32), dynamicIndices);
-
-			if (uboBufferInfos.Count() != 0)
-			{
-				m_currentUBOSet = m_renderer->GetUBOSet();
-
-				// Update UBO descriptors.
-				VkWriteDescriptorSet uboWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
-				uboWrite.descriptorCount = uboBufferInfos.Count();
-				uboWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				uboWrite.dstArrayElement = 0;
-				uboWrite.dstBinding = 0;
-				uboWrite.dstSet = m_currentUBOSet;
-				uboWrite.pBufferInfo = uboBufferInfos.Data();
-				uboWrite.pImageInfo = nullptr;
-				uboWrite.pTexelBufferView = nullptr;
-
-				vkUpdateDescriptorSets(m_device->GetHandle(), 1, &uboWrite, 0, nullptr);
-				vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 1, 1, &m_currentUBOSet, 0, nullptr);
-			}
 		}
 		else
 		{

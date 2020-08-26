@@ -118,7 +118,12 @@ namespace CLib
 		}
 
 		inline void Reserve(const unsigned int& newCapacity) { SetCapacity(newCapacity); }
-		inline void SetCount(const unsigned int& newCount) { m_count = newCount; }
+		inline void SetCount(const unsigned int& newCount) 
+		{
+			if (newCount > m_capacity)
+				SetCapacity(newCount);
+			m_count = newCount; 
+		}
 		inline void Clear() { m_count = 0; }
 
 		// ---------------------------- Write Operators -------------------------------
@@ -159,8 +164,11 @@ namespace CLib
 		inline void CopyFrom(const Vector<T, OCapacity, OExpandRate>& other)
 		{
 			m_count = other.Count();
-			m_capacity = m_count;
-			m_contents = Alloc(m_capacity);
+			if (m_capacity < m_count)
+			{
+				m_capacity = m_count;
+				m_contents = Alloc(m_capacity);
+			}
 			memcpy(m_contents, other.Data(), sizeof(T) * m_count);
 		}
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "Time.h"
+#include "CLib/Allocator.h"
 
 class Input;
 
@@ -44,6 +45,7 @@ private:
 	static void MouseScrollCallBack(GLFWwindow* window, double dXOffset, double dYOffset);
 	static void WindowResizeCallback(GLFWwindow* window, int nWidth, int nHeight);
 
+	static CLib::Allocator m_allocator;
 	static PB::IRenderer* m_renderer;
 	static PB::ISwapChain* m_swapchain;
 	static GLFWwindow* m_window;
