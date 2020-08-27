@@ -93,6 +93,15 @@ namespace PB
 		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
 	}
 
+	BufferView BufferObject::GetView()
+	{
+		BufferViewDesc viewDesc;
+		viewDesc.m_buffer = this;
+		viewDesc.m_offset = 0;
+		viewDesc.m_size = m_size;
+		return m_renderer->GetViewCache()->GetBufferView(viewDesc);
+	}
+
 	BufferView BufferObject::GetView(BufferViewDesc& viewDesc)
 	{
 		viewDesc.m_buffer = this;

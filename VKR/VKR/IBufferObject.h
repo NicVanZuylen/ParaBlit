@@ -75,6 +75,12 @@ namespace PB
 		PARABLIT_INTERFACE void Populate(u8* data, u32 size) = 0;
 
 		/*
+		Description: Get a default view of a range of this buffer object, used for shader bindings.
+		Return Type: BufferView
+		*/
+		PARABLIT_INTERFACE BufferView GetView() = 0;
+
+		/*
 		Description: Get a view of a range of this buffer object, used for shader bindings.
 		Return Type: BufferView
 		Param:

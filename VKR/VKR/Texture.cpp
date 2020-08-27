@@ -99,6 +99,28 @@ namespace PB
 		return m_currentState;
 	}
 
+	TextureView Texture::GetDefaultSRV()
+	{
+		PB_ASSERT_MSG(m_format != PB_TEXTURE_FORMAT_UNKNOWN, "Cannot get a default view of a texture with unknown format.")
+
+		TextureViewDesc defaultSRVDesc;
+		defaultSRVDesc.m_expectedState = PB_TEXTURE_STATE_SAMPLED;
+		defaultSRVDesc.m_format = m_format;
+		defaultSRVDesc.m_texture = this;
+		return m_renderer->GetViewCache()->GetTextureView(defaultSRVDesc);
+	}
+
+	TextureView Texture::GetDefaultRTV()
+	{
+		PB_ASSERT_MSG(m_format != PB_TEXTURE_FORMAT_UNKNOWN, "Cannot get a default view of a texture with unknown format.")
+
+		TextureViewDesc defaultRTVDesc;
+		defaultRTVDesc.m_expectedState = m_hasDepthPlane ? PB_TEXTURE_STATE_DEPTHTARGET : PB_TEXTURE_STATE_COLORTARGET;
+		defaultRTVDesc.m_format = m_format;
+		defaultRTVDesc.m_texture = this;
+		return m_renderer->GetViewCache()->GetRenderTargetView(defaultRTVDesc);
+	}
+
 	TextureView Texture::GetView(TextureViewDesc& viewDesc)
 	{
 		viewDesc.m_texture = this;

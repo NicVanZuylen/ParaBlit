@@ -121,13 +121,7 @@ void Application::Run()
 	depthTextureDesc.m_width = m_swapchain->GetWidth();
 	depthTextureDesc.m_height = m_swapchain->GetHeight();
 	PB::ITexture* depthTexture = m_renderer->AllocateTexture(depthTextureDesc);
-
-	PB::TextureViewDesc depthViewDesc = {};
-	depthViewDesc.m_texture = depthTexture;
-	depthViewDesc.m_renderer = m_renderer;
-	depthViewDesc.m_format = PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT;
-	depthViewDesc.m_expectedState = PB::PB_TEXTURE_STATE_DEPTHTARGET;
-	auto depthView = depthTexture->GetRenderTargetView(depthViewDesc);
+	auto depthView = depthTexture->GetDefaultRTV();
 	
 	Shader vertShader(m_renderer, "TestAssets/Shaders/SPIR-V/vs_triangle.spv", &m_allocator);
 	Shader fragShader(m_renderer, "TestAssets/Shaders/SPIR-V/fs_triangle.spv", &m_allocator);
@@ -142,7 +136,7 @@ void Application::Run()
 	bufViewDesc.m_buffer = testBuf;
 	bufViewDesc.m_offset = 0;
 	bufViewDesc.m_size = testBuf->GetSize();
-	PB::BufferView bufView = testBuf->GetView(bufViewDesc);
+	PB::BufferView bufView = testBuf->GetView();
 
 	PB::SamplerDesc samplerDesc;
 	PB::Sampler testSampler = m_renderer->GetSampler(samplerDesc);
@@ -152,7 +146,6 @@ void Application::Run()
 	{
 		PB::TextureViewDesc desc = {};
 		desc.m_texture = nullptr;
-		desc.m_renderer = m_renderer;
 		desc.m_format = PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM;
 		desc.m_expectedState = PB::PB_TEXTURE_STATE_COLORTARGET;
 		swapchainTextureViews.PushBack(m_swapchain->GetImage(i)->GetRenderTargetView(desc));
@@ -160,22 +153,17 @@ void Application::Run()
 
 	Camera cam(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f), 0.5f, 5.0f);
 
-	Mesh* paintMesh = new Mesh(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_paint.obj");
-	Mesh* detailsMesh = new Mesh(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_details.obj");
-	Mesh* glassMesh = new Mesh(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_glass.obj");
+	Mesh* paintMesh = m_allocator.Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_paint.obj");
+	Mesh* detailsMesh = m_allocator.Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_details.obj");
+	Mesh* glassMesh = m_allocator.Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_glass.obj");
 
-	Texture* paintTexture = new Texture(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_diffuse.tga");
-	Texture* detailsTexture = new Texture(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_diffuse.tga");
-	Texture* glassTexture = new Texture(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_diffuse.tga");
+	Texture* paintTexture = m_allocator.Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_diffuse.tga");
+	Texture* detailsTexture = m_allocator.Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_diffuse.tga");
+	Texture* glassTexture = m_allocator.Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_diffuse.tga");
 
-	PB::TextureViewDesc shaderResViewDesc{};
-	shaderResViewDesc.m_format = PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM;
-	shaderResViewDesc.m_renderer = m_renderer;
-	shaderResViewDesc.m_expectedState = PB::PB_TEXTURE_STATE_SAMPLED;
-
-	auto paintView = paintTexture->GetTexture()->GetView(shaderResViewDesc);
-	auto detailsView = detailsTexture->GetTexture()->GetView(shaderResViewDesc);
-	auto glassView = glassTexture->GetTexture()->GetView(shaderResViewDesc);
+	auto paintView = paintTexture->GetTexture()->GetDefaultSRV();
+	auto detailsView = detailsTexture->GetTexture()->GetDefaultSRV();
+	auto glassView = glassTexture->GetTexture()->GetDefaultSRV();
 
 	while (!glfwWindowShouldClose(m_window))
 	{
@@ -356,13 +344,13 @@ void Application::Run()
 
 	m_renderer->WaitIdle();
 
-	delete paintTexture;
-	delete detailsTexture;
-	delete glassTexture;
+	m_allocator.Free(paintTexture);
+	m_allocator.Free(detailsTexture);
+	m_allocator.Free(glassTexture);
 
-	delete paintMesh;
-	delete detailsMesh;
-	delete glassMesh;
+	m_allocator.Free(paintMesh);
+	m_allocator.Free(detailsMesh);
+	m_allocator.Free(glassMesh);
 
 	m_renderer->FreeBuffer(testBuf);
 	m_renderer->FreeTexture(depthTexture);

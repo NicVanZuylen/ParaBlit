@@ -35,6 +35,8 @@ namespace PB
 
 		void Populate(u8* data, u32 size) override;
 
+		BufferView GetView() override;
+
 		BufferView GetView(BufferViewDesc& viewDesc) override;
 
 		void RegisterView(const BufferViewDesc& desc);

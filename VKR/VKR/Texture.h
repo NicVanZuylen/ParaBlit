@@ -39,6 +39,10 @@ namespace PB
 
 		PARABLIT_API ETextureState GetState();
 
+		TextureView GetDefaultSRV() override;
+
+		TextureView GetDefaultRTV() override;
+
 		TextureView GetView(TextureViewDesc& viewDesc) override;
 
 		TextureView GetRenderTargetView(TextureViewDesc& viewDesc) override;

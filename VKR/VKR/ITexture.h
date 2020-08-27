@@ -44,10 +44,9 @@ namespace PB
 	{
 		ITexture* m_texture = nullptr;							// Can be left as null if the image is never sampled.
 		SubresourceRange m_subresources = {};								// Specifies which subresources of the image to include in the view.
-		IRenderer* m_renderer = nullptr;
 		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
 		ETextureStateFlags m_expectedState = PB_TEXTURE_STATE_NONE;
-		u32 m_pad0 = 0;
+		u64 m_pad0 = 0;
 		// TODO: ONGOING: Add additional view parameters as needed.
 
 		bool operator == (const TextureViewDesc& other) const;
@@ -66,6 +65,10 @@ namespace PB
 			const TextureDesc& desc: Structure describing the texture's properties.
 		*/
 		PARABLIT_INTERFACE void Create(IRenderer* renderer, const TextureDesc& desc) = 0;
+
+		PARABLIT_INTERFACE TextureView GetDefaultSRV() = 0;
+
+		PARABLIT_INTERFACE TextureView GetDefaultRTV() = 0;
 
 		PARABLIT_INTERFACE TextureView GetView(TextureViewDesc& viewDesc) = 0;
 
