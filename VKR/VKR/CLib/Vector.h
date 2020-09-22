@@ -4,7 +4,7 @@
 
 namespace CLib
 {
-	static std::function<void*(unsigned long long)> vectorAllocFunc = malloc;
+	static std::function<void* (unsigned long long)> vectorAllocFunc = malloc;
 	static std::function<void(void*)> vectorFreeFunc = free;
 
 	// Standard Custom Vector class by Nicholas Van Zuylen. Unsafe to contain objects that own dynamic memory including other vectors.
@@ -62,8 +62,11 @@ namespace CLib
 		inline T* Data() { return m_contents; }
 		inline const T* Data() const { return m_contents; }
 		inline T& Front() { return m_contents[0]; }
+		inline const T& Front() const { return m_contents[0]; }
 		inline T& Back() { return m_contents[m_count - 1]; }
+		inline const T& Back() const { return m_contents[m_count - 1]; }
 		inline T& operator [] (const unsigned int& i) { return m_contents[i]; }
+		inline const T& operator [](const unsigned int& i) const { return m_contents[i]; }
 		inline const unsigned int& Count() const { return m_count; }
 		inline const unsigned int& Capacity() const { return m_capacity; }
 
@@ -87,9 +90,9 @@ namespace CLib
 
 		inline T& PopBack()
 		{
-			if(m_count > 0)
-				return m_contents[m_count-- -1];
-			
+			if (m_count > 0)
+				return m_contents[m_count-- - 1];
+
 			return m_contents[0];
 		}
 
@@ -118,18 +121,17 @@ namespace CLib
 		}
 
 		inline void Reserve(const unsigned int& newCapacity) { SetCapacity(newCapacity); }
-		inline void SetCount(const unsigned int& newCount) 
+		inline void SetCount(const unsigned int& newCount)
 		{
 			if (newCount > m_capacity)
 				SetCapacity(newCount);
-			m_count = newCount; 
+			m_count = newCount;
 		}
 		inline void Clear() { m_count = 0; }
 
 		// ---------------------------- Write Operators -------------------------------
 
 		// Copy assignment
-		//template<typename T, unsigned int OCapacity, unsigned int OExpandRate>
 		inline Vector<T, FixedCapacity, ExpandRate>& operator = (const Vector<T, FixedCapacity, ExpandRate>& other)
 		{
 			CopyFrom(other);
@@ -180,7 +182,7 @@ namespace CLib
 				m_contents = other.m_contents;
 				m_capacity = other.m_capacity;
 			}
-			else if(other.m_count <= FixedCapacity)
+			else if (other.m_count <= FixedCapacity)
 			{
 				m_contents = reinterpret_cast<T*>(m_fixedContents);
 				memcpy(m_contents, other.m_contents, sizeof(T) * m_count);

@@ -1,6 +1,6 @@
 #pragma once
 #include "Vector.h"
-#include <stdint.h>
+#include <cstdint>
 
 namespace CLib
 {

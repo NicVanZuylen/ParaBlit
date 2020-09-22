@@ -1,5 +1,6 @@
 #pragma once
 #include "ParaBlitInterface.h"
+#include "ParaBlitDefs.h"
 
 namespace PB 
 {
@@ -51,5 +52,11 @@ namespace PB
 		Return Type: u32
 		*/
 		PARABLIT_INTERFACE u32 GetImageCount() = 0;
+
+		/*
+		Description: Get the format of the swapchain images.
+		Return Type: ETextureFormat
+		*/
+		PARABLIT_INTERFACE ETextureFormat GetImageFormat() = 0;
 	};
 }

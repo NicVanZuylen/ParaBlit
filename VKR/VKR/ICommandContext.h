@@ -74,6 +74,8 @@ namespace PB
 		PARABLIT_INTERFACE void CmdDraw(u32 vertexCount, u32 instanceCount) = 0;
 
 		PARABLIT_INTERFACE void CmdDrawIndexed(u32 indexCount, u32 instanceCount) = 0;
+
+		PARABLIT_INTERFACE void CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst) = 0;
 	};
 
 	ICommandContext* CreateCommandContext(IRenderer* renderer);
@@ -89,6 +91,8 @@ namespace PB
 		PARABLIT_API ~SCommandContext();
 
 		PARABLIT_API inline ICommandContext* operator -> ();
+
+		inline ICommandContext* GetContext() { return m_ptr; }
 
 	private:
 

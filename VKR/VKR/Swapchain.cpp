@@ -80,6 +80,11 @@ namespace PB
 		return m_swapchainImages.Count();
 	}
 
+	ETextureFormat Swapchain::GetImageFormat()
+	{
+		return m_imageFormat;
+	}
+
 	void Swapchain::CreateSwapChain(const SwapChainDesc& desc)
 	{
 		auto format = ChooseSurfaceFormat(desc);
@@ -98,7 +103,6 @@ namespace PB
 		swapChainInfo.imageFormat = format.format;
 		swapChainInfo.imageColorSpace = format.colorSpace;
 		swapChainInfo.imageExtent = { m_width, m_height };
-		swapChainInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 		swapChainInfo.presentMode = ChoosePresentMode(desc);
 		swapChainInfo.minImageCount = m_imageCount;
 		swapChainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -107,6 +111,8 @@ namespace PB
 		swapChainInfo.preTransform = surfaceCapabilities.currentTransform;
 		swapChainInfo.clipped = VK_TRUE;
 		swapChainInfo.oldSwapchain = VK_NULL_HANDLE;
+
+		m_imageFormat = ConvertVkFormatToPBFormat(swapChainInfo.imageFormat);
 
 		PB_ERROR_CHECK(vkCreateSwapchainKHR(m_device->GetHandle(), &swapChainInfo, nullptr, &m_handle));
 		PB_ASSERT(m_handle);
@@ -139,6 +145,7 @@ namespace PB
 
 		CLib::Vector<VkSurfaceFormatKHR> availableFormats(formatCount);
 		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_device->GetPhysicalDevice(), m_windowSurface, &formatCount, availableFormats.Data()));
+		availableFormats.SetCount(formatCount);
 
 		if (availableFormats.Count() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
 		{
@@ -201,7 +208,9 @@ namespace PB
 		{
 			PB_ASSERT_MSG(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
 			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
-			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_COLORTARGET;
+			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_COLORTARGET |  PB_TEXTURE_STATE_COPY_DST;
+			wrappedTextureDesc.m_width = m_width;
+			wrappedTextureDesc.m_height = m_height;
 			m_wrappedSwapchainImages[i].Create(m_renderer, wrappedTextureDesc);
 		}
 

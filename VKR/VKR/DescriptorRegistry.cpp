@@ -19,14 +19,14 @@ namespace PB
 
 	void DescriptorRegistry::RegisterView(TextureViewData& viewData)
 	{
-		viewData.m_descriptorIndex = GetDescriptorIndex(DESCRIPTORTYPE_TEXTURE);
+		viewData.m_descriptorIndex = GetDescriptorIndex(EDescriptorType::DESCRIPTORTYPE_TEXTURE);
 
 		// Assign this texture to it's respective descriptor slot.
 		VkWriteDescriptorSet texWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
 		texWrite.descriptorCount = 1;
 		texWrite.descriptorType = GetDescTypeFromExpectedState((ETextureStateFlags)viewData.m_expectedState);
 		texWrite.dstSet = m_masterSet;
-		texWrite.dstBinding = DESCRIPTORTYPE_TEXTURE;
+		texWrite.dstBinding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_TEXTURE);
 		texWrite.dstArrayElement = viewData.m_descriptorIndex;
 
 		VkDescriptorImageInfo texImgInfo{};
@@ -40,13 +40,13 @@ namespace PB
 
 	void DescriptorRegistry::RegisterView(SamplerData& samplerData)
 	{
-		samplerData.m_descriptorIndex = GetDescriptorIndex(DESCRIPTORTYPE_SAMPLER);
+		samplerData.m_descriptorIndex = GetDescriptorIndex(EDescriptorType::DESCRIPTORTYPE_SAMPLER);
 
 		VkWriteDescriptorSet sampWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
 		sampWrite.descriptorCount = 1;
 		sampWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 		sampWrite.dstSet = m_masterSet;
-		sampWrite.dstBinding = DESCRIPTORTYPE_SAMPLER;
+		sampWrite.dstBinding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_SAMPLER);
 		sampWrite.dstArrayElement = samplerData.m_descriptorIndex;
 
 		VkDescriptorImageInfo sampImgInfo{};
@@ -60,7 +60,8 @@ namespace PB
 
 	void DescriptorRegistry::FreeView(EDescriptorType type, u32 index)
 	{
-		m_descriptorStates[type].m_freeDescriptors.PushBack(index);
+		if(index < DESCRIPTORINDEX_INVALID)
+			m_descriptorStates[static_cast<u32>(type)].m_freeDescriptors.PushBack(index);
 	}
 
 	void DescriptorRegistry::Create(Device* device, VkDescriptorSet* outMasterSet, VkDescriptorSetLayout* outMasterSetLayout)
@@ -117,7 +118,7 @@ namespace PB
 		CLib::Vector<VkDescriptorBindingFlags, 3> bindingFlags;
 
 		VkDescriptorSetLayoutBinding& texBinding = bindings.PushBack();
-		texBinding.binding = DESCRIPTORTYPE_TEXTURE;
+		texBinding.binding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_TEXTURE);
 		texBinding.descriptorCount = MaxTextureDescriptors;
 		texBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		texBinding.pImmutableSamplers = nullptr;
@@ -125,7 +126,7 @@ namespace PB
 		bindingFlags.PushBack() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
 		
 		VkDescriptorSetLayoutBinding& samplerBinding = bindings.PushBack();
-		samplerBinding.binding = DESCRIPTORTYPE_SAMPLER;
+		samplerBinding.binding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_SAMPLER);
 		samplerBinding.descriptorCount = MaxSamplers;
 		samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 		samplerBinding.pImmutableSamplers = nullptr;

@@ -59,6 +59,8 @@ namespace PB
 
 		PARABLIT_API ViewCache* GetViewCache();
 
+		ISwapChain* GetSwapchain() override;
+
 		PARABLIT_API IShaderModuleCache* GetShaderModuleCache() override;
 
 		PARABLIT_API IPipelineCache* GetPipelineCache() override;

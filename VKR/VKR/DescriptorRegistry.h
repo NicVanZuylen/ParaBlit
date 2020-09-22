@@ -6,7 +6,7 @@
 
 namespace PB
 {
-	enum EDescriptorType
+	enum class EDescriptorType
 	{
 		DESCRIPTORTYPE_TEXTURE,
 		DESCRIPTORTYPE_SAMPLER,
@@ -14,13 +14,18 @@ namespace PB
 		DESCRIPTORTYPE_COUNT
 	};
 
+	enum : u32
+	{
+		DESCRIPTORINDEX_INVALID = ~u32(0)
+	};
+
 	class Device;
 
 	struct TextureViewData
 	{
 		VkImageView m_view = VK_NULL_HANDLE;
-		u32 m_descriptorIndex;
-		u32 m_expectedState;
+		u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
+		u32 m_expectedState = 0;
 	};
 
 	struct BufferViewData
@@ -33,7 +38,7 @@ namespace PB
 	struct SamplerData
 	{
 		VkSampler m_sampler = VK_NULL_HANDLE;
-		u32 m_descriptorIndex = ~0u;
+		u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
 	};
 
 	class DescriptorRegistry
@@ -57,9 +62,9 @@ namespace PB
 
 		inline u32 GetDescriptorIndex(const EDescriptorType& type)
 		{
-			if (m_descriptorStates[type].m_freeDescriptors.Count() > 0)
-				return m_descriptorStates[type].m_freeDescriptors.PopBack();
-			return m_descriptorStates[type].m_usedDescriptorCount++;
+			if (m_descriptorStates[static_cast<u32>(type)].m_freeDescriptors.Count() > 0)
+				return m_descriptorStates[static_cast<u32>(type)].m_freeDescriptors.PopBack();
+			return m_descriptorStates[static_cast<u32>(type)].m_usedDescriptorCount++;
 		}
 
 		static constexpr const u32 MaxDescriptors = 0xFFFFFF;
@@ -71,7 +76,7 @@ namespace PB
 			CLib::Vector<u32> m_freeDescriptors;
 			u32 m_usedDescriptorCount = 0;
 		};
-		DescriptorState m_descriptorStates[DESCRIPTORTYPE_COUNT] = {};
+		DescriptorState m_descriptorStates[static_cast<u64>(EDescriptorType::DESCRIPTORTYPE_COUNT)] = {};
 
 		// Contains uniform buffers.
 		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;

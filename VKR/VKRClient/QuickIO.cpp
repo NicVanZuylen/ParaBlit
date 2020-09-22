@@ -24,7 +24,7 @@ namespace QIO
 		}
 		else
 		{
-			printf_s("Could not read data from file %s \n", *fileSize, path);
+			printf_s("Could not read data from file %s \n", path);
 			return false;
 		}
 	}
@@ -49,7 +49,7 @@ namespace QIO
 		}
 		else
 		{
-			printf_s("Could not read data from file %s \n", *fileSize, path);
+			printf_s("Could not read data from file %s \n", path);
 			return false;
 		}
 	}

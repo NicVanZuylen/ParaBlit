@@ -367,7 +367,7 @@ namespace PB
 			u32 offset = 0;
 			u32 dynamicIndices[MaxBindings];
 
-			PB_ASSERT(!(layout.m_bufferCount + layout.m_textureCount + layout.m_samplerCount > MaxBindings), "Maximum amount of bindings exceeded.");
+			PB_ASSERT_MSG(!(layout.m_bufferCount + layout.m_textureCount + layout.m_samplerCount > MaxBindings), "Maximum amount of bindings exceeded.");
 
 			CLib::Vector<VkDescriptorBufferInfo, 3> uboBufferInfos;
 			bool redundantUBOBinding = true;
@@ -431,6 +431,35 @@ namespace PB
 		{
 			PB_NOT_IMPLEMENTED;
 		}
+	}
+
+	void CommandContext::CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst)
+	{
+		PB::Texture* srcInternal = reinterpret_cast<PB::Texture*>(src);
+		PB::Texture* dstInternal = reinterpret_cast<PB::Texture*>(dst);
+
+		PB_ASSERT(srcInternal->GetUsage() & PB_TEXTURE_STATE_COPY_SRC && dstInternal->GetUsage() & PB_TEXTURE_STATE_COPY_DST);
+		PB_ASSERT(dstInternal->GetExtent().width >= srcInternal->GetExtent().width && dstInternal->GetExtent().height >= srcInternal->GetExtent().height);
+		PB_ASSERT((srcInternal->HasDepthPlane() && dstInternal->HasDepthPlane()) || (!srcInternal->HasDepthPlane() && !dstInternal->HasDepthPlane()));
+
+		VkImageCopy region;
+		region.dstOffset = { 0, 0, 0 };
+		region.srcOffset = { 0, 0, 0 };
+		region.extent = srcInternal->GetExtent(); // TODO: Make sure dst's extent is large enough to accomodate src's extent. If not, it should use the min extent.
+		
+		auto& srcSubresource = region.srcSubresource;
+		srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		if (srcInternal->HasDepthPlane())
+			srcSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		if (srcInternal->HasStencilPlane())
+			srcSubresource.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+		srcSubresource.baseArrayLayer = 0;
+		srcSubresource.layerCount = 1;
+		srcSubresource.mipLevel = 0;
+		
+		region.dstSubresource = srcSubresource;
+		vkCmdCopyImage(m_cmdBuffer, srcInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 	}
 
 	void CommandContext::ValidateRecordingState()

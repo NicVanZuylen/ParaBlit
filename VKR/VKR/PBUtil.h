@@ -24,6 +24,8 @@ namespace PB
 
 	PARABLIT_API inline VkFormat ConvertPBFormatToVkFormat(ETextureFormat format);
 
+	PARABLIT_API inline ETextureFormat ConvertVkFormatToPBFormat(VkFormat format);
+
 	PARABLIT_API inline VkPipelineStageFlags ConvertPBAttachmentUsageToStageFlags(EAttachmentUsage usage);
 
 	PARABLIT_API inline VkShaderStageFlagBits ConvertPBShaderStageToVK(EShaderStage stage);

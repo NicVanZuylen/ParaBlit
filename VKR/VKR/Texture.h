@@ -15,6 +15,8 @@ namespace PB
 		VkImage m_wrappedImage = VK_NULL_HANDLE;
 		ETextureState m_currentUsage = PB_TEXTURE_STATE_NONE;
 		ETextureStateFlags m_usageFlags = PB_TEXTURE_STATE_NONE;
+		u32 m_width = 0;
+		u32 m_height = 0;
 	};
 
 	class Texture : ITexture
@@ -39,6 +41,10 @@ namespace PB
 
 		PARABLIT_API ETextureState GetState();
 
+		bool CanAlias(ITexture* baseTexture) override;
+
+		void AliasTexture(ITexture* baseTexture) override;
+
 		TextureView GetDefaultSRV() override;
 
 		TextureView GetDefaultRTV() override;
@@ -46,6 +52,8 @@ namespace PB
 		TextureView GetView(TextureViewDesc& viewDesc) override;
 
 		TextureView GetRenderTargetView(TextureViewDesc& viewDesc) override;
+
+		VkExtent3D GetExtent();
 
 		void RegisterView(const TextureViewDesc& desc);
 
@@ -64,6 +72,7 @@ namespace PB
 		Renderer* m_renderer = nullptr;
 		Device* m_device = nullptr;
 		VkImage m_image = VK_NULL_HANDLE;
+		VkExtent3D m_extents = { 1, 1, 1 };
 		DeviceAllocator::PageView m_memoryBlock;
 		ETextureStateFlags m_availableStates = PB_TEXTURE_STATE_NONE;
 		ETextureState m_currentState = PB_TEXTURE_STATE_NONE;
@@ -71,6 +80,7 @@ namespace PB
 		bool m_ownsImage : 1; // There may be some cases (Such as swap chain images), where the VkImage is already created for us. This flags (if false) for this object to not delete the VkImage when destroyed.
 		bool m_hasDepthPlane : 1;
 		bool m_hasStencilPlane : 1;
+		bool m_isAlias : 1;
 		CLib::Vector<TextureViewDesc, 1, 8> m_viewDescs;
 	};
 }

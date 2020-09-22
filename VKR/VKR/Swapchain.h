@@ -39,6 +39,7 @@ namespace PB
 		PARABLIT_API u32 GetWidth();
 		PARABLIT_API u32 GetHeight();
 		PARABLIT_API u32 GetImageCount() override;
+		ETextureFormat GetImageFormat() override;
 
 	private:
 
@@ -62,6 +63,7 @@ namespace PB
 		u32 m_height = 0;
 		CLib::Vector<VkImage, 3> m_swapchainImages;
 		Texture* m_wrappedSwapchainImages = nullptr;
+		ETextureFormat m_imageFormat = PB_TEXTURE_FORMAT_UNKNOWN;
 		u8 m_imageCount = 0;
 	};
 }

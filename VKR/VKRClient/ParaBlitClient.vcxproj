@@ -21,11 +21,14 @@
   <ItemGroup>
     <ClCompile Include="..\VKR\CLib\Allocator.cpp" />
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="BasicColorPass.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="QuickIO.cpp" />
+    <ClCompile Include="RenderGraph.cpp" />
+    <ClCompile Include="RenderGraphNode.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="WindowHandle.cpp" />
@@ -33,10 +36,13 @@
   <ItemGroup>
     <ClInclude Include="..\VKR\CLib\Allocator.h" />
     <ClInclude Include="Application.h" />
+    <ClInclude Include="BasicColorPass.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="QuickIO.h" />
+    <ClInclude Include="RenderGraph.h" />
+    <ClInclude Include="RenderGraphNode.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="Time.h" />

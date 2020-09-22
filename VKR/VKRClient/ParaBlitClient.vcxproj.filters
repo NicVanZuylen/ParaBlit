@@ -16,6 +16,12 @@
     <Filter Include="CLib">
       <UniqueIdentifier>{c34c9763-a7bd-4dc2-9be7-6ee5f29358ab}</UniqueIdentifier>
     </Filter>
+    <Filter Include="RenderGraph">
+      <UniqueIdentifier>{8cd174d6-bb70-409e-a2b3-8fdc8e9c6bb0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderGraphBehaviours">
+      <UniqueIdentifier>{f77dabda-c60a-4e7e-b171-8453ffc8580d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -48,6 +54,15 @@
     <ClCompile Include="..\VKR\CLib\Allocator.cpp">
       <Filter>CLib</Filter>
     </ClCompile>
+    <ClCompile Include="RenderGraphNode.cpp">
+      <Filter>RenderGraph</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderGraph.cpp">
+      <Filter>RenderGraph</Filter>
+    </ClCompile>
+    <ClCompile Include="BasicColorPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -79,6 +94,15 @@
     </ClInclude>
     <ClInclude Include="..\VKR\CLib\Allocator.h">
       <Filter>CLib</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderGraphNode.h">
+      <Filter>RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderGraph.h">
+      <Filter>RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="BasicColorPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

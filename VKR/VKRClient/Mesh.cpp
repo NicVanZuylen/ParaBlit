@@ -77,13 +77,13 @@ namespace PBClient
 			m_totalIndexCount = inCacheData.m_indexCount;
 
 			PB::BufferObjectDesc vertexBufferDesc;
-			vertexBufferDesc.m_bufferSize = vertexBufferSize;
+			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
 			vertexBufferDesc.m_options = 0;
 			vertexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_VERTEX;
 			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
 			PB::BufferObjectDesc indexBufferDesc;
-			indexBufferDesc.m_bufferSize = indexBufferSize;
+			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
 			indexBufferDesc.m_options = 0;
 			indexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_INDEX;
 			m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
@@ -159,13 +159,13 @@ namespace PBClient
 
 			// Create vertex and index buffers...
 			PB::BufferObjectDesc vertexBufferDesc;
-			vertexBufferDesc.m_bufferSize = vertexBufferSize;
+			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
 			vertexBufferDesc.m_options = 0;
 			vertexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_VERTEX;
 			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
 			PB::BufferObjectDesc indexBufferDesc;
-			indexBufferDesc.m_bufferSize = indexBufferSize;
+			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
 			indexBufferDesc.m_options = 0;
 			indexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_INDEX;
 			m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
@@ -186,12 +186,12 @@ namespace PBClient
 
 	uint32_t Mesh::VertexCount()
 	{
-		return m_totalVertexCount;
+		return static_cast<uint32_t>(m_totalVertexCount);
 	}
 
 	uint32_t Mesh::IndexCount()
 	{
-		return m_totalIndexCount;
+		return static_cast<uint32_t>(m_totalIndexCount);
 	}
 
 	const std::string& Mesh::GetName()
@@ -272,7 +272,7 @@ namespace PBClient
 		size_t totalIndexCount = 0;
 
 		// Determine size of whole mesh and allocate memory.
-		for (int i = 0; i < chunkCount; ++i)
+		for (uint32_t i = 0; i < chunkCount; ++i)
 		{
 			totalVertexCount += shapes[i].mesh.positions.size();
 			totalIndexCount += shapes[i].mesh.indices.size();
@@ -316,8 +316,8 @@ namespace PBClient
 			{
 				// Positions, normals etc are stored in float format, in groups. (3 for positions and normals, 2 for tex coords).
 				// Multiply the index to stride to the current float group.
-				uint32_t nIndex = j * 3; // Stride of three floats for positions and normals.
-				uint32_t nTexIndex = j * 2; // Stride of two floats for texture coordinates.
+				uint64_t nIndex = static_cast<uint64_t>(j) * 3; // Stride of three floats for positions and normals.
+				uint64_t nTexIndex = static_cast<uint64_t>(j) * 2; // Stride of two floats for texture coordinates.
 
 				// Copy positions...
 				if (shape.mesh.positions.size())

@@ -7,6 +7,38 @@ namespace PB
 	typedef unsigned int u32;
 	typedef unsigned long long u64;
 
+	// Bitmask helper class for strongly typed 'enum class' enums.
+	template<typename T, typename Val_T = u32>
+	class BitField
+	{
+	public:
+
+		inline BitField() { m_values = Val_T(); }
+		inline BitField(const Val_T& values) { m_values = values; }
+		inline BitField(const T& values) { m_values = static_cast<Val_T>(values); }
+		inline BitField(const BitField<T, Val_T>& values) { m_values = values.m_values; }
+		inline ~BitField() = default;
+
+		inline Val_T operator | (const T& rhs) const { return m_values | static_cast<Val_T>(rhs); }
+		inline Val_T operator & (const T& rhs) const { return m_values & static_cast<Val_T>(rhs); }
+		inline Val_T operator |= (const T& rhs) { return m_values |= static_cast<Val_T>(rhs); }
+		inline Val_T operator &= (const T& rhs) { return m_values &= static_cast<Val_T>(rhs); }
+		inline Val_T operator = (const T& rhs) { return m_values = static_cast<Val_T>(rhs); }
+
+		inline Val_T operator | (const BitField<T, Val_T>& rhs) const { return m_values | rhs.m_values; }
+		inline Val_T operator & (const BitField<T, Val_T>& rhs) const { return m_values & rhs.m_values; }
+		inline Val_T operator |= (const BitField<T, Val_T>& rhs) { return m_values |= rhs.m_values; }
+		inline Val_T operator &= (const BitField<T, Val_T>& rhs) { return m_values &= rhs.m_values; };
+		inline Val_T operator = (const BitField<T, Val_T>& rhs) { return m_values = rhs.m_values; }
+
+		inline Val_T operator = (const Val_T& rhs) { return m_values = rhs; }
+
+		inline operator Val_T() const { return m_values; }
+
+	private:
+		Val_T m_values;
+	};
+
 	enum EMemoryType : u16
 	{
 		PB_MEMORY_TYPE_HOST_VISIBLE,

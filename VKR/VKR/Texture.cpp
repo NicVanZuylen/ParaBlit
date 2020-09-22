@@ -24,11 +24,13 @@ namespace PB
 		m_renderer = reinterpret_cast<Renderer*>(renderer);
 		m_device = m_renderer->GetDevice();
 		m_availableStates = desc.m_usageStates;
+		m_extents = { desc.m_width, desc.m_height, 1 };
 
 		auto& dataDesc = desc.m_data;
 		PB_ASSERT(dataDesc.m_format != PB_TEXTURE_FORMAT_UNKNOWN);
 
 		m_format = dataDesc.m_format;
+		m_isAlias = dataDesc.m_aliasOther;
 
 		if (!CreateImageResource(desc))
 		{
@@ -47,11 +49,13 @@ namespace PB
 		m_renderer = renderer;
 		m_device = m_renderer->GetDevice();
 		m_image = desc.m_wrappedImage;
+		m_extents = { desc.m_width, desc.m_height, 1 };
 		m_currentState = desc.m_currentUsage;
 		m_availableStates = desc.m_usageFlags;
 		m_ownsImage = false;
 		m_hasDepthPlane = false;
 		m_hasStencilPlane = false;
+		m_isAlias = false;
 
 		PB_ASSERT(((m_availableStates & m_currentState) || m_currentState == PB_TEXTURE_STATE_NONE));
 	}
@@ -69,7 +73,8 @@ namespace PB
 				m_image = VK_NULL_HANDLE;
 
 				// Free memory block.
-				m_device->GetDeviceAllocator().Free(m_memoryBlock);
+				if(!m_isAlias)
+					m_device->GetDeviceAllocator().Free(m_memoryBlock);
 
 				m_currentState = PB_TEXTURE_STATE_NONE;
 				m_availableStates = PB_TEXTURE_STATE_NONE;
@@ -97,6 +102,31 @@ namespace PB
 	ETextureState Texture::GetState()
 	{
 		return m_currentState;
+	}
+
+	bool Texture::CanAlias(ITexture* baseTexture)
+	{
+		if (!m_isAlias)
+			return false;
+
+		Texture* baseInternal = reinterpret_cast<Texture*>(baseTexture);
+
+		VkMemoryRequirements memRequirements;
+		vkGetImageMemoryRequirements(m_device->GetHandle(), m_image, &memRequirements);
+
+		auto baseMemBlock = baseInternal->m_memoryBlock;
+		return baseMemBlock.m_size >= memRequirements.size && baseMemBlock.m_start % memRequirements.alignment == 0 && baseMemBlock.m_memoryTypeIndex == m_device->FindMemoryTypeIndex(memRequirements.memoryTypeBits, baseMemBlock.m_memoryType);
+	}
+
+	void Texture::AliasTexture(ITexture* baseTexture)
+	{
+		PB_ASSERT_MSG(CanAlias(baseTexture), "This texture cannot alias the provided base texture.");
+
+		m_memoryBlock = reinterpret_cast<Texture*>(baseTexture)->m_memoryBlock;
+
+		// Bind base texture memory to this alias.
+		PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_memoryBlock.m_memory, m_memoryBlock.AlignedOffset()));
+		PB_BREAK_ON_ERROR;
 	}
 
 	TextureView Texture::GetDefaultSRV()
@@ -131,6 +161,11 @@ namespace PB
 	{
 		viewDesc.m_texture = this;
 		return m_renderer->GetViewCache()->GetRenderTargetView(viewDesc);
+	}
+
+	VkExtent3D Texture::GetExtent()
+	{
+		return m_extents;
 	}
 
 	void Texture::RegisterView(const TextureViewDesc& desc)
@@ -204,11 +239,14 @@ namespace PB
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(m_device->GetHandle(), m_image, &memRequirements);
 
-		PB_ASSERT_MSG(AllocateMemory(desc, memRequirements), "Failed to allocate memory for image.");
+		if (!m_isAlias)
+		{
+			PB_ASSERT_MSG(AllocateMemory(desc, memRequirements), "Failed to allocate memory for image.");
 
-		// Bind memory block to this texture's image.
-		PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_memoryBlock.m_memory, m_memoryBlock.AlignedOffset()));
-		PB_BREAK_ON_ERROR;
+			// Bind memory block to this texture's image.
+			PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_memoryBlock.m_memory, m_memoryBlock.AlignedOffset()));
+			PB_BREAK_ON_ERROR;
+		}
 
 		return true;
 	}
@@ -226,6 +264,9 @@ namespace PB
 
 	void Texture::InitializeMemory(const TextureDesc& desc)
 	{
+		if (m_isAlias)
+			return;
+
 		PB_ASSERT_MSG(!((desc.m_initOptions & PB_TEXTURE_INIT_USE_DATA) && (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)), "Incompatible texture initialization flags provided: PB_TEXTURE_INIT_USE_DATA, and PB_TEXTURE_INIT_ZERO_INITIALIZE.");
 
 		if (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)

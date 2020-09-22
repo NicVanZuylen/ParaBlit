@@ -81,6 +81,7 @@ namespace PB
 		PARABLIT_INTERFACE void FreeBuffer(IBufferObject* buffer) = 0;
 		PARABLIT_INTERFACE Sampler GetSampler(const SamplerDesc& samplerDesc) = 0;
 
+		PARABLIT_INTERFACE ISwapChain* GetSwapchain() = 0;
 		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;;
 		PARABLIT_INTERFACE IShaderModuleCache* GetShaderModuleCache() = 0;
 		PARABLIT_INTERFACE IPipelineCache* GetPipelineCache() = 0;

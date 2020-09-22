@@ -60,7 +60,7 @@ namespace PB
 			vkDestroyImageView(m_device->GetHandle(), view.second.m_view, nullptr);
 		for (auto& sampler : m_samplerCache)
 		{
-			m_descriptorRegistry.FreeView(DESCRIPTORTYPE_SAMPLER, sampler.second.m_descriptorIndex);
+			m_descriptorRegistry.FreeView(EDescriptorType::DESCRIPTORTYPE_SAMPLER, sampler.second.m_descriptorIndex);
 			vkDestroySampler(m_device->GetHandle(), sampler.second.m_sampler, nullptr);
 		}
 		m_device = nullptr;
@@ -102,7 +102,7 @@ namespace PB
 		// TODO: Reset descriptor at the view's index to avoid submitting views of destroyed resources.
 		auto it = m_texViewCache.find(desc);
 		PB_ASSERT(it != m_texViewCache.end());
-		m_descriptorRegistry.FreeView(DESCRIPTORTYPE_TEXTURE, it->second.m_descriptorIndex);
+		m_descriptorRegistry.FreeView(EDescriptorType::DESCRIPTORTYPE_TEXTURE, it->second.m_descriptorIndex);
 		vkDestroyImageView(m_device->GetHandle(), it->second.m_view, nullptr);
 		m_texViewCache.erase(it);
 	}

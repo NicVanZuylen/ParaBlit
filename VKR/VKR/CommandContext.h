@@ -46,6 +46,7 @@ namespace PB
 		void CmdDrawIndexed(u32 indexCount, u32 instanceCount) override;
 		PARABLIT_API void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size);
 		void CmdBindResources(const BindingLayout& layout) override;
+		void CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst) override;
 
 		PARABLIT_API bool GetIsPriority();
 		

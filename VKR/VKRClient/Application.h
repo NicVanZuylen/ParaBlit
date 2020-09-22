@@ -17,9 +17,9 @@ struct GLFWwindow;
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 
-#define FRAMERATE_CAP 10000.0f
+#define FRAMERATE_CAP 100.0f
 
-#define DISPLAY_FRAME_TIME
+#define DISPLAY_FRAME_TIME 1
 
 class Application
 {

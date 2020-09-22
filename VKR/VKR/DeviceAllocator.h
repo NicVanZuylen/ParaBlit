@@ -32,6 +32,7 @@ namespace PB
 			u32 m_size = 0;
 			EMemoryType m_memoryType = PB_MEMORY_TYPE_END_RANGE;
 			u16 m_alignmentOffset = 0;
+			u32 m_memoryTypeIndex = 0;
 
 			inline u32 AlignedOffset() const
 			{

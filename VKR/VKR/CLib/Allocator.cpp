@@ -41,7 +41,7 @@ namespace CLib
 		uint32_t alignmentPad = alignment > 0 ? alignment - ((size + sizeof(BlockNode)) % alignment) : 0;
 		uint32_t requiredSize = size + alignmentPad;
 
-		BlockNode* freeList = m_freeLists[GetFreeListIdx(requiredSize)];
+		BlockNode*& freeList = m_freeLists[GetFreeListIdx(requiredSize)];
 		if (freeList)
 		{
 			auto* block = freeList;

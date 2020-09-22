@@ -91,8 +91,8 @@ namespace PBClient
 		PB::IRenderer* m_renderer = nullptr;
 		PB::IBufferObject* m_vertexBuffer = nullptr;
 		PB::IBufferObject* m_indexBuffer = nullptr;
-		uint32_t m_totalVertexCount = 0;
-		uint32_t m_totalIndexCount = 0;
+		uint64_t m_totalVertexCount = 0;
+		uint64_t m_totalIndexCount = 0;
 		const char* m_filePath = nullptr;
 		std::string m_name;
 		bool m_empty = true;

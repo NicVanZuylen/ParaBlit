@@ -112,6 +112,11 @@ namespace PB
 		return &m_viewCache;
 	}
 
+	ISwapChain* Renderer::GetSwapchain()
+	{
+		return &m_swapchain;
+	}
+
 	IShaderModuleCache* Renderer::GetShaderModuleCache()
 	{
 		return &m_shaderModuleCache;
@@ -389,7 +394,7 @@ namespace PB
 
 	void Renderer::BeginNextFrame()
 	{
-		if (m_curFrameInfoIdx + 1 < m_swapchain.GetImageCount() && m_curFrameInfoIdx + 1 < PB_FRAME_IN_FLIGHT_COUNT)
+		if (m_curFrameInfoIdx + 1u < m_swapchain.GetImageCount() && m_curFrameInfoIdx + 1u < PB_FRAME_IN_FLIGHT_COUNT)
 			++m_curFrameInfoIdx;
 		else
 			m_curFrameInfoIdx = 0;

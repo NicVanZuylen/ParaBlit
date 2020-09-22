@@ -7,7 +7,7 @@ namespace PB
 	struct AttachmentUsageDesc
 	{
 		EAttachmentUsage m_usage = PB_ATTACHMENT_USAGE_NONE;
-		u8 m_attachmentIdx = -1;
+		u8 m_attachmentIdx = 0;
 		ETextureFormat m_attachmentFormat = PB_TEXTURE_FORMAT_UNKNOWN;
 	};
 
@@ -23,7 +23,7 @@ namespace PB
 		ETextureState m_finalState = PB_TEXTURE_STATE_NONE;
 		EAttachmentAction m_loadAction = PB_ATTACHMENT_START_ACTION_NONE;
 		bool m_keepContents = true;
-		u8 m_pad[7];
+		u8 m_pad[7]{};
 	};
 
 	struct RenderPassDesc

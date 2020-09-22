@@ -10,6 +10,9 @@
 #include "Texture.h"
 #include "Shader.h"
 
+#include "RenderGraph.h"
+#include "BasicColorPass.h"
+
 #include <iostream>
 #include <chrono>
 #include <string>
@@ -111,59 +114,49 @@ int Application::Init(int argumentCount, char** argumentVector)
 
 void Application::Run() 
 {
-	PB::TextureDesc depthTextureDesc;
-	depthTextureDesc.m_data.m_data = nullptr;
-	depthTextureDesc.m_data.m_size = 0;
-	depthTextureDesc.m_data.m_format = PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT;
-	depthTextureDesc.m_initialState = PB::PB_TEXTURE_STATE_COPY_DST;
-	depthTextureDesc.m_usageStates = PB::PB_TEXTURE_STATE_DEPTHTARGET;
-	depthTextureDesc.m_initOptions = PB::PB_TEXTURE_INIT_ZERO_INITIALIZE;
-	depthTextureDesc.m_width = m_swapchain->GetWidth();
-	depthTextureDesc.m_height = m_swapchain->GetHeight();
-	PB::ITexture* depthTexture = m_renderer->AllocateTexture(depthTextureDesc);
-	auto depthView = depthTexture->GetDefaultRTV();
-	
-	Shader vertShader(m_renderer, "TestAssets/Shaders/SPIR-V/vs_triangle.spv", &m_allocator);
-	Shader fragShader(m_renderer, "TestAssets/Shaders/SPIR-V/fs_triangle.spv", &m_allocator);
+	// Create a rendergraph pass to render our scene with.
+	RenderGraph* renderGraph = nullptr;
+	BasicColorPass* node = m_allocator.Alloc<BasicColorPass>(m_renderer, &m_allocator);
+	{
+		RenderGraphBuilder rgBuilder(m_renderer, &m_allocator);
 
+		NodeDesc nodeDesc;
+		nodeDesc.m_behaviour = node;
+
+		AttachmentDesc& colorDesc = nodeDesc.m_attachments[0];
+		colorDesc.m_format = m_swapchain->GetImageFormat();
+		colorDesc.m_width = m_swapchain->GetWidth();
+		colorDesc.m_height = m_swapchain->GetHeight();
+		colorDesc.m_name = "ColorOutput";
+		colorDesc.m_usage = PB::PB_ATTACHMENT_USAGE_COLOR;
+		colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
+		colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+		AttachmentDesc& depthDesc = nodeDesc.m_attachments[1];
+		depthDesc.m_format = PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT;
+		depthDesc.m_width = m_swapchain->GetWidth();
+		depthDesc.m_height = m_swapchain->GetHeight();
+		depthDesc.m_name = nullptr; // Unnamed means temporary.
+		depthDesc.m_usage = PB::PB_ATTACHMENT_USAGE_DEPTHSTENCIL;
+		depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+		nodeDesc.m_attachmentCount = 2;
+		nodeDesc.m_renderWidth = colorDesc.m_width;
+		nodeDesc.m_renderHeight = colorDesc.m_height;
+
+		rgBuilder.AddNode(nodeDesc);
+		renderGraph = rgBuilder.Build();
+	}
+
+	// Create a buffer for the model, view and projection matrices.
 	PB::BufferObjectDesc bufferDesc;
 	bufferDesc.m_bufferSize = sizeof(glm::mat4) * 3;
 	bufferDesc.m_options = PB::PB_BUFFER_OPTION_ZERO_INITIALIZE;
 	bufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_UNIFORM;
-	PB::IBufferObject* testBuf = m_renderer->AllocateBuffer(bufferDesc);
-
-	PB::BufferViewDesc bufViewDesc;
-	bufViewDesc.m_buffer = testBuf;
-	bufViewDesc.m_offset = 0;
-	bufViewDesc.m_size = testBuf->GetSize();
-	PB::BufferView bufView = testBuf->GetView();
-
-	PB::SamplerDesc samplerDesc;
-	PB::Sampler testSampler = m_renderer->GetSampler(samplerDesc);
-
-	CLib::Vector<PB::TextureView> swapchainTextureViews;
-	for (unsigned int i = 0; i < m_swapchain->GetImageCount(); ++i)
-	{
-		PB::TextureViewDesc desc = {};
-		desc.m_texture = nullptr;
-		desc.m_format = PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM;
-		desc.m_expectedState = PB::PB_TEXTURE_STATE_COLORTARGET;
-		swapchainTextureViews.PushBack(m_swapchain->GetImage(i)->GetRenderTargetView(desc));
-	}
+	PB::IBufferObject* mvpBuffer = m_renderer->AllocateBuffer(bufferDesc);
+	node->SetMVPBuffer(mvpBuffer);
 
 	Camera cam(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f), 0.5f, 5.0f);
-
-	Mesh* paintMesh = m_allocator.Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_paint.obj");
-	Mesh* detailsMesh = m_allocator.Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_details.obj");
-	Mesh* glassMesh = m_allocator.Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_glass.obj");
-
-	Texture* paintTexture = m_allocator.Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_diffuse.tga");
-	Texture* detailsTexture = m_allocator.Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_diffuse.tga");
-	Texture* glassTexture = m_allocator.Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_diffuse.tga");
-
-	auto paintView = paintTexture->GetTexture()->GetDefaultSRV();
-	auto detailsView = detailsTexture->GetTexture()->GetDefaultSRV();
-	auto glassView = glassTexture->GetTexture()->GetDefaultSRV();
 
 	while (!glfwWindowShouldClose(m_window))
 	{
@@ -203,106 +196,36 @@ void Application::Run()
 
 		cam.Update(deltaTime, m_input, m_window);
 
-		glm::mat4* bufferMatrices = (glm::mat4*)testBuf->BeginPopulate();
-
-		glm::mat4 model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
-		model = glm::scale(model, glm::vec3(0.01f));
-		model = glm::rotate<float>(model, elapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
-
-		bufferMatrices[0] = model; // Model
-		bufferMatrices[1] = cam.GetViewMatrix(); // View
-
-		glm::mat4 axisCorrection; // Inverts the Y axis to match the OpenGL coordinate system.
-		axisCorrection[1][1] = -1.0f;
-		axisCorrection[2][2] = 1.0f;
-		axisCorrection[3][3] = 1.0f;
-
-		bufferMatrices[2] = axisCorrection * glm::perspectiveFov<float>(45.0f, (float)m_swapchain->GetWidth(), (float)m_swapchain->GetHeight(), 0.1f, 1000.0f); // Projection
-		testBuf->EndPopulate();
-
-		PB::RenderPassDesc rpDesc;
-		PB::AttachmentDesc attachments[] =
+		// Update Camera -------------------------------------------------------------------------------------------------
 		{
-			{ PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM, PB::PB_TEXTURE_STATE_COLORTARGET, PB::PB_TEXTURE_STATE_COLORTARGET, PB::PB_ATTACHMENT_START_ACTION_CLEAR },
-			{ PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT, PB::PB_TEXTURE_STATE_DEPTHTARGET, PB::PB_TEXTURE_STATE_DEPTHTARGET, PB::PB_ATTACHMENT_START_ACTION_CLEAR, false },
-		};
+			glm::mat4* bufferMatrices = (glm::mat4*)mvpBuffer->BeginPopulate();
 
-		PB::SubpassDesc subpassDescs[1];
+			glm::mat4 model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
+			model = glm::scale(model, glm::vec3(0.01f));
+			model = glm::rotate<float>(model, elapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
 
-		subpassDescs[0].m_attachments[0] = { PB::PB_ATTACHMENT_USAGE_COLOR, 0, PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM };
-		subpassDescs[0].m_attachments[1] = { PB::PB_ATTACHMENT_USAGE_DEPTHSTENCIL, 1, PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT };
+			bufferMatrices[0] = model; // Model
+			bufferMatrices[1] = cam.GetViewMatrix(); // View
 
-		rpDesc.m_attachments = attachments;
-		rpDesc.m_attachmentCount = _countof(attachments);
-		rpDesc.m_subpasses = subpassDescs;
-		rpDesc.m_subpassCount = _countof(subpassDescs);
+			glm::mat4 axisCorrection; // Inverts the Y axis to match the OpenGL coordinate system.
+			axisCorrection[1][1] = -1.0f;
+			axisCorrection[2][2] = 1.0f;
+			axisCorrection[3][3] = 1.0f;
 
-		auto renderPass = m_renderer->GetRenderPassCache()->GetRenderPass(rpDesc);
+			bufferMatrices[2] = axisCorrection * glm::perspectiveFov<float>(45.0f, (float)m_swapchain->GetWidth(), (float)m_swapchain->GetHeight(), 0.1f, 1000.0f); // Projection
+			mvpBuffer->EndPopulate();
+		}
+		// ---------------------------------------------------------------------------------------------------------------
 
-		PB::PipelineDesc pipelineDesc{};
-		pipelineDesc.m_renderPass = renderPass;
-		pipelineDesc.m_subpass = 0;
-		pipelineDesc.m_renderArea = { 0, 0, m_swapchain->GetWidth(), m_swapchain->GetHeight() };
-		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_VERTEX] = vertShader;
-		pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_FRAGMENT] = fragShader;
-		pipelineDesc.m_depthCompareOP = PB::PB_COMPARE_OP_LEQUAL;
+		// Change render node output -------------------------------------------------------------------------------------
+		{
+			PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
+			auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
+			node->SetOutputTexture(swapChainTex);
+		}
+		// ---------------------------------------------------------------------------------------------------------------
 
-		auto& vertexDesc = pipelineDesc.m_vertexDesc;
-		vertexDesc.vertexSize = sizeof(Vertex);
-		vertexDesc.vertexAttributes[0] = PB::PB_VERTEX_ATTRIBUTE_FLOAT4;
-		vertexDesc.vertexAttributes[1] = PB::PB_VERTEX_ATTRIBUTE_FLOAT4;
-		vertexDesc.vertexAttributes[2] = PB::PB_VERTEX_ATTRIBUTE_FLOAT4;
-		vertexDesc.vertexAttributes[3] = PB::PB_VERTEX_ATTRIBUTE_FLOAT2;
-		auto pipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
-
-		CLib::Vector<PB::Float4, 2> clearColors = { { 0.0f, 0.0f, 0.0f, 0.0f } , { 1.0f, 1.0f, 1.0f, 1.0f } };
-
-		PB::CommandContextDesc contextDesc{};
-		contextDesc.m_renderer = m_renderer;
-		PB::SCommandContext cmdContext(m_renderer);
-		cmdContext->Init(contextDesc);
-		
-		cmdContext->Begin();
-
-		PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
-		auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
-
-		PB::TextureView attachmentViews[2] = { swapchainTextureViews[swapChainIdx], depthView };
-
-		PB::BindingLayout bindings{};
-		bindings.m_bindingLocation = PB::PB_BINDING_LAYOUT_LOCATION_DEFAULT;
-		bindings.m_bufferCount = 1;
-		bindings.m_textureCount = 1;
-		bindings.m_textures = &paintView;
-		bindings.m_samplerCount = 1;
-		bindings.m_samplers = &testSampler;
-
-		PB::BufferView bufferViews[1] = { bufView };
-		bindings.m_buffers = bufferViews;
-
-		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_COLORTARGET);
-		cmdContext->CmdTransitionTexture(depthTexture, PB::PB_TEXTURE_STATE_DEPTHTARGET);
-		cmdContext->CmdBeginRenderPass(renderPass, m_swapchain->GetWidth(), m_swapchain->GetHeight(), attachmentViews, 2, clearColors.Data(), clearColors.Count());
-		cmdContext->CmdBindPipeline(pipeline);
-
-		cmdContext->CmdBindResources(bindings);
-		cmdContext->CmdBindVertexBuffer(paintMesh->GetVertexBuffer(), paintMesh->GetIndexBuffer(), PB::PB_INDEX_TYPE_UINT32);
-		cmdContext->CmdDrawIndexed(paintMesh->IndexCount(), 1);
-
-		bindings.m_textures = &detailsView;
-		cmdContext->CmdBindResources(bindings);
-		cmdContext->CmdBindVertexBuffer(detailsMesh->GetVertexBuffer(), detailsMesh->GetIndexBuffer(), PB::PB_INDEX_TYPE_UINT32);
-		cmdContext->CmdDrawIndexed(detailsMesh->IndexCount(), 1);
-
-		bindings.m_textures = &glassView;
-		cmdContext->CmdBindResources(bindings);
-		cmdContext->CmdBindVertexBuffer(glassMesh->GetVertexBuffer(), glassMesh->GetIndexBuffer(), PB::PB_INDEX_TYPE_UINT32);
-		cmdContext->CmdDrawIndexed(glassMesh->IndexCount(), 1);
-
-		cmdContext->CmdEndRenderPass();
-		cmdContext->CmdTransitionTexture(swapChainTex, PB::PB_TEXTURE_STATE_PRESENT);
-		cmdContext->End();
-		cmdContext->Return();
+		renderGraph->Execute();
 
 		m_renderer->EndFrame();
 		m_input->EndFrame();
@@ -328,7 +251,7 @@ void Application::Run()
 		elapsedTime += deltaTime;
 		debugDisplayTime -= deltaTime;
 
-#ifdef DISPLAY_FRAME_TIME
+#if DISPLAY_FRAME_TIME
 		// Display frametime and FPS.
 		if(debugDisplayTime <= 0.0f) 
 		{
@@ -344,16 +267,10 @@ void Application::Run()
 
 	m_renderer->WaitIdle();
 
-	m_allocator.Free(paintTexture);
-	m_allocator.Free(detailsTexture);
-	m_allocator.Free(glassTexture);
+	m_renderer->FreeBuffer(mvpBuffer);
 
-	m_allocator.Free(paintMesh);
-	m_allocator.Free(detailsMesh);
-	m_allocator.Free(glassMesh);
-
-	m_renderer->FreeBuffer(testBuf);
-	m_renderer->FreeTexture(depthTexture);
+	m_allocator.Free(renderGraph);
+	m_allocator.Free(node);
 }
 
 void Application::CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen)

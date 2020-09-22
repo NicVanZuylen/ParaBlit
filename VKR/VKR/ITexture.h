@@ -11,7 +11,7 @@ namespace PB
 	{
 		PB_TEXTURE_INIT_NONE = 0,				// Simply don't initialize the contents of the texture. 
 		PB_TEXTURE_INIT_ZERO_INITIALIZE = 1,	// Initialize with empty data, ideal for render targets and other textures not read before they are written to. This is Probably the fastest initialization option.
-		PB_TEXTURE_INIT_USE_DATA = 1 << 1		// Use user-provided data to fill the texture.
+		PB_TEXTURE_INIT_USE_DATA = 1 << 1,		// Use user-provided data to fill the texture.
 	};
 
 	inline ETextureInitOptions operator | (ETextureInitOptions a, ETextureInitOptions b)
@@ -27,7 +27,8 @@ namespace PB
 
 		// Always required.
 		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
-		u16 m_pad0 = 0;
+		bool m_aliasOther = false;
+		u8 m_pad0 = 0;
 	};
 
 	struct TextureDesc
@@ -65,6 +66,21 @@ namespace PB
 			const TextureDesc& desc: Structure describing the texture's properties.
 		*/
 		PARABLIT_INTERFACE void Create(IRenderer* renderer, const TextureDesc& desc) = 0;
+
+		/*
+		Description: Get whether or not the provided texture will be a sufficient base texture for this texture to alias.
+		Return Type: bool
+		Param:
+			ITexture* baseTexture: The base texture to check.
+		*/
+		PARABLIT_INTERFACE bool CanAlias(ITexture* baseTexture) = 0;
+
+		/*
+		Description: Use this texture as an alias of the provided texture, which will share the base texture's memory.
+		Param:
+			ITexture* baseTexture: The base texture to alias.
+		*/
+		PARABLIT_INTERFACE void AliasTexture(ITexture* baseTexture) = 0;
 
 		PARABLIT_INTERFACE TextureView GetDefaultSRV() = 0;
 

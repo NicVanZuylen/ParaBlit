@@ -44,6 +44,7 @@ namespace PB
 				PageView& newSlice = pair.second;
 				newSlice.m_memory = slice.m_memory;
 				newSlice.m_memoryType = slice.m_memoryType;
+				newSlice.m_memoryTypeIndex = slice.m_memoryTypeIndex;
 				newSlice.m_start = slice.m_start + requiredSize;
 				newSlice.m_size = slice.m_size - requiredSize;
 				slice.m_size = requiredSize;
@@ -51,7 +52,7 @@ namespace PB
 			}
 			
 			// Calculate offset from start to meet memory alignment requirements.
-			slice.m_alignmentOffset = static_cast<u16>(requirements.alignment + (slice.m_start % requirements.alignment));
+			slice.m_alignmentOffset = 0;
 
 			return slice;
 		}
@@ -89,6 +90,7 @@ namespace PB
 		view.m_start = 0;
 		view.m_size = desiredSize;
 		view.m_memoryType = memType;
+		view.m_memoryTypeIndex = allocInfo.memoryTypeIndex;
 		view.m_alignmentOffset = 0;
 		return view;
 	}
