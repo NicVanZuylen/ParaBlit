@@ -9,7 +9,10 @@ namespace PB
 {
 	Texture::Texture()
 	{
-
+		m_ownsImage = false;
+		m_hasDepthPlane = false;
+		m_hasStencilPlane = false;
+		m_isAlias = false;
 	}
 
 	Texture::~Texture()
@@ -27,7 +30,7 @@ namespace PB
 		m_extents = { desc.m_width, desc.m_height, 1 };
 
 		auto& dataDesc = desc.m_data;
-		PB_ASSERT(dataDesc.m_format != PB_TEXTURE_FORMAT_UNKNOWN);
+		PB_ASSERT(dataDesc.m_format != ETextureFormat::UNKNOWN);
 
 		m_format = dataDesc.m_format;
 		m_isAlias = dataDesc.m_aliasOther;
@@ -57,7 +60,7 @@ namespace PB
 		m_hasStencilPlane = false;
 		m_isAlias = false;
 
-		PB_ASSERT(((m_availableStates & m_currentState) || m_currentState == PB_TEXTURE_STATE_NONE));
+		PB_ASSERT(((m_availableStates & m_currentState) || m_currentState == ETextureState::NONE));
 	}
 
 	void Texture::Destroy()
@@ -76,9 +79,9 @@ namespace PB
 				if(!m_isAlias)
 					m_device->GetDeviceAllocator().Free(m_memoryBlock);
 
-				m_currentState = PB_TEXTURE_STATE_NONE;
-				m_availableStates = PB_TEXTURE_STATE_NONE;
-				m_format = PB_TEXTURE_FORMAT_UNKNOWN;
+				m_currentState = ETextureState::NONE;
+				m_availableStates = ETextureState::NONE;
+				m_format = ETextureFormat::UNKNOWN;
 				m_ownsImage = true;
 			}
 		}
@@ -94,7 +97,7 @@ namespace PB
 		m_currentState = state;
 	}
 
-	ETextureStateFlags Texture::GetUsage()
+	TextureStateFlags Texture::GetUsage()
 	{
 		return m_availableStates;
 	}
@@ -131,10 +134,10 @@ namespace PB
 
 	TextureView Texture::GetDefaultSRV()
 	{
-		PB_ASSERT_MSG(m_format != PB_TEXTURE_FORMAT_UNKNOWN, "Cannot get a default view of a texture with unknown format.")
+		PB_ASSERT_MSG(m_format != ETextureFormat::UNKNOWN, "Cannot get a default view of a texture with unknown format.");
 
 		TextureViewDesc defaultSRVDesc;
-		defaultSRVDesc.m_expectedState = PB_TEXTURE_STATE_SAMPLED;
+		defaultSRVDesc.m_expectedState = ETextureState::SAMPLED;
 		defaultSRVDesc.m_format = m_format;
 		defaultSRVDesc.m_texture = this;
 		return m_renderer->GetViewCache()->GetTextureView(defaultSRVDesc);
@@ -142,10 +145,10 @@ namespace PB
 
 	TextureView Texture::GetDefaultRTV()
 	{
-		PB_ASSERT_MSG(m_format != PB_TEXTURE_FORMAT_UNKNOWN, "Cannot get a default view of a texture with unknown format.")
+		PB_ASSERT_MSG(m_format != ETextureFormat::UNKNOWN, "Cannot get a default view of a texture with unknown format.");
 
 		TextureViewDesc defaultRTVDesc;
-		defaultRTVDesc.m_expectedState = m_hasDepthPlane ? PB_TEXTURE_STATE_DEPTHTARGET : PB_TEXTURE_STATE_COLORTARGET;
+		defaultRTVDesc.m_expectedState = m_hasDepthPlane ? ETextureState::DEPTHTARGET : ETextureState::COLORTARGET;
 		defaultRTVDesc.m_format = m_format;
 		defaultRTVDesc.m_texture = this;
 		return m_renderer->GetViewCache()->GetRenderTargetView(defaultRTVDesc);
@@ -185,23 +188,23 @@ namespace PB
 
 	bool Texture::CreateImageResource(const TextureDesc& desc)
 	{
-		PB_ASSERT_MSG(desc.m_usageStates > 0, "No usage flags provided.");
-		PB_ASSERT_MSG((desc.m_usageStates & PB_TEXTURE_STATE_MAX) == 0, "Invalid texture usage flag provided.");
+		PB_ASSERT_MSG(desc.m_usageStates != ETextureState::NONE, "No usage flags provided.");
+		PB_ASSERT_MSG((desc.m_usageStates & ETextureState::MAX) == 0, "Invalid texture usage flag provided.");
 		PB_ASSERT_MSG(desc.m_width > 0 && desc.m_height > 0, "Texture cannot be zero width or height.");
 
-		if (desc.m_usageStates == 0 || (desc.m_usageStates & PB_TEXTURE_STATE_MAX) > 0)
+		if (desc.m_usageStates == ETextureState::NONE || (desc.m_usageStates & ETextureState::MAX) > 0)
 			return false;
 
 		switch (desc.m_data.m_format)
 		{
-		case PB_TEXTURE_FORMAT_D16_UNORM:
-		case PB_TEXTURE_FORMAT_D32_FLOAT:
+		case ETextureFormat::D16_UNORM:
+		case ETextureFormat::D32_FLOAT:
 			m_hasDepthPlane = true;
 			m_hasStencilPlane = false;
 			break;
-		case PB_TEXTURE_FORMAT_D16_UNORM_S8_UINT:
-		case PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT:
-		case PB_TEXTURE_FORMAT_D32_FLOAT_S8_UINT:
+		case ETextureFormat::D16_UNORM_S8_UINT:
+		case ETextureFormat::D24_UNORM_S8_UINT:
+		case ETextureFormat::D32_FLOAT_S8_UINT:
 			m_hasDepthPlane = true;
 			m_hasStencilPlane = true;
 			break;
@@ -227,8 +230,8 @@ namespace PB
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 
 		// Determine image usage.
-		if (((desc.m_initOptions & PB_TEXTURE_INIT_USE_DATA) || (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)))
-			m_availableStates |= PB_TEXTURE_STATE_COPY_DST;
+		if (((desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA) || (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_ZERO_INITIALIZE)))
+			m_availableStates |= ETextureState::COPY_DST;
 
 		imageInfo.usage = ConvertPBAvailableStatesToUsageFlags(m_availableStates);
 
@@ -253,7 +256,7 @@ namespace PB
 
 	bool Texture::AllocateMemory(const TextureDesc& desc, const VkMemoryRequirements& memRequirements)
 	{
-		m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, PB_MEMORY_TYPE_DEVICE_LOCAL, static_cast<u32>(memRequirements.size));
+		m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, EMemoryType::DEVICE_LOCAL, static_cast<u32>(memRequirements.size));
 		if (!m_memoryBlock.m_memory)
 		{
 			PB_ASSERT_MSG(false, "Failed to allocate texture memory block.");
@@ -267,25 +270,25 @@ namespace PB
 		if (m_isAlias)
 			return;
 
-		PB_ASSERT_MSG(!((desc.m_initOptions & PB_TEXTURE_INIT_USE_DATA) && (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)), "Incompatible texture initialization flags provided: PB_TEXTURE_INIT_USE_DATA, and PB_TEXTURE_INIT_ZERO_INITIALIZE.");
+		PB_ASSERT_MSG(!((desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA) && (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_ZERO_INITIALIZE)), "Incompatible texture initialization flags provided: PB_TEXTURE_INIT_USE_DATA, and PB_TEXTURE_INIT_ZERO_INITIALIZE.");
 
-		if (desc.m_initOptions & PB_TEXTURE_INIT_ZERO_INITIALIZE)
+		if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_ZERO_INITIALIZE)
 		{
-			PB_ASSERT_MSG(m_availableStates & PB_TEXTURE_STATE_COPY_DST, "Cannot zero initialize an image which does not support copy dst.");
+			PB_ASSERT_MSG(m_availableStates & ETextureState::COPY_DST, "Cannot zero initialize an image which does not support copy dst.");
 
 			// TODO: Share an internal context for initialization of all resources, as making a context for every resource will quickly bloat the graphics queue with many contexts in complex scenes.
 			CommandContext internalContext;
 			MakeInternalContext(internalContext, m_renderer);
 			internalContext.Begin();
 
-			if (m_currentState != PB_TEXTURE_STATE_COPY_DST || m_currentState != PB_TEXTURE_STATE_RAW)
+			if (m_currentState != ETextureState::COPY_DST && m_currentState != ETextureState::RAW)
 			{
 				SubresourceRange pbSubresourceRange;
 				pbSubresourceRange.m_baseMip = 0; // TODO: Support for subresources.
 				pbSubresourceRange.m_mipCount = 1;
 				pbSubresourceRange.m_firstArrayElement = 0;
 				pbSubresourceRange.m_arrayCount = 1;
-				internalContext.CmdTransitionTexture(this, PB_TEXTURE_STATE_COPY_DST, pbSubresourceRange);
+				internalContext.CmdTransitionTexture(this, ETextureState::COPY_DST, pbSubresourceRange);
 			}
 
 			// Clear image to zero by clearing it with black.
@@ -312,7 +315,7 @@ namespace PB
 			internalContext.End();
 			internalContext.Return();
 		}
-		else if (desc.m_initOptions & PB_TEXTURE_INIT_USE_DATA)
+		else if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA)
 		{
 			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentFrame());
 			auto* ptr = stagingBuffer.Map(m_device->GetHandle());
@@ -326,7 +329,7 @@ namespace PB
 			internalContext.Begin();
 
 			PB::SubresourceRange subresources{};
-			internalContext.CmdTransitionTexture(this, PB_TEXTURE_STATE_COPY_DST, subresources);
+			internalContext.CmdTransitionTexture(this, ETextureState::COPY_DST, subresources);
 
 			VkBufferImageCopy region;
 			region.bufferOffset = stagingBuffer.m_offset;

@@ -1,6 +1,5 @@
 #pragma once
 #include "ParaBlitApi.h"
-#include "ParaBlitDefs.h"
 #include "Texture.h"
 #include "CommandContext.h"
 
@@ -10,9 +9,9 @@ namespace PB
 
 	PARABLIT_API inline VkImageLayout ConvertPBStateToImageLayout(ETextureState state);
 
-	PARABLIT_API inline VkImageUsageFlags ConvertPBAvailableStatesToUsageFlags(ETextureStateFlags availableStates);
+	PARABLIT_API inline VkImageUsageFlags ConvertPBAvailableStatesToUsageFlags(TextureStateFlags availableStates);
 
-	PARABLIT_API inline VkBufferUsageFlags ConvertPBBufferUsageToVkBufferUsage(BufferUsage usage);
+	PARABLIT_API inline VkBufferUsageFlags ConvertPBBufferUsageToVkBufferUsage(BufferUsageFlags usage);
 
 	PARABLIT_API inline VkPipelineStageFlags GetSrcStatePipelineFlags(ETextureState srcState);
 
@@ -26,7 +25,7 @@ namespace PB
 
 	PARABLIT_API inline ETextureFormat ConvertVkFormatToPBFormat(VkFormat format);
 
-	PARABLIT_API inline VkPipelineStageFlags ConvertPBAttachmentUsageToStageFlags(EAttachmentUsage usage);
+	PARABLIT_API inline VkPipelineStageFlags ConvertPBAttachmentUsageToStageFlags(AttachmentUsageFlags usage);
 
 	PARABLIT_API inline VkShaderStageFlagBits ConvertPBShaderStageToVK(EShaderStage stage);
 

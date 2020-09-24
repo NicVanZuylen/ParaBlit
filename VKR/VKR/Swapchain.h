@@ -2,7 +2,7 @@
 #include "ISwapChain.h"
 #include "CLib/Vector.h"
 #include "ParaBlitApi.h"
-#include "vulkan/vulkan.h"
+#include "ParaBlitDebug.h"
 
 namespace PB 
 {
@@ -63,7 +63,7 @@ namespace PB
 		u32 m_height = 0;
 		CLib::Vector<VkImage, 3> m_swapchainImages;
 		Texture* m_wrappedSwapchainImages = nullptr;
-		ETextureFormat m_imageFormat = PB_TEXTURE_FORMAT_UNKNOWN;
+		ETextureFormat m_imageFormat = ETextureFormat::UNKNOWN;
 		u8 m_imageCount = 0;
 	};
 }

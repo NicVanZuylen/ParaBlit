@@ -1,9 +1,12 @@
 #ifndef MESH_H
 #define MESH_H
 
-#include "glm.hpp"
 #include "CLib/Vector.h"
 #include <string>
+
+#pragma warning(push, 0)
+#include "glm.hpp"
+#pragma warning(pop)
 
 #include "IRenderer.h"
 

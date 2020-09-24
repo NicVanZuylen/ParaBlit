@@ -50,13 +50,13 @@ namespace PB
 	{
 		switch (memType)
 		{
-		case PB_MEMORY_TYPE_DEVICE_LOCAL:
+		case EMemoryType::DEVICE_LOCAL:
 			return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			break;
-		case PB_MEMORY_TYPE_HOST_VISIBLE:
+		case EMemoryType::HOST_VISIBLE:
 			return VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 			break;
-		case PB_MEMORY_TYPE_END_RANGE:
+		case EMemoryType::END_RANGE:
 			PB_ASSERT_MSG(false, "Invalid memory type provided.");
 			return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			break;

@@ -28,7 +28,7 @@ namespace PB
 
 		PB_ASSERT(m_device);
 		PB_ASSERT_MSG(m_imageCount > 0, "Swap chain image count must be greater than zero.");
-		PB_ASSERT_MSG(desc.m_presentMode < PB_PRESENT_MODE_END_RANGE, "Invalid present mode.");
+		PB_ASSERT_MSG(desc.m_presentMode != EPresentMode::END_RANGE, "Invalid present mode.");
 
 		CreateSwapChain(desc);
 	}
@@ -164,6 +164,26 @@ namespace PB
 		return availableFormats[0];
 	}
 
+	inline VkPresentModeKHR PBPresentModeToVkPresentMode(EPresentMode mode)
+	{
+		switch (mode)
+		{
+		case EPresentMode::IMMEDIATE:
+			return VK_PRESENT_MODE_IMMEDIATE_KHR;
+		case EPresentMode::MAILBOX:
+			return VK_PRESENT_MODE_MAILBOX_KHR;
+		case EPresentMode::FIFO:
+			return VK_PRESENT_MODE_FIFO_KHR;
+		case EPresentMode::FIFO_RELAXED:
+			return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+		case EPresentMode::END_RANGE:
+		default:
+			PB_NOT_IMPLEMENTED;
+			return VK_PRESENT_MODE_FIFO_KHR;
+			break;
+		}
+	}
+
 	VkPresentModeKHR Swapchain::ChoosePresentMode(const SwapChainDesc& desc)
 	{
 		u32 presentModeCount = 0;
@@ -173,14 +193,15 @@ namespace PB
 		CLib::Vector<VkPresentModeKHR> presentModes(presentModeCount);
 		presentModes.SetCount(presentModeCount);
 		PB_ERROR_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_device->GetPhysicalDevice(), m_windowSurface, &presentModeCount, presentModes.Data()));
-
+		
+		auto vkPresentMode = PBPresentModeToVkPresentMode(desc.m_presentMode);
 		auto bestMode = VK_PRESENT_MODE_FIFO_KHR;
-		if (bestMode == desc.m_presentMode)
+		if (bestMode == vkPresentMode)
 			return bestMode;
 
 		for (u32 i = 0; i < presentModes.Count(); ++i)
 		{
-			if (presentModes[i] == desc.m_presentMode)
+			if (presentModes[i] == vkPresentMode)
 				return presentModes[i]; // Always prefer mailbox, unless V-sync is not allowed in the desc.
 			else if (presentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR)
 				bestMode = presentModes[i];
@@ -208,7 +229,7 @@ namespace PB
 		{
 			PB_ASSERT_MSG(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
 			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
-			wrappedTextureDesc.m_usageFlags = PB_TEXTURE_STATE_PRESENT | PB_TEXTURE_STATE_COLORTARGET |  PB_TEXTURE_STATE_COPY_DST;
+			wrappedTextureDesc.m_usageFlags = ETextureState::PRESENT | ETextureState::COLORTARGET | ETextureState::COPY_DST;
 			wrappedTextureDesc.m_width = m_width;
 			wrappedTextureDesc.m_height = m_height;
 			m_wrappedSwapchainImages[i].Create(m_renderer, wrappedTextureDesc);
@@ -222,7 +243,7 @@ namespace PB
 
 		for (u32 i = 0; i < imageCount; ++i)
 		{
-			internalContext.CmdTransitionTexture(reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[i]), PB_TEXTURE_STATE_PRESENT, {});
+			internalContext.CmdTransitionTexture(reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[i]), ETextureState::PRESENT, {});
 		}
 
 		internalContext.End();

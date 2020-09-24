@@ -1,8 +1,7 @@
 #pragma once
 #include "ParaBlitApi.h"
+#include "ParaBlitDebug.h"
 #include "CLib/Vector.h"
-#include "vulkan/vulkan.h"
-#include "ParaBlitDefs.h"
 
 #include <map>
 #include <mutex>
@@ -30,7 +29,7 @@ namespace PB
 			VkDeviceMemory m_memory = VK_NULL_HANDLE;
 			u32 m_start = 0;
 			u32 m_size = 0;
-			EMemoryType m_memoryType = PB_MEMORY_TYPE_END_RANGE;
+			EMemoryType m_memoryType = EMemoryType::END_RANGE;
 			u16 m_alignmentOffset = 0;
 			u32 m_memoryTypeIndex = 0;
 
@@ -55,7 +54,7 @@ namespace PB
 		};
 
 		Device* m_device = nullptr;
-		std::multimap<u32, PageView> m_availableBlocks[PB_MEMORY_TYPE_END_RANGE];
+		std::multimap<u32, PageView> m_availableBlocks[static_cast<u32>(EMemoryType::END_RANGE)];
 		CLib::Vector<Page, 64, 64> m_pages;
 		std::mutex m_allocatorLock;
 	};

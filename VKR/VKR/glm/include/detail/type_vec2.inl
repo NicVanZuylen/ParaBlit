@@ -1,6 +1,8 @@
 /// @ref core
 /// @file glm/core/type_tvec2.inl
 
+#pragma warning(push, 0)
+
 namespace glm
 {
 #	ifdef GLM_STATIC_CONST_MEMBERS
@@ -892,3 +894,5 @@ namespace glm
 		return tvec2<bool, P>(v1.x || v2.x, v1.y || v2.y);
 	}
 }//namespace glm
+
+#pragma warning(pop)

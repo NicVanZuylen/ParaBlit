@@ -6,20 +6,20 @@ namespace PB
 {
 	class ITexture;
 
-	enum EPresentMode : u16
+	enum class EPresentMode : u16
 	{
-		PB_PRESENT_MODE_IMMEDIATE,
-		PB_PRESENT_MODE_MAILBOX,
-		PB_PRESENT_MODE_FIFO,
-		PB_PRESENT_MODE_FIFO_RELAXED,
-		PB_PRESENT_MODE_END_RANGE,
+		IMMEDIATE,
+		MAILBOX,
+		FIFO,
+		FIFO_RELAXED,
+		END_RANGE,
 	};
 
 	struct SwapChainDesc
 	{
 		u32 m_width = 0;                                      // Leave as zero to use the surface dimension.
 		u32 m_height = 0;                                     // Leave as zero to use the surface dimension.
-		EPresentMode m_presentMode = PB_PRESENT_MODE_FIFO;
+		EPresentMode m_presentMode = EPresentMode::FIFO;
 		u8 m_imageCount = 3;
 	};
 

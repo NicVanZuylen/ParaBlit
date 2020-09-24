@@ -69,7 +69,7 @@ namespace PB
 
 	TextureView ViewCache::GetTextureView(const TextureViewDesc& desc)
 	{
-		PB_ASSERT_MSG(desc.m_expectedState != PB_TEXTURE_STATE_COLORTARGET, "Cannot use GetTextureView to get a render target view. Use GetRenderTargetView instead.");
+		PB_ASSERT_MSG(desc.m_expectedState != ETextureState::COLORTARGET, "Cannot use GetTextureView to get a render target view. Use GetRenderTargetView instead.");
 
 		auto it = m_texViewCache.find(desc);
 		if (it == m_texViewCache.end())
@@ -84,7 +84,7 @@ namespace PB
 
 	TextureView ViewCache::GetRenderTargetView(const TextureViewDesc& desc)
 	{
-		PB_ASSERT_MSG(desc.m_expectedState == PB_TEXTURE_STATE_COLORTARGET || desc.m_expectedState == PB_TEXTURE_STATE_DEPTHTARGET, "Cannot use GetRenderTargetView to get a non-render target view. Use GetTextureView instead.");
+		PB_ASSERT_MSG(desc.m_expectedState == ETextureState::COLORTARGET || desc.m_expectedState == ETextureState::DEPTHTARGET, "Cannot use GetRenderTargetView to get a non-render target view. Use GetTextureView instead.");
 
 		auto it = m_texViewCache.find(desc);
 		if (it == m_texViewCache.end())
@@ -101,7 +101,8 @@ namespace PB
 	{
 		// TODO: Reset descriptor at the view's index to avoid submitting views of destroyed resources.
 		auto it = m_texViewCache.find(desc);
-		PB_ASSERT(it != m_texViewCache.end());
+		bool cacheMiss = it == m_texViewCache.end();
+		PB_ASSERT(cacheMiss == false);
 		m_descriptorRegistry.FreeView(EDescriptorType::DESCRIPTORTYPE_TEXTURE, it->second.m_descriptorIndex);
 		vkDestroyImageView(m_device->GetHandle(), it->second.m_view, nullptr);
 		m_texViewCache.erase(it);
@@ -124,7 +125,8 @@ namespace PB
 	{
 		// TODO: Reset descriptor at the view's index to avoid submitting views of destroyed resources.
 		auto it = m_bufViewCache.find(desc);
-		PB_ASSERT(it != m_bufViewCache.end());
+		bool cacheMiss = it == m_bufViewCache.end();
+		PB_ASSERT(cacheMiss == false);
 		m_bufViewCache.erase(it);
 	}
 
@@ -150,14 +152,14 @@ namespace PB
 		bool hasStencilPlane = false;
 		switch (desc.m_format)
 		{
-		case PB_TEXTURE_FORMAT_D16_UNORM:
-		case PB_TEXTURE_FORMAT_D32_FLOAT:
+		case ETextureFormat::D16_UNORM:
+		case ETextureFormat::D32_FLOAT:
 			hasDepthPlane = true;
 			hasStencilPlane = false;
 			break;
-		case PB_TEXTURE_FORMAT_D16_UNORM_S8_UINT:
-		case PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT:
-		case PB_TEXTURE_FORMAT_D32_FLOAT_S8_UINT:
+		case ETextureFormat::D16_UNORM_S8_UINT:
+		case ETextureFormat::D24_UNORM_S8_UINT:
+		case ETextureFormat::D32_FLOAT_S8_UINT:
 			hasDepthPlane = true;
 			hasStencilPlane = true;
 			break;
@@ -192,7 +194,7 @@ namespace PB
 		viewData.m_view = newView;
 		viewData.m_expectedState = desc.m_expectedState;
 
-		if(desc.m_expectedState & (PB_TEXTURE_STATE_SAMPLED))
+		if(desc.m_expectedState == ETextureState::SAMPLED)
 			m_descriptorRegistry.RegisterView(viewData);
 		internalTex->RegisterView(desc);
 
@@ -201,7 +203,7 @@ namespace PB
 
 	BufferViewData ViewCache::CreateBufferView(const BufferViewDesc& desc)
 	{
-		PB_ASSERT(reinterpret_cast<BufferObject*>(desc.m_buffer)->GetUsage() & PB::PB_BUFFER_USAGE_UNIFORM);
+		PB_ASSERT(reinterpret_cast<BufferObject*>(desc.m_buffer)->GetUsage() & EBufferUsage::UNIFORM);
 
 		BufferViewData viewData;
 		viewData.m_buffer = reinterpret_cast<BufferObject*>(desc.m_buffer)->GetHandle();
@@ -215,10 +217,10 @@ namespace PB
 	{
 		switch (filter)
 		{
-		case PB_SAMPLER_FILTER_NEAREST:
+		case ESamplerFilter::NEAREST:
 			return VK_FILTER_NEAREST;
 			break;
-		case PB_SAMPLER_FILTER_BILINEAR:
+		case ESamplerFilter::BILINEAR:
 			return VK_FILTER_LINEAR;
 			break;
 		default:
@@ -231,13 +233,13 @@ namespace PB
 	{
 		switch (mode)
 		{
-		case PB_SAMPLER_REPEAT_REPEAT:
+		case ESamplerRepeatMode::REPEAT:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 			break;
-		case PB_SAMPLER_REPEAT_MIRRORED_REPEAT:
+		case ESamplerRepeatMode::MIRRORED_REPEAT:
 			return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 			break;
-		case PB_SAMPLER_REPEAT_CLAMP:
+		case ESamplerRepeatMode::CLAMP:
 			return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
 			break;
 		default:
@@ -250,10 +252,10 @@ namespace PB
 	{
 		switch (filter)
 		{
-		case PB_SAMPLER_FILTER_NEAREST:
+		case ESamplerFilter::NEAREST:
 			return VK_SAMPLER_MIPMAP_MODE_NEAREST;
 			break;
-		case PB_SAMPLER_FILTER_BILINEAR:
+		case ESamplerFilter::BILINEAR:
 			return VK_SAMPLER_MIPMAP_MODE_LINEAR;
 			break;
 		default:

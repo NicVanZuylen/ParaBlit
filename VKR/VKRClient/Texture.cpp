@@ -3,7 +3,9 @@
 #include <string>
 
 #define STB_IMAGE_IMPLEMENTATION
+#pragma warning(push, 0)
 #include "stb_image.h"
+#pragma warning(pop)
 
 namespace PBClient
 {
@@ -32,11 +34,11 @@ namespace PBClient
 
 			PB::TextureDesc textureDesc;
 			textureDesc.m_data.m_data = m_data;
-			textureDesc.m_data.m_format = PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM;
+			textureDesc.m_data.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 			textureDesc.m_data.m_size = size; // TODO: Better format support
 
-			textureDesc.m_initOptions = PB::PB_TEXTURE_INIT_USE_DATA;
-			textureDesc.m_usageStates = PB::PB_TEXTURE_STATE_SAMPLED;
+			textureDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
+			textureDesc.m_usageStates = PB::ETextureState::SAMPLED;
 			textureDesc.m_width = m_width;
 			textureDesc.m_height = m_height;
 

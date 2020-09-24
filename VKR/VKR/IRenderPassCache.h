@@ -6,9 +6,9 @@ namespace PB
 {
 	struct AttachmentUsageDesc
 	{
-		EAttachmentUsage m_usage = PB_ATTACHMENT_USAGE_NONE;
+		AttachmentUsageFlags m_usage = EAttachmentUsage::NONE;
 		u8 m_attachmentIdx = 0;
-		ETextureFormat m_attachmentFormat = PB_TEXTURE_FORMAT_UNKNOWN;
+		ETextureFormat m_attachmentFormat = ETextureFormat::UNKNOWN;
 	};
 
 	struct SubpassDesc
@@ -18,10 +18,10 @@ namespace PB
 
 	struct AttachmentDesc
 	{
-		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
-		ETextureState m_expectedState = PB_TEXTURE_STATE_NONE;
-		ETextureState m_finalState = PB_TEXTURE_STATE_NONE;
-		EAttachmentAction m_loadAction = PB_ATTACHMENT_START_ACTION_NONE;
+		ETextureFormat m_format = ETextureFormat::UNKNOWN;
+		ETextureState m_expectedState = ETextureState::NONE;
+		ETextureState m_finalState = ETextureState::NONE;
+		EAttachmentAction m_loadAction = EAttachmentAction::NONE;
 		bool m_keepContents = true;
 		u8 m_pad[7]{};
 	};

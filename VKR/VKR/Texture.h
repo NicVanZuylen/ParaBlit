@@ -1,7 +1,7 @@
 #pragma once
 #include "ITexture.h"
 #include "ParaBlitApi.h"
-#include "vulkan/vulkan.h"
+#include "ParaBlitDebug.h"
 #include "DeviceAllocator.h"
 
 namespace PB 
@@ -13,8 +13,8 @@ namespace PB
 	struct WrappedTextureDesc
 	{
 		VkImage m_wrappedImage = VK_NULL_HANDLE;
-		ETextureState m_currentUsage = PB_TEXTURE_STATE_NONE;
-		ETextureStateFlags m_usageFlags = PB_TEXTURE_STATE_NONE;
+		ETextureState m_currentUsage = ETextureState::NONE;
+		TextureStateFlags m_usageFlags = ETextureState::NONE;
 		u32 m_width = 0;
 		u32 m_height = 0;
 	};
@@ -37,7 +37,7 @@ namespace PB
 
 		PARABLIT_API void SetState(ETextureState state);
 
-		PARABLIT_API ETextureStateFlags GetUsage();
+		PARABLIT_API TextureStateFlags GetUsage();
 
 		PARABLIT_API ETextureState GetState();
 
@@ -74,9 +74,9 @@ namespace PB
 		VkImage m_image = VK_NULL_HANDLE;
 		VkExtent3D m_extents = { 1, 1, 1 };
 		DeviceAllocator::PageView m_memoryBlock;
-		ETextureStateFlags m_availableStates = PB_TEXTURE_STATE_NONE;
-		ETextureState m_currentState = PB_TEXTURE_STATE_NONE;
-		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
+		TextureStateFlags m_availableStates = ETextureState::NONE;
+		ETextureState m_currentState = ETextureState::NONE;
+		ETextureFormat m_format = ETextureFormat::UNKNOWN;
 		bool m_ownsImage : 1; // There may be some cases (Such as swap chain images), where the VkImage is already created for us. This flags (if false) for this object to not delete the VkImage when destroyed.
 		bool m_hasDepthPlane : 1;
 		bool m_hasStencilPlane : 1;

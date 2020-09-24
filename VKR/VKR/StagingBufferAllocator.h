@@ -1,8 +1,7 @@
 #pragma once
 #include "ParaBlitDefs.h"
+#include "ParaBlitDebug.h"
 #include "CLib/Vector.h"
-
-#include "vulkan/vulkan.h"
 
 namespace PB
 {
@@ -28,7 +27,7 @@ namespace PB
 		void Destroy();
 
 		// Allocate temporary buffer. Lifetime is for as long as the buffer's frame it was allocated for is in flight.
-		TempBuffer NewTempBuffer(u32 size, u64 currentFrame, EMemoryType memoryType = PB_MEMORY_TYPE_HOST_VISIBLE);
+		TempBuffer NewTempBuffer(u32 size, u64 currentFrame, EMemoryType memoryType = EMemoryType::HOST_VISIBLE);
 
 	private:
 
@@ -44,6 +43,6 @@ namespace PB
 		inline void AllocatePageBuffer(EMemoryType memoryType, u32 desiredSize);
 
 		Device* m_device = nullptr;
-		CLib::Vector<InternalBuffer, 32> m_bufferPages[PB_MEMORY_TYPE_END_RANGE];
+		CLib::Vector<InternalBuffer, 32> m_bufferPages[static_cast<u32>(EMemoryType::END_RANGE)];
 	};
 }

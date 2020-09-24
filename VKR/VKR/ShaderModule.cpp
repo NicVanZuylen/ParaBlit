@@ -3,8 +3,6 @@
 #include "Device.h"
 #include "MurmurHash3.h"
 
-#include "vulkan/vulkan.h"
-
 namespace PB
 {
 	size_t ShaderModuleDescHasher::operator()(const ShaderModuleDesc& desc) const

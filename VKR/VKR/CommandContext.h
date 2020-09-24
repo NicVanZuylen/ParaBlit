@@ -2,7 +2,6 @@
 #include "ICommandContext.h"
 #include "ParaBlitApi.h"
 #include "ParaBlitDefs.h"
-#include "vulkan/vulkan.h"
 #include "StagingBufferAllocator.h"
 
 #include <unordered_map>
@@ -69,8 +68,6 @@ namespace PB
 
 		PARABLIT_API inline void ValidateRecordingState();
 
-		inline void PreDraw();
-
 		static constexpr const u32 MaxPushConstantBytes = 128; // Vulkan spec requirement, all Vulkan compatible hardware will support 128 bytes for push constants.
 
 		struct BindingState
@@ -83,8 +80,8 @@ namespace PB
 		BindingState* m_bindingState = nullptr;
 		VkCommandBuffer m_cmdBuffer = VK_NULL_HANDLE;
 		VkPipelineLayout m_curPipelineLayout = VK_NULL_HANDLE;
-		ECmdContextState m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
-		ECommandContextUsage m_usage = PB_COMMAND_CONTEXT_USAGE_COPY; // Copy by default since any device queue is capable of copy operations.
+		ECmdContextState m_state = ECmdContextState::OPEN;
+		ECommandContextUsage m_usage = ECommandContextUsage::COPY; // Copy by default since any device queue is capable of copy operations.
 		bool m_isPriority : 1;
 		bool m_isInternal : 1;
 		bool m_activeRenderpass : 1;

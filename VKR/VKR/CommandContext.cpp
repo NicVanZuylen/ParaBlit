@@ -20,19 +20,19 @@ namespace PB
 	{
 		if (m_cmdBuffer != VK_NULL_HANDLE)
 		{
-			if (m_state == PB_COMMAND_CONTEXT_STATE_RECORDING)
+			if (m_state == ECmdContextState::RECORDING)
 			{
 				End();
 				Return();
 			}
-			else if (m_state == PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION)
+			else if (m_state == ECmdContextState::PENDING_SUBMISSION)
 			{
 				Return();
 			}
 			else
 			{
 				m_renderer->ReturnOpenBuffer(*this);
-				m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
+				m_state = ECmdContextState::OPEN;
 			}
 
 			m_cmdBuffer = VK_NULL_HANDLE;
@@ -48,12 +48,12 @@ namespace PB
 	void CommandContext::Init(CommandContextDesc& desc)
 	{
 		PB_ASSERT(desc.m_renderer);
-		PB_ASSERT(desc.m_usage <= PB_COMMAND_CONTEXT_USAGE_MAX);
+		PB_ASSERT(desc.m_usage != ECommandContextUsage::END_RANGE);
 
 		m_renderer = reinterpret_cast<Renderer*>(desc.m_renderer);
 		m_device = m_renderer->GetDevice();
 		m_usage = desc.m_usage;
-		m_isPriority = (desc.m_flags & PB_COMMAND_CONTEXT_PRIORITY) > 0;
+		m_isPriority = (desc.m_flags & ECommandContextFlags::PRIORITY) > 0;
 		m_activeRenderpass = false;
 
 		m_bindingState = m_renderer->GetAllocator().Alloc<BindingState>();
@@ -82,16 +82,16 @@ namespace PB
 		if (res != VK_SUCCESS)
 		{
 			PB_ASSERT_MSG(false, "Failed to begin command buffer recording.");
-			m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
+			m_state = ECmdContextState::OPEN;
 		}
 
-		m_state = PB_COMMAND_CONTEXT_STATE_RECORDING;
+		m_state = ECmdContextState::RECORDING;
 	}
 
 	void CommandContext::End()
 	{
-		PB_ASSERT_MSG(m_state == PB_COMMAND_CONTEXT_STATE_RECORDING, "Cannot end recording of a command context that is not currently recording.");
-		if (m_state != PB_COMMAND_CONTEXT_STATE_RECORDING)
+		PB_ASSERT_MSG(m_state == ECmdContextState::RECORDING, "Cannot end recording of a command context that is not currently recording.");
+		if (m_state != ECmdContextState::RECORDING)
 			return;
 
 		if (m_activeRenderpass)
@@ -102,16 +102,16 @@ namespace PB
 		PB_ERROR_CHECK(vkEndCommandBuffer(m_cmdBuffer));
 		PB_BREAK_ON_ERROR;
 
-		m_state = PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION;
+		m_state = ECmdContextState::PENDING_SUBMISSION;
 	}
 
 	void CommandContext::Return()
 	{
-		PB_ASSERT_MSG(m_state == PB_COMMAND_CONTEXT_STATE_PENDING_SUBMISSION, "Cannot submit command context that is not yet recorded or currently recording.");
+		PB_ASSERT_MSG(m_state == ECmdContextState::PENDING_SUBMISSION, "Cannot submit command context that is not yet recorded or currently recording.");
 
 		PB_COMMAND_CONTEXT_LOG("Returned recorded command buffer [%X] from command context [%X].", m_cmdBuffer, this);
 		m_renderer->ReturnCommandBuffer(*this); // Give the command buffer back to the renderer for submission at the end of the frame.
-		m_state = PB_COMMAND_CONTEXT_STATE_OPEN;
+		m_state = ECmdContextState::OPEN;
 	}
 
 	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount)
@@ -242,7 +242,7 @@ namespace PB
 	{
 		ValidateRecordingState();
 		PB_ASSERT(texture);
-		PB_ASSERT(newState < PB_TEXTURE_STATE_MAX);
+		PB_ASSERT(newState < ETextureState::MAX);
 
 		Texture* internalTex = reinterpret_cast<Texture*>(texture);
 
@@ -285,6 +285,8 @@ namespace PB
 
 	void CommandContext::CmdBindPipeline(Pipeline pipeline)
 	{
+		ValidateRecordingState();
+
 		PipelineData* pipelineData = reinterpret_cast<PipelineData*>(pipeline);
 		vkCmdBindPipeline(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineData->m_pipeline);
 		m_curPipelineLayout = pipelineData->m_layout;
@@ -299,10 +301,12 @@ namespace PB
 
 	void CommandContext::CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType)
 	{
+		ValidateRecordingState();
+
 		const BufferObject* internalVBuffer = reinterpret_cast<const BufferObject*>(vertexBuffer);
 
 		PB_ASSERT(vertexBuffer);
-		PB_ASSERT_MSG(internalVBuffer->GetUsage() & PB_BUFFER_USAGE_VERTEX, "Provided vertex buffer cannot be used as a vertex buffer. Add the usage flag PB_BUFFER_USAGE_VERTEX to use it as a vertex buffer.");
+		PB_ASSERT_MSG(internalVBuffer->GetUsage() & EBufferUsage::VERTEX, "Provided vertex buffer cannot be used as a vertex buffer. Add the usage flag PB_BUFFER_USAGE_VERTEX to use it as a vertex buffer.");
 
 		VkBuffer vertexBufferHandle = internalVBuffer->GetHandle();
 		VkDeviceSize vertexOffset = 0;
@@ -311,7 +315,7 @@ namespace PB
 		if (indexBuffer != nullptr)
 		{
 			const BufferObject* internalIBuffer = reinterpret_cast<const BufferObject*>(indexBuffer);
-			PB_ASSERT_MSG(internalIBuffer->GetUsage() & PB_BUFFER_USAGE_INDEX, "Provided index buffer cannot be used as a vertex buffer. Add the usage flag PB_BUFFER_USAGE_INDEX to use it as a index buffer.");
+			PB_ASSERT_MSG(internalIBuffer->GetUsage() & EBufferUsage::INDEX, "Provided index buffer cannot be used as a vertex buffer. Add the usage flag PB_BUFFER_USAGE_INDEX to use it as a index buffer.");
 
 			VkBuffer indexBufferHandle = internalIBuffer->GetHandle();
 
@@ -335,16 +339,20 @@ namespace PB
 
 	void CommandContext::CmdDraw(u32 vertexCount, u32 instanceCount)
 	{
+		ValidateRecordingState();
 		vkCmdDraw(m_cmdBuffer, vertexCount, instanceCount, 0, 0);
 	}
 
 	void CommandContext::CmdDrawIndexed(u32 indexCount, u32 instanceCount)
 	{
+		ValidateRecordingState();
 		vkCmdDrawIndexed(m_cmdBuffer, indexCount, 1, 0, 0, 0);
 	}
 
 	void CommandContext::CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size)
 	{
+		ValidateRecordingState();
+
 		BufferObject* srcInternal = reinterpret_cast<BufferObject*>(src);
 		BufferObject* dstInternal = reinterpret_cast<BufferObject*>(dst);
 		
@@ -357,10 +365,12 @@ namespace PB
 
 	void CommandContext::CmdBindResources(const BindingLayout& layout)
 	{
+		ValidateRecordingState();
+
 		PB_ASSERT_MSG(m_curPipelineLayout != VK_NULL_HANDLE, "A pipeline must be bound before shader resources are bound.");
 		PB_ASSERT_MSG(layout.m_bufferCount <= m_device->GetDescriptorIndexingProperties()->maxDescriptorSetUpdateAfterBindUniformBuffers - 1, "Attempting to bind too many buffers.");
 
-		if (layout.m_bindingLocation == PB_BINDING_LAYOUT_LOCATION_DEFAULT)
+		if (layout.m_bindingLocation == EBindingLayoutLocation::DEFAULT)
 		{
 			constexpr u32 MaxBindings = MaxPushConstantBytes / sizeof(u32);
 
@@ -435,10 +445,12 @@ namespace PB
 
 	void CommandContext::CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst)
 	{
+		ValidateRecordingState();
+
 		PB::Texture* srcInternal = reinterpret_cast<PB::Texture*>(src);
 		PB::Texture* dstInternal = reinterpret_cast<PB::Texture*>(dst);
 
-		PB_ASSERT(srcInternal->GetUsage() & PB_TEXTURE_STATE_COPY_SRC && dstInternal->GetUsage() & PB_TEXTURE_STATE_COPY_DST);
+		PB_ASSERT(srcInternal->GetUsage() & ETextureState::COPY_SRC && dstInternal->GetUsage() & ETextureState::COPY_DST);
 		PB_ASSERT(dstInternal->GetExtent().width >= srcInternal->GetExtent().width && dstInternal->GetExtent().height >= srcInternal->GetExtent().height);
 		PB_ASSERT((srcInternal->HasDepthPlane() && dstInternal->HasDepthPlane()) || (!srcInternal->HasDepthPlane() && !dstInternal->HasDepthPlane()));
 
@@ -464,7 +476,7 @@ namespace PB
 
 	void CommandContext::ValidateRecordingState()
 	{
-		PB_ASSERT_MSG(m_state == PB_COMMAND_CONTEXT_STATE_RECORDING, "Command context must be recording in-order to issue commands.");
+		PB_ASSERT_MSG(m_state == ECmdContextState::RECORDING, "Command context must be recording in-order to issue commands.");
 		PB_ASSERT(m_cmdBuffer != VK_NULL_HANDLE);
 	}
 }

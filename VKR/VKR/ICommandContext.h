@@ -20,8 +20,8 @@ namespace PB
 	struct CommandContextDesc
 	{
 		IRenderer* m_renderer = nullptr;
-		ECommandContextUsage m_usage = PB_COMMAND_CONTEXT_USAGE_GRAPHICS;
-		ECommandContextFlags m_flags = PB_COMMAND_CONTEXT_NONE;
+		ECommandContextUsage m_usage = ECommandContextUsage::GRAPHICS;
+		CommandContextFlags m_flags = ECommandContextFlags::NONE;
 	};
 
 	enum EIndexType

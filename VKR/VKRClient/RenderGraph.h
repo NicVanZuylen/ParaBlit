@@ -13,7 +13,7 @@ enum class EAttachmentFlags
 	COPY_SRC = 1 << 0,
 	COPY_DST = 1 << 1
 };
-using AttachmentFlags = PB::BitField<EAttachmentFlags>;
+using AttachmentFlags = PB::EnumField<EAttachmentFlags>;
 
 struct AttachmentDesc
 {
@@ -65,7 +65,7 @@ private:
 		const char* m_name = nullptr;
 		uint32_t m_width;
 		uint32_t m_height;
-		PB::ETextureStateFlags m_usage;
+		PB::TextureStateFlags m_usage;
 		PB::ETextureFormat m_format;
 		AttachmentFlags m_flags; 
 	};

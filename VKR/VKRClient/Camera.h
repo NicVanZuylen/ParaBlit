@@ -1,7 +1,10 @@
 #pragma once
+
+#pragma warning(push, 0)
 #include "glm.hpp"
 #include "glm\include\gtc\quaternion.hpp"
 #include "glm/include/ext.hpp"
+#pragma warning(pop)
 
 class Input;
 

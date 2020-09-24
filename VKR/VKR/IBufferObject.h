@@ -9,7 +9,7 @@ namespace PB
 
 	struct BufferObjectDesc
 	{
-		BufferOptions m_options{};
+		BufferOptionFlags m_options{};
 		BufferUsage m_usage{};
 		u32 m_bufferSize = 0;
 	};

@@ -40,15 +40,17 @@ namespace PB
 
 	TempBuffer TempBufferAllocator::NewTempBuffer(u32 size, u64 currentFrame, EMemoryType memoryType)
 	{
+		u32 memoryTypeIdx = static_cast<u32>(memoryType);
+
 		// Attempt to sub-allocate from an existing page first before otherwise allocating a new buffer entirely.
-		for (auto& page : m_bufferPages[memoryType])
+		for (auto& page : m_bufferPages[memoryTypeIdx])
 		{
 			if (page.m_lastUsedFrame < currentFrame)
 			{
 				// Clear this page if there are no in-flight allocations using it.
 				page.m_allocated = 0;
 				// Swap this page to the beginning of the array to avoid iteration.
-				std::swap<InternalBuffer>(page, m_bufferPages[memoryType][0]);
+				std::swap<InternalBuffer>(page, m_bufferPages[memoryTypeIdx][0]);
 			}
 
 			if (page.m_size - page.m_allocated < size)
@@ -67,7 +69,7 @@ namespace PB
 
 		// Out of page memory, allocate another page.
 		AllocatePageBuffer(memoryType, size);
-		auto& newPage = m_bufferPages[memoryType].Back();
+		auto& newPage = m_bufferPages[memoryTypeIdx].Back();
 		TempBuffer newView;
 		newView.m_parentBuffer = newPage.m_buffer;
 		newView.m_parentMemory = newPage.m_memory;
@@ -87,7 +89,7 @@ namespace PB
 
 		u32 requiredSize = pageSize >= desiredSize ? pageSize : desiredSize;
 
-		InternalBuffer& newPage = m_bufferPages[memoryType].PushBack();
+		InternalBuffer& newPage = m_bufferPages[static_cast<u32>(memoryType)].PushBack();
 		auto queueFamilyIndex = static_cast<u32>(m_device->GetGraphicsQueueFamilyIndex());
 
 		VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr };
@@ -98,10 +100,10 @@ namespace PB
 		bufferInfo.size = requiredSize;
 		switch (memoryType)
 		{
-		case PB_MEMORY_TYPE_HOST_VISIBLE:
+		case EMemoryType::HOST_VISIBLE:
 			bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 			break;
-		case PB_MEMORY_TYPE_DEVICE_LOCAL:
+		case EMemoryType::DEVICE_LOCAL:
 			bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 			break;
 		default:

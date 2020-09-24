@@ -79,13 +79,13 @@ namespace PBClient
 			PB::BufferObjectDesc vertexBufferDesc;
 			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
 			vertexBufferDesc.m_options = 0;
-			vertexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_VERTEX;
+			vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
 			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
 			PB::BufferObjectDesc indexBufferDesc;
 			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
 			indexBufferDesc.m_options = 0;
-			indexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_INDEX;
+			indexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX;
 			m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
 
 			// Move read offset to vertex start offset.
@@ -161,13 +161,13 @@ namespace PBClient
 			PB::BufferObjectDesc vertexBufferDesc;
 			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
 			vertexBufferDesc.m_options = 0;
-			vertexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_VERTEX;
+			vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
 			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
 			PB::BufferObjectDesc indexBufferDesc;
 			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
 			indexBufferDesc.m_options = 0;
-			indexBufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_INDEX;
+			indexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX;
 			m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
 
 			// Copy vertex data...

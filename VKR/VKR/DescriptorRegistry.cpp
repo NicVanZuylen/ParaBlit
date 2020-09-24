@@ -5,11 +5,11 @@
 
 namespace PB
 {
-	inline VkDescriptorType GetDescTypeFromExpectedState(ETextureStateFlags state)
+	inline VkDescriptorType GetDescTypeFromExpectedState(ETextureState state)
 	{
 		switch (state)
 		{
-		case PB_TEXTURE_STATE_SAMPLED:
+		case ETextureState::SAMPLED:
 			return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		default:
 			return VK_DESCRIPTOR_TYPE_MAX_ENUM;
@@ -24,14 +24,14 @@ namespace PB
 		// Assign this texture to it's respective descriptor slot.
 		VkWriteDescriptorSet texWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
 		texWrite.descriptorCount = 1;
-		texWrite.descriptorType = GetDescTypeFromExpectedState((ETextureStateFlags)viewData.m_expectedState);
+		texWrite.descriptorType = GetDescTypeFromExpectedState(viewData.m_expectedState);
 		texWrite.dstSet = m_masterSet;
 		texWrite.dstBinding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_TEXTURE);
 		texWrite.dstArrayElement = viewData.m_descriptorIndex;
 
 		VkDescriptorImageInfo texImgInfo{};
 		texImgInfo.imageView = viewData.m_view;
-		texImgInfo.imageLayout = ConvertPBStateToImageLayout((ETextureState)viewData.m_expectedState);
+		texImgInfo.imageLayout = ConvertPBStateToImageLayout(viewData.m_expectedState);
 		texImgInfo.sampler = VK_NULL_HANDLE;
 		texWrite.pImageInfo = &texImgInfo;
 

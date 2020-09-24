@@ -7,12 +7,13 @@ namespace PB
 	class ITexture;
 	class IRenderer;
 
-	enum ETextureInitOptions
+	enum class ETextureInitOptions : u32
 	{
 		PB_TEXTURE_INIT_NONE = 0,				// Simply don't initialize the contents of the texture. 
 		PB_TEXTURE_INIT_ZERO_INITIALIZE = 1,	// Initialize with empty data, ideal for render targets and other textures not read before they are written to. This is Probably the fastest initialization option.
 		PB_TEXTURE_INIT_USE_DATA = 1 << 1,		// Use user-provided data to fill the texture.
 	};
+	PB_DEFINE_ENUM_FIELD(TextureInitOptionFlags, ETextureInitOptions, u32)
 
 	inline ETextureInitOptions operator | (ETextureInitOptions a, ETextureInitOptions b)
 	{
@@ -26,7 +27,7 @@ namespace PB
 		u32 m_size = 0;
 
 		// Always required.
-		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
+		ETextureFormat m_format = ETextureFormat::UNKNOWN;
 		bool m_aliasOther = false;
 		u8 m_pad0 = 0;
 	};
@@ -34,9 +35,9 @@ namespace PB
 	struct TextureDesc
 	{
 		TextureDataDesc m_data;
-		ETextureState m_initialState = PB_TEXTURE_STATE_NONE;
-		ETextureStateFlags m_usageStates = PB_TEXTURE_STATE_NONE;
-		ETextureInitOptions m_initOptions = PB_TEXTURE_INIT_NONE;
+		ETextureState m_initialState = ETextureState::NONE;
+		TextureStateFlags m_usageStates = ETextureState::NONE;
+		TextureInitOptionFlags m_initOptions = ETextureInitOptions::PB_TEXTURE_INIT_NONE;
 		u32 m_width = 0;
 		u32 m_height = 0;
 	};
@@ -44,13 +45,36 @@ namespace PB
 	struct TextureViewDesc
 	{
 		ITexture* m_texture = nullptr;							// Can be left as null if the image is never sampled.
-		SubresourceRange m_subresources = {};								// Specifies which subresources of the image to include in the view.
-		ETextureFormat m_format = PB_TEXTURE_FORMAT_UNKNOWN;
-		ETextureStateFlags m_expectedState = PB_TEXTURE_STATE_NONE;
+		SubresourceRange m_subresources = {};					// Specifies which subresources of the image to include in the view.
+		ETextureFormat m_format = ETextureFormat::UNKNOWN;
+		ETextureState m_expectedState = ETextureState::NONE;
 		u64 m_pad0 = 0;
 		// TODO: ONGOING: Add additional view parameters as needed.
 
 		bool operator == (const TextureViewDesc& other) const;
+	};
+
+	enum class ESamplerFilter
+	{
+		NEAREST,
+		BILINEAR,
+	};
+
+	enum class ESamplerRepeatMode
+	{
+		REPEAT,
+		MIRRORED_REPEAT,
+		CLAMP,
+	};
+
+	struct SamplerDesc
+	{
+		ESamplerFilter m_filter = ESamplerFilter::BILINEAR;
+		ESamplerFilter m_mipFilter = ESamplerFilter::BILINEAR;
+		ESamplerRepeatMode m_repeatMode = ESamplerRepeatMode::REPEAT;
+		float m_anisotropyLevels = 0.0f;
+
+		bool operator == (const SamplerDesc& other) const;
 	};
 
 	class IRenderer;

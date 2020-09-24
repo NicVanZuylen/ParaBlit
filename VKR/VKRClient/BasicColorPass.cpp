@@ -48,7 +48,7 @@ void BasicColorPass::OnPassBegin(const RenderGraphInfo& info)
 	PB::BufferView mvpView = m_mvpBuffer->GetView();
 
 	PB::BindingLayout bindings{};
-	bindings.m_bindingLocation = PB::PB_BINDING_LAYOUT_LOCATION_DEFAULT;
+	bindings.m_bindingLocation = PB::EBindingLayoutLocation::DEFAULT;
 	bindings.m_bufferCount = 1;
 	bindings.m_buffers = &mvpView;
 	bindings.m_textureCount = 1;
@@ -62,16 +62,16 @@ void BasicColorPass::OnPassBegin(const RenderGraphInfo& info)
 	pipelineDesc.m_renderPass = info.m_renderPass;
 	pipelineDesc.m_subpass = 0;
 	pipelineDesc.m_renderArea = { 0, 0, info.m_renderer->GetSwapchain()->GetWidth(), info.m_renderer->GetSwapchain()->GetHeight() };
-	pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_VERTEX] = m_vertShader->GetModule();
-	pipelineDesc.m_shaderModules[PB::PB_SHADER_STAGE_FRAGMENT] = m_fragShader->GetModule();
-	pipelineDesc.m_depthCompareOP = PB::PB_COMPARE_OP_LEQUAL;
+	pipelineDesc.m_shaderModules[PB::EShaderStage::PB_SHADER_STAGE_VERTEX] = m_vertShader->GetModule();
+	pipelineDesc.m_shaderModules[PB::EShaderStage::PB_SHADER_STAGE_FRAGMENT] = m_fragShader->GetModule();
+	pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
 
 	auto& vertexDesc = pipelineDesc.m_vertexDesc;
 	vertexDesc.vertexSize = sizeof(Vertex);
-	vertexDesc.vertexAttributes[0] = PB::PB_VERTEX_ATTRIBUTE_FLOAT4;
-	vertexDesc.vertexAttributes[1] = PB::PB_VERTEX_ATTRIBUTE_FLOAT4;
-	vertexDesc.vertexAttributes[2] = PB::PB_VERTEX_ATTRIBUTE_FLOAT4;
-	vertexDesc.vertexAttributes[3] = PB::PB_VERTEX_ATTRIBUTE_FLOAT2;
+	vertexDesc.vertexAttributes[0] = PB::EVertexAttributeType::FLOAT4;
+	vertexDesc.vertexAttributes[1] = PB::EVertexAttributeType::FLOAT4;
+	vertexDesc.vertexAttributes[2] = PB::EVertexAttributeType::FLOAT4;
+	vertexDesc.vertexAttributes[3] = PB::EVertexAttributeType::FLOAT2;
 	auto pipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 
 	cmdContext->CmdBindPipeline(pipeline);
@@ -95,14 +95,14 @@ void BasicColorPass::OnPassBegin(const RenderGraphInfo& info)
 void BasicColorPass::OnPostRenderPass(const RenderGraphInfo& info)
 {
 	// Transition color and output to correct layouts...
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[0], PB::PB_TEXTURE_STATE_COPY_SRC);
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::PB_TEXTURE_STATE_COPY_DST);
+	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[0], PB::ETextureState::COPY_SRC);
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST);
 
 	// Copy color to output.
 	info.m_commandContext->CmdCopyTextureToTexture(info.m_renderTargets[0], m_outputTexture);
 
 	// Transition output texture to present.
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::PB_TEXTURE_STATE_PRESENT);
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT);
 }
 
 void BasicColorPass::SetOutputTexture(PB::ITexture* tex)

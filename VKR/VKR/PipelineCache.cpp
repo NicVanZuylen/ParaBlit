@@ -11,7 +11,7 @@ namespace PB
 	bool PipelineDesc::operator==(const PipelineDesc& other) const
 	{
 		bool stageModulesEqual = true;
-		for (u32 i = 0; i < PB_SHADER_STAGE_COUNT; ++i)
+		for (u32 i = 0; i < static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT); ++i)
 			stageModulesEqual &= (m_shaderModules[i] == other.m_shaderModules[i]);
 		return m_renderPass == other.m_renderPass && m_subpass == other.m_subpass && stageModulesEqual;
 	}
@@ -99,7 +99,7 @@ namespace PB
 		CLib::Vector<VkVertexInputAttributeDescription, VertexDesc::MaxVertexAttributes> attrDescriptions;
 		for (auto& attrType : desc.m_vertexDesc.vertexAttributes)
 		{
-			if (attrType == PB_VERTEX_ATTRIBUTE_NONE)
+			if (attrType == EVertexAttributeType::NONE)
 				break;
 
 			VkVertexInputAttributeDescription& vertexAttrDesc = attrDescriptions.PushBack();
@@ -146,7 +146,7 @@ namespace PB
 		depthStencilState.minDepthBounds = 0.0f;
 		depthStencilState.depthBoundsTestEnable = VK_TRUE;
 		depthStencilState.depthCompareOp = PBCompareOPtoVKCompareOP(desc.m_depthCompareOP);
-		depthStencilState.depthTestEnable = desc.m_depthCompareOP != PB_COMPARE_OP_ALWAYS;
+		depthStencilState.depthTestEnable = desc.m_depthCompareOP != ECompareOP::ALWAYS;
 		depthStencilState.depthWriteEnable = depthStencilState.depthTestEnable; // TODO: This should be a separate toggle from depth test.
 		depthStencilState.stencilTestEnable = desc.m_stencilTestEnable;
 		depthStencilState.flags = 0;
@@ -184,8 +184,8 @@ namespace PB
 		dynamicStatesInfo.dynamicStateCount = _countof(dynamicStates);
 		dynamicStatesInfo.pDynamicStates = dynamicStates;
 
-		CLib::Vector<VkPipelineShaderStageCreateInfo, PB_SHADER_STAGE_COUNT> shaderStages;
-		for (u32 i = 0; i < PB_SHADER_STAGE_COUNT; ++i)
+		CLib::Vector<VkPipelineShaderStageCreateInfo, static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT)> shaderStages;
+		for (u32 i = 0; i < static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT); ++i)
 		{
 			VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr };
 			stage.flags = 0;

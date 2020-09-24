@@ -1,8 +1,8 @@
 #pragma once
 #include "ParaBlitDefs.h"
+#include "ParaBlitDebug.h"
 #include "CLib/Vector.h"
 
-#include <vulkan/vulkan.h>
 
 namespace PB
 {
@@ -25,7 +25,7 @@ namespace PB
 	{
 		VkImageView m_view = VK_NULL_HANDLE;
 		u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
-		u32 m_expectedState = 0;
+		ETextureState m_expectedState = ETextureState::NONE;
 	};
 
 	struct BufferViewData
@@ -85,7 +85,7 @@ namespace PB
 		VkDescriptorSetLayout m_masterSetLayout = VK_NULL_HANDLE;
 		VkDescriptorSet m_masterSet = VK_NULL_HANDLE;
 
-		Device* m_device;
+		Device* m_device = nullptr;
 		VkDescriptorPool m_desciptorPool = VK_NULL_HANDLE;
 	};
 }

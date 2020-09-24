@@ -17,11 +17,12 @@
 #include <chrono>
 #include <string>
 
-#include "glfw3.h"
 #include "IRenderer.h"
-#include "ITexture.h"
+
+#pragma warning(push, 0)
 #include "glm/include/glm.hpp"
 #include "gtc/matrix_transform.hpp"
+#pragma warning(pop)
 
 using namespace PBClient;
 
@@ -98,7 +99,7 @@ int Application::Init(int argumentCount, char** argumentVector)
 	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 	swapchainDesc.m_height = 0;
-	swapchainDesc.m_presentMode = PB::PB_PRESENT_MODE_MAILBOX;
+	swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
 	swapchainDesc.m_imageCount = 3;
 
 	m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
@@ -112,32 +113,31 @@ int Application::Init(int argumentCount, char** argumentVector)
 	return 0;
 }
 
-void Application::Run() 
+RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* renderer, RenderGraphBehaviour** behaviours)
 {
-	// Create a rendergraph pass to render our scene with.
-	RenderGraph* renderGraph = nullptr;
-	BasicColorPass* node = m_allocator.Alloc<BasicColorPass>(m_renderer, &m_allocator);
+	PB::ISwapChain* swapchain = renderer->GetSwapchain();
+	RenderGraph* output = nullptr;
 	{
-		RenderGraphBuilder rgBuilder(m_renderer, &m_allocator);
+		RenderGraphBuilder rgBuilder(renderer, allocator);
 
 		NodeDesc nodeDesc;
-		nodeDesc.m_behaviour = node;
+		nodeDesc.m_behaviour = behaviours[0];
 
 		AttachmentDesc& colorDesc = nodeDesc.m_attachments[0];
-		colorDesc.m_format = m_swapchain->GetImageFormat();
-		colorDesc.m_width = m_swapchain->GetWidth();
-		colorDesc.m_height = m_swapchain->GetHeight();
+		colorDesc.m_format = swapchain->GetImageFormat();
+		colorDesc.m_width = swapchain->GetWidth();
+		colorDesc.m_height = swapchain->GetHeight();
 		colorDesc.m_name = "ColorOutput";
-		colorDesc.m_usage = PB::PB_ATTACHMENT_USAGE_COLOR;
+		colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
 		colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
 		colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 		AttachmentDesc& depthDesc = nodeDesc.m_attachments[1];
-		depthDesc.m_format = PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT;
-		depthDesc.m_width = m_swapchain->GetWidth();
-		depthDesc.m_height = m_swapchain->GetHeight();
+		depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthDesc.m_width = swapchain->GetWidth();
+		depthDesc.m_height = swapchain->GetHeight();
 		depthDesc.m_name = nullptr; // Unnamed means temporary.
-		depthDesc.m_usage = PB::PB_ATTACHMENT_USAGE_DEPTHSTENCIL;
+		depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
 		depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 		nodeDesc.m_attachmentCount = 2;
@@ -145,14 +145,22 @@ void Application::Run()
 		nodeDesc.m_renderHeight = colorDesc.m_height;
 
 		rgBuilder.AddNode(nodeDesc);
-		renderGraph = rgBuilder.Build();
+		output = rgBuilder.Build();
 	}
+	return output;
+}
+
+void Application::Run() 
+{
+	// Create a rendergraph pass to render our scene with.
+	BasicColorPass* node = m_allocator.Alloc<BasicColorPass>(m_renderer, &m_allocator);
+	RenderGraph* renderGraph = CreateRenderGraph(&m_allocator, m_renderer, (RenderGraphBehaviour**)&node);
 
 	// Create a buffer for the model, view and projection matrices.
 	PB::BufferObjectDesc bufferDesc;
 	bufferDesc.m_bufferSize = sizeof(glm::mat4) * 3;
-	bufferDesc.m_options = PB::PB_BUFFER_OPTION_ZERO_INITIALIZE;
-	bufferDesc.m_usage = PB::PB_BUFFER_USAGE_COPY_DST | PB::PB_BUFFER_USAGE_UNIFORM;
+	bufferDesc.m_options = PB::EBufferOptions::ZERO_INITIALIZE;
+	bufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::UNIFORM;
 	PB::IBufferObject* mvpBuffer = m_renderer->AllocateBuffer(bufferDesc);
 	node->SetMVPBuffer(mvpBuffer);
 

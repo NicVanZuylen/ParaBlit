@@ -25,15 +25,17 @@ namespace PB
 
 	DeviceAllocator::PageView DeviceAllocator::Alloc(const VkMemoryRequirements& requirements, const EMemoryType& memType, u32 desiredSize)
 	{
+		u32 memoryTypeIndex = static_cast<u32>(memType);
+
 		std::lock_guard<std::mutex> lock(m_allocatorLock);
 
 		PB_ASSERT_MSG(requirements.size + requirements.alignment <= ~(0U), "Requested memory block is too large.");
 		const u32 requiredSize = static_cast<u32>(requirements.size);
 		// TODO: Ensure alignment requirements are met when setting the start parameter of page views.
-		auto sliceIt = m_availableBlocks[memType].lower_bound(requiredSize);
-		if (sliceIt != m_availableBlocks[memType].end())
+		auto sliceIt = m_availableBlocks[memoryTypeIndex].lower_bound(requiredSize);
+		if (sliceIt != m_availableBlocks[memoryTypeIndex].end())
 		{
-			auto sliceNode = m_availableBlocks[memType].extract(sliceIt);
+			auto sliceNode = m_availableBlocks[memoryTypeIndex].extract(sliceIt);
 			auto& slice = sliceNode.mapped();
 			
 			// If this if statement is not entered we have allocated a perfect slice.
@@ -48,7 +50,7 @@ namespace PB
 				newSlice.m_start = slice.m_start + requiredSize;
 				newSlice.m_size = slice.m_size - requiredSize;
 				slice.m_size = requiredSize;
-				m_availableBlocks[memType].insert(pair);
+				m_availableBlocks[memoryTypeIndex].insert(pair);
 			}
 			
 			// Calculate offset from start to meet memory alignment requirements.
@@ -102,11 +104,11 @@ namespace PB
 		// Insert the slice back into the memory type's associate map.
 		PageView newSlice = pageView;
 		std::pair<u32, PageView> newPair(newSlice.m_size, newSlice);
-		m_availableBlocks[newSlice.m_memoryType].insert(newPair);
+		m_availableBlocks[static_cast<u16>(newSlice.m_memoryType)].insert(newPair);
 
 		// Invalidate the provided page view.
 		pageView.m_memory = VK_NULL_HANDLE;
-		pageView.m_memoryType = PB_MEMORY_TYPE_END_RANGE;
+		pageView.m_memoryType = EMemoryType::END_RANGE;
 		pageView.m_start = 0;
 		pageView.m_size = 0;
 	}

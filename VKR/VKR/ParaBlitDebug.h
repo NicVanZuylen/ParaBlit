@@ -1,9 +1,12 @@
 #pragma once
 #include "ParaBlitApi.h"
 #include "ParaBlitLog.h"
-#include "vulkan/vulkan.h"
 #include <iostream>
-#include <assert.h>
+#include <cassert>
+
+#pragma warning(push, 0)
+#include "vulkan/vulkan.h"
+#pragma warning(pop)
 
 namespace PB
 {
@@ -19,8 +22,8 @@ namespace PB
 
 #else
 
-#define PB_ERROR_CHECK(func, message) func
-#define PB_ASSERT
+#define PB_ERROR_CHECK(func) func
+#define PB_ASSERT(condition)
 #define PB_ASSERT_MSG
 #define PB_BREAK_ON_ERROR
 

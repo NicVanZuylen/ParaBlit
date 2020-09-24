@@ -3,8 +3,6 @@
 #include "ParaBlitDebug.h"
 #include "ImageView.h"
 #include "CLib/Vector.h"
-
-#include "vulkan/vulkan.h"
 #include "MurmurHash3.h"
 
 namespace PB

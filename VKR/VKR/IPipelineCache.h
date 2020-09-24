@@ -17,9 +17,9 @@ namespace PB
 	{
 		RenderPass m_renderPass = 0;
 		Rect m_renderArea = {};
-		ShaderModule m_shaderModules[PB_SHADER_STAGE_COUNT] = {};
+		ShaderModule m_shaderModules[static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT)] = {};
 		VertexDesc m_vertexDesc = {};
-		ECompareOP m_depthCompareOP = PB_COMPARE_OP_ALWAYS;
+		ECompareOP m_depthCompareOP = ECompareOP::ALWAYS;
 		bool m_stencilTestEnable = false;
 		u16 m_subpass = 0;
 		u32 m_pad1 = 0;

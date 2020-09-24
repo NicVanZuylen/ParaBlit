@@ -19,7 +19,7 @@ namespace QIO
 			*data = buf;
 
 			inStream.close();
-			printf_s("Successfully read %i bytes of data from file at %s \n", *fileSize, path);
+			printf_s("Successfully read %u bytes of data from file at %s \n", (unsigned int)*fileSize, path);
 			return true;
 		}
 		else
@@ -44,7 +44,7 @@ namespace QIO
 			*data = buf;
 
 			inStream.close();
-			printf_s("Successfully read %i bytes of data from file at %s \n", *fileSize, path);
+			printf_s("Successfully read %u bytes of data from file at %s \n", (unsigned int)*fileSize, path);
 			return true;
 		}
 		else

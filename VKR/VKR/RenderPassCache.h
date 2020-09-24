@@ -1,9 +1,8 @@
 #pragma once
 #include "ParaBlitApi.h"
+#include "ParaBlitDebug.h"
 #include "IRenderPassCache.h"
 #include "Texture.h"
-
-#include "vulkan/vulkan.h"
 
 #include <unordered_map>
 

@@ -17,15 +17,15 @@ RenderGraphBuilder::~RenderGraphBuilder()
 
 }
 
-inline PB::ETextureStateFlags TextureStateFromAttachmentUsage(PB::EAttachmentUsage usage)
+inline PB::TextureStateFlags TextureStateFromAttachmentUsage(PB::AttachmentUsageFlags usage)
 {
-	PB::ETextureStateFlags stateFlags = 0;
-	if (usage & PB::PB_ATTACHMENT_USAGE_COLOR)
-		stateFlags |= PB::PB_TEXTURE_STATE_COLORTARGET;
-	if (usage & PB::PB_ATTACHMENT_USAGE_DEPTHSTENCIL)
-		stateFlags |= PB::PB_TEXTURE_STATE_DEPTHTARGET;
-	if (usage & PB::PB_ATTACHMENT_USAGE_READ)
-		stateFlags |= PB::PB_TEXTURE_STATE_SAMPLED;
+	PB::TextureStateFlags stateFlags = 0;
+	if (usage & PB::EAttachmentUsage::COLOR)
+		stateFlags |= PB::ETextureState::COLORTARGET;
+	if (usage & PB::EAttachmentUsage::DEPTHSTENCIL)
+		stateFlags |= PB::ETextureState::DEPTHTARGET;
+	if (usage & PB::EAttachmentUsage::READ)
+		stateFlags |= PB::ETextureState::SAMPLED;
 	return stateFlags;
 }
 
@@ -141,7 +141,7 @@ RenderGraph* RenderGraphBuilder::Build()
 			attachmentDesc.m_finalState = attachmentDesc.m_expectedState;
 			attachmentDesc.m_format = attach.m_format;
 			attachmentDesc.m_keepContents = true; // TODO: This should be set to false if this is the last use-case of the attachment.
-			attachmentDesc.m_loadAction = PB::PB_ATTACHMENT_START_ACTION_CLEAR;
+			attachmentDesc.m_loadAction = PB::EAttachmentAction::CLEAR;
 
 			auto& attachmentUsage = subpass.m_attachments[i];
 			attachmentUsage.m_attachmentFormat = attach.m_format;
@@ -180,31 +180,19 @@ RenderGraph* RenderGraphBuilder::Build()
 	return graph;
 }
 
-inline PB::ETextureStateFlags GetStateFlagsFromAttachmentUsage(PB::EAttachmentUsage usage)
-{
-	PB::ETextureStateFlags outStates = 0;
-	if (usage & PB::PB_ATTACHMENT_USAGE_COLOR)
-		outStates |= PB::PB_TEXTURE_STATE_COLORTARGET;
-	if (usage & PB::PB_ATTACHMENT_USAGE_DEPTHSTENCIL)
-		outStates |= PB::PB_TEXTURE_STATE_DEPTHTARGET;
-	if (usage & PB::PB_ATTACHMENT_USAGE_READ)
-		outStates |= PB::PB_TEXTURE_STATE_SAMPLED;
-	return outStates;
-}
-
 void RenderGraphBuilder::TextureDescFromAttachmentMeta(const AttachmentMeta& meta, PB::TextureDesc& outDesc)
 {
 	outDesc.m_data.m_format = meta.m_format;
 	outDesc.m_width = meta.m_width;
 	outDesc.m_height = meta.m_height;
-	outDesc.m_initOptions = PB::PB_TEXTURE_INIT_NONE;
-	outDesc.m_initialState = PB::PB_TEXTURE_STATE_NONE;
+	outDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_NONE;
+	outDesc.m_initialState = PB::ETextureState::NONE;
 	outDesc.m_usageStates = meta.m_usage;
 
 	if (meta.m_flags & EAttachmentFlags::COPY_SRC)
-		outDesc.m_usageStates |= PB::PB_TEXTURE_STATE_COPY_SRC;
+		outDesc.m_usageStates |= PB::ETextureState::COPY_SRC;
 	if (meta.m_flags & EAttachmentFlags::COPY_DST)
-		outDesc.m_usageStates |= PB::PB_TEXTURE_STATE_COPY_DST;
+		outDesc.m_usageStates |= PB::ETextureState::COPY_DST;
 }
 
 void RenderGraphBuilder::UpdateNamedAttachment(const AttachmentDesc& desc, uint32_t timePoint)
@@ -247,27 +235,27 @@ inline uint32_t GetFormatBytesPerPixel(PB::ETextureFormat format)
 {
 	switch (format)
 	{
-	case PB::PB_TEXTURE_FORMAT_UNKNOWN:
+	case PB::ETextureFormat::UNKNOWN:
 		return 0;
-	case PB::PB_TEXTURE_FORMAT_R8_UNORM:
+	case PB::ETextureFormat::R8_UNORM:
 		return 1;
-	case PB::PB_TEXTURE_FORMAT_R8G8_UNORM:
+	case PB::ETextureFormat::R8G8_UNORM:
 		return 2;
-	case PB::PB_TEXTURE_FORMAT_R8G8B8_UNORM:
+	case PB::ETextureFormat::R8G8B8_UNORM:
 		return 4;
-	case PB::PB_TEXTURE_FORMAT_R8G8B8A8_UNORM:
+	case PB::ETextureFormat::R8G8B8A8_UNORM:
 		return 4;
-	case PB::PB_TEXTURE_FORMAT_B8G8R8A8_UNORM:
+	case PB::ETextureFormat::B8G8R8A8_UNORM:
 		return 4;
-	case PB::PB_TEXTURE_FORMAT_D16_UNORM:
+	case PB::ETextureFormat::D16_UNORM:
 		return 2;
-	case PB::PB_TEXTURE_FORMAT_D16_UNORM_S8_UINT:
+	case PB::ETextureFormat::D16_UNORM_S8_UINT:
 		return 4;
-	case PB::PB_TEXTURE_FORMAT_D24_UNORM_S8_UINT:
+	case PB::ETextureFormat::D24_UNORM_S8_UINT:
 		return 4;
-	case PB::PB_TEXTURE_FORMAT_D32_FLOAT:
+	case PB::ETextureFormat::D32_FLOAT:
 		return 4;
-	case PB::PB_TEXTURE_FORMAT_D32_FLOAT_S8_UINT:
+	case PB::ETextureFormat::D32_FLOAT_S8_UINT:
 		return 8;
 	default:
 		// Not implemented.
@@ -357,7 +345,7 @@ PB::TextureView RenderGraphBuilder::GetTextureView(const AttachmentMeta& meta, P
 	viewDesc.m_texture = meta.m_texture;
 	viewDesc.m_expectedState = expectedState;
 	
-	if(expectedState != PB::PB_TEXTURE_STATE_SAMPLED)
+	if(expectedState != PB::ETextureState::SAMPLED)
 		return meta.m_texture->GetRenderTargetView(viewDesc);
 	else
 		return meta.m_texture->GetView(viewDesc);
@@ -385,7 +373,7 @@ void RenderGraph::Execute()
 {
 	PB::CommandContextDesc contextDesc{};
 	contextDesc.m_renderer = m_passInfo.m_renderer;
-	contextDesc.m_usage = PB::PB_COMMAND_CONTEXT_USAGE_GRAPHICS;
+	contextDesc.m_usage = PB::ECommandContextUsage::GRAPHICS;
 
 	PB::SCommandContext cmdContext(m_passInfo.m_renderer);
 	m_passInfo.m_commandContext = cmdContext.GetContext();
@@ -403,7 +391,7 @@ void RenderGraph::Execute()
 
 		for (uint32_t i = 0; i < currentNode->m_attachmentCount; ++i)
 		{
-			if (currentNode->m_attachmentStates[i] != PB::PB_TEXTURE_STATE_NONE)
+			if (currentNode->m_attachmentStates[i] != PB::ETextureState::NONE)
 				cmdContext->CmdTransitionTexture(currentNode->m_attachments[i], currentNode->m_attachmentStates[i]);
 		}
 

@@ -4,8 +4,6 @@
 #include "DeviceAllocator.h"
 #include "StagingBufferAllocator.h"
 
-#include "vulkan/vulkan.h"
-
 namespace PB
 {
 	class IRenderer;
@@ -41,7 +39,7 @@ namespace PB
 
 		void RegisterView(const BufferViewDesc& desc);
 
-		BufferUsage GetUsage() const;
+		BufferUsageFlags GetUsage() const;
 
 	private:
 
@@ -55,7 +53,7 @@ namespace PB
 		VkBuffer m_handle = VK_NULL_HANDLE;
 		TempBuffer m_stagingBuffer{};
 		DeviceAllocator::PageView m_memoryPage{};
-		BufferUsage m_usage = 0;
+		BufferUsageFlags m_usage = 0;
 		u32 m_size;
 		CLib::Vector<BufferViewDesc, 1, 4> m_viewDescs;
 	};

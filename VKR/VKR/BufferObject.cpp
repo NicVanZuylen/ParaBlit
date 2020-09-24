@@ -48,7 +48,7 @@ namespace PB
 	u8* BufferObject::Map(u32 offset, u32 size)
 	{
 		void* data = nullptr;
-		if (m_memoryPage.m_memoryType == PB_MEMORY_TYPE_HOST_VISIBLE)
+		if (m_memoryPage.m_memoryType == EMemoryType::HOST_VISIBLE)
 		{
 			vkMapMemory(m_renderer->GetDevice()->GetHandle(), m_memoryPage.m_memory, static_cast<VkDeviceSize>(m_memoryPage.AlignedOffset()) + offset, size, 0, &data);
 		}
@@ -57,14 +57,14 @@ namespace PB
 
 	void BufferObject::Unmap()
 	{
-		if(m_memoryPage.m_memoryType == PB_MEMORY_TYPE_HOST_VISIBLE)
+		if(m_memoryPage.m_memoryType == EMemoryType::HOST_VISIBLE)
 			vkUnmapMemory(m_renderer->GetDevice()->GetHandle(), m_memoryPage.m_memory);
 	}
 
 	u8* BufferObject::BeginPopulate()
 	{
 		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
-		PB_ASSERT_MSG(m_usage & PB_BUFFER_USAGE_COPY_DST, "Buffer Object must usable as a copy destination in order to use BeginPopulate().");
+		PB_ASSERT_MSG(m_usage & EBufferUsage::COPY_DST, "Buffer Object must usable as a copy destination in order to use BeginPopulate().");
 		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_size, m_renderer->GetCurrentFrame());
 		return m_stagingBuffer.Map(m_renderer->GetDevice()->GetHandle());
 	}
@@ -113,7 +113,7 @@ namespace PB
 		m_viewDescs.PushBack() = desc;
 	}
 
-	BufferUsage BufferObject::GetUsage() const
+	BufferUsageFlags BufferObject::GetUsage() const
 	{
 		return m_usage;
 	}
@@ -133,10 +133,10 @@ namespace PB
 		bufferInfo.usage = ConvertPBBufferUsageToVkBufferUsage(desc.m_usage);
 
 		// Add transfer dst if this is a device local buffer which is zero-initialized.
-		if ((desc.m_options & PB_BUFFER_OPTION_ZERO_INITIALIZE) && !(desc.m_options & PB_BUFFER_OPTION_CPU_ACCESSIBLE))
+		if ((desc.m_options & EBufferOptions::ZERO_INITIALIZE) && !(desc.m_options & EBufferOptions::CPU_ACCESSIBLE))
 		{
 			bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-			m_usage |= PB_BUFFER_USAGE_COPY_DST;
+			m_usage |= EBufferUsage::COPY_DST;
 		}
 
 		PB_ASSERT(m_handle == VK_NULL_HANDLE);
@@ -146,9 +146,9 @@ namespace PB
 
 		VkMemoryRequirements bufferMemRequirements;
 		vkGetBufferMemoryRequirements(device->GetHandle(), m_handle, &bufferMemRequirements);
-		EMemoryType memType = PB_MEMORY_TYPE_DEVICE_LOCAL;
-		if (desc.m_options & PB_BUFFER_OPTION_CPU_ACCESSIBLE)
-			memType = PB_MEMORY_TYPE_HOST_VISIBLE;
+		EMemoryType memType = EMemoryType::DEVICE_LOCAL;
+		if (desc.m_options & EBufferOptions::CPU_ACCESSIBLE)
+			memType = EMemoryType::HOST_VISIBLE;
 
 		m_memoryPage = device->GetDeviceAllocator().Alloc(bufferMemRequirements, memType, desc.m_bufferSize);
 
@@ -158,9 +158,9 @@ namespace PB
 
 	inline void BufferObject::InitializeMemory(const BufferObjectDesc& desc)
 	{
-		if (desc.m_options & PB_BUFFER_OPTION_CPU_ACCESSIBLE)
+		if (desc.m_options & EBufferOptions::CPU_ACCESSIBLE)
 		{
-			if (desc.m_options & PB_BUFFER_OPTION_ZERO_INITIALIZE)
+			if (desc.m_options & EBufferOptions::ZERO_INITIALIZE)
 			{
 				u8* mapped = Map(0, desc.m_bufferSize); // We don't need a staging buffer since this buffer's memory is host visible.
 				memset(mapped, 0, desc.m_bufferSize);
@@ -169,7 +169,7 @@ namespace PB
 		}
 		else
 		{
-			if (desc.m_options & PB_BUFFER_OPTION_ZERO_INITIALIZE)
+			if (desc.m_options & EBufferOptions::ZERO_INITIALIZE)
 			{
 				auto device = m_renderer->GetDevice();
 

@@ -62,22 +62,22 @@ namespace PB
 
 	inline void InitializeAttachmentDesc(VkAttachmentDescription& desc, const AttachmentDesc& pbDesc)
 	{
-		PB_ASSERT(pbDesc.m_expectedState != PB_TEXTURE_STATE_NONE);
-		PB_ASSERT(pbDesc.m_finalState != PB_TEXTURE_STATE_NONE);
-		PB_ASSERT(pbDesc.m_format != PB_TEXTURE_FORMAT_UNKNOWN);
+		PB_ASSERT(pbDesc.m_expectedState != ETextureState::NONE);
+		PB_ASSERT(pbDesc.m_finalState != ETextureState::NONE);
+		PB_ASSERT(pbDesc.m_format != ETextureFormat::UNKNOWN);
 
 		desc.initialLayout = ConvertPBStateToImageLayout(pbDesc.m_expectedState);
 		desc.finalLayout = ConvertPBStateToImageLayout(pbDesc.m_finalState);
 		desc.format = ConvertPBFormatToVkFormat(pbDesc.m_format);
 		switch (pbDesc.m_loadAction)
 		{
-		case PB_ATTACHMENT_START_ACTION_NONE:
+		case EAttachmentAction::NONE:
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			break;
-		case PB_ATTACHMENT_START_ACTION_CLEAR:
+		case EAttachmentAction::CLEAR:
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			break;
-		case PB_ATTACHMENT_START_ACTION_LOAD:
+		case EAttachmentAction::LOAD:
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 			break;
 		default:
@@ -156,7 +156,7 @@ namespace PB
 			for (u32 j = 0; j < softAttachmentLimit; ++j)
 			{
 				auto& pbUsage = desc.m_subpasses[i].m_attachments[j];
-				if (pbUsage.m_usage == PB_ATTACHMENT_USAGE_NONE)
+				if (pbUsage.m_usage == EAttachmentUsage::NONE)
 					break;
 
 				PB_ASSERT_MSG(pbUsage.m_attachmentIdx < desc.m_attachmentCount, "Invalid attachment index provided.");
@@ -166,21 +166,21 @@ namespace PB
 
 				VkAttachmentReference newRef;
 				newRef.attachment = pbUsage.m_attachmentIdx;
-				switch (pbUsage.m_usage)
+				switch ((EAttachmentUsage)pbUsage.m_usage)
 				{
-				case PB_ATTACHMENT_USAGE_COLOR:
+				case EAttachmentUsage::COLOR:
 					newRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 					stage |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 					access |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 					colorRefs.PushBack(newRef);
 					break;
-				case PB_ATTACHMENT_USAGE_DEPTHSTENCIL:
+				case EAttachmentUsage::DEPTHSTENCIL:
 					newRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 					stage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 					access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 					dsRefs.PushBack(newRef);
 					break;
-				case PB_ATTACHMENT_USAGE_READ:
+				case EAttachmentUsage::READ:
 					newRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 					stage |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 					access |= VK_ACCESS_SHADER_READ_BIT;

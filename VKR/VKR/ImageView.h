@@ -6,8 +6,6 @@
 #include "ITexture.h"
 #include "IBufferObject.h"
 
-#include "vulkan/vulkan.h"
-
 #include <unordered_map>
 
 namespace PB
