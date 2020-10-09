@@ -174,10 +174,11 @@ namespace PB
 		imageViewInfo.image = internalTex->GetImage();
 		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
+		// TODO: Let the user select depth or stencil in the view desc.
 		if(hasDepthPlane)
 			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		if(hasStencilPlane)
-			imageViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		//if(hasStencilPlane)
+		//	imageViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
 		imageViewInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewInfo.subresourceRange.layerCount = 1;

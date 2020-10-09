@@ -301,17 +301,28 @@ namespace PB
 
 	void CommandContext::CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType)
 	{
+		CmdBindVertexBuffers(&vertexBuffer, 1, indexBuffer, indexType);
+	}
+
+	void CommandContext::CmdBindVertexBuffers(const IBufferObject** vertexBuffers, u32 vertexBufferCount, const IBufferObject* indexBuffer, EIndexType indexType)
+	{
 		ValidateRecordingState();
 
-		const BufferObject* internalVBuffer = reinterpret_cast<const BufferObject*>(vertexBuffer);
+		const BufferObject** internalVBuffers = reinterpret_cast<const BufferObject**>(vertexBuffers);
 
-		PB_ASSERT(vertexBuffer);
-		PB_ASSERT_MSG(internalVBuffer->GetUsage() & EBufferUsage::VERTEX, "Provided vertex buffer cannot be used as a vertex buffer. Add the usage flag PB_BUFFER_USAGE_VERTEX to use it as a vertex buffer.");
+		CLib::Vector<VkBuffer, 8> vertexBufferHandles(vertexBufferCount);
+		CLib::Vector<VkDeviceSize, 8> vertexBufferOffsets(vertexBufferCount);
+		for (u32 i = 0; i < vertexBufferCount; ++i)
+		{
+			PB_ASSERT(internalVBuffers[i]);
+			PB_ASSERT_MSG(internalVBuffers[i]->GetUsage() & EBufferUsage::VERTEX, "Provided vertex buffer cannot be used as a vertex buffer. Add the usage flag PB_BUFFER_USAGE_VERTEX to use it as a vertex buffer.");
+			vertexBufferHandles.PushBack() = internalVBuffers[i]->GetHandle();
+			vertexBufferOffsets.PushBack() = 0;
+		}
 
-		VkBuffer vertexBufferHandle = internalVBuffer->GetHandle();
 		VkDeviceSize vertexOffset = 0;
-		vkCmdBindVertexBuffers(m_cmdBuffer, 0, 1, &vertexBufferHandle, &vertexOffset);
-		
+		vkCmdBindVertexBuffers(m_cmdBuffer, 0, vertexBufferCount, vertexBufferHandles.Data(), vertexBufferOffsets.Data());
+
 		if (indexBuffer != nullptr)
 		{
 			const BufferObject* internalIBuffer = reinterpret_cast<const BufferObject*>(indexBuffer);
@@ -322,10 +333,10 @@ namespace PB
 			VkIndexType vkindexType;
 			switch (indexType)
 			{
-			case PB_INDEX_TYPE_UINT16:
+			case EIndexType::PB_INDEX_TYPE_UINT16:
 				vkindexType = VK_INDEX_TYPE_UINT16;
 				break;
-			case PB_INDEX_TYPE_UINT32:
+			case EIndexType::PB_INDEX_TYPE_UINT32:
 				vkindexType = VK_INDEX_TYPE_UINT32;
 				break;
 			default:

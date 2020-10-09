@@ -10,7 +10,7 @@ namespace PB
 	struct BufferObjectDesc
 	{
 		BufferOptionFlags m_options{};
-		BufferUsage m_usage{};
+		BufferUsageFlags m_usage{};
 		u32 m_bufferSize = 0;
 	};
 

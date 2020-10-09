@@ -51,6 +51,7 @@ void RenderGraphBuilder::AddNode(const NodeDesc& desc)
 		if (name)
 		{
 			meta.m_name = name;
+			meta.m_usage = TextureStateFromAttachmentUsage(attach.m_usage);
 			UpdateNamedAttachment(attach, m_buildNodes.Count() - 1);
 		}
 		else
@@ -97,17 +98,20 @@ RenderGraph* RenderGraphBuilder::Build()
 			auto* name = attachMeta.m_name;
 			if (name)
 			{
-
 				auto it = m_namedAttachments.find(attachMeta.m_name);
-				RG_ASSERT(it != m_namedAttachments.end() && it->second.m_mostRecentTimepoint <= timePoint);
+				RG_ASSERT(it != m_namedAttachments.end());
+
+				auto currentUsage = attachMeta.m_usage;
 				attachMeta = it->second.m_meta;
 				attachMeta.m_name = name;
 
 				if (attachMeta.m_texture == nullptr)
 				{
 					attachMeta.m_texture = FindTexture(attachMeta, graph);
+					it->second.m_meta.m_texture = attachMeta.m_texture;
 				}
 
+				attachMeta.m_usage = currentUsage;
 				execNode->m_attachments[i] = attachMeta.m_texture;
 				execNode->m_attachmentViews[i] = GetTextureView(attachMeta, static_cast<PB::ETextureState>(attachMeta.m_usage));
 			}
@@ -125,19 +129,37 @@ RenderGraph* RenderGraphBuilder::Build()
 		PB::AttachmentDesc attachmentDescs[_countof(buildNode.m_attachments)]{};
 		rpDesc.m_subpassCount = 1;
 		rpDesc.m_subpasses = &subpass;
-		rpDesc.m_attachmentCount = buildNode.m_attachmentCount;
 		rpDesc.m_attachments = attachmentDescs;
 
+		// Separate writable attachments from readonly attachments, as readonly attachments are not part of the renderpass and framebuffer.
+		CLib::Vector<AttachmentMeta, _countof(buildNode.m_attachments)> validAttachments;
+		CLib::Vector<PB::Float4, _countof(buildNode.m_attachments)> validClearColors;
+		CLib::Vector<PB::EAttachmentUsage, _countof(buildNode.m_attachments)> validUsages;
+		CLib::Vector<PB::TextureView, _countof(buildNode.m_attachments)> validViews;
 		for (uint32_t i = 0; i < buildNode.m_attachmentCount; ++i)
 		{
-			// Any named textures that are no longer used beyond this pass can be re-purposed to use in future passes.
-			auto& attach = buildNode.m_attachments[i];
+			if (buildNode.m_usages[i] != PB::EAttachmentUsage::READ)
+			{
+				validAttachments.PushBack() = buildNode.m_attachments[i];
+				validClearColors.PushBack() = buildNode.m_clearColors[i];
+				validUsages.PushBack() = buildNode.m_usages[i];
+				validViews.PushBack() = execNode->m_attachmentViews[i];
+			}
 
-			execNode->m_attachmentStates[i] = static_cast<PB::ETextureState>(attach.m_usage);
-			execNode->m_clearColors[i] = buildNode.m_clearColors[i];
+			execNode->m_attachmentStates[i] = buildNode.m_attachments[i].m_usage;
+		}
+
+		rpDesc.m_attachmentCount = validAttachments.Count();
+
+		for (uint32_t i = 0; i < rpDesc.m_attachmentCount; ++i)
+		{
+			// Any named textures that are no longer used beyond this pass can be re-purposed to use in future passes.
+			auto& attach = validAttachments[i];
+
+			execNode->m_clearColors[i] = validClearColors[i];
 
 			auto& attachmentDesc = attachmentDescs[i];
-			attachmentDesc.m_expectedState = execNode->m_attachmentStates[i];
+			attachmentDesc.m_expectedState = validAttachments[i].m_usage;
 			attachmentDesc.m_finalState = attachmentDesc.m_expectedState;
 			attachmentDesc.m_format = attach.m_format;
 			attachmentDesc.m_keepContents = true; // TODO: This should be set to false if this is the last use-case of the attachment.
@@ -146,7 +168,7 @@ RenderGraph* RenderGraphBuilder::Build()
 			auto& attachmentUsage = subpass.m_attachments[i];
 			attachmentUsage.m_attachmentFormat = attach.m_format;
 			attachmentUsage.m_attachmentIdx = i;
-			attachmentUsage.m_usage = buildNode.m_usages[i];
+			attachmentUsage.m_usage = validUsages[i];
 
 			if (attach.m_name)
 			{
@@ -169,7 +191,7 @@ RenderGraph* RenderGraphBuilder::Build()
 
 		// Framebuffer
 		PB::FramebufferDesc fbDesc{};
-		memcpy(fbDesc.m_attachmentViews, execNode->m_attachmentViews, sizeof(PB::TextureView) * execNode->m_attachmentCount);
+		memcpy(fbDesc.m_attachmentViews, validViews.Data(), sizeof(PB::TextureView) * validViews.Count());
 		fbDesc.m_width = buildNode.m_renderWidth;
 		fbDesc.m_height = buildNode.m_renderHeight;
 		fbDesc.m_renderPass = execNode->m_renderPass;
@@ -247,6 +269,14 @@ inline uint32_t GetFormatBytesPerPixel(PB::ETextureFormat format)
 		return 4;
 	case PB::ETextureFormat::B8G8R8A8_UNORM:
 		return 4;
+	case PB::ETextureFormat::R32_FLOAT:
+		return 4;
+	case PB::ETextureFormat::R32G32_FLOAT:
+		return 8;
+	case PB::ETextureFormat::R32G32B32_FLOAT:
+		return 12;
+	case PB::ETextureFormat::R32G32B32A32_FLOAT:
+		return 16;
 	case PB::ETextureFormat::D16_UNORM:
 		return 2;
 	case PB::ETextureFormat::D16_UNORM_S8_UINT:

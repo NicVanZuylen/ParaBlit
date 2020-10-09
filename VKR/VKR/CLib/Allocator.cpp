@@ -2,7 +2,7 @@
 
 namespace CLib
 {
-	uint32_t Allocator::m_segSizes[9] = { 16, 32, 64, 128, 256, 512, 1024, 2048, 4096 };
+	uint32_t Allocator::m_segSizes[10] = { 0, 32, 64, 128, 256, 512, 1024, 2048, 4096, 0 };
 
 	Allocator::Allocator(uint32_t pageSize)
 	{
@@ -41,12 +41,32 @@ namespace CLib
 		uint32_t alignmentPad = alignment > 0 ? alignment - ((size + sizeof(BlockNode)) % alignment) : 0;
 		uint32_t requiredSize = size + alignmentPad;
 
-		BlockNode*& freeList = m_freeLists[GetFreeListIdx(requiredSize)];
+		auto freeListIdx = GetFreeListIdx(requiredSize);
+		BlockNode*& freeList = m_freeLists[freeListIdx];
 		if (freeList)
 		{
-			auto* block = freeList;
-			freeList = freeList->m_prevNode;
-			return reinterpret_cast<void*>(reinterpret_cast<size_t>(block) + sizeof(BlockNode));
+			if (freeListIdx == 0 || freeListIdx == _countof(m_segSizes) - 1)
+			{
+				BlockNode** block = &freeList;
+
+				// Blocks at these free list indices aren't guarenteed to be large enough.
+				while (auto& blockRef = *block)
+				{
+					if (blockRef->m_size >= requiredSize)
+					{
+						blockRef = blockRef->m_prevNode;
+						return reinterpret_cast<void*>(reinterpret_cast<size_t>(blockRef) + sizeof(BlockNode));
+					}
+
+					block = &blockRef->m_prevNode;
+				}
+			}
+			else // Other free lists are guaranteed to have large enough blocks.
+			{
+				auto* block = freeList;
+				freeList = freeList->m_prevNode;
+				return reinterpret_cast<void*>(reinterpret_cast<size_t>(block) + sizeof(BlockNode));
+			}
 		}
 
 		if (IsPageFull(m_pages.Back(), requiredSize)) // Allocate a new page if no untouched blocks remain.
@@ -82,15 +102,14 @@ namespace CLib
 	inline uint32_t Allocator::GetFreeListIdx(const uint32_t& size)
 	{
 		constexpr uint32_t arraySize = _countof(m_segSizes);
-		for (uint32_t i = 0; i < arraySize; ++i)
+		constexpr uint32_t arrayEnd = arraySize - 1;
+		for (uint32_t i = 0; i < arrayEnd; ++i)
 		{
-			if (size < m_segSizes[i])
+			if (size < m_segSizes[i + 1])
 			{
-				if (i + 1 == arraySize)
-					return i - 1;
-				return i; // Return the next index, as blocks in it's free list are guaranteed to be large enough.
+				return i;
 			}
 		}
-		return arraySize - 1; // Use the index of the last free list if we didn't find a large enough size class.
+		return arrayEnd; // Use the index of the last free list if we didn't find a large enough size class.
 	}
 }

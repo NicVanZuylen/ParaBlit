@@ -111,7 +111,7 @@ namespace PB
             return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             break;
         case ETextureState::SAMPLED:
-            PB_NOT_IMPLEMENTED;
+            return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
             break;
         case ETextureState::COLORTARGET:
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -146,7 +146,7 @@ namespace PB
             return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             break;
         case ETextureState::SAMPLED:
-            PB_NOT_IMPLEMENTED;
+            return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
             break;
         case ETextureState::COLORTARGET:
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -181,7 +181,7 @@ namespace PB
             return static_cast<VkAccessFlagBits>(0);
             break;
         case ETextureState::SAMPLED:
-            PB_NOT_IMPLEMENTED;
+            return VK_ACCESS_SHADER_READ_BIT;
             break;
         case ETextureState::COLORTARGET:
             return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -217,7 +217,7 @@ namespace PB
             return static_cast<VkAccessFlagBits>(0);
             break;
         case ETextureState::SAMPLED:
-            PB_NOT_IMPLEMENTED;
+            return VK_ACCESS_SHADER_READ_BIT;
             break;
         case ETextureState::COLORTARGET:
             return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -261,6 +261,14 @@ namespace PB
             return VK_FORMAT_R8G8B8A8_UNORM;
         case ETextureFormat::B8G8R8A8_UNORM:
             return VK_FORMAT_B8G8R8A8_UNORM;
+        case ETextureFormat::R32_FLOAT:
+            return VK_FORMAT_R32_SFLOAT;
+        case ETextureFormat::R32G32_FLOAT:
+            return VK_FORMAT_R32G32_SFLOAT;
+        case ETextureFormat::R32G32B32_FLOAT:
+            return VK_FORMAT_R32G32B32_SFLOAT;
+        case ETextureFormat::R32G32B32A32_FLOAT:
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
         case ETextureFormat::D16_UNORM:
             return VK_FORMAT_D16_UNORM;
         case ETextureFormat::D16_UNORM_S8_UINT:
@@ -295,6 +303,14 @@ namespace PB
             return ETextureFormat::R8G8B8A8_UNORM;
         case VK_FORMAT_B8G8R8A8_UNORM:
             return ETextureFormat::B8G8R8A8_UNORM;
+        case VK_FORMAT_R32_SFLOAT:
+            return ETextureFormat::R32_FLOAT;
+        case VK_FORMAT_R32G32_SFLOAT:
+            return ETextureFormat::R32G32_FLOAT;
+        case VK_FORMAT_R32G32B32_SFLOAT:
+            return ETextureFormat::R32G32B32_FLOAT;
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            return ETextureFormat::R32G32B32A32_FLOAT;
         case VK_FORMAT_D16_UNORM:
             return ETextureFormat::D16_UNORM;
         case VK_FORMAT_D16_UNORM_S8_UINT:
@@ -333,10 +349,10 @@ namespace PB
 	{
         switch (stage)
         {
-        case EShaderStage::PB_SHADER_STAGE_VERTEX:
+        case EShaderStage::VERTEX:
             return VK_SHADER_STAGE_VERTEX_BIT;
             break;
-        case EShaderStage::PB_SHADER_STAGE_FRAGMENT:
+        case EShaderStage::FRAGMENT:
             return VK_SHADER_STAGE_FRAGMENT_BIT;
             break;
         case EShaderStage::PB_SHADER_STAGE_COUNT:
@@ -358,16 +374,14 @@ namespace PB
             break;
         case EVertexAttributeType::FLOAT:
             return VK_FORMAT_R32_SFLOAT;
-            break;
         case EVertexAttributeType::FLOAT2:
             return VK_FORMAT_R32G32_SFLOAT;
-            break;
         case EVertexAttributeType::FLOAT3:
             return VK_FORMAT_R32G32B32_SFLOAT;
-            break;
         case EVertexAttributeType::FLOAT4:
             return VK_FORMAT_R32G32B32A32_SFLOAT;
-            break;
+        case EVertexAttributeType::MAT4:
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
         default:
             PB_ASSERT_MSG(false, "Invalid vertex attribute type provided.");
             break;

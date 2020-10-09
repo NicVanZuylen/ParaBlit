@@ -5,13 +5,13 @@
 #include "Texture.h"
 #include "Shader.h"
 
-class BasicColorPass : public RenderGraphBehaviour
+class GBufferPass : public RenderGraphBehaviour
 {
 public:
 
-	BasicColorPass(PB::IRenderer* renderer, CLib::Allocator* allocator);
+	GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator);
 
-	~BasicColorPass();
+	~GBufferPass();
 
 	void OnPreRenderPass(const RenderGraphInfo& info) override;
 
@@ -23,9 +23,12 @@ public:
 
 	void SetMVPBuffer(PB::IBufferObject* buffer);
 
+	void SetInstanceBuffer(PB::IBufferObject* buffer);
+
 private:
 
 	PB::IBufferObject* m_mvpBuffer = nullptr;
+	PB::IBufferObject* m_instanceBuffer = nullptr;
 
 	PBClient::Mesh* m_paintMesh = nullptr;
 	PBClient::Mesh* m_detailsMesh = nullptr;

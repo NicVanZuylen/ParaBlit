@@ -64,7 +64,7 @@ namespace CLib
 			uint32_t m_size;
 		};
 
-		static uint32_t m_segSizes[9];
+		static uint32_t m_segSizes[10];
 
 		uint32_t m_pageSize;
 		BlockNode* m_freeLists[_countof(m_segSizes)];

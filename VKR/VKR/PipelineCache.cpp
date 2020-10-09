@@ -89,33 +89,68 @@ namespace PB
 		viewportState.viewportCount = 1;
 		viewportState.pViewports = &viewPort;
 
-		VkVertexInputBindingDescription vertexBindingDesc;
-		vertexBindingDesc.binding = 0;
-		vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vertexBindingDesc.stride = desc.m_vertexDesc.vertexSize;
-
-		u32 vertexAttributeLocation = 0;
-		u32 totalVertexAttrOffset = 0;
-		CLib::Vector<VkVertexInputAttributeDescription, VertexDesc::MaxVertexAttributes> attrDescriptions;
-		for (auto& attrType : desc.m_vertexDesc.vertexAttributes)
+		CLib::Vector<VkVertexInputBindingDescription, PipelineDesc::MaxVertexBuffers> bindingDescs;
 		{
-			if (attrType == EVertexAttributeType::NONE)
-				break;
+			u32 bindingIndex = 0;
+			for (auto& bufferDesc : desc.m_vertexBuffers)
+			{
+				if (bufferDesc.m_type == EVertexBufferType::NONE)
+					break;
 
-			VkVertexInputAttributeDescription& vertexAttrDesc = attrDescriptions.PushBack();
-			vertexAttrDesc.binding = 0;
-			vertexAttrDesc.format = PBVertexTypeToVkFormat(attrType);
-			vertexAttrDesc.location = vertexAttributeLocation++;
-			vertexAttrDesc.offset = totalVertexAttrOffset;
-			totalVertexAttrOffset += static_cast<u32>(attrType);
+				PB_ASSERT(bufferDesc.m_vertexSize > 0);
+
+				VkVertexInputBindingDescription& vertexBindingDesc = bindingDescs.PushBack();
+				vertexBindingDesc.binding = bindingIndex++;
+				vertexBindingDesc.stride = bufferDesc.m_vertexSize;
+
+				switch (bufferDesc.m_type)
+				{
+				case EVertexBufferType::VERTEX:
+					vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+					break;
+				case EVertexBufferType::INSTANCE:
+					vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+					break;
+				default:
+					vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+					break;
+				}
+			}
+		}
+
+		CLib::Vector<VkVertexInputAttributeDescription, VertexAttributeDesc::MaxVertexAttributes> attrDescriptions;
+		{
+			u32 vertexAttributeLocation = 0;
+			u32 totalVertexAttrOffset[VertexAttributeDesc::MaxVertexAttributes]{};
+			for (auto& attr : desc.m_vertexDesc.vertexAttributes)
+			{
+				if (attr.m_attribute == EVertexAttributeType::NONE)
+					break;
+
+				u32 locationCount = attr.m_attribute == EVertexAttributeType::MAT4 ? 4 : 1;
+
+				for (u32 i = 0; i < locationCount; ++i)
+				{
+					VkVertexInputAttributeDescription& vertexAttrDesc = attrDescriptions.PushBack();
+					vertexAttrDesc.binding = attr.m_buffer;
+					vertexAttrDesc.format = PBVertexTypeToVkFormat(attr.m_attribute);
+					vertexAttrDesc.location = vertexAttributeLocation++;
+					vertexAttrDesc.offset = totalVertexAttrOffset[attr.m_buffer];
+
+					if (locationCount > 1) // Matrices use multiple float4 attributes.
+						totalVertexAttrOffset[attr.m_buffer] += sizeof(float) * 4;
+					else
+						totalVertexAttrOffset[attr.m_buffer] += static_cast<u32>(attr.m_attribute);
+				}
+			}
 		}
 
 		VkPipelineVertexInputStateCreateInfo vertexInputState = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, nullptr };
 		vertexInputState.flags = 0;
 		vertexInputState.vertexAttributeDescriptionCount = attrDescriptions.Count();
 		vertexInputState.pVertexAttributeDescriptions = attrDescriptions.Data();
-		vertexInputState.vertexBindingDescriptionCount = 1;
-		vertexInputState.pVertexBindingDescriptions = &vertexBindingDesc;
+		vertexInputState.vertexBindingDescriptionCount = bindingDescs.Count();
+		vertexInputState.pVertexBindingDescriptions = bindingDescs.Data();
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, nullptr };
 		inputAssemblyState.flags = 0;
@@ -133,7 +168,6 @@ namespace PB
 
 		VkPipelineRasterizationStateCreateInfo rasterState = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO, nullptr };
 		rasterState.flags = 0;
-		rasterState.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterState.depthBiasEnable = VK_FALSE;
 		rasterState.depthClampEnable = VK_FALSE;
 		rasterState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -141,12 +175,28 @@ namespace PB
 		rasterState.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterState.rasterizerDiscardEnable = VK_FALSE;
 
+		switch (desc.m_cullMode)
+		{
+		case EFaceCullMode::NONE:
+			rasterState.cullMode = VK_CULL_MODE_NONE;
+			break;
+		case EFaceCullMode::BACK:
+			rasterState.cullMode = VK_CULL_MODE_BACK_BIT;
+			break;
+		case EFaceCullMode::FRONT:
+			rasterState.cullMode = VK_CULL_MODE_FRONT_BIT;
+			break;
+		default:
+			rasterState.cullMode = VK_CULL_MODE_BACK_BIT;
+			break;
+		}
+
 		VkPipelineDepthStencilStateCreateInfo depthStencilState = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO, nullptr };
 		depthStencilState.maxDepthBounds = 1.0f;
 		depthStencilState.minDepthBounds = 0.0f;
-		depthStencilState.depthBoundsTestEnable = VK_TRUE;
 		depthStencilState.depthCompareOp = PBCompareOPtoVKCompareOP(desc.m_depthCompareOP);
 		depthStencilState.depthTestEnable = desc.m_depthCompareOP != ECompareOP::ALWAYS;
+		depthStencilState.depthBoundsTestEnable = depthStencilState.depthTestEnable;
 		depthStencilState.depthWriteEnable = depthStencilState.depthTestEnable; // TODO: This should be a separate toggle from depth test.
 		depthStencilState.stencilTestEnable = desc.m_stencilTestEnable;
 		depthStencilState.flags = 0;
@@ -161,10 +211,15 @@ namespace PB
 		attachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 		attachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
 
+		PB_ASSERT(desc.m_attachmentCount > 0);
+		CLib::Vector<VkPipelineColorBlendAttachmentState, 8> colorBlendAttachmentStates;
+		for (u32 i = 0; i < desc.m_attachmentCount; ++i)
+			colorBlendAttachmentStates.PushBack() = attachmentState;
+
 		VkPipelineColorBlendStateCreateInfo colorBlendState = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, nullptr };
 		colorBlendState.flags = 0;
-		colorBlendState.attachmentCount = 1;
-		colorBlendState.pAttachments = &attachmentState;
+		colorBlendState.attachmentCount = desc.m_attachmentCount;
+		colorBlendState.pAttachments = colorBlendAttachmentStates.Data();
 		colorBlendState.logicOp = VK_LOGIC_OP_COPY;
 		colorBlendState.logicOpEnable = VK_FALSE;
 		colorBlendState.blendConstants[0] = 0.0f;

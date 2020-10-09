@@ -11,7 +11,8 @@
 #include "Shader.h"
 
 #include "RenderGraph.h"
-#include "BasicColorPass.h"
+#include "GBufferPass.h"
+#include "DeferredLightingPass.h"
 
 #include <iostream>
 #include <chrono>
@@ -99,7 +100,7 @@ int Application::Init(int argumentCount, char** argumentVector)
 	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 	swapchainDesc.m_height = 0;
-	swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
+	swapchainDesc.m_presentMode = PB::EPresentMode::FIFO;
 	swapchainDesc.m_imageCount = 3;
 
 	m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
@@ -120,31 +121,87 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 	{
 		RenderGraphBuilder rgBuilder(renderer, allocator);
 
-		NodeDesc nodeDesc;
-		nodeDesc.m_behaviour = behaviours[0];
+		// GBuffer pass
+		{
+			NodeDesc nodeDesc;
+			nodeDesc.m_behaviour = behaviours[0];
 
-		AttachmentDesc& colorDesc = nodeDesc.m_attachments[0];
-		colorDesc.m_format = swapchain->GetImageFormat();
-		colorDesc.m_width = swapchain->GetWidth();
-		colorDesc.m_height = swapchain->GetHeight();
-		colorDesc.m_name = "ColorOutput";
-		colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
-		colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
-		colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+			AttachmentDesc& colorDesc = nodeDesc.m_attachments[0];
+			colorDesc.m_format = swapchain->GetImageFormat();
+			colorDesc.m_width = swapchain->GetWidth();
+			colorDesc.m_height = swapchain->GetHeight();
+			colorDesc.m_name = "G_Color";
+			colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
+			//colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
+			colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-		AttachmentDesc& depthDesc = nodeDesc.m_attachments[1];
-		depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
-		depthDesc.m_width = swapchain->GetWidth();
-		depthDesc.m_height = swapchain->GetHeight();
-		depthDesc.m_name = nullptr; // Unnamed means temporary.
-		depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
-		depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+			AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
+			normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+			normalDesc.m_width = swapchain->GetWidth();
+			normalDesc.m_height = swapchain->GetHeight();
+			normalDesc.m_name = "G_Normal";
+			normalDesc.m_usage = PB::EAttachmentUsage::COLOR;
+			normalDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-		nodeDesc.m_attachmentCount = 2;
-		nodeDesc.m_renderWidth = colorDesc.m_width;
-		nodeDesc.m_renderHeight = colorDesc.m_height;
+			AttachmentDesc& depthDesc = nodeDesc.m_attachments[2];
+			depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+			depthDesc.m_width = swapchain->GetWidth();
+			depthDesc.m_height = swapchain->GetHeight();
+			depthDesc.m_name = "G_Depth";
+			depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
+			depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-		rgBuilder.AddNode(nodeDesc);
+			nodeDesc.m_attachmentCount = 3;
+			nodeDesc.m_renderWidth = colorDesc.m_width;
+			nodeDesc.m_renderHeight = colorDesc.m_height;
+
+			rgBuilder.AddNode(nodeDesc);
+		}
+
+		// Deferred lighting pass
+		{
+			NodeDesc nodeDesc;
+			nodeDesc.m_behaviour = behaviours[1];
+		
+			// Read G Buffers
+			AttachmentDesc& colorReadDesc = nodeDesc.m_attachments[0];
+			colorReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+			colorReadDesc.m_width = swapchain->GetWidth();
+			colorReadDesc.m_height = swapchain->GetHeight();
+			colorReadDesc.m_name = "G_Color";
+			colorReadDesc.m_usage = PB::EAttachmentUsage::READ;
+		
+			AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
+			normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+			normalDesc.m_width = swapchain->GetWidth();
+			normalDesc.m_height = swapchain->GetHeight();
+			normalDesc.m_name = "G_Normal";
+			normalDesc.m_usage = PB::EAttachmentUsage::READ;
+		
+			AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[2];
+			depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+			depthReadDesc.m_width = swapchain->GetWidth();
+			depthReadDesc.m_height = swapchain->GetHeight();
+			depthReadDesc.m_name = "G_Depth";
+			depthReadDesc.m_usage = PB::EAttachmentUsage::READ;
+		
+			// Output
+			AttachmentDesc& colorDesc = nodeDesc.m_attachments[3];
+			colorDesc.m_format = swapchain->GetImageFormat();
+			colorDesc.m_width = swapchain->GetWidth();
+			colorDesc.m_height = swapchain->GetHeight();
+			colorDesc.m_name = "ColorOutput";
+			colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
+			colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
+			colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+		
+			nodeDesc.m_attachmentCount = 4;
+			nodeDesc.m_renderWidth = colorDesc.m_width;
+			nodeDesc.m_renderHeight = colorDesc.m_height;
+		
+			rgBuilder.AddNode(nodeDesc);
+		}
+
 		output = rgBuilder.Build();
 	}
 	return output;
@@ -153,16 +210,35 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 void Application::Run() 
 {
 	// Create a rendergraph pass to render our scene with.
-	BasicColorPass* node = m_allocator.Alloc<BasicColorPass>(m_renderer, &m_allocator);
-	RenderGraph* renderGraph = CreateRenderGraph(&m_allocator, m_renderer, (RenderGraphBehaviour**)&node);
+	GBufferPass* gBufferNode = m_allocator.Alloc<GBufferPass>(m_renderer, &m_allocator);
+	DeferredLightingPass* defLightingNode = m_allocator.Alloc<DeferredLightingPass>(m_renderer, &m_allocator);
+
+	RenderGraphBehaviour* behaviours[2] = { gBufferNode, defLightingNode };
+	RenderGraph* renderGraph = CreateRenderGraph(&m_allocator, m_renderer, behaviours);
+
+	struct MVPBuffer
+	{
+		glm::mat4 m_model;
+		glm::mat4 m_view;
+		glm::mat4 m_proj;
+		glm::mat4 m_invView;
+		glm::mat4 m_invProj;
+		glm::vec4 m_camPos;
+	};
 
 	// Create a buffer for the model, view and projection matrices.
 	PB::BufferObjectDesc bufferDesc;
-	bufferDesc.m_bufferSize = sizeof(glm::mat4) * 3;
+	bufferDesc.m_bufferSize = sizeof(MVPBuffer);
 	bufferDesc.m_options = PB::EBufferOptions::ZERO_INITIALIZE;
 	bufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::UNIFORM;
 	PB::IBufferObject* mvpBuffer = m_renderer->AllocateBuffer(bufferDesc);
-	node->SetMVPBuffer(mvpBuffer);
+	gBufferNode->SetMVPBuffer(mvpBuffer);
+	defLightingNode->SetMVPBuffer(mvpBuffer);
+
+	bufferDesc.m_bufferSize = sizeof(glm::mat4);
+	bufferDesc.m_usage = PB::EBufferUsage::VERTEX | PB::EBufferUsage::COPY_DST;
+	PB::IBufferObject* instanceBuffer = m_renderer->AllocateBuffer(bufferDesc);
+	gBufferNode->SetInstanceBuffer(instanceBuffer);
 
 	Camera cam(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f), 0.5f, 5.0f);
 
@@ -206,22 +282,35 @@ void Application::Run()
 
 		// Update Camera -------------------------------------------------------------------------------------------------
 		{
-			glm::mat4* bufferMatrices = (glm::mat4*)mvpBuffer->BeginPopulate();
+			MVPBuffer* bufferMatrices = (MVPBuffer*)mvpBuffer->BeginPopulate();
 
-			glm::mat4 model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
+			// Model
+			glm::mat4& model = bufferMatrices->m_model;
+			model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
 			model = glm::scale(model, glm::vec3(0.01f));
 			model = glm::rotate<float>(model, elapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
 
-			bufferMatrices[0] = model; // Model
-			bufferMatrices[1] = cam.GetViewMatrix(); // View
+			// View
+			bufferMatrices->m_view = cam.GetViewMatrix(); // View
+			bufferMatrices->m_invView = glm::inverse(bufferMatrices->m_view);
 
+			// Projection
 			glm::mat4 axisCorrection; // Inverts the Y axis to match the OpenGL coordinate system.
 			axisCorrection[1][1] = -1.0f;
 			axisCorrection[2][2] = 1.0f;
 			axisCorrection[3][3] = 1.0f;
 
-			bufferMatrices[2] = axisCorrection * glm::perspectiveFov<float>(45.0f, (float)m_swapchain->GetWidth(), (float)m_swapchain->GetHeight(), 0.1f, 1000.0f); // Projection
+			bufferMatrices->m_proj = axisCorrection * glm::perspectiveFov<float>(45.0f, (float)m_swapchain->GetWidth(), (float)m_swapchain->GetHeight(), 0.1f, 1000.0f);
+			bufferMatrices->m_invProj = glm::inverse(bufferMatrices->m_proj);
+
+			// Position
+			bufferMatrices->m_camPos = glm::vec4(cam.GetPosition(), 1.0f);
+
 			mvpBuffer->EndPopulate();
+
+			glm::mat4* instanceMatrix = (glm::mat4*)instanceBuffer->BeginPopulate();
+			*instanceMatrix = model;
+			instanceBuffer->EndPopulate();
 		}
 		// ---------------------------------------------------------------------------------------------------------------
 
@@ -229,7 +318,7 @@ void Application::Run()
 		{
 			PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 			auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
-			node->SetOutputTexture(swapChainTex);
+			defLightingNode->SetOutputTexture(swapChainTex);
 		}
 		// ---------------------------------------------------------------------------------------------------------------
 
@@ -276,9 +365,11 @@ void Application::Run()
 	m_renderer->WaitIdle();
 
 	m_renderer->FreeBuffer(mvpBuffer);
+	m_renderer->FreeBuffer(instanceBuffer);
 
 	m_allocator.Free(renderGraph);
-	m_allocator.Free(node);
+	m_allocator.Free(gBufferNode);
+	m_allocator.Free(defLightingNode);
 }
 
 void Application::CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen)

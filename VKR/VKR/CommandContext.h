@@ -41,6 +41,7 @@ namespace PB
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange) override;
 		PARABLIT_API void CmdBindPipeline(Pipeline pipeline) override;
 		void CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType) override;
+		void CmdBindVertexBuffers(const IBufferObject** vertexBuffers, u32 vertexBufferCount, const IBufferObject* indexBuffer, EIndexType indexType) override;
 		PARABLIT_API void CmdDraw(u32 vertexCount, u32 instanceCount) override;
 		void CmdDrawIndexed(u32 indexCount, u32 instanceCount) override;
 		PARABLIT_API void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size);

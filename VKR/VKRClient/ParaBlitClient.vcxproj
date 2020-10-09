@@ -21,8 +21,9 @@
   <ItemGroup>
     <ClCompile Include="..\VKR\CLib\Allocator.cpp" />
     <ClCompile Include="Application.cpp" />
-    <ClCompile Include="BasicColorPass.cpp" />
+    <ClCompile Include="GBufferPass.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="DeferredLightingPass.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
@@ -36,8 +37,9 @@
   <ItemGroup>
     <ClInclude Include="..\VKR\CLib\Allocator.h" />
     <ClInclude Include="Application.h" />
-    <ClInclude Include="BasicColorPass.h" />
+    <ClInclude Include="GBufferPass.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="DeferredLightingPass.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="QuickIO.h" />

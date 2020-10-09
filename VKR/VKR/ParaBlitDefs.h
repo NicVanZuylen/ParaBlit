@@ -72,6 +72,10 @@ namespace PB
 		R8G8B8_UNORM,
 		R8G8B8A8_UNORM,
 		B8G8R8A8_UNORM,
+		R32_FLOAT,
+		R32G32_FLOAT,
+		R32G32B32_FLOAT,
+		R32G32B32A32_FLOAT,
 		D16_UNORM,
 		D16_UNORM_S8_UINT,
 		D24_UNORM_S8_UINT,
@@ -113,13 +117,14 @@ namespace PB
 	};
 	PB_DEFINE_ENUM_FIELD(BufferUsageFlags, EBufferUsage, u32)
 
-	enum class EVertexAttributeType : u32
+	enum class EVertexAttributeType : u16
 	{
 		NONE,
 		FLOAT		=	sizeof(float),
 		FLOAT2		=	sizeof(float) * 2,
 		FLOAT3		=	sizeof(float) * 3,
 		FLOAT4		=	sizeof(float) * 4,
+		MAT4		=	sizeof(float) * 5
 	};
 
 	enum class ECompareOP : u8
@@ -137,19 +142,36 @@ namespace PB
 	{
 		union
 		{
-			struct
-			{	
-				float r, g, b, a;
-			};
-			struct
-			{
-				float x, y, z, w;
-			};
-			struct
-			{
-				float u, v;
-			};
+			struct { float r, g, b, a; };
+			struct { float x, y, z, w; };
+			struct { float u, v; };
 			float m_data[4];
+		};
+
+		inline float& operator[](const u32& index) { return m_data[index]; }
+	};
+
+	struct Float3
+	{
+		union
+		{
+			struct { float r, g, b; };
+			struct { float x, y, z; };
+			struct { float u, v; };
+			float m_data[3];
+		};
+
+		inline float& operator[](const u32& index) { return m_data[index]; }
+	};
+
+	struct Float2
+	{
+		union
+		{
+			struct { float r, g; };
+			struct { float x, y; };
+			struct { float u, v; };
+			float m_data[2];
 		};
 
 		inline float& operator[](const u32& index) { return m_data[index]; }
@@ -186,8 +208,8 @@ namespace PB
 
 	enum EShaderStage : u32
 	{
-		PB_SHADER_STAGE_VERTEX,
-		PB_SHADER_STAGE_FRAGMENT,
+		VERTEX,
+		FRAGMENT,
 		PB_SHADER_STAGE_COUNT
 	};
 
@@ -200,7 +222,6 @@ namespace PB
 	using Pipeline = u64;
 
 	using BufferOptions = u32;
-	using BufferUsage = u32;
 
 	struct SubresourceRange
 	{
@@ -223,11 +244,14 @@ namespace PB
 	struct BindingLayout
 	{
 		EBindingLayoutLocation m_bindingLocation = EBindingLayoutLocation::DEFAULT;
+
 		u16 m_bufferCount = 0;
-		u16 m_textureCount = 0;
-		u16 m_samplerCount = 0;
 		BufferView* m_buffers = nullptr;
+
+		u16 m_textureCount = 0;
 		TextureView* m_textures = nullptr;
+
+		u16 m_samplerCount = 0;
 		Sampler* m_samplers = nullptr;
 	};
 }

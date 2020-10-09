@@ -24,7 +24,7 @@ namespace PB
 		CommandContextFlags m_flags = ECommandContextFlags::NONE;
 	};
 
-	enum EIndexType
+	enum class EIndexType
 	{
 		PB_INDEX_TYPE_UINT16,
 		PB_INDEX_TYPE_UINT32
@@ -70,6 +70,8 @@ namespace PB
 		PARABLIT_INTERFACE void CmdBindResources(const BindingLayout& layout) = 0;
 
 		PARABLIT_INTERFACE void CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType) = 0;
+
+		PARABLIT_INTERFACE void CmdBindVertexBuffers(const IBufferObject** vertexBuffers, u32 vertexBufferCount, const IBufferObject* indexBuffer, EIndexType indexType) = 0;
 
 		PARABLIT_INTERFACE void CmdDraw(u32 vertexCount, u32 instanceCount) = 0;
 
