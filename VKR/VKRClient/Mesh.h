@@ -34,9 +34,16 @@ namespace PBClient
 	{
 	public:
 
+		Mesh() = default;
+
 		Mesh(PB::IRenderer* renderer, const char* filePath);
 
 		~Mesh();
+
+		/*
+		Description: Constructor logic.
+		*/
+		void Init(PB::IRenderer* renderer, const char* filePath);
 
 		/*
 		Description: Load the mesh from a file, and any included materials.

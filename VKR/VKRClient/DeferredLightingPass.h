@@ -1,6 +1,7 @@
 #pragma once
 #include "RenderGraphNode.h"
 #include "Shader.h"
+#include "Mesh.h"
 
 class DeferredLightingPass : public RenderGraphBehaviour
 {
@@ -26,6 +27,16 @@ private:
 
 	struct LightingBuffer
 	{
+		struct PointLightingData
+		{
+			struct PointLight
+			{
+				PB::Float4 m_position;
+				PB::Float3 m_color;
+				float m_radius;
+			} m_lights[512];
+		} m_pointLights;
+
 		struct DirectionalLightingData
 		{
 			struct DirectionalLight
@@ -35,29 +46,22 @@ private:
 			} m_lights[8];
 			int m_lightCount;
 		} m_directionalLights;
-
-		struct PointLightingData
-		{
-			struct PointLight
-			{
-				PB::Float4 m_position;
-				PB::Float3 m_color;
-				float m_radius;
-			} m_lights[512];
-			int m_lightCount;
-		} m_pointLights;
 	};
 
 	PB::ITexture* m_outputTexture = nullptr;
+	PBClient::Mesh m_pointLightVolumeMesh;
+	PB::u32 m_pointLightCount = 0;
 	PB::IBufferObject* m_mvpBuffer = nullptr;
 	PB::IBufferObject* m_lightingBuffer = nullptr;
 
+	PB::BufferView m_pointLightingView = nullptr;
 	PB::BufferView m_dirLightingView = nullptr;
-	PB::BufferView m_pointLightView = nullptr;
 	PB::Pipeline m_dirLightingPipeline = 0;
 	PB::Pipeline m_pointLightingPipeline = 0;
-	PBClient::Shader* m_screenQuadShader;
-	PBClient::Shader* m_defDirLightShader;
+	PBClient::Shader* m_screenQuadShader = nullptr;
+	PBClient::Shader* m_defDirLightShader = nullptr;
+	PBClient::Shader* m_pointLightVTXShader = nullptr;
+	PBClient::Shader* m_pointLightShader = nullptr;
 
 	PB::Sampler m_gBufferSampler = 0;
 };

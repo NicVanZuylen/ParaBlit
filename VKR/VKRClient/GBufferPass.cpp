@@ -38,6 +38,9 @@ GBufferPass::~GBufferPass()
 	m_allocator->Free(m_paintMesh);
 	m_allocator->Free(m_detailsMesh);
 	m_allocator->Free(m_glassMesh);
+
+	m_allocator->Free(m_vertShader);
+	m_allocator->Free(m_fragShader);
 }
 
 void GBufferPass::OnPreRenderPass(const RenderGraphInfo& info)

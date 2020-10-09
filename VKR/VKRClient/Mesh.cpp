@@ -10,15 +10,7 @@ namespace PBClient
 {
 	Mesh::Mesh(PB::IRenderer* renderer, const char* filePath)
 	{
-		m_renderer = renderer;
-		m_empty = true;
-		m_filePath = filePath;
-
-		// Use the filename as the name.
-		std::string tmpName = filePath;
-		m_name = "|" + tmpName.substr(tmpName.find_last_of('/') + 1) + "|";
-
-		Load(filePath);
+		Init(renderer, filePath);
 	}
 
 	Mesh::~Mesh()
@@ -32,6 +24,18 @@ namespace PBClient
 			m_renderer->FreeBuffer(m_indexBuffer);
 			m_indexBuffer = nullptr;
 		}
+	}
+
+	void Mesh::Init(PB::IRenderer* renderer, const char* filePath)
+	{
+		m_renderer = renderer;
+		m_filePath = filePath;
+
+		// Use the filename as the name.
+		std::string tmpName = filePath;
+		m_name = "|" + tmpName.substr(tmpName.find_last_of('/') + 1) + "|";
+
+		Load(filePath);
 	}
 
 	void Mesh::Load(const char* filePath)

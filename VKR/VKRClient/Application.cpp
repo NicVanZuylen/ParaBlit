@@ -288,7 +288,7 @@ void Application::Run()
 			glm::mat4& model = bufferMatrices->m_model;
 			model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
 			model = glm::scale(model, glm::vec3(0.01f));
-			model = glm::rotate<float>(model, elapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
+			//model = glm::rotate<float>(model, elapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
 
 			// View
 			bufferMatrices->m_view = cam.GetViewMatrix(); // View
