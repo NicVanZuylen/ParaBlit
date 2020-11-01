@@ -100,7 +100,7 @@ int Application::Init(int argumentCount, char** argumentVector)
 	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 	swapchainDesc.m_height = 0;
-	swapchainDesc.m_presentMode = PB::EPresentMode::FIFO;
+	swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
 	swapchainDesc.m_imageCount = 3;
 
 	m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
@@ -132,7 +132,6 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 			colorDesc.m_height = swapchain->GetHeight();
 			colorDesc.m_name = "G_Color";
 			colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
-			//colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
 			colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 			AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
@@ -143,7 +142,14 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 			normalDesc.m_usage = PB::EAttachmentUsage::COLOR;
 			normalDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-			AttachmentDesc& depthDesc = nodeDesc.m_attachments[2];
+			AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments[2];
+			specAndRoughDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+			specAndRoughDesc.m_width = swapchain->GetWidth();
+			specAndRoughDesc.m_height = swapchain->GetHeight();
+			specAndRoughDesc.m_name = "G_SpecAndRough";
+			specAndRoughDesc.m_usage = PB::EAttachmentUsage::COLOR;
+
+			AttachmentDesc& depthDesc = nodeDesc.m_attachments[3];
 			depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
 			depthDesc.m_width = swapchain->GetWidth();
 			depthDesc.m_height = swapchain->GetHeight();
@@ -151,7 +157,7 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 			depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
 			depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-			nodeDesc.m_attachmentCount = 3;
+			nodeDesc.m_attachmentCount = 4;
 			nodeDesc.m_renderWidth = colorDesc.m_width;
 			nodeDesc.m_renderHeight = colorDesc.m_height;
 
@@ -177,8 +183,15 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 			normalDesc.m_height = swapchain->GetHeight();
 			normalDesc.m_name = "G_Normal";
 			normalDesc.m_usage = PB::EAttachmentUsage::READ;
+
+			AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments[2];
+			specAndRoughDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+			specAndRoughDesc.m_width = swapchain->GetWidth();
+			specAndRoughDesc.m_height = swapchain->GetHeight();
+			specAndRoughDesc.m_name = "G_SpecAndRough";
+			specAndRoughDesc.m_usage = PB::EAttachmentUsage::READ;
 		
-			AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[2];
+			AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[3];
 			depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
 			depthReadDesc.m_width = swapchain->GetWidth();
 			depthReadDesc.m_height = swapchain->GetHeight();
@@ -186,7 +199,7 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 			depthReadDesc.m_usage = PB::EAttachmentUsage::READ;
 		
 			// Output
-			AttachmentDesc& colorDesc = nodeDesc.m_attachments[3];
+			AttachmentDesc& colorDesc = nodeDesc.m_attachments[4];
 			colorDesc.m_format = swapchain->GetImageFormat();
 			colorDesc.m_width = swapchain->GetWidth();
 			colorDesc.m_height = swapchain->GetHeight();
@@ -195,7 +208,7 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 			colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
 			colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 		
-			nodeDesc.m_attachmentCount = 4;
+			nodeDesc.m_attachmentCount = 5;
 			nodeDesc.m_renderWidth = colorDesc.m_width;
 			nodeDesc.m_renderHeight = colorDesc.m_height;
 		
@@ -288,7 +301,7 @@ void Application::Run()
 			glm::mat4& model = bufferMatrices->m_model;
 			model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
 			model = glm::scale(model, glm::vec3(0.01f));
-			//model = glm::rotate<float>(model, elapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
+			model = glm::rotate<float>(model, elapsedTime * 0.2f, glm::vec3(0.0f, 1.0f, 0.0f));
 
 			// View
 			bufferMatrices->m_view = cam.GetViewMatrix(); // View

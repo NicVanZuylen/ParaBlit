@@ -201,24 +201,25 @@ namespace PB
 		depthStencilState.stencilTestEnable = desc.m_stencilTestEnable;
 		depthStencilState.flags = 0;
 
-		VkPipelineColorBlendAttachmentState attachmentState = {};
-		attachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		attachmentState.blendEnable = VK_FALSE;
-		attachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		attachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-		attachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-		attachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		attachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		attachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-
 		PB_ASSERT(desc.m_attachmentCount > 0);
 		CLib::Vector<VkPipelineColorBlendAttachmentState, 8> colorBlendAttachmentStates;
 		for (u32 i = 0; i < desc.m_attachmentCount; ++i)
-			colorBlendAttachmentStates.PushBack() = attachmentState;
+		{
+			const AttachmentBlendState& blendState = desc.m_colorBlendStates[i];
+			VkPipelineColorBlendAttachmentState& attachmentState = colorBlendAttachmentStates.PushBack();
+			attachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+			attachmentState.blendEnable = static_cast<VkBool32>(blendState.m_enableBlending);
+			attachmentState.srcColorBlendFactor = static_cast<VkBlendFactor>(blendState.m_srcColor);
+			attachmentState.dstColorBlendFactor = static_cast<VkBlendFactor>(blendState.m_dstColor);
+			attachmentState.colorBlendOp = static_cast<VkBlendOp>(blendState.m_srcBlend);
+			attachmentState.srcAlphaBlendFactor = static_cast<VkBlendFactor>(blendState.m_srcAlpha);
+			attachmentState.dstAlphaBlendFactor = static_cast<VkBlendFactor>(blendState.m_dstAlpha);
+			attachmentState.alphaBlendOp = static_cast<VkBlendOp>(blendState.m_dstBlend);
+		}
 
 		VkPipelineColorBlendStateCreateInfo colorBlendState = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, nullptr };
 		colorBlendState.flags = 0;
-		colorBlendState.attachmentCount = desc.m_attachmentCount;
+		colorBlendState.attachmentCount = colorBlendAttachmentStates.Count();
 		colorBlendState.pAttachments = colorBlendAttachmentStates.Data();
 		colorBlendState.logicOp = VK_LOGIC_OP_COPY;
 		colorBlendState.logicOpEnable = VK_FALSE;

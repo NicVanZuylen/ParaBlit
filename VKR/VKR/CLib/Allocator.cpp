@@ -86,12 +86,12 @@ namespace CLib
 	void Allocator::InternalFree(void* ptr)
 	{
 		free(ptr);
-		BlockNode* node = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(ptr) - sizeof(BlockNode));
-		
-		// Push the block back onto the free list.
-		BlockNode*& freeList = m_freeLists[GetLowerFreeListIdx(node->m_size)];
-		node->m_prevNode = freeList;
-		freeList = node;
+		//BlockNode* node = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(ptr) - sizeof(BlockNode));
+		//
+		//// Push the block back onto the free list.
+		//BlockNode*& freeList = m_freeLists[GetLowerFreeListIdx(node->m_size)];
+		//node->m_prevNode = freeList;
+		//freeList = node;
 	}
 
 	inline void Allocator::AllocatePage()

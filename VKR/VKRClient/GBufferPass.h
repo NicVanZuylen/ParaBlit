@@ -34,13 +34,13 @@ private:
 	PBClient::Mesh* m_detailsMesh = nullptr;
 	PBClient::Mesh* m_glassMesh = nullptr;
 
-	PBClient::Texture* m_paintTexture = nullptr;
-	PBClient::Texture* m_detailsTexture = nullptr;
-	PBClient::Texture* m_glassTexture = nullptr;
+	PBClient::Texture* m_paintTextures[4]{};
+	PBClient::Texture* m_detailsTextures[4]{};
+	PBClient::Texture* m_glassTextures[4]{};
 
-	PB::TextureView m_paintView = 0;
-	PB::TextureView m_detailsView = 0;
-	PB::TextureView m_glassView = 0;
+	PB::TextureView m_paintViews[4]{};
+	PB::TextureView m_detailsViews[4]{};
+	PB::TextureView m_glassViews[4]{};
 
 	PB::Sampler m_colorSampler = 0;
 

@@ -37,13 +37,13 @@ DeferredLightingPass::DeferredLightingPass(PB::IRenderer* renderer, CLib::Alloca
 		// Set up lighting
 		LightingBuffer* lightingData = reinterpret_cast<LightingBuffer*>(m_lightingBuffer->BeginPopulate());
 
-		lightingData->m_directionalLights.m_lights[0].m_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-		lightingData->m_directionalLights.m_lights[0].m_direction = { 1.0f, 0.0f, 0.0f, 1.0f };
+		lightingData->m_directionalLights.m_lights[0].m_color = { 0.7f, 0.7f, 0.7f, 1.0f };
+		lightingData->m_directionalLights.m_lights[0].m_direction = { 1.0f, 1.0f, 0.0f, 1.0f };
 		lightingData->m_directionalLights.m_lightCount = 1;
 
 		lightingData->m_pointLights.m_lights[0].m_position = { 0.0f, 2.0f, -4.0f, 1.0f };
-		lightingData->m_pointLights.m_lights[0].m_color = { 1.0f, 1.0f, 1.0f };
-		lightingData->m_pointLights.m_lights[0].m_radius = 2.0f;
+		lightingData->m_pointLights.m_lights[0].m_color = { 1.0f, 0.0f, 1.0f };
+		lightingData->m_pointLights.m_lights[0].m_radius = 3.0f;
 
 		m_pointLightCount = 1;
 
@@ -77,7 +77,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 	bindingLayout.m_buffers = bufferViews;
 	bindingLayout.m_samplerCount = 1;
 	bindingLayout.m_samplers = &m_gBufferSampler;
-	bindingLayout.m_textureCount = 3;
+	bindingLayout.m_textureCount = 4;
 	bindingLayout.m_textures = info.m_renderTargetViews; // Views should already be in the correct order.
 
 	if (m_dirLightingPipeline == 0)
@@ -92,10 +92,10 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		lightingPipelineDesc.m_renderPass = info.m_renderPass;
 		lightingPipelineDesc.m_shaderModules[PB::EShaderStage::VERTEX] = m_screenQuadShader->GetModule();
 		lightingPipelineDesc.m_shaderModules[PB::EShaderStage::FRAGMENT] = m_defDirLightShader->GetModule();
-
+	
 		m_dirLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
 	}
-
+	
 	// Directional lighting
 	{
 		info.m_commandContext->CmdBindPipeline(m_dirLightingPipeline);
@@ -110,13 +110,14 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
 		lightingPipelineDesc.m_renderArea = { 0, 0, renderWidth, renderHeight };
 		lightingPipelineDesc.m_stencilTestEnable = false;
-		lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::NONE;
+		lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 		lightingPipelineDesc.m_subpass = 0;
 		lightingPipelineDesc.m_renderPass = info.m_renderPass;
 		lightingPipelineDesc.m_shaderModules[PB::EShaderStage::VERTEX] = m_pointLightVTXShader->GetModule();
 		lightingPipelineDesc.m_shaderModules[PB::EShaderStage::FRAGMENT] = m_pointLightShader->GetModule();
 		lightingPipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
 		lightingPipelineDesc.m_vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT4 };
+		lightingPipelineDesc.m_colorBlendStates[0] = PB::PipelineDesc::DefaultBlendState();
 	
 		m_pointLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
 	}
@@ -135,7 +136,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 
 void DeferredLightingPass::OnPostRenderPass(const RenderGraphInfo& info)
 {
-	constexpr uint32_t outputTarget = 3;
+	constexpr uint32_t outputTarget = 4;
 
 	// Transition color and output to correct layouts...
 	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[outputTarget], PB::ETextureState::COPY_SRC);

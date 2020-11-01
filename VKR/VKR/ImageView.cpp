@@ -273,7 +273,7 @@ namespace PB
 		samplerInfo.addressModeU = PBRepeatModeToVkSamplerAddressMode(desc.m_repeatMode);
 		samplerInfo.addressModeV = PBRepeatModeToVkSamplerAddressMode(desc.m_repeatMode);
 		samplerInfo.addressModeW = PBRepeatModeToVkSamplerAddressMode(desc.m_repeatMode);
-		samplerInfo.anisotropyEnable = desc.m_anisotropyLevels > 0.0f;
+		samplerInfo.anisotropyEnable = desc.m_anisotropyLevels > 1.0f;
 		samplerInfo.maxAnisotropy = desc.m_anisotropyLevels;
 		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 		samplerInfo.minFilter = PBFilterToVKFilter(desc.m_filter);

@@ -49,58 +49,6 @@ layout(location = 1) flat in int instanceIndex;
 
 layout(location = 0) out vec4 outColor;
 
-float OrenNayarDiff(vec3 normal, vec3 lightDir, vec3 surfToCam, float roughness) 
-{
-    float roughSqr = roughness * roughness;
-
-    float A = 1.0f - (0.5f * (roughSqr / (roughSqr + 0.33f)));
-	float B = 0.45f * (roughSqr / (roughSqr + 0.09f));
-
-	float normalDotLight = max(dot(normal, lightDir), 0.0f);
-	float normalDotSurfToCam = max(dot(normal, surfToCam), 0.0f);
-
-	vec3 lightProj = normalize(lightDir - (normal * normalDotLight));
-	vec3 viewProj = normalize(surfToCam - (normal * normalDotSurfToCam));
-
-	float cx = max(dot(lightProj, viewProj), 0.0f);
-
-	float alpha =  sin(max(acos(normalDotSurfToCam), acos(normalDotLight)));
-	float beta = tan(min(acos(normalDotSurfToCam), acos(normalDotLight)));
-
-	float dx = alpha * beta;
-
-	return normalDotLight * (A + B * cx * dx);
-}
-
-#define PI 3.14159265359f
-
-float CookTorrenceSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float lambert, float roughness, float reflectionCoefficient) 
-{
-    float roughSqr = roughness * roughness;
-
-	float normalDotView = max(dot(normal, viewDir), 0.0f);
-
-	vec3 halfVec = normalize(lightDir + viewDir);
-
-	float normalDotHalf = max(dot(normal, halfVec), 0.0f);
-	float normalDotHalfSqr = normalDotHalf * normalDotHalf;
-
-	// Beckmann Distribution
-	float exponent = -(1.0f - normalDotHalfSqr) / (normalDotHalfSqr * roughSqr);
-	float D = exp(exponent) / (roughSqr * normalDotHalfSqr * normalDotHalfSqr);
-
-	// Fresnel Term using Sclick's approximation.
-	float F = reflectionCoefficient + (1.0f - reflectionCoefficient) * pow(1.0f - normalDotView, 5);
-
-	// Geometric Attenuation Factor
-	float halfFrac = 2.0f * normalDotHalf / dot(viewDir, halfVec);
-	float G = min(1.0f, min(halfFrac * normalDotView, halfFrac * lambert));
-
-	float bottomHalf = PI * normalDotView;
-
-	return max((D * F * G) / bottomHalf, 0.0f);
-}
-
 vec3 WorldPosFromDepth(float depth, vec2 texCoords, inout mat4 invView, inout mat4 invProj)
 {
 	// Convert x & y to clip space and include z.
@@ -116,8 +64,8 @@ vec3 WorldPosFromDepth(float depth, vec2 texCoords, inout mat4 invView, inout ma
 	return worldPos.xyz;
 }
 
-#define SPECULAR_FOCUS 16.0
-#define SPECULAR_POWER 0.5
+#define SPECULAR_FOCUS 32
+#define SPECULAR_POWER 3
 
 void main() 
 {
@@ -142,14 +90,6 @@ void main()
         texCoord
     ).xyz;
 
-    vec4 specAndRough = texture
-    (
-        sampler2D(textures[nonuniformEXT(bindings.specAndRoughRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
-        texCoord
-    );
-    vec3 specular = specAndRough.rgb;
-    float roughness = specAndRough.a;
-
     float depth = texture
     (
         sampler2D(textures[nonuniformEXT(bindings.depthRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
@@ -167,21 +107,15 @@ void main()
     float normalDotLight = max(dot(normal, dirToLight), 0.0);
     float normalDotCam = max(dot(normal, dirToCam), 0.0);
 
-    float orenNayar = OrenNayarDiff(normal, dirToLight, dirToCam, roughness);
-    float cookTorrence = CookTorrenceSpec(normal, dirToLight, dirToCam, normalDotLight, roughness, 1.0);
-
     // Attenuation function
     float dist = length(light.position.xyz - position);
     float attenuation = max(-pow((dist / light.radius) + 0.1f, 3) + 1, 0.0);
 
-    //vec3 lightReflected = reflect(dirToLight, normal);
-    //float specTerm = max(dot(lightReflected, -dirToCam), 0.0);
+    vec3 lightReflected = reflect(dirToLight, normal);
+    float specTerm = max(dot(lightReflected, -dirToCam), 0.0);
 
-    //vec3 diffuse = normalDotLight * light.color;
-    //vec3 spec = max(normalDotLight * pow(specTerm, SPECULAR_FOCUS) * SPECULAR_POWER * light.color, 0.0);
-
-    vec3 diffuse = orenNayar * light.color;
-    vec3 spec = cookTorrence * SPECULAR_POWER * light.color;
+    vec3 diffuse = normalDotLight * light.color;
+    vec3 spec = max(normalDotLight * pow(specTerm, SPECULAR_FOCUS) * SPECULAR_POWER * light.color, 0.0);
 
     outColor += vec4((diffuse + spec) * attenuation * color, 1.0);
 }

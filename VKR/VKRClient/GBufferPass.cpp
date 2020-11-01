@@ -11,13 +11,28 @@ GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : 
 	m_detailsMesh = m_allocator->Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_details.obj");
 	m_glassMesh = m_allocator->Alloc<Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_glass.obj");
 	
-	m_paintTexture = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_diffuse.tga");
-	m_detailsTexture = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_diffuse.tga");
-	m_glassTexture = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_diffuse.tga");
+	m_paintTextures[0] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_diffuse.tga");
+	m_detailsTextures[0] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_diffuse.tga");
+	m_glassTextures[0] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_diffuse.tga");
 
-	m_paintView = m_paintTexture->GetTexture()->GetDefaultSRV();
-	m_detailsView = m_detailsTexture->GetTexture()->GetDefaultSRV();
-	m_glassView = m_glassTexture->GetTexture()->GetDefaultSRV();
+	m_paintTextures[1] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_normal.tga");
+	m_detailsTextures[1] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_normal.tga");
+	m_glassTextures[1] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_normal.tga");
+
+	m_paintTextures[2] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_specular.tga");
+	m_detailsTextures[2] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_specular.tga");
+	m_glassTextures[2] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_specular.tga");
+
+	m_paintTextures[3] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_roughness.tga");
+	m_detailsTextures[3] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_roughness.tga");
+	m_glassTextures[3] = m_allocator->Alloc<Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_roughness.tga");
+
+	for (PB::u32 i = 0; i < _countof(m_paintTextures); ++i)
+		m_paintViews[i] = m_paintTextures[i]->GetTexture()->GetDefaultSRV();
+	for (PB::u32 i = 0; i < _countof(m_detailsTextures); ++i)
+		m_detailsViews[i] = m_detailsTextures[i]->GetTexture()->GetDefaultSRV();
+	for (PB::u32 i = 0; i < _countof(m_glassTextures); ++i)
+		m_glassViews[i] = m_glassTextures[i]->GetTexture()->GetDefaultSRV();
 
 	m_vertShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/vs_obj_def.spv", m_allocator);
 	m_fragShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/fs_obj_def.spv", m_allocator);
@@ -31,9 +46,21 @@ GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : 
 
 GBufferPass::~GBufferPass()
 {
-	m_allocator->Free(m_paintTexture);
-	m_allocator->Free(m_detailsTexture);
-	m_allocator->Free(m_glassTexture);
+	for (auto& tex : m_paintTextures)
+	{
+		m_allocator->Free(tex);
+		tex = nullptr;
+	}
+	for (auto& tex : m_detailsTextures)
+	{
+		m_allocator->Free(tex);
+		tex = nullptr;
+	}
+	for (auto& tex : m_glassTextures)
+	{
+		m_allocator->Free(tex);
+		tex = nullptr;
+	}
 
 	m_allocator->Free(m_paintMesh);
 	m_allocator->Free(m_detailsMesh);
@@ -60,8 +87,8 @@ void GBufferPass::OnPassBegin(const RenderGraphInfo& info)
 	bindings.m_bindingLocation = PB::EBindingLayoutLocation::DEFAULT;
 	bindings.m_bufferCount = 1;
 	bindings.m_buffers = &mvpView;
-	bindings.m_textureCount = 1;
-	bindings.m_textures = &m_paintView;
+	bindings.m_textureCount = _countof(m_paintViews);
+	bindings.m_textures = m_paintViews;
 	bindings.m_samplerCount = 1;
 	bindings.m_samplers = &m_colorSampler;
 
@@ -74,7 +101,7 @@ void GBufferPass::OnPassBegin(const RenderGraphInfo& info)
 	pipelineDesc.m_shaderModules[PB::EShaderStage::VERTEX] = m_vertShader->GetModule();
 	pipelineDesc.m_shaderModules[PB::EShaderStage::FRAGMENT] = m_fragShader->GetModule();
 	pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
-	pipelineDesc.m_attachmentCount = 2;
+	pipelineDesc.m_attachmentCount = 3;
 	pipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
 	pipelineDesc.m_vertexBuffers[1] = { sizeof(Vertex), PB::EVertexBufferType::INSTANCE };
 
@@ -94,13 +121,15 @@ void GBufferPass::OnPassBegin(const RenderGraphInfo& info)
 	cmdContext->CmdBindVertexBuffers(vertexBuffers, vertexBufferCount, m_paintMesh->GetIndexBuffer(), PB::EIndexType::PB_INDEX_TYPE_UINT32);
 	cmdContext->CmdDrawIndexed(m_paintMesh->IndexCount(), 1);
 	
-	bindings.m_textures = &m_detailsView;
+	bindings.m_textureCount = _countof(m_detailsViews);
+	bindings.m_textures = m_detailsViews;
 	cmdContext->CmdBindResources(bindings);
 	vertexBuffers[0] = m_detailsMesh->GetVertexBuffer();
 	cmdContext->CmdBindVertexBuffers(vertexBuffers, vertexBufferCount, m_detailsMesh->GetIndexBuffer(), PB::EIndexType::PB_INDEX_TYPE_UINT32);
 	cmdContext->CmdDrawIndexed(m_detailsMesh->IndexCount(), 1);
 	
-	bindings.m_textures = &m_glassView;
+	bindings.m_textureCount = _countof(m_glassViews);
+	bindings.m_textures = m_glassViews;
 	cmdContext->CmdBindResources(bindings);
 	vertexBuffers[0] = m_glassMesh->GetVertexBuffer();
 	cmdContext->CmdBindVertexBuffers(vertexBuffers, vertexBufferCount, m_glassMesh->GetIndexBuffer(), PB::EIndexType::PB_INDEX_TYPE_UINT32);
