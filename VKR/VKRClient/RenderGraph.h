@@ -33,6 +33,7 @@ struct NodeDesc
 	uint32_t m_attachmentCount = 0;
 	uint32_t m_renderWidth = 0;
 	uint32_t m_renderHeight = 0;
+	bool useReusableCommandLists = false;
 };
 
 class RenderGraph;
@@ -79,6 +80,7 @@ private:
 		uint32_t m_attachmentCount = 0;
 		uint32_t m_renderWidth = 0;
 		uint32_t m_renderHeight = 0;
+		bool m_useReusableCommandLists = false;
 	};
 
 	// Tracks the usage of named attachments
@@ -122,6 +124,7 @@ struct RenderGraphExecuteNode
 	uint32_t m_attachmentCount = 0;
 	uint32_t m_renderWidth = 0;
 	uint32_t m_renderHeight = 0;
+	bool m_useReusableCommandLists = false;
 
 	RenderGraphBehaviour* m_behaviour = nullptr;
 	RenderGraphExecuteNode* m_next = nullptr;

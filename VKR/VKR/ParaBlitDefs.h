@@ -108,12 +108,13 @@ namespace PB
 
 	enum class EBufferUsage : u32
 	{
-		UNIFORM		=	1,
-		STORAGE		=	1 << 1,
-		COPY_SRC	=	1 << 2,
-		COPY_DST	=	1 << 3,
-		VERTEX		=	1 << 4,
-		INDEX		=	1 << 5
+		UNIFORM			=	1,
+		STORAGE			=	1 << 1,
+		COPY_SRC		=	1 << 2,
+		COPY_DST		=	1 << 3,
+		VERTEX			=	1 << 4,
+		INDEX			=	1 << 5,
+		INDIRECT_PARAMS =	1 << 6
 	};
 	PB_DEFINE_ENUM_FIELD(BufferUsageFlags, EBufferUsage, u32)
 
@@ -202,6 +203,7 @@ namespace PB
 	{
 		NONE,
 		PRIORITY		=	1,
+		REUSABLE		=	1 << 1,
 		END_RANGE
 	};
 	PB_DEFINE_ENUM_FIELD(CommandContextFlags, ECommandContextFlags, u8)
@@ -253,5 +255,15 @@ namespace PB
 
 		u16 m_samplerCount = 0;
 		Sampler* m_samplers = nullptr;
+	};
+
+	struct DrawIndexedIndirectParams
+	{
+		u32 offset = 0;
+		u32 indexCount = 0;
+		u32 instanceCount = 0;
+		u32 firstIndex = 0;
+		u32 vertexOffset = 0;
+		u32 firstInstance = 0;
 	};
 }

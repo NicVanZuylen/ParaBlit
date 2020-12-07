@@ -21,6 +21,25 @@ namespace PB
 	
 	struct DRIBuffer;
 
+	class CommandList : public ICommandList
+	{
+	public:
+
+		CommandList(Renderer* renderer, VkCommandBuffer cmdBuffer);
+
+		~CommandList() = default;
+
+		CLib::Vector<VkDescriptorSet, 2>& GetUBOSets() { return m_uboSets; };
+
+		inline VkCommandBuffer GetCommandBuffer() const { return m_cmdBuffer; }
+
+	private:
+
+		Renderer* m_renderer = nullptr;
+		VkCommandBuffer m_cmdBuffer = VK_NULL_HANDLE;
+		CLib::Vector<VkDescriptorSet, 2> m_uboSets;
+	};
+
 	class CommandContext : public ICommandContext
 	{
 	public:
@@ -31,11 +50,11 @@ namespace PB
 		// Interface functions. Descriptions can be found in ICommandContext.h
 
 		PARABLIT_API void Init(CommandContextDesc& desc) override;
-		PARABLIT_API void Begin() override;
+		PARABLIT_API void Begin(PB::RenderPass renderPass = nullptr, PB::Framebuffer frameBuffer = nullptr) override;
 		PARABLIT_API void End() override;
-		PARABLIT_API void Return() override;
-		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount) override;
-		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount) override;
+		PARABLIT_API ICommandList* Return() override;
+		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) override;
+		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) override;
 		PARABLIT_API void CmdEndRenderPass() override;
 		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange) override;
@@ -44,9 +63,11 @@ namespace PB
 		void CmdBindVertexBuffers(const IBufferObject** vertexBuffers, u32 vertexBufferCount, const IBufferObject* indexBuffer, EIndexType indexType) override;
 		PARABLIT_API void CmdDraw(u32 vertexCount, u32 instanceCount) override;
 		void CmdDrawIndexed(u32 indexCount, u32 instanceCount) override;
+		void CmdDrawIndexedIndirect(PB::IBufferObject* paramsBuffer, u32 offset) override;
 		PARABLIT_API void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size);
 		void CmdBindResources(const BindingLayout& layout) override;
 		void CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst) override;
+		void CmdExecuteList(const PB::ICommandList* list) override;
 
 		PARABLIT_API bool GetIsPriority();
 		
@@ -73,7 +94,18 @@ namespace PB
 
 		struct BindingState
 		{
+			void Clear()
+			{
+				m_boundUBOs.Clear();
+			}
+
+			void ClearUBOSets()
+			{
+				m_uboSets.Clear();
+			}
+
 			CLib::Vector<VkDescriptorBufferInfo, 3> m_boundUBOs;
+			CLib::Vector<VkDescriptorSet, 16> m_uboSets;
 		};
 
 		Renderer* m_renderer = nullptr;
@@ -86,6 +118,8 @@ namespace PB
 		bool m_isPriority : 1;
 		bool m_isInternal : 1;
 		bool m_activeRenderpass : 1;
+		bool m_reusable : 1;
+		bool m_reusableForRenderPass : 1;
 	};
 }
 

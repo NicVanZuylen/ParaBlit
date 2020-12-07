@@ -5,13 +5,13 @@
 #define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
 #define VK_LAYER_LUNARG_VALIDATION_NAME "VK_LAYER_LUNARG_standard_validation"
 
-#ifndef VKR_USE_DEBUG_MESSENGER
-#define VKR_USE_DEBUG_MESSENGER 1
+#ifndef PB_USE_DEBUG_MESSENGER
+#define PB_USE_DEBUG_MESSENGER 1
 #endif
 
-#define VKR_SHOW_VALIDATION_ERRORS 1 && VKR_USE_DEBUG_MESSENGER
-#define VKR_SHOW_VALIDATION_WARNINGS 1 && VKR_USE_DEBUG_MESSENGER
-#define VKR_SHOW_VALIDATION_INFO 0 && VKR_USE_DEBUG_MESSENGER
+#define PB_SHOW_VALIDATION_ERRORS 1 && PB_USE_DEBUG_MESSENGER
+#define PB_SHOW_VALIDATION_WARNINGS 1 && PB_USE_DEBUG_MESSENGER
+#define PB_SHOW_VALIDATION_INFO 0 && PB_USE_DEBUG_MESSENGER
 
 namespace PB 
 {
@@ -43,17 +43,17 @@ namespace PB
 	{
 		switch (severity)
 		{
-#if VKR_SHOW_VALIDATION_ERRORS
+#if PB_SHOW_VALIDATION_ERRORS
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
 			PB_LOG_FORMAT("VALIDATION ERROR: %s", callbackData->pMessage);
 			break;
 #endif
-#if VKR_SHOW_VALIDATION_WARNINGS
+#if PB_SHOW_VALIDATION_WARNINGS
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
 			PB_LOG_FORMAT("VALIDATION WARNING: %s", callbackData->pMessage);
 			break;
 #endif
-#if VKR_SHOW_VALIDATION_INFO
+#if PB_SHOW_VALIDATION_INFO
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
 			VKR_LOG_FORMAT("VALIDATION INFO: %s", callbackData->pMessage);
 			break;
@@ -132,7 +132,7 @@ namespace PB
 
 	void VulkanInstance::CreateDebugMessenger()
 	{
-#if VKR_USE_DEBUG_MESSENGER
+#if PB_USE_DEBUG_MESSENGER
 		VkDebugUtilsMessengerCreateInfoEXT messengerInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT, nullptr };
 		messengerInfo.flags = 0;
 		messengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | 
@@ -154,7 +154,7 @@ namespace PB
 
 	void VulkanInstance::DestroyDebugMessenger()
 	{
-#if VKR_USE_DEBUG_MESSENGER
+#if PB_USE_DEBUG_MESSENGER
 		auto destroyFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
 		PB_ASSERT(destroyFunc);
 

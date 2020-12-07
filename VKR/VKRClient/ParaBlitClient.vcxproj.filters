@@ -110,5 +110,8 @@
     <ClInclude Include="GBufferPass.h">
       <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
+    <ClInclude Include="ObjectDispatcher.h">
+      <Filter>RenderGraph</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

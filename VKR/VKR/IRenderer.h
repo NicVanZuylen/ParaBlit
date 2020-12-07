@@ -37,6 +37,8 @@ namespace PB
 		WindowDesc* m_windowInfo;
 	};
 
+	class ICommandList;
+
 	class IRenderer
 	{
 	public:
@@ -59,6 +61,7 @@ namespace PB
 		PARABLIT_INTERFACE IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc) = 0;
 		PARABLIT_INTERFACE void FreeBuffer(IBufferObject* buffer) = 0;
 		PARABLIT_INTERFACE Sampler GetSampler(const SamplerDesc& samplerDesc) = 0;
+		PARABLIT_INTERFACE void FreeCommandList(ICommandList* list) = 0;
 
 		PARABLIT_INTERFACE ISwapChain* GetSwapchain() = 0;
 		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;;

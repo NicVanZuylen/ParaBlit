@@ -33,6 +33,8 @@ namespace PB
 
 		void Populate(u8* data, u32 size) override;
 
+		void PopulateWithDrawIndexedIndirectParams(const DrawIndexedIndirectParams& params) override;
+
 		BufferView GetView() override;
 
 		BufferView GetView(BufferViewDesc& viewDesc) override;

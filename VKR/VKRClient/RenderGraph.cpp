@@ -36,6 +36,7 @@ void RenderGraphBuilder::AddNode(const NodeDesc& desc)
 	currentBuildNode.m_behaviour = desc.m_behaviour;
 	currentBuildNode.m_renderWidth = desc.m_renderWidth;
 	currentBuildNode.m_renderHeight = desc.m_renderHeight;
+	currentBuildNode.m_useReusableCommandLists = desc.useReusableCommandLists;
 
 	RG_ASSERT(desc.m_renderWidth > 0);
 	RG_ASSERT(desc.m_renderHeight > 0);
@@ -90,6 +91,7 @@ RenderGraph* RenderGraphBuilder::Build()
 		execNode->m_behaviour = buildNode.m_behaviour;
 		execNode->m_renderWidth = buildNode.m_renderWidth;
 		execNode->m_renderHeight = buildNode.m_renderHeight;
+		execNode->m_useReusableCommandLists = buildNode.m_useReusableCommandLists;
 
 		for (uint32_t i = 0; i < buildNode.m_attachmentCount; ++i)
 		{
@@ -415,6 +417,7 @@ void RenderGraph::Execute()
 	while (currentNode != nullptr)
 	{
 		m_passInfo.m_renderPass = currentNode->m_renderPass;
+		m_passInfo.m_frameBuffer = currentNode->m_framebuffer;
 		m_passInfo.m_renderTargets = currentNode->m_attachments;
 		m_passInfo.m_renderTargetViews = currentNode->m_attachmentViews;
 		m_passInfo.m_renderTargetCount = currentNode->m_attachmentCount;
@@ -426,7 +429,7 @@ void RenderGraph::Execute()
 		}
 
 		currentNode->m_behaviour->OnPreRenderPass(m_passInfo);
-		cmdContext->CmdBeginRenderPass(currentNode->m_renderPass, currentNode->m_renderWidth, currentNode->m_renderHeight, currentNode->m_framebuffer, currentNode->m_clearColors, currentNode->m_attachmentCount);
+		cmdContext->CmdBeginRenderPass(currentNode->m_renderPass, currentNode->m_renderWidth, currentNode->m_renderHeight, currentNode->m_framebuffer, currentNode->m_clearColors, currentNode->m_attachmentCount, currentNode->m_useReusableCommandLists);
 
 		currentNode->m_behaviour->OnPassBegin(m_passInfo);
 		cmdContext->CmdEndRenderPass();

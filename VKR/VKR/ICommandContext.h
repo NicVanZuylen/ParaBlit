@@ -30,6 +30,15 @@ namespace PB
 		PB_INDEX_TYPE_UINT32
 	};
 
+	class ICommandList
+	{
+	public:
+
+		PARABLIT_API ICommandList() = default;
+
+		PARABLIT_API ~ICommandList() = default;
+	};
+
 	class ICommandContext
 	{
 	public:
@@ -40,11 +49,17 @@ namespace PB
 
 		PARABLIT_INTERFACE void Init(CommandContextDesc& desc) = 0;
 
-		PARABLIT_INTERFACE void Begin() = 0;
+		/*
+		Description: Begin recording of commands using this command context.
+		Param:
+			PB::RenderPass renderPass: If recording a reusable command context, a render pass should be provided here for optimization.
+			PB::Framebuffer framebuffer: If recording a reusable command context, a framebuffer can be provided here for optimization.
+		*/
+		PARABLIT_INTERFACE void Begin(PB::RenderPass renderPass = nullptr, PB::Framebuffer frameBuffer = nullptr) = 0;
 
 		PARABLIT_INTERFACE void End() = 0;
 
-		PARABLIT_INTERFACE void Return() = 0;
+		PARABLIT_INTERFACE ICommandList* Return() = 0;
 
 		/*
 		Description: Begin a render pass using a render pass desc and provided attachments.
@@ -55,9 +70,9 @@ namespace PB
 			const TextureView* attachmentViews: Array of texture views for the render pass attachments.
 			const u32 viewCount: The amount of attachments to use in the render pass.
 		*/
-		PARABLIT_INTERFACE void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount) = 0;
+		PARABLIT_INTERFACE void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) = 0;
 
-		PARABLIT_INTERFACE void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount) = 0;
+		PARABLIT_INTERFACE void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) = 0;
 
 		PARABLIT_INTERFACE void CmdEndRenderPass() = 0;
 
@@ -77,7 +92,11 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdDrawIndexed(u32 indexCount, u32 instanceCount) = 0;
 
+		PARABLIT_INTERFACE void CmdDrawIndexedIndirect(PB::IBufferObject* paramsBuffer, u32 offset) = 0;
+
 		PARABLIT_INTERFACE void CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst) = 0;
+
+		PARABLIT_INTERFACE void CmdExecuteList(const PB::ICommandList* list) = 0;
 	};
 
 	ICommandContext* CreateCommandContext(IRenderer* renderer);

@@ -25,7 +25,7 @@ namespace PB
 		PB_FRAME_STATE_IN_FLIGHT
 	};
 
-	struct FrameInfo // Stores the overall state of a single frame.
+	struct FrameInfo // Stores the properties and resources unique to a single frame.
 	{
 		VkImage m_presentImage = VK_NULL_HANDLE;
 		VkSemaphore m_imageAquireSempahore = VK_NULL_HANDLE;				// Signalled when the swap chain image has been aquired, rendering will wait on this.
@@ -67,7 +67,7 @@ namespace PB
 
 		PARABLIT_API IFramebufferCache* GetFramebufferCache() override;
 
-		PARABLIT_API VkCommandBuffer AllocateCommandBuffer();
+		PARABLIT_API VkCommandBuffer AllocateCommandBuffer(bool secondary);
 
 		PARABLIT_API void ReturnCommandBuffer(CommandContext& context);
 
@@ -89,6 +89,8 @@ namespace PB
 
 		Sampler GetSampler(const SamplerDesc& samplerDesc);
 
+		void FreeCommandList(ICommandList* list) override;
+
 		PARABLIT_API CmdContextPool& GetContextPool();
 
 		VkDescriptorSet GetMasterSet();
@@ -96,6 +98,8 @@ namespace PB
 		VkDescriptorSetLayout GetMasterSetLayout();
 
 		VkDescriptorSet GetUBOSet();
+
+		void ReturnUBOSet(VkDescriptorSet set);
 
 		VkDescriptorSetLayout GetUBOSetLayout();
 
@@ -154,7 +158,7 @@ namespace PB
 		CLib::Vector<VkDescriptorSet, 16> m_uboDescSets;
 		CLib::Vector<VkDescriptorSet, 16> m_usedUBODescSets;
 		CLib::Vector<VkCommandBuffer, PB_FRAME_IN_FLIGHT_COUNT> m_masterCmdBuffers;
-		CLib::Vector<VkCommandBuffer, 64> m_freeContextCmdBuffers;
+		CLib::Vector<VkCommandBuffer, 32> m_freeContextCmdBuffers[2];
 		CLib::Vector<VkCommandBuffer, 32> m_internalCmdBuffers;
 		std::mutex m_contextCmdAllocLock;
 		std::mutex m_contextCmdReturnLock;

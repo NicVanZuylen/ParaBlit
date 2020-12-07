@@ -37,61 +37,61 @@ namespace CLib
 
 	void* Allocator::InternalAlloc(uint32_t size, uint32_t alignment)
 	{
-		return malloc(size);
 		// TODO: Consider falling back to malloc for blocks too large to fit on any page. Track if a block was allocated with malloc so we can free it with 'free'.
-		//uint32_t alignmentPad = alignment > 0 ? alignment - ((size + sizeof(BlockNode)) % alignment) : 0;
-		//uint32_t requiredSize = size + alignmentPad;
-		//
-		//auto freeListIdx = GetUpperFreeListIdx(requiredSize);
-		//BlockNode*& freeList = m_freeLists[freeListIdx];
-		//if (freeList)
-		//{
-		//	if (freeListIdx == 0 || freeListIdx == _countof(m_segSizes) - 1)
-		//	{
-		//		BlockNode** block = &freeList;
-		//
-		//		// Blocks at these free list indices aren't guarenteed to be large enough.
-		//		while (auto& blockRef = *block)
-		//		{
-		//			if (blockRef->m_size >= requiredSize)
-		//			{
-		//				blockRef = blockRef->m_prevNode;
-		//				return reinterpret_cast<void*>(reinterpret_cast<size_t>(blockRef) + sizeof(BlockNode));
-		//			}
-		//
-		//			block = &blockRef->m_prevNode;
-		//		}
-		//	}
-		//	else // Other free lists are guaranteed to have large enough blocks.
-		//	{
-		//		auto* block = freeList;
-		//		freeList = freeList->m_prevNode;
-		//		return reinterpret_cast<void*>(reinterpret_cast<size_t>(block) + sizeof(BlockNode));
-		//	}
-		//}
-		//
-		//if (IsPageFull(m_pages.Back(), requiredSize)) // Allocate a new page if no untouched blocks remain.
-		//	AllocatePage();
-		//auto& currentPage = m_pages.Back();
-		//
-		//// Allocate an new block from untouched page memory.
-		//BlockNode* newNode = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(currentPage.m_block) + currentPage.m_allocated);
-		//newNode->m_size = requiredSize;
-		//
-		//currentPage.m_allocated += sizeof(BlockNode) + requiredSize;
-		//
-		//return reinterpret_cast<void*>(reinterpret_cast<size_t>(newNode) + sizeof(BlockNode));
+		uint32_t alignmentPad = alignment > 0 ? alignment - ((size + sizeof(BlockNode)) % alignment) : 0;
+		uint32_t requiredSize = size + alignmentPad;
+
+		auto freeListIdx = GetUpperFreeListIdx(requiredSize);
+		BlockNode*& freeList = m_freeLists[freeListIdx];
+		if (freeList)
+		{
+			if (freeListIdx == 0 || freeListIdx == _countof(m_segSizes) - 1)
+			{
+				BlockNode** block = &freeList;
+
+				// Blocks at these free list indices aren't guarenteed to be large enough.
+				while (*block)
+				{
+					auto& blockRef = *block;
+					if (blockRef->m_size >= requiredSize)
+					{
+						BlockNode* returnNode = blockRef;
+						blockRef = blockRef->m_prevNode;
+						return reinterpret_cast<void*>(reinterpret_cast<size_t>(returnNode) + sizeof(BlockNode));
+					}
+
+					block = &blockRef->m_prevNode;
+				}
+			}
+			else // Other free lists are guaranteed to have large enough blocks.
+			{
+				auto* block = freeList;
+				freeList = freeList->m_prevNode;
+				return reinterpret_cast<void*>(reinterpret_cast<size_t>(block) + sizeof(BlockNode));
+			}
+		}
+
+		if (IsPageFull(m_pages.Back(), requiredSize)) // Allocate a new page if no untouched blocks remain.
+			AllocatePage();
+		auto& currentPage = m_pages.Back();
+
+		// Allocate an new block from untouched page memory.
+		BlockNode* newNode = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(currentPage.m_block) + currentPage.m_allocated);
+		newNode->m_size = requiredSize;
+
+		currentPage.m_allocated += sizeof(BlockNode) + requiredSize;
+
+		return reinterpret_cast<void*>(reinterpret_cast<size_t>(newNode) + sizeof(BlockNode));
 	}
 
 	void Allocator::InternalFree(void* ptr)
 	{
-		free(ptr);
-		//BlockNode* node = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(ptr) - sizeof(BlockNode));
-		//
-		//// Push the block back onto the free list.
-		//BlockNode*& freeList = m_freeLists[GetLowerFreeListIdx(node->m_size)];
-		//node->m_prevNode = freeList;
-		//freeList = node;
+		BlockNode* node = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(ptr) - sizeof(BlockNode));
+
+		// Push the block back onto the free list.
+		BlockNode*& freeList = m_freeLists[GetLowerFreeListIdx(node->m_size)];
+		node->m_prevNode = freeList;
+		freeList = node;
 	}
 
 	inline void Allocator::AllocatePage()
@@ -107,7 +107,7 @@ namespace CLib
 		constexpr uint32_t arrayEnd = arraySize - 1;
 		for (uint32_t i = 0; i < arrayEnd; ++i)
 		{
-			if (size < m_segSizes[i + 1])
+			if (size <= m_segSizes[i + 1])
 			{
 				return i == 0 ? 0 : i + 1;
 			}

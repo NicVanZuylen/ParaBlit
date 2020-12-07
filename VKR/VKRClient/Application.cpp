@@ -168,6 +168,7 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 		{
 			NodeDesc nodeDesc;
 			nodeDesc.m_behaviour = behaviours[1];
+			nodeDesc.useReusableCommandLists = true;
 		
 			// Read G Buffers
 			AttachmentDesc& colorReadDesc = nodeDesc.m_attachments[0];
@@ -228,6 +229,9 @@ void Application::Run()
 
 	RenderGraphBehaviour* behaviours[2] = { gBufferNode, defLightingNode };
 	RenderGraph* renderGraph = CreateRenderGraph(&m_allocator, m_renderer, behaviours);
+
+	defLightingNode->SetDirectionalLight(0, { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
+	defLightingNode->SetPointLight(0, { 0.0f, 2.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 10.0f);
 
 	struct MVPBuffer
 	{

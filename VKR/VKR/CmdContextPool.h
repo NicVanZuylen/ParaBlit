@@ -22,8 +22,10 @@ namespace PB
 
 	private:
 
+		static const u32 CommandContextPageSize = 16;
+
 		CLib::Vector<CommandContext*> m_contextPages;
-		CLib::Vector<ICommandContext*, 16> m_gaps;
+		CLib::Vector<ICommandContext*, CommandContextPageSize> m_gaps;
 		uint32_t m_contextCount = 0;
 		std::mutex m_allocatorLock;
 	};

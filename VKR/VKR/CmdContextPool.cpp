@@ -4,7 +4,7 @@ namespace PB
 {
 	CmdContextPool::CmdContextPool()
 	{
-		m_contextPages[0] = new CommandContext[16];
+		m_contextPages[0] = new CommandContext[CommandContextPageSize];
 		m_contextPages.SetCount(m_contextPages.Capacity());
 	}
 
@@ -29,10 +29,10 @@ namespace PB
 		CommandContext* ptr = &m_contextPages.Back()[m_contextCount++];
 
 		// Allocate a new page if no more space is left.
-		if (m_contextCount >= 16)
+		if (m_contextCount >= CommandContextPageSize)
 		{
 			m_contextCount = 0;
-			m_contextPages.PushBack(new CommandContext[16]);
+			m_contextPages.PushBack(new CommandContext[CommandContextPageSize]);
 		}
 
 		return reinterpret_cast<ICommandContext*>(ptr);

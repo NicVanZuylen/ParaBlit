@@ -42,6 +42,7 @@
     <ClInclude Include="DeferredLightingPass.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="Mesh.h" />
+    <ClInclude Include="ObjectDispatcher.h" />
     <ClInclude Include="QuickIO.h" />
     <ClInclude Include="RenderGraph.h" />
     <ClInclude Include="RenderGraphNode.h" />
@@ -175,6 +176,10 @@
       <AdditionalDependencies>glfw3.lib;glfw3dll.lib;ParaBlit.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)x64\release;$(ProjectDir)GLFW_3.2.1\lib-vc2015;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

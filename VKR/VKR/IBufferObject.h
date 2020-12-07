@@ -75,6 +75,18 @@ namespace PB
 		PARABLIT_INTERFACE void Populate(u8* data, u32 size) = 0;
 
 		/*
+		Description: Populate the buffer with indirect draw indexed command parameters.
+		Param:
+			u32 offset: The offset into the buffer in which the parameters will be stored.
+			u32 indexCount: The amount of indices used by the vertex input stage.
+			u32 instanceCount: The amount of instances to draw.
+			u32 firstIndex: The first index to read in the index buffer.
+			u32 vertexOffset: The offset to be applied to indices after reading them from the index buffer, and before using them to index the vertex buffer.
+			u32 firstInstance: The first instance to read data from the instance buffer.
+		*/
+		PARABLIT_INTERFACE void PopulateWithDrawIndexedIndirectParams(const DrawIndexedIndirectParams& params) = 0;
+
+		/*
 		Description: Get a default view of a range of this buffer object, used for shader bindings.
 		Return Type: BufferView
 		*/

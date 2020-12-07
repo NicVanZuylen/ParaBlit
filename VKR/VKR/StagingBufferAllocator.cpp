@@ -89,7 +89,7 @@ namespace PB
 
 		u32 requiredSize = pageSize >= desiredSize ? pageSize : desiredSize;
 
-		InternalBuffer& newPage = m_bufferPages[static_cast<u32>(memoryType)].PushBack();
+		InternalBuffer& newPage = m_bufferPages[static_cast<u32>(memoryType)].PushBackInit();
 		auto queueFamilyIndex = static_cast<u32>(m_device->GetGraphicsQueueFamilyIndex());
 
 		VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr };

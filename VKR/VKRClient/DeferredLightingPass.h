@@ -21,7 +21,9 @@ public:
 
 	void SetMVPBuffer(PB::IBufferObject* buf);
 
-	void SetPointLight(PB::Float4& position, PB::Float3& color, float radius);
+	void SetDirectionalLight(uint32_t index, PB::Float4 direction, PB::Float4 color);
+
+	void SetPointLight(uint32_t index, PB::Float4 position, PB::Float3 color, float radius);
 
 private:
 
@@ -64,5 +66,10 @@ private:
 	PBClient::Shader* m_pointLightShader = nullptr;
 
 	PB::Sampler m_gBufferSampler = 0;
+
+	PB::IBufferObject* m_pointLightIndirectParamsBuffer = nullptr;
+	PB::ICommandList* m_reusableCmdList = nullptr;
+
+	LightingBuffer* m_mappedLightingBuffer = nullptr;
 };
 

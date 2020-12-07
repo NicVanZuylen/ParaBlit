@@ -9,11 +9,18 @@
 
 namespace PB 
 {
+	CommandList::CommandList(Renderer* renderer, VkCommandBuffer cmdBuffer)
+	{
+		m_renderer = renderer;
+		m_cmdBuffer = cmdBuffer;
+	}
+
 	CommandContext::CommandContext()
 	{
 		m_isPriority = false;
 		m_isInternal = false;
 		m_activeRenderpass = false;
+		m_reusable = false;
 	}
 
 	CommandContext::~CommandContext()
@@ -49,33 +56,47 @@ namespace PB
 	{
 		PB_ASSERT(desc.m_renderer);
 		PB_ASSERT(desc.m_usage != ECommandContextUsage::END_RANGE);
+		PB_ASSERT_MSG(!(((desc.m_flags & ECommandContextFlags::REUSABLE) > 0) && ((desc.m_flags & ECommandContextFlags::PRIORITY) > 0)), "Reusable command contexts cannot be prioritized, as they are executed at the user's discretion.");
 
 		m_renderer = reinterpret_cast<Renderer*>(desc.m_renderer);
 		m_device = m_renderer->GetDevice();
 		m_usage = desc.m_usage;
 		m_isPriority = (desc.m_flags & ECommandContextFlags::PRIORITY) > 0;
+		m_reusable = (desc.m_flags & ECommandContextFlags::REUSABLE) > 0;
 		m_activeRenderpass = false;
 
-		m_bindingState = m_renderer->GetAllocator().Alloc<BindingState>();
+		if (!m_bindingState)
+			m_bindingState = m_renderer->GetAllocator().Alloc<BindingState>();
+		else
+		{
+			m_bindingState->Clear();
+			m_bindingState->ClearUBOSets();
+		}
 	}
 
-	void CommandContext::Begin()
+	void CommandContext::Begin(PB::RenderPass renderPass, PB::Framebuffer frameBuffer)
 	{
 		// Obtain command buffer, a new one is allocated if there are no free command buffers.
 		if (m_cmdBuffer == VK_NULL_HANDLE)
 		{
-			m_cmdBuffer = m_renderer->AllocateCommandBuffer();
+			m_cmdBuffer = m_renderer->AllocateCommandBuffer(m_reusable);
 			PB_COMMAND_CONTEXT_LOG("Obtained command buffer [%X] for command context [%X].", m_cmdBuffer, this);
 		}
 
 		VkCommandBufferInheritanceInfo inheritInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO, nullptr };
-		inheritInfo.framebuffer = VK_NULL_HANDLE;
-		inheritInfo.occlusionQueryEnable = VK_FALSE;
-		inheritInfo.renderPass = VK_NULL_HANDLE;
+		inheritInfo.renderPass = reinterpret_cast<VkRenderPass>(renderPass);
 		inheritInfo.subpass = 0;
+		inheritInfo.framebuffer = reinterpret_cast<VkFramebuffer>(frameBuffer);
+		inheritInfo.occlusionQueryEnable = VK_FALSE;
 
 		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr };
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		if (m_reusable)
+		{
+			m_reusableForRenderPass = renderPass != nullptr;
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT | (renderPass != nullptr ? VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT : 0);
+		}
+		else
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 		beginInfo.pInheritanceInfo = &inheritInfo;
 
 		VkResult res = vkBeginCommandBuffer(m_cmdBuffer, &beginInfo);
@@ -84,8 +105,8 @@ namespace PB
 			PB_ASSERT_MSG(false, "Failed to begin command buffer recording.");
 			m_state = ECmdContextState::OPEN;
 		}
-
-		m_state = ECmdContextState::RECORDING;
+		else
+			m_state = ECmdContextState::RECORDING;
 	}
 
 	void CommandContext::End()
@@ -105,21 +126,33 @@ namespace PB
 		m_state = ECmdContextState::PENDING_SUBMISSION;
 	}
 
-	void CommandContext::Return()
+	ICommandList* CommandContext::Return()
 	{
 		PB_ASSERT_MSG(m_state == ECmdContextState::PENDING_SUBMISSION, "Cannot submit command context that is not yet recorded or currently recording.");
 
-		PB_COMMAND_CONTEXT_LOG("Returned recorded command buffer [%X] from command context [%X].", m_cmdBuffer, this);
-		m_renderer->ReturnCommandBuffer(*this); // Give the command buffer back to the renderer for submission at the end of the frame.
 		m_state = ECmdContextState::OPEN;
+		if (!m_reusable)
+		{
+			PB_COMMAND_CONTEXT_LOG("Returned recorded command buffer [%X] from command context [%X] for submission.", m_cmdBuffer, this);
+			m_renderer->ReturnCommandBuffer(*this); // Give the command buffer back to the renderer for submission at the end of the frame.
+			return nullptr;
+		}
+		else
+		{
+			PB_COMMAND_CONTEXT_LOG("Returned recorded command list containing command buffer [%X] from command context [%X] for execution in another command context.", m_cmdBuffer, this);
+			PB::CommandList* returnList = m_renderer->GetAllocator().Alloc<CommandList>(m_renderer, m_cmdBuffer);
+			returnList->GetUBOSets() += m_bindingState->m_uboSets;
+			return returnList;
+		}
 	}
 
-	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount)
+	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists)
 	{
 		ValidateRecordingState();
 		PB_ASSERT(renderPass);
 		PB_ASSERT(attachmentViews);
 		PB_ASSERT(viewCount > 0);
+		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to begin render passes.");
 		if (m_activeRenderpass)
 			vkCmdEndRenderPass(m_cmdBuffer);
 
@@ -144,14 +177,15 @@ namespace PB
 		beginInfo.clearValueCount = clearColorCount;
 		beginInfo.pClearValues = reinterpret_cast<VkClearValue*>(clearColors);
 
-		vkCmdBeginRenderPass(m_cmdBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(m_cmdBuffer, &beginInfo, !useCommandLists ? VK_SUBPASS_CONTENTS_INLINE : VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		m_activeRenderpass = true;
 	}
 
-	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount)
+	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount, bool useCommandLists)
 	{
 		ValidateRecordingState();
 		PB_ASSERT(renderPass);
+		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to begin render passes.");
 		if (m_activeRenderpass)
 			vkCmdEndRenderPass(m_cmdBuffer);
 
@@ -166,12 +200,13 @@ namespace PB
 		beginInfo.clearValueCount = clearColorCount;
 		beginInfo.pClearValues = reinterpret_cast<VkClearValue*>(clearColors);
 
-		vkCmdBeginRenderPass(m_cmdBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(m_cmdBuffer, &beginInfo, !useCommandLists ? VK_SUBPASS_CONTENTS_INLINE : VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		m_activeRenderpass = true;
 	}
 
 	void CommandContext::CmdEndRenderPass()
 	{
+		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to end render passes.");
 		if (m_activeRenderpass)
 		{
 			vkCmdEndRenderPass(m_cmdBuffer);
@@ -285,6 +320,7 @@ namespace PB
 
 	void CommandContext::CmdBindPipeline(Pipeline pipeline)
 	{
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
 
 		PipelineData* pipelineData = reinterpret_cast<PipelineData*>(pipeline);
@@ -296,16 +332,18 @@ namespace PB
 		vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 0, 1, &masterDescSet, 0, nullptr);
 
 		// Reset UBO binding state.
-		m_bindingState->m_boundUBOs.Clear();
+		m_bindingState->Clear();
 	}
 
 	void CommandContext::CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType)
 	{
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		CmdBindVertexBuffers(&vertexBuffer, 1, indexBuffer, indexType);
 	}
 
 	void CommandContext::CmdBindVertexBuffers(const IBufferObject** vertexBuffers, u32 vertexBufferCount, const IBufferObject* indexBuffer, EIndexType indexType)
 	{
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
 
 		const BufferObject** internalVBuffers = reinterpret_cast<const BufferObject**>(vertexBuffers);
@@ -350,14 +388,23 @@ namespace PB
 
 	void CommandContext::CmdDraw(u32 vertexCount, u32 instanceCount)
 	{
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
 		vkCmdDraw(m_cmdBuffer, vertexCount, instanceCount, 0, 0);
 	}
 
 	void CommandContext::CmdDrawIndexed(u32 indexCount, u32 instanceCount)
 	{
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
 		vkCmdDrawIndexed(m_cmdBuffer, indexCount, 1, 0, 0, 0);
+	}
+
+	void CommandContext::CmdDrawIndexedIndirect(PB::IBufferObject* paramsBuffer, u32 offset)
+	{
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
+		ValidateRecordingState();
+		vkCmdDrawIndexedIndirect(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), offset, 1, sizeof(VkDrawIndexedIndirectCommand));
 	}
 
 	void CommandContext::CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size)
@@ -434,6 +481,11 @@ namespace PB
 
 				vkUpdateDescriptorSets(m_device->GetHandle(), 1, &uboWrite, 0, nullptr);
 				vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 1, 1, &uboSet, 0, nullptr);
+
+				if (!m_reusable)
+					m_renderer->ReturnUBOSet(uboSet);
+				else
+					m_bindingState->m_uboSets.PushBack(uboSet);
 			}
 
 			// Texture and sampler views are actually just descriptor indices, so we can just copy these.
@@ -483,6 +535,14 @@ namespace PB
 		
 		region.dstSubresource = srcSubresource;
 		vkCmdCopyImage(m_cmdBuffer, srcInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	}
+
+	void CommandContext::CmdExecuteList(const PB::ICommandList* list)
+	{
+		ValidateRecordingState();
+
+		VkCommandBuffer cmdBuf = reinterpret_cast<const CommandList*>(list)->GetCommandBuffer();
+		vkCmdExecuteCommands(m_cmdBuffer, 1, &cmdBuf);
 	}
 
 	void CommandContext::ValidateRecordingState()

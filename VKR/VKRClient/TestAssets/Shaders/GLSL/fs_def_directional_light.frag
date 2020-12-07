@@ -115,9 +115,6 @@ vec3 WorldPosFromDepth(float depth, vec2 texCoords, inout mat4 invView, inout ma
 	return worldPos.xyz;
 }
 
-#define SPECULAR_FOCUS 16.0
-#define SPECULAR_POWER 0.5
-
 void main() 
 {
     mat4 invView = mvp[nonuniformEXT(bindings.mvpUBOIndex)].invView;
@@ -167,14 +164,8 @@ void main()
         float orenNayar = OrenNayarDiff(normal, normLightDir, -dirToCam, roughness);
         float cookTorrence = CookTorrenceSpec(normal, normLightDir, -dirToCam, normalDotLight, roughness, 1.0);
 
-        //vec3 lightReflected = reflect(normLightDir, normal);
-        //float specTerm = max(dot(lightReflected, dirToCam), 0.0);
-
-        //vec3 diffuse = normalDotLight * light.color.rgb;
-        //vec3 spec = max(normalDotLight * pow(specTerm, SPECULAR_FOCUS) * SPECULAR_POWER * light.color.rgb, 0.0);
-
         vec3 diffuse = orenNayar * light.color.rgb;
-        vec3 spec = cookTorrence * SPECULAR_POWER * light.color.rgb;
+        vec3 spec = cookTorrence * specular * light.color.rgb;
 
         outColor += vec4((diffuse + spec) * color, 1.0);
     }

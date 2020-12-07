@@ -132,13 +132,14 @@ namespace PB
 		return &m_framebufferCache;
 	}
 
-	VkCommandBuffer Renderer::AllocateCommandBuffer()
+	VkCommandBuffer Renderer::AllocateCommandBuffer(bool secondary)
 	{
 		std::lock_guard<std::mutex> lock(m_contextCmdAllocLock); // Only one thread should be allocating command context buffers at any given time.
 
-		if (m_freeContextCmdBuffers.Count() > 0) // Return an available existing command buffer if possible.
+		u32 index = secondary ? 1 : 0;
+		if (m_freeContextCmdBuffers[index].Count() > 0) // Return an available existing command buffer if possible.
 		{
-			return m_freeContextCmdBuffers.PopBack();
+			return m_freeContextCmdBuffers[index].PopBack();
 		}
 
 		// ...Otherwise allocate a new one.
@@ -146,7 +147,7 @@ namespace PB
 		VkCommandBufferAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr };
 		allocInfo.commandBufferCount = 1;
 		allocInfo.commandPool = m_masterCmdPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.level = secondary ? VK_COMMAND_BUFFER_LEVEL_SECONDARY : VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
 		vkAllocateCommandBuffers(m_device.GetHandle(), &allocInfo, &newCmdBuf);
 		PB_ASSERT(newCmdBuf);
@@ -170,7 +171,7 @@ namespace PB
 	{
 		std::lock_guard<std::mutex> lock(m_contextCmdReturnLock);
 
-		m_freeContextCmdBuffers.PushBack(context.GetCmdBuffer());
+		m_freeContextCmdBuffers[0].PushBack(context.GetCmdBuffer());
 		context.Invalidate();
 	}
 
@@ -182,7 +183,7 @@ namespace PB
 		vkWaitForFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence, VK_TRUE, ~(0ULL));
 		vkResetFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence);
 
-		m_freeContextCmdBuffers += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
+		m_freeContextCmdBuffers[0] += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
 		curFrameInfo.m_state = PB_FRAME_STATE_OPEN;
 
 		m_uboDescSets += curFrameInfo.m_submittedUBODescSets;
@@ -240,6 +241,17 @@ namespace PB
 		return m_viewCache.GetSampler(samplerDesc);
 	}
 
+	void Renderer::FreeCommandList(ICommandList* list)
+	{
+		std::lock_guard<std::mutex> lock(m_contextCmdReturnLock);
+
+		CommandList* internalList = reinterpret_cast<CommandList*>(list);
+		m_freeContextCmdBuffers[1].PushBack(internalList->GetCommandBuffer());
+		for (auto& set : internalList->GetUBOSets())
+			m_usedUBODescSets.PushBack(set);
+		m_allocator.Free(internalList);
+	}
+
 	CmdContextPool& Renderer::GetContextPool()
 	{
 		return m_contextPool;
@@ -258,10 +270,7 @@ namespace PB
 	VkDescriptorSet Renderer::GetUBOSet()
 	{
 		if (m_uboDescSets.Count() > 0)
-		{
-			m_usedUBODescSets.PushBack(m_uboDescSets.PopBack());
-			return m_usedUBODescSets.Back();
-		}
+			return m_uboDescSets.PopBack();
 
 		VkDescriptorSetAllocateInfo uboSetAllocInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr };
 		uboSetAllocInfo.descriptorPool = m_sharedDescPool;
@@ -269,11 +278,16 @@ namespace PB
 		uboSetAllocInfo.pSetLayouts = &m_uboSetLayout;
 		uboSetAllocInfo.pNext = nullptr;
 		
-		VkDescriptorSet& descSet = m_usedUBODescSets.PushBack();
+		VkDescriptorSet descSet = VK_NULL_HANDLE;
 		PB_ERROR_CHECK(vkAllocateDescriptorSets(m_device.GetHandle(), &uboSetAllocInfo, &descSet));
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(descSet);
 		return descSet;
+	}
+
+	void Renderer::ReturnUBOSet(VkDescriptorSet set)
+	{
+		m_usedUBODescSets.PushBack(set);
 	}
 
 	VkDescriptorSetLayout Renderer::GetUBOSetLayout()

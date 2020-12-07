@@ -100,6 +100,8 @@ namespace PB
             returnFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         if (usage & EBufferUsage::INDEX)
             returnFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        if (usage & EBufferUsage::INDIRECT_PARAMS)
+            returnFlags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
         return returnFlags;
 	}
 

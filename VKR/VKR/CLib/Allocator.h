@@ -45,10 +45,10 @@ namespace CLib
 		// Allocate an additional master block/page of memory to allow for more allocations.
 		inline void AllocatePage();
 
-		// Gets the free list a block of the provided size is less than.
+		// Gets the free list a block of the provided size is less than in block size.
 		inline uint32_t GetUpperFreeListIdx(const uint32_t& size);
 
-		// Gets the free list a block of the provided size is greater than.
+		// Gets the free list a block of the provided size is greater than in block size.
 		inline uint32_t GetLowerFreeListIdx(const uint32_t& size);
 
 		struct Page

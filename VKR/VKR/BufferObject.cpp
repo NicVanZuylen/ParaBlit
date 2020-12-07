@@ -93,6 +93,18 @@ namespace PB
 		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
 	}
 
+	void BufferObject::PopulateWithDrawIndexedIndirectParams(const DrawIndexedIndirectParams& params)
+	{
+		PB_ASSERT_MSG(params.offset + sizeof(VkDrawIndexedIndirectCommand) <= m_memoryPage.m_size, "Provided offset would extend the parameters past the end of the buffer.");
+		VkDrawIndexedIndirectCommand data;
+		data.indexCount = params.indexCount;
+		data.instanceCount = params.instanceCount;
+		data.firstIndex = params.firstIndex;
+		data.vertexOffset = params.vertexOffset;
+		data.firstInstance = params.firstInstance;
+		Populate(reinterpret_cast<u8*>(&data), sizeof(VkDrawIndexedIndirectCommand));
+	}
+
 	BufferView BufferObject::GetView()
 	{
 		BufferViewDesc viewDesc;
