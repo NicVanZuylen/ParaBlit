@@ -20,15 +20,27 @@ namespace PB
 		auto device = m_renderer->GetDevice();
 		if (m_handle != VK_NULL_HANDLE)
 		{
-			for (auto& viewDesc : m_viewDescs)
-				m_renderer->GetViewCache()->DestroyBufferView(viewDesc);
+			for (auto& view : m_ownedViews)
+			{
+				switch (view.m_type)
+				{
+				case EBufferUsage::UNIFORM:
+					m_renderer->GetViewCache()->DestroyUniformBufferView(view.m_desc);
+					break;
+				case EBufferUsage::STORAGE:
+					m_renderer->GetViewCache()->DestroySSBOBufferView(view.m_desc);
+					break;
+				default:
+					PB_NOT_IMPLEMENTED;
+					break;
+				}
+			}
 
 			vkDestroyBuffer(device->GetHandle(), m_handle, nullptr);
 			PB_ASSERT(m_memoryPage.m_memory != VK_NULL_HANDLE);
 			device->GetDeviceAllocator().Free(m_memoryPage);
 		}
 	}
-
 
 	VkBuffer BufferObject::GetHandle() const
 	{
@@ -64,16 +76,17 @@ namespace PB
 	u8* BufferObject::BeginPopulate()
 	{
 		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
+		PB_ASSERT_MSG(m_memoryPage.m_memoryType != EMemoryType::HOST_VISIBLE, "It is not recommended to use BeginPopulate() for HOST_VISIBLE buffers, as this function creates and maps a staging buffer for copy.");
 		PB_ASSERT_MSG(m_usage & EBufferUsage::COPY_DST, "Buffer Object must usable as a copy destination in order to use BeginPopulate().");
 		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_size, m_renderer->GetCurrentFrame());
 		return m_stagingBuffer.Map(m_renderer->GetDevice()->GetHandle());
 	}
 
-	void BufferObject::EndPopulate()
+	void BufferObject::EndPopulate(u32 writeOffset)
 	{
 		PB_ASSERT(m_stagingBuffer.m_parentBuffer && m_stagingBuffer.m_parentMemory);
 		m_stagingBuffer.Unmap(m_renderer->GetDevice()->GetHandle());
-		CopyStagingBuffer(m_stagingBuffer);
+		CopyStagingBuffer(m_stagingBuffer, writeOffset);
 		m_stagingBuffer.m_parentBuffer = VK_NULL_HANDLE;
 		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
 	}
@@ -88,41 +101,63 @@ namespace PB
 		memcpy(stagingData, data, size);
 		m_stagingBuffer.Unmap(vkDevice);
 
-		CopyStagingBuffer(m_stagingBuffer);
+		CopyStagingBuffer(m_stagingBuffer, 0);
 		m_stagingBuffer.m_parentBuffer = VK_NULL_HANDLE;
 		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
 	}
 
-	void BufferObject::PopulateWithDrawIndexedIndirectParams(const DrawIndexedIndirectParams& params)
+	void BufferObject::PopulateWithDrawIndexedIndirectParams(u8* location, const DrawIndexedIndirectParams& params)
 	{
 		PB_ASSERT_MSG(params.offset + sizeof(VkDrawIndexedIndirectCommand) <= m_memoryPage.m_size, "Provided offset would extend the parameters past the end of the buffer.");
-		VkDrawIndexedIndirectCommand data;
+		PB_ASSERT(location);
+		VkDrawIndexedIndirectCommand& data = *reinterpret_cast<VkDrawIndexedIndirectCommand*>(location);
 		data.indexCount = params.indexCount;
 		data.instanceCount = params.instanceCount;
 		data.firstIndex = params.firstIndex;
 		data.vertexOffset = params.vertexOffset;
 		data.firstInstance = params.firstInstance;
-		Populate(reinterpret_cast<u8*>(&data), sizeof(VkDrawIndexedIndirectCommand));
 	}
 
-	BufferView BufferObject::GetView()
+	u32 BufferObject::GetDrawIndexedIndirectParamsSize()
+	{
+		return sizeof(VkDrawIndexedIndirectCommand);
+	}
+
+	UniformBufferView BufferObject::GetViewAsUniformBuffer()
 	{
 		BufferViewDesc viewDesc;
 		viewDesc.m_buffer = this;
 		viewDesc.m_offset = 0;
 		viewDesc.m_size = m_size;
-		return m_renderer->GetViewCache()->GetBufferView(viewDesc);
+		return m_renderer->GetViewCache()->GetUniformBufferView(viewDesc);
 	}
 
-	BufferView BufferObject::GetView(BufferViewDesc& viewDesc)
+	UniformBufferView BufferObject::GetViewAsUniformBuffer(BufferViewDesc& viewDesc)
 	{
 		viewDesc.m_buffer = this;
-		return m_renderer->GetViewCache()->GetBufferView(viewDesc);
+		return m_renderer->GetViewCache()->GetUniformBufferView(viewDesc);
 	}
 
-	void BufferObject::RegisterView(const BufferViewDesc& desc)
+	ResourceView BufferObject::GetViewAsStorageBuffer()
 	{
-		m_viewDescs.PushBack() = desc;
+		BufferViewDesc viewDesc;
+		viewDesc.m_buffer = this;
+		viewDesc.m_offset = 0;
+		viewDesc.m_size = m_size;
+		return m_renderer->GetViewCache()->GetSSBOBufferView(viewDesc);
+	}
+
+	ResourceView BufferObject::GetViewAsStorageBuffer(BufferViewDesc& viewDesc)
+	{
+		viewDesc.m_buffer = this;
+		return m_renderer->GetViewCache()->GetSSBOBufferView(viewDesc);
+	}
+
+	void BufferObject::RegisterView(const BufferViewDesc& desc, EBufferUsage type)
+	{
+		auto& ownedView = m_ownedViews.PushBack();
+		ownedView.m_desc = desc;
+		ownedView.m_type = type;
 	}
 
 	BufferUsageFlags BufferObject::GetUsage() const
@@ -192,21 +227,21 @@ namespace PB
 				memset(mapped, 0, desc.m_bufferSize);
 				stagingBuffer.Unmap(device->GetHandle());
 
-				CopyStagingBuffer(stagingBuffer);
+				CopyStagingBuffer(stagingBuffer, 0);
 			}
 		}
 	}
 
-	inline void BufferObject::CopyStagingBuffer(const TempBuffer& buffer)
+	inline void BufferObject::CopyStagingBuffer(const TempBuffer& buffer, const u32& writeOffset)
 	{
 		CommandContext internalContext;
 		MakeInternalContext(internalContext, m_renderer);
 		internalContext.Begin();
 
-		PB_ASSERT(buffer.m_size <= m_size);
+		PB_ASSERT(buffer.m_size <= m_size - writeOffset);
 
 		// Staging buffers don't use the IBufferObject API, so we'll have to issue the copy command here.
-		VkBufferCopy copyRegion{ buffer.m_offset, 0, buffer.m_size };
+		VkBufferCopy copyRegion{ buffer.m_offset, writeOffset, buffer.m_size };
 		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), buffer.m_parentBuffer, m_handle, 1, &copyRegion);
 
 		internalContext.End();

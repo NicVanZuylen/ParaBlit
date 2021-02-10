@@ -9,6 +9,7 @@
 #pragma warning(pop)
 
 #include "IRenderer.h"
+#include "DrawBatch.h"
 
 namespace PBClient
 {
@@ -36,14 +37,14 @@ namespace PBClient
 
 		Mesh() = default;
 
-		Mesh(PB::IRenderer* renderer, const char* filePath);
+		Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
 
 		~Mesh();
 
 		/*
 		Description: Constructor logic.
 		*/
-		void Init(PB::IRenderer* renderer, const char* filePath);
+		void Init(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
 
 		/*
 		Description: Load the mesh from a file, and any included materials.
@@ -56,31 +57,49 @@ namespace PBClient
 		Description: Get the amount of vertices in the entire mesh.
 		Return Type: uint32_t
 		*/
-		uint32_t VertexCount();
+		uint32_t VertexCount() const;
 
 		/*
 		Description: Get the amount of indices in the entire mesh.
 		Return Type: uint32_t
 		*/
-		uint32_t IndexCount();
+		uint32_t IndexCount() const;
+
+		/*
+		Description: Get index of the first vertex in the vertex pool (if vertex pool is used).
+		Return Type: uint32_t
+		*/
+		uint32_t FirstVertex() const;
 
 		/*
 		Description: Get the name of this mesh, which should be the name of the file.
 		Return Type: const std::string&
 		*/
-		const std::string& GetName();
+		const std::string& GetName() const;
 
 		/*
 		Description: Get the mesh vertex buffer.
 		Return Type: const PB::IBufferObject*
 		*/
-		const PB::IBufferObject* GetVertexBuffer();
+		PB::IBufferObject* GetVertexBuffer();
 
 		/*
 		Description: Get the mesh index buffer.
 		Return Type: const PB::IBufferObject*
 		*/
-		const PB::IBufferObject* GetIndexBuffer();
+		PB::IBufferObject* GetIndexBuffer();
+
+		/*
+		Description: Get the mesh vertex buffer.
+		Return Type: const PB::IBufferObject*
+		*/
+		const PB::IBufferObject* GetVertexBuffer() const;
+
+		/*
+		Description: Get the mesh index buffer.
+		Return Type: const PB::IBufferObject*
+		*/
+		const PB::IBufferObject* GetIndexBuffer() const;
 
 	private:
 
@@ -104,6 +123,8 @@ namespace PBClient
 		uint64_t m_totalVertexCount = 0;
 		uint64_t m_totalIndexCount = 0;
 		const char* m_filePath = nullptr;
+		VertexPool* m_vertexPool = nullptr;
+		uint64_t m_firstVertexInPool = 0;
 		std::string m_name;
 		bool m_empty = true;
 	};

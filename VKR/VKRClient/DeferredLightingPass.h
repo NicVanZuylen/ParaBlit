@@ -56,8 +56,8 @@ private:
 	PB::IBufferObject* m_mvpBuffer = nullptr;
 	PB::IBufferObject* m_lightingBuffer = nullptr;
 
-	PB::BufferView m_pointLightingView = nullptr;
-	PB::BufferView m_dirLightingView = nullptr;
+	PB::UniformBufferView m_pointLightingView = nullptr;
+	PB::UniformBufferView m_dirLightingView = nullptr;
 	PB::Pipeline m_dirLightingPipeline = 0;
 	PB::Pipeline m_pointLightingPipeline = 0;
 	PBClient::Shader* m_screenQuadShader = nullptr;
@@ -65,7 +65,7 @@ private:
 	PBClient::Shader* m_pointLightVTXShader = nullptr;
 	PBClient::Shader* m_pointLightShader = nullptr;
 
-	PB::Sampler m_gBufferSampler = 0;
+	PB::ResourceView m_gBufferSampler = 0;
 
 	PB::IBufferObject* m_pointLightIndirectParamsBuffer = nullptr;
 	PB::ICommandList* m_reusableCmdList = nullptr;

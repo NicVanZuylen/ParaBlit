@@ -27,7 +27,7 @@ namespace PB
 
 	PARABLIT_API inline VkPipelineStageFlags ConvertPBAttachmentUsageToStageFlags(AttachmentUsageFlags usage);
 
-	PARABLIT_API inline VkShaderStageFlagBits ConvertPBShaderStageToVK(EShaderStage stage);
+	PARABLIT_API inline VkShaderStageFlagBits ConvertPBShaderStageToVK(EGraphicsShaderStage stage);
 
 	PARABLIT_API inline VkFormat PBVertexTypeToVkFormat(EVertexAttributeType type);
 

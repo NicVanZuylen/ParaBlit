@@ -60,7 +60,7 @@ namespace PB
 		PARABLIT_INTERFACE void FreeTexture(ITexture* texture) = 0;
 		PARABLIT_INTERFACE IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc) = 0;
 		PARABLIT_INTERFACE void FreeBuffer(IBufferObject* buffer) = 0;
-		PARABLIT_INTERFACE Sampler GetSampler(const SamplerDesc& samplerDesc) = 0;
+		PARABLIT_INTERFACE ResourceView GetSampler(const SamplerDesc& samplerDesc) = 0;
 		PARABLIT_INTERFACE void FreeCommandList(ICommandList* list) = 0;
 
 		PARABLIT_INTERFACE ISwapChain* GetSwapchain() = 0;

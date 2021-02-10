@@ -15,6 +15,18 @@ namespace CLib
 		AllocatePage();
 	}
 
+	FixedBlockAllocator::FixedBlockAllocator(FixedBlockAllocator&& other) noexcept
+	{
+		m_freeList = other.m_freeList;
+		m_blockSize = other.m_blockSize;
+		m_blockCount = other.m_blockCount;
+		m_pageSize = other.m_pageSize;
+		m_pages = std::move(other.m_pages);
+
+		other.m_pages.Clear();
+		other.m_freeList = nullptr;
+	}
+
 	FixedBlockAllocator::~FixedBlockAllocator()
 	{
 		// Free memory pages. Users should free any objects that are initialized by this allocator. Especially if they allocate memory on another allocator, otherwise it will be leaked.

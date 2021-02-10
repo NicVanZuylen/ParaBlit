@@ -100,7 +100,7 @@ int Application::Init(int argumentCount, char** argumentVector)
 	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 	swapchainDesc.m_height = 0;
-	swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
+	swapchainDesc.m_presentMode = PB::EPresentMode::FIFO;
 	swapchainDesc.m_imageCount = 3;
 
 	m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
@@ -125,6 +125,7 @@ RenderGraph* CreateRenderGraph(CLib::Allocator* allocator, PB::IRenderer* render
 		{
 			NodeDesc nodeDesc;
 			nodeDesc.m_behaviour = behaviours[0];
+			nodeDesc.useReusableCommandLists = true;
 
 			AttachmentDesc& colorDesc = nodeDesc.m_attachments[0];
 			colorDesc.m_format = swapchain->GetImageFormat();
@@ -230,8 +231,9 @@ void Application::Run()
 	RenderGraphBehaviour* behaviours[2] = { gBufferNode, defLightingNode };
 	RenderGraph* renderGraph = CreateRenderGraph(&m_allocator, m_renderer, behaviours);
 
-	defLightingNode->SetDirectionalLight(0, { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
-	defLightingNode->SetPointLight(0, { 0.0f, 2.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 10.0f);
+	//defLightingNode->SetDirectionalLight(0, { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
+	defLightingNode->SetPointLight(0, { -1.0f, 2.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
+	defLightingNode->SetPointLight(1, { 1.0f, 2.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
 
 	struct MVPBuffer
 	{

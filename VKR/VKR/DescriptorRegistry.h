@@ -10,6 +10,7 @@ namespace PB
 	{
 		DESCRIPTORTYPE_TEXTURE,
 		DESCRIPTORTYPE_SAMPLER,
+		DESCRIPTORTYPE_STORAGE_BUFFER,
 
 		DESCRIPTORTYPE_COUNT
 	};
@@ -21,24 +22,36 @@ namespace PB
 
 	class Device;
 
-	struct TextureViewData
+	struct ViewData
 	{
-		VkImageView m_view = VK_NULL_HANDLE;
 		u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
-		ETextureState m_expectedState = ETextureState::NONE;
 	};
 
-	struct BufferViewData
+	struct TextureViewData : public ViewData
+	{
+		ETextureState m_expectedState = ETextureState::NONE;
+		VkImageView m_view = VK_NULL_HANDLE;
+		//u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
+	};
+
+	struct UBOViewData
 	{
 		VkBuffer m_buffer = VK_NULL_HANDLE;
 		u32 m_offset = 0;
 		u32 m_size = ~0u;
 	};
 
-	struct SamplerData
+	struct SamplerData : public ViewData
 	{
 		VkSampler m_sampler = VK_NULL_HANDLE;
-		u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
+		//u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
+	};
+
+	struct SSBOViewData : public ViewData
+	{
+		u32 m_offset = 0;
+		u32 m_size = ~0u;
+		VkBuffer m_buffer = VK_NULL_HANDLE;
 	};
 
 	class DescriptorRegistry
@@ -51,6 +64,7 @@ namespace PB
 
 		void RegisterView(TextureViewData& viewData);
 		void RegisterView(SamplerData& samplerData);
+		void RegisterView(SSBOViewData& ssboData);
 
 		void FreeView(EDescriptorType type, u32 index);
 
@@ -70,6 +84,7 @@ namespace PB
 		static constexpr const u32 MaxDescriptors = 0xFFFFFF;
 		static constexpr const u32 MaxTextureDescriptors = 40000;
 		static constexpr const u32 MaxSamplers = 40000;
+		static constexpr const u32 MaxSSBOs = 40000;
 
 		struct DescriptorState
 		{

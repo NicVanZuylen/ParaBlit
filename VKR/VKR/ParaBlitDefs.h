@@ -208,23 +208,34 @@ namespace PB
 	};
 	PB_DEFINE_ENUM_FIELD(CommandContextFlags, ECommandContextFlags, u8)
 
-	enum EShaderStage : u32
+	enum EGraphicsShaderStage : u32
 	{
 		VERTEX,
 		FRAGMENT,
-		PB_SHADER_STAGE_COUNT
+		GRAPHICS_STAGE_COUNT
 	};
 
-	using BufferView = void*;
+	using UniformBufferView = void*;
+
+	// Used primarily for render target views, but can be used to store textures as generic resource views too, but a static cast is required to convert them back.
 	using TextureView = u64;
-	using Sampler = u64;
+
+	// Resource view index which is sent to the shader via push constants upon binding.
+	using ResourceView = u32;
+
+	// Opaque handle for a render pass object.
 	using RenderPass = void*;
+
+	// Opaque handle for a framebuffer object.
 	using Framebuffer = void*;
+
+	// Opaque handle for a shader module.
 	using ShaderModule = u64;
+
+	// Opaque handle for a pipeline state object.
 	using Pipeline = u64;
 
-	using BufferOptions = u32;
-
+	// Defines a selection of subresources within a resource.
 	struct SubresourceRange
 	{
 		u16 m_baseMip = 0;
@@ -235,26 +246,13 @@ namespace PB
 		bool operator == (const SubresourceRange& other) const;
 	};
 
-	enum class EBindingLayoutLocation : u16
-	{
-		DEFAULT,			// Binding indices will be recorded into a DRI buffer, a UBO bound at location 0 in the shader.
-							// ParaBlit will automatically allocate create, fill and bind the buffer containing the binding indices.
-
-		INSTANCE			// Binding indices will be read from an instance buffer. This approach is preferable when drawing instanced geometry, to avoid a uniform buffer binding for each draw call using the layout.
-	};
-
+	// Contains views for binding to a pipeline state. 
 	struct BindingLayout
 	{
-		EBindingLayoutLocation m_bindingLocation = EBindingLayoutLocation::DEFAULT;
-
-		u16 m_bufferCount = 0;
-		BufferView* m_buffers = nullptr;
-
-		u16 m_textureCount = 0;
-		TextureView* m_textures = nullptr;
-
-		u16 m_samplerCount = 0;
-		Sampler* m_samplers = nullptr;
+		u32 m_uniformBufferCount = 0;
+		u32 m_resourceCount = 0;
+		UniformBufferView* m_uniformBuffers = nullptr;
+		ResourceView* m_resourceViews = nullptr;
 	};
 
 	struct DrawIndexedIndirectParams

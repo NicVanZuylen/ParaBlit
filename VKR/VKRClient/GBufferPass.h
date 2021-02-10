@@ -4,6 +4,7 @@
 #include "Mesh.h"
 #include "Texture.h"
 #include "Shader.h"
+#include "ObjectDispatcher.h"
 
 class GBufferPass : public RenderGraphBehaviour
 {
@@ -38,11 +39,13 @@ private:
 	PBClient::Texture* m_detailsTextures[4]{};
 	PBClient::Texture* m_glassTextures[4]{};
 
-	PB::TextureView m_paintViews[4]{};
-	PB::TextureView m_detailsViews[4]{};
-	PB::TextureView m_glassViews[4]{};
+	PB::ResourceView m_paintViews[4]{};
+	PB::ResourceView m_detailsViews[4]{};
+	PB::ResourceView m_glassViews[4]{};
 
-	PB::Sampler m_colorSampler = 0;
+	ObjectDispatchList m_geoDispatchList;
+
+	PB::ResourceView m_colorSampler = 0;
 
 	PBClient::Shader* m_vertShader = nullptr;
 	PBClient::Shader* m_fragShader = nullptr;

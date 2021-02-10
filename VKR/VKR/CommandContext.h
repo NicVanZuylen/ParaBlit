@@ -19,8 +19,6 @@ namespace PB
 	class Renderer;
 	class IBufferObject;
 	
-	struct DRIBuffer;
-
 	class CommandList : public ICommandList
 	{
 	public:
@@ -63,11 +61,12 @@ namespace PB
 		void CmdBindVertexBuffers(const IBufferObject** vertexBuffers, u32 vertexBufferCount, const IBufferObject* indexBuffer, EIndexType indexType) override;
 		PARABLIT_API void CmdDraw(u32 vertexCount, u32 instanceCount) override;
 		void CmdDrawIndexed(u32 indexCount, u32 instanceCount) override;
-		void CmdDrawIndexedIndirect(PB::IBufferObject* paramsBuffer, u32 offset) override;
-		PARABLIT_API void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size);
+		void CmdDrawIndexedIndirect(IBufferObject* paramsBuffer, u32 offset) override;
+		void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) override;
+		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) override;
 		void CmdBindResources(const BindingLayout& layout) override;
-		void CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst) override;
-		void CmdExecuteList(const PB::ICommandList* list) override;
+		void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) override;
+		void CmdExecuteList(const ICommandList* list) override;
 
 		PARABLIT_API bool GetIsPriority();
 		
@@ -88,7 +87,9 @@ namespace PB
 
 	private:
 
-		PARABLIT_API inline void ValidateRecordingState();
+		inline void ValidateRecordingState();
+
+		inline void ValidatePipelineState(bool computeFunction);
 
 		static constexpr const u32 MaxPushConstantBytes = 128; // Vulkan spec requirement, all Vulkan compatible hardware will support 128 bytes for push constants.
 
@@ -115,11 +116,19 @@ namespace PB
 		VkPipelineLayout m_curPipelineLayout = VK_NULL_HANDLE;
 		ECmdContextState m_state = ECmdContextState::OPEN;
 		ECommandContextUsage m_usage = ECommandContextUsage::COPY; // Copy by default since any device queue is capable of copy operations.
-		bool m_isPriority : 1;
-		bool m_isInternal : 1;
-		bool m_activeRenderpass : 1;
-		bool m_reusable : 1;
-		bool m_reusableForRenderPass : 1;
+		union
+		{
+			struct
+			{
+				bool m_isPriority : 1;
+				bool m_isInternal : 1;
+				bool m_activeRenderpass : 1;
+				bool m_activePipelineIsCompute : 1;
+				bool m_reusable : 1;
+				bool m_reusableForRenderPass : 1;
+			};
+			u8 m_flags = false;
+		};
 	};
 }
 

@@ -1,4 +1,5 @@
 #include "Mesh.h"
+#include "DrawBatch.h"
 #include <vector>
 #include <iostream>
 
@@ -8,9 +9,9 @@
 
 namespace PBClient
 {
-	Mesh::Mesh(PB::IRenderer* renderer, const char* filePath)
+	Mesh::Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool)
 	{
-		Init(renderer, filePath);
+		Init(renderer, filePath, vertexPool);
 	}
 
 	Mesh::~Mesh()
@@ -19,17 +20,19 @@ namespace PBClient
 		{
 			m_empty = true;
 
-			m_renderer->FreeBuffer(m_vertexBuffer);
+			if(m_vertexBuffer)
+				m_renderer->FreeBuffer(m_vertexBuffer);
 			m_vertexBuffer = nullptr;
 			m_renderer->FreeBuffer(m_indexBuffer);
 			m_indexBuffer = nullptr;
 		}
 	}
 
-	void Mesh::Init(PB::IRenderer* renderer, const char* filePath)
+	void Mesh::Init(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool)
 	{
 		m_renderer = renderer;
 		m_filePath = filePath;
+		m_vertexPool = vertexPool;
 
 		// Use the filename as the name.
 		std::string tmpName = filePath;
@@ -45,7 +48,8 @@ namespace PBClient
 		{
 			m_empty = true;
 
-			m_renderer->FreeBuffer(m_vertexBuffer);
+			if(m_vertexBuffer)
+				m_renderer->FreeBuffer(m_vertexBuffer);
 			m_vertexBuffer = nullptr;
 			m_renderer->FreeBuffer(m_indexBuffer);
 			m_indexBuffer = nullptr;
@@ -80,11 +84,15 @@ namespace PBClient
 			m_totalVertexCount = inCacheData.m_vertexCount;
 			m_totalIndexCount = inCacheData.m_indexCount;
 
-			PB::BufferObjectDesc vertexBufferDesc;
-			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
-			vertexBufferDesc.m_options = 0;
-			vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
-			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+			if (m_vertexPool == nullptr)
+			{
+				// Allocate a standalone buffer for the vertices.
+				PB::BufferObjectDesc vertexBufferDesc;
+				vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
+				vertexBufferDesc.m_options = 0;
+				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+			}
 
 			PB::BufferObjectDesc indexBufferDesc;
 			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
@@ -96,9 +104,20 @@ namespace PBClient
 			cacheInStream.seekg(inCacheData.m_vertexDataOffset);
 
 			// Read vertex data...
-			char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
-			cacheInStream.read(vertexAddress, inCacheData.m_vertexCount * sizeof(Vertex));
-			m_vertexBuffer->EndPopulate();
+			if (m_vertexPool == nullptr)
+			{
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
+				cacheInStream.read(vertexAddress, inCacheData.m_vertexCount * sizeof(Vertex));
+				m_vertexBuffer->EndPopulate();
+			}
+			else
+			{
+				PB::u32 firstVertex;
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexPool->AllocateAndBeginWrite(static_cast<PB::u32>(vertexBufferSize), firstVertex));
+				cacheInStream.read(vertexAddress, inCacheData.m_vertexCount * sizeof(Vertex));
+				m_vertexPool->EndWrite();
+				m_firstVertexInPool = firstVertex;
+			}
 
 			// Move read offset to index start offset.
 			cacheInStream.seekg(inCacheData.m_indexOffset);
@@ -188,27 +207,42 @@ namespace PBClient
 		m_empty = false;
 	}
 
-	uint32_t Mesh::VertexCount()
+	uint32_t Mesh::VertexCount() const
 	{
 		return static_cast<uint32_t>(m_totalVertexCount);
 	}
 
-	uint32_t Mesh::IndexCount()
+	uint32_t Mesh::IndexCount() const
 	{
 		return static_cast<uint32_t>(m_totalIndexCount);
 	}
 
-	const std::string& Mesh::GetName()
+	uint32_t Mesh::FirstVertex() const
+	{
+		return static_cast<uint32_t>(m_firstVertexInPool);
+	}
+
+	const std::string& Mesh::GetName() const
 	{
 		return m_name;
 	}
 
-	const PB::IBufferObject* Mesh::GetVertexBuffer()
+	PB::IBufferObject* Mesh::GetVertexBuffer()
 	{
 		return m_vertexBuffer;
 	}
 
-	const PB::IBufferObject* Mesh::GetIndexBuffer()
+	PB::IBufferObject* Mesh::GetIndexBuffer()
+	{
+		return m_indexBuffer;
+	}
+
+	const PB::IBufferObject* Mesh::GetVertexBuffer() const
+	{
+		return m_vertexBuffer;
+	}
+
+	const PB::IBufferObject* Mesh::GetIndexBuffer() const
 	{
 		return m_indexBuffer;
 	}

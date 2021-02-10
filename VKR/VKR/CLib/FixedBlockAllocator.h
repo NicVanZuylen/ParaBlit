@@ -11,6 +11,8 @@ namespace CLib
 
 		FixedBlockAllocator(uint32_t blockSize, uint32_t pageSize = 4096);
 
+		FixedBlockAllocator(FixedBlockAllocator&& other) noexcept;
+
 		~FixedBlockAllocator();
 
 		// Allocate a raw block of memory. The memory won't be initialized.

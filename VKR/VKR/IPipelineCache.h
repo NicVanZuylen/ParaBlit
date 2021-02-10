@@ -84,8 +84,7 @@ namespace PB
 		FRONT
 	};
 
-	// TODO: ONGOING: Add more paramaters and update the == operator as more are needed.
-	struct PipelineDesc
+	struct GraphicsPipelineDesc
 	{
 		static constexpr const u32 MaxVertexBuffers = 8;
 		static constexpr const u32 MaxColorAttachments = 8;
@@ -105,7 +104,7 @@ namespace PB
 
 		RenderPass m_renderPass = 0;
 		Rect m_renderArea = {};
-		ShaderModule m_shaderModules[static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT)] = {};
+		ShaderModule m_shaderModules[static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT)] = {};
 		PipelineVertexBufferDesc m_vertexBuffers[MaxVertexBuffers]{};
 		VertexAttributeDesc m_vertexDesc{};
 		AttachmentBlendState m_colorBlendStates[MaxColorAttachments]{};
@@ -115,19 +114,33 @@ namespace PB
 		u8 m_subpass = 0;
 		u32 m_attachmentCount = 0;
 
-		bool operator == (const PipelineDesc& other) const;
+		bool operator == (const GraphicsPipelineDesc& other) const;
 	};
-	static_assert(sizeof(PipelineDesc) % 16 == 0);
+	static_assert(sizeof(GraphicsPipelineDesc) % 16 == 0);
+
+	struct ComputePipelineDesc
+	{
+		ShaderModule m_computeModule{};
+
+		bool operator == (const ComputePipelineDesc& other) const;
+	};
 
 	class IPipelineCache
 	{
 	public:
 
 		/*
-		Description: Get or create a Graphics/Compute pipeline using the provided pipeline descriptor object.
+		Description: Get or create a graphics pipeline using the provided pipeline descriptor object.
 		Param:
 			const PipelineDesc& desc: The pipeline descriptor object containing parameters that are used to create the pipeline and identify it in the cache.
 		*/
-		PARABLIT_INTERFACE Pipeline GetPipeline(const PipelineDesc& desc) = 0;
+		PARABLIT_INTERFACE Pipeline GetPipeline(const GraphicsPipelineDesc& desc) = 0;
+
+		/*
+		Description: Get or create a compute pipeline using the provided pipeline descriptor object.
+		Param:
+			const PipelineDesc& desc: The pipeline descriptor object containing parameters that are used to create the pipeline and identify it in the cache.
+		*/
+		PARABLIT_INTERFACE Pipeline GetPipeline(const ComputePipelineDesc& desc) = 0;
 	};
 }

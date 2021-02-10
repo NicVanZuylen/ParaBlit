@@ -45,11 +45,11 @@ namespace PB
 
 		void AliasTexture(ITexture* baseTexture) override;
 
-		TextureView GetDefaultSRV() override;
+		ResourceView GetDefaultSRV() override;
 
 		TextureView GetDefaultRTV() override;
 
-		TextureView GetView(TextureViewDesc& viewDesc) override;
+		ResourceView GetView(TextureViewDesc& viewDesc) override;
 
 		TextureView GetRenderTargetView(TextureViewDesc& viewDesc) override;
 

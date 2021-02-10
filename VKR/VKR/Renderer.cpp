@@ -236,7 +236,7 @@ namespace PB
 		m_allocator.Free(internalTex);
 	}
 
-	Sampler Renderer::GetSampler(const SamplerDesc& samplerDesc)
+	ResourceView Renderer::GetSampler(const SamplerDesc& samplerDesc)
 	{
 		return m_viewCache.GetSampler(samplerDesc);
 	}
@@ -381,12 +381,13 @@ namespace PB
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(m_sharedDescPool);
 
+		// TODO: Could we create layouts for each stage and pick one based upon where we're binding the set we allocate, rather than using a (potentially slower) one-fits-all layout?
 		VkDescriptorSetLayoutBinding uboLayoutBinding;
 		uboLayoutBinding.binding = 0;
 		uboLayoutBinding.descriptorCount = m_device.GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindUniformBuffers - 1;
 		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		uboLayoutBinding.pImmutableSamplers = nullptr;
-		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
 		// UBO sets may only be partially bound.
 		VkDescriptorBindingFlags uboBindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;

@@ -132,7 +132,7 @@ namespace PB
 		PB_BREAK_ON_ERROR;
 	}
 
-	TextureView Texture::GetDefaultSRV()
+	ResourceView Texture::GetDefaultSRV()
 	{
 		PB_ASSERT_MSG(m_format != ETextureFormat::UNKNOWN, "Cannot get a default view of a texture with unknown format.");
 
@@ -154,7 +154,7 @@ namespace PB
 		return m_renderer->GetViewCache()->GetRenderTargetView(defaultRTVDesc);
 	}
 
-	TextureView Texture::GetView(TextureViewDesc& viewDesc)
+	ResourceView Texture::GetView(TextureViewDesc& viewDesc)
 	{
 		viewDesc.m_texture = this;
 		return m_renderer->GetViewCache()->GetTextureView(viewDesc);

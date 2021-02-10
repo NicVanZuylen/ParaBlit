@@ -67,7 +67,7 @@ namespace PB
 		m_descriptorRegistry.Destroy();
 	}
 
-	TextureView ViewCache::GetTextureView(const TextureViewDesc& desc)
+	ResourceView ViewCache::GetTextureView(const TextureViewDesc& desc)
 	{
 		PB_ASSERT_MSG(desc.m_expectedState != ETextureState::COLORTARGET, "Cannot use GetTextureView to get a render target view. Use GetRenderTargetView instead.");
 
@@ -108,29 +108,52 @@ namespace PB
 		m_texViewCache.erase(it);
 	}
 
-	BufferView ViewCache::GetBufferView(const BufferViewDesc& desc)
+	UniformBufferView ViewCache::GetUniformBufferView(const BufferViewDesc& desc)
 	{
-		auto it = m_bufViewCache.find(desc);
-		if (it == m_bufViewCache.end())
+		auto it = m_uboViewCache.find(desc);
+		if (it == m_uboViewCache.end())
 		{
-			auto& viewData = m_bufViewCache[desc];
-			viewData = CreateBufferView(desc);
+			auto& viewData = m_uboViewCache[desc];
+			viewData = CreateUniformBufferView(desc);
 			return &viewData;
 		}
 		else
 			return &it->second;
 	}
 
-	void ViewCache::DestroyBufferView(const BufferViewDesc& desc)
+	void ViewCache::DestroyUniformBufferView(const BufferViewDesc& desc)
 	{
 		// TODO: Reset descriptor at the view's index to avoid submitting views of destroyed resources.
-		auto it = m_bufViewCache.find(desc);
-		bool cacheMiss = it == m_bufViewCache.end();
+		auto it = m_uboViewCache.find(desc);
+		bool cacheMiss = it == m_uboViewCache.end();
 		PB_ASSERT(cacheMiss == false);
-		m_bufViewCache.erase(it);
+		m_uboViewCache.erase(it);
 	}
 
-	Sampler ViewCache::GetSampler(const SamplerDesc& desc)
+	ResourceView ViewCache::GetSSBOBufferView(const BufferViewDesc& desc)
+	{
+		auto it = m_ssboViewCache.find(desc);
+		if (it == m_ssboViewCache.end())
+		{
+			auto& viewData = m_ssboViewCache[desc];
+			viewData = CreateStorageBufferView(desc);
+			return viewData.m_descriptorIndex;
+		}
+		else
+			return it->second.m_descriptorIndex;
+	}
+
+	void ViewCache::DestroySSBOBufferView(const BufferViewDesc& desc)
+	{
+		// TODO: Reset descriptor at the view's index to avoid submitting views of destroyed resources.
+		auto it = m_ssboViewCache.find(desc);
+		bool cacheMiss = it == m_ssboViewCache.end();
+		PB_ASSERT(cacheMiss == false);
+		m_descriptorRegistry.FreeView(EDescriptorType::DESCRIPTORTYPE_STORAGE_BUFFER, it->second.m_descriptorIndex);
+		m_ssboViewCache.erase(it);
+	}
+
+	ResourceView ViewCache::GetSampler(const SamplerDesc& desc)
 	{
 		auto it = m_samplerCache.find(desc);
 		if (it == m_samplerCache.end())
@@ -202,15 +225,29 @@ namespace PB
 		return viewData;
 	}
 
-	BufferViewData ViewCache::CreateBufferView(const BufferViewDesc& desc)
+	UBOViewData ViewCache::CreateUniformBufferView(const BufferViewDesc& desc)
 	{
 		PB_ASSERT(reinterpret_cast<BufferObject*>(desc.m_buffer)->GetUsage() & EBufferUsage::UNIFORM);
 
-		BufferViewData viewData;
+		UBOViewData viewData;
 		viewData.m_buffer = reinterpret_cast<BufferObject*>(desc.m_buffer)->GetHandle();
 		viewData.m_offset = desc.m_offset;
 		viewData.m_size = desc.m_size;
-		reinterpret_cast<BufferObject*>(desc.m_buffer)->RegisterView(desc);
+		reinterpret_cast<BufferObject*>(desc.m_buffer)->RegisterView(desc, EBufferUsage::UNIFORM);
+		return viewData;
+	}
+
+	SSBOViewData ViewCache::CreateStorageBufferView(const BufferViewDesc& desc)
+	{
+		PB_ASSERT(reinterpret_cast<BufferObject*>(desc.m_buffer)->GetUsage() & EBufferUsage::STORAGE);
+
+		SSBOViewData viewData;
+		viewData.m_buffer = reinterpret_cast<BufferObject*>(desc.m_buffer)->GetHandle();
+		viewData.m_offset = desc.m_offset;
+		viewData.m_size = desc.m_size;
+
+		m_descriptorRegistry.RegisterView(viewData);
+		reinterpret_cast<BufferObject*>(desc.m_buffer)->RegisterView(desc, EBufferUsage::STORAGE);
 		return viewData;
 	}
 

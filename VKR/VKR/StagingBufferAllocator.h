@@ -9,7 +9,7 @@ namespace PB
 
 	struct TempBuffer
 	{
-		u8* Map(VkDevice device);
+		u8* Map(VkDevice device, u32 mapOffset = 0);
 		void Unmap(VkDevice device);
 
 		VkBuffer m_parentBuffer;

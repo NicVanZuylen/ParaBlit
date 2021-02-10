@@ -42,6 +42,8 @@ GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : 
 	colorSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
 	colorSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::REPEAT;
 	m_colorSampler = m_renderer->GetSampler(colorSamplerDesc);
+
+	m_geoDispatchList.Init(renderer, m_allocator);
 }
 
 GBufferPass::~GBufferPass()
@@ -72,69 +74,74 @@ GBufferPass::~GBufferPass()
 
 void GBufferPass::OnPreRenderPass(const RenderGraphInfo& info)
 {
+	PB::UniformBufferView mvpView = m_mvpBuffer->GetViewAsUniformBuffer();
+	PB::ResourceView resources[]
+	{
+		m_paintViews[0],
+		m_paintViews[1],
+		m_paintViews[2],
+		m_paintViews[3],
+		m_colorSampler
+	};
 
+	PB::BindingLayout bindings{};
+	bindings.m_uniformBufferCount = 1;
+	bindings.m_uniformBuffers = &mvpView;
+	bindings.m_resourceCount = _countof(resources);
+	bindings.m_resourceViews = resources;
+
+	if (!m_pipeline)
+	{
+		PB::GraphicsPipelineDesc pipelineDesc{};
+		pipelineDesc.m_renderPass = info.m_renderPass;
+		pipelineDesc.m_subpass = 0;
+		pipelineDesc.m_renderArea = { 0, 0, info.m_renderer->GetSwapchain()->GetWidth(), info.m_renderer->GetSwapchain()->GetHeight() };
+		pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_vertShader->GetModule();
+		pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_fragShader->GetModule();
+		pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
+		pipelineDesc.m_attachmentCount = 3;
+		pipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
+		pipelineDesc.m_vertexBuffers[1] = { sizeof(Vertex), PB::EVertexBufferType::INSTANCE };
+
+		auto& vertexDesc = pipelineDesc.m_vertexDesc;
+		vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT4 };
+		vertexDesc.vertexAttributes[1] = { 0, PB::EVertexAttributeType::FLOAT4 };
+		vertexDesc.vertexAttributes[2] = { 0, PB::EVertexAttributeType::FLOAT4 };
+		vertexDesc.vertexAttributes[3] = { 0, PB::EVertexAttributeType::FLOAT2 };
+		vertexDesc.vertexAttributes[4] = { 1, PB::EVertexAttributeType::MAT4 };
+		m_pipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
+
+		PB::DrawIndexedIndirectParams drawParams;
+		drawParams.firstIndex = 0;
+		drawParams.firstInstance = 0;
+		drawParams.indexCount = m_paintMesh->IndexCount();
+		drawParams.instanceCount = 1;
+		drawParams.offset = 0;
+		drawParams.vertexOffset = 0;
+
+		m_geoDispatchList.AddObject(m_pipeline, m_paintMesh->GetVertexBuffer(), m_paintMesh->GetIndexBuffer(), bindings, drawParams, m_instanceBuffer);
+
+		resources[0] = m_detailsViews[0];
+		resources[1] = m_detailsViews[1];
+		resources[2] = m_detailsViews[2];
+		resources[3] = m_detailsViews[3];
+		drawParams.indexCount = m_detailsMesh->IndexCount();
+		m_geoDispatchList.AddObject(m_pipeline, m_detailsMesh->GetVertexBuffer(), m_detailsMesh->GetIndexBuffer(), bindings, drawParams, m_instanceBuffer);
+
+		resources[0] = m_glassViews[0];
+		resources[1] = m_glassViews[1];
+		resources[2] = m_glassViews[2];
+		resources[3] = m_glassViews[3];
+		drawParams.indexCount = m_glassMesh->IndexCount();
+		m_geoDispatchList.AddObject(m_pipeline, m_glassMesh->GetVertexBuffer(), m_glassMesh->GetIndexBuffer(), bindings, drawParams, m_instanceBuffer);
+	}
+
+	m_geoDispatchList.Update(info.m_commandContext);
 }
 
 void GBufferPass::OnPassBegin(const RenderGraphInfo& info)
 {
-	PB::BufferViewDesc mvpViewDesc;
-	mvpViewDesc.m_buffer = m_mvpBuffer;
-	mvpViewDesc.m_offset = 0;
-	mvpViewDesc.m_size = m_mvpBuffer->GetSize();
-	PB::BufferView mvpView = m_mvpBuffer->GetView();
-
-	PB::BindingLayout bindings{};
-	bindings.m_bindingLocation = PB::EBindingLayoutLocation::DEFAULT;
-	bindings.m_bufferCount = 1;
-	bindings.m_buffers = &mvpView;
-	bindings.m_textureCount = _countof(m_paintViews);
-	bindings.m_textures = m_paintViews;
-	bindings.m_samplerCount = 1;
-	bindings.m_samplers = &m_colorSampler;
-
-	auto cmdContext = info.m_commandContext;
-
-	PB::PipelineDesc pipelineDesc{};
-	pipelineDesc.m_renderPass = info.m_renderPass;
-	pipelineDesc.m_subpass = 0;
-	pipelineDesc.m_renderArea = { 0, 0, info.m_renderer->GetSwapchain()->GetWidth(), info.m_renderer->GetSwapchain()->GetHeight() };
-	pipelineDesc.m_shaderModules[PB::EShaderStage::VERTEX] = m_vertShader->GetModule();
-	pipelineDesc.m_shaderModules[PB::EShaderStage::FRAGMENT] = m_fragShader->GetModule();
-	pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
-	pipelineDesc.m_attachmentCount = 3;
-	pipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
-	pipelineDesc.m_vertexBuffers[1] = { sizeof(Vertex), PB::EVertexBufferType::INSTANCE };
-
-	auto& vertexDesc = pipelineDesc.m_vertexDesc;
-	vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT4 };
-	vertexDesc.vertexAttributes[1] = { 0, PB::EVertexAttributeType::FLOAT4 };
-	vertexDesc.vertexAttributes[2] = { 0, PB::EVertexAttributeType::FLOAT4 };
-	vertexDesc.vertexAttributes[3] = { 0, PB::EVertexAttributeType::FLOAT2 };
-	vertexDesc.vertexAttributes[4] = { 1, PB::EVertexAttributeType::MAT4 };
-	auto pipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
-
-	cmdContext->CmdBindPipeline(pipeline);	
-	cmdContext->CmdBindResources(bindings);
-
-	const PB::IBufferObject* vertexBuffers[2] = { m_paintMesh->GetVertexBuffer(), m_instanceBuffer };
-	constexpr const PB::u32 vertexBufferCount = _countof(vertexBuffers);
-	cmdContext->CmdBindVertexBuffers(vertexBuffers, vertexBufferCount, m_paintMesh->GetIndexBuffer(), PB::EIndexType::PB_INDEX_TYPE_UINT32);
-	cmdContext->CmdDrawIndexed(m_paintMesh->IndexCount(), 1);
-	
-	bindings.m_textureCount = _countof(m_detailsViews);
-	bindings.m_textures = m_detailsViews;
-	cmdContext->CmdBindResources(bindings);
-	vertexBuffers[0] = m_detailsMesh->GetVertexBuffer();
-	cmdContext->CmdBindVertexBuffers(vertexBuffers, vertexBufferCount, m_detailsMesh->GetIndexBuffer(), PB::EIndexType::PB_INDEX_TYPE_UINT32);
-	cmdContext->CmdDrawIndexed(m_detailsMesh->IndexCount(), 1);
-	
-	bindings.m_textureCount = _countof(m_glassViews);
-	bindings.m_textures = m_glassViews;
-	cmdContext->CmdBindResources(bindings);
-	vertexBuffers[0] = m_glassMesh->GetVertexBuffer();
-	cmdContext->CmdBindVertexBuffers(vertexBuffers, vertexBufferCount, m_glassMesh->GetIndexBuffer(), PB::EIndexType::PB_INDEX_TYPE_UINT32);
-	cmdContext->CmdDrawIndexed(m_glassMesh->IndexCount(), 1);
-	
+	m_geoDispatchList.Dispatch(info.m_commandContext, info.m_renderPass, info.m_frameBuffer);
 }
 
 void GBufferPass::OnPostRenderPass(const RenderGraphInfo& info)

@@ -39,29 +39,36 @@ namespace PB
 
 		void Destroy();
 
-		TextureView GetTextureView(const TextureViewDesc& desc);
+		ResourceView GetTextureView(const TextureViewDesc& desc);
 
 		TextureView GetRenderTargetView(const TextureViewDesc& desc);
 
 		void DestroyTextureView(const TextureViewDesc& desc);
 
-		BufferView GetBufferView(const BufferViewDesc& desc);
+		UniformBufferView GetUniformBufferView(const BufferViewDesc& desc);
 
-		void DestroyBufferView(const BufferViewDesc& desc);
+		void DestroyUniformBufferView(const BufferViewDesc& desc);
 
-		Sampler GetSampler(const SamplerDesc& desc);
+		ResourceView GetSSBOBufferView(const BufferViewDesc& desc);
+
+		void DestroySSBOBufferView(const BufferViewDesc& desc);
+
+		ResourceView GetSampler(const SamplerDesc& desc);
 
 	private:
 
 		inline TextureViewData CreateTextureView(const TextureViewDesc& desc);
 
-		inline BufferViewData CreateBufferView(const BufferViewDesc& desc);
+		inline UBOViewData CreateUniformBufferView(const BufferViewDesc& desc);
+
+		inline SSBOViewData CreateStorageBufferView(const BufferViewDesc& desc);
 
 		inline SamplerData CreateSampler(const SamplerDesc& desc);
 
 		Device* m_device = nullptr;
 		std::unordered_map<TextureViewDesc, TextureViewData, TextureViewDescHasher> m_texViewCache;
-		std::unordered_map<BufferViewDesc, BufferViewData, BufferViewDescHasher> m_bufViewCache;
+		std::unordered_map<BufferViewDesc, UBOViewData, BufferViewDescHasher> m_uboViewCache;
+		std::unordered_map<BufferViewDesc, SSBOViewData, BufferViewDescHasher> m_ssboViewCache;
 		std::unordered_map<SamplerDesc, SamplerData, SamplerDescHasher> m_samplerCache;
 		DescriptorRegistry m_descriptorRegistry;
 	};

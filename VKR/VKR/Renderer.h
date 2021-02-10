@@ -87,7 +87,7 @@ namespace PB
 
 		PARABLIT_API void FreeTexture(ITexture* texture) override;
 
-		Sampler GetSampler(const SamplerDesc& samplerDesc);
+		ResourceView GetSampler(const SamplerDesc& samplerDesc);
 
 		void FreeCommandList(ICommandList* list) override;
 

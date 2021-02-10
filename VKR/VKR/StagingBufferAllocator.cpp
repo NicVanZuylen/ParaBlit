@@ -4,10 +4,10 @@
 
 namespace PB
 {
-	u8* TempBuffer::Map(VkDevice device)
+	u8* TempBuffer::Map(VkDevice device, u32 mapOffset)
 	{
 		u8* uptr;
-		vkMapMemory(device, m_parentMemory, m_offset, m_size, 0, reinterpret_cast<void**>(&uptr));
+		vkMapMemory(device, m_parentMemory, static_cast<VkDeviceSize>(m_offset) + mapOffset, m_size, 0, reinterpret_cast<void**>(&uptr));
 		return uptr;
 	}
 

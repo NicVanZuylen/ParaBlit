@@ -8,17 +8,27 @@
 
 namespace PB
 {
-	bool PipelineDesc::operator==(const PipelineDesc& other) const
+	bool GraphicsPipelineDesc::operator==(const GraphicsPipelineDesc& other) const
 	{
 		bool stageModulesEqual = true;
-		for (u32 i = 0; i < static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT); ++i)
+		for (u32 i = 0; i < static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT); ++i)
 			stageModulesEqual &= (m_shaderModules[i] == other.m_shaderModules[i]);
 		return m_renderPass == other.m_renderPass && m_subpass == other.m_subpass && stageModulesEqual;
 	}
 
-	u64 PipelineDescHasher::operator()(const PipelineDesc& desc) const
+	bool ComputePipelineDesc::operator == (const ComputePipelineDesc& other) const
 	{
-		return MurmurHash3_x64_64(&desc, sizeof(PipelineDesc), 0);
+		return m_computeModule == other.m_computeModule;
+	}
+
+	u64 PipelineDescHasher::operator()(const GraphicsPipelineDesc& desc) const
+	{
+		return MurmurHash3_x64_64(&desc, sizeof(GraphicsPipelineDesc), 0);
+	}
+
+	u64 PipelineDescHasher::operator()(const ComputePipelineDesc& desc) const
+	{
+		return MurmurHash3_x64_64(&desc, sizeof(ComputePipelineDesc), 0);
 	}
 
 	void PipelineCache::Init(Renderer* renderer)
@@ -26,32 +36,61 @@ namespace PB
 		m_device = renderer->GetDevice();
 		m_masterSetLayout = renderer->GetMasterSetLayout();
 		m_uboSetLayout = renderer->GetUBOSetLayout();
+
+		CreateCommonPipelineLayouts();
 	}
 
 	void PipelineCache::Destroy()
 	{
-		for (auto& pipeline : m_pipelineCache)
+		for (auto& pipeline : m_graphicsPipelineCache)
 		{
-			vkDestroyPipelineLayout(m_device->GetHandle(), pipeline.second.m_layout, nullptr);
+			if(pipeline.second.m_layout != m_commonGraphicsPipelineLayout)
+				vkDestroyPipelineLayout(m_device->GetHandle(), pipeline.second.m_layout, nullptr);
 			vkDestroyPipeline(m_device->GetHandle(), pipeline.second.m_pipeline, nullptr);
 		}
+
+		for (auto& pipeline : m_computePipelineCache)
+		{
+			if (pipeline.second.m_layout != m_commonComputePipelineLayout)
+				vkDestroyPipelineLayout(m_device->GetHandle(), pipeline.second.m_layout, nullptr);
+			vkDestroyPipeline(m_device->GetHandle(), pipeline.second.m_pipeline, nullptr);
+		}
+
+		vkDestroyPipelineLayout(m_device->GetHandle(), m_commonGraphicsPipelineLayout, nullptr);
+		vkDestroyPipelineLayout(m_device->GetHandle(), m_commonComputePipelineLayout, nullptr);
+
+		m_commonGraphicsPipelineLayout = VK_NULL_HANDLE;
+		m_commonComputePipelineLayout = VK_NULL_HANDLE;
+
 		m_masterSetLayout = VK_NULL_HANDLE;
 		m_uboSetLayout = VK_NULL_HANDLE;
 	}
 
-	Pipeline PipelineCache::GetPipeline(const PipelineDesc& desc)
+	Pipeline PipelineCache::GetPipeline(const GraphicsPipelineDesc& desc)
 	{
-		auto it = m_pipelineCache.find(desc);
-		if (it == m_pipelineCache.end())
+		auto it = m_graphicsPipelineCache.find(desc);
+		if (it == m_graphicsPipelineCache.end())
 		{
-			auto newPipeline = CreatePipeline(desc);
-			return reinterpret_cast<Pipeline>(&(m_pipelineCache[desc] = newPipeline));
+			auto newPipeline = CreateGraphicsPipeline(desc);
+			return reinterpret_cast<Pipeline>(&(m_graphicsPipelineCache[desc] = newPipeline));
 		}
 		else
 			return reinterpret_cast<Pipeline>(&it->second);
 	}
 
-	PipelineData PipelineCache::CreatePipeline(const PipelineDesc& desc)
+	Pipeline PipelineCache::GetPipeline(const ComputePipelineDesc& desc)
+	{
+		auto it = m_computePipelineCache.find(desc);
+		if (it == m_computePipelineCache.end())
+		{
+			auto newPipeline = CreateComputePipeline(desc);
+			return reinterpret_cast<Pipeline>(&(m_computePipelineCache[desc] = newPipeline));
+		}
+		else
+			return reinterpret_cast<Pipeline>(&it->second);
+	}
+
+	inline void PipelineCache::CreateCommonPipelineLayouts()
 	{
 		VkPipelineLayoutCreateInfo layoutInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr };
 		layoutInfo.flags = 0;
@@ -68,11 +107,18 @@ namespace PB
 		layoutInfo.setLayoutCount = 2;
 		layoutInfo.pSetLayouts = setLayouts;
 
-		VkPipelineLayout layout = VK_NULL_HANDLE;
-		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &layout));
+		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &m_commonGraphicsPipelineLayout));
 		PB_BREAK_ON_ERROR;
-		PB_ASSERT(layout);
+		PB_ASSERT(m_commonGraphicsPipelineLayout);
 
+		pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &m_commonComputePipelineLayout));
+		PB_BREAK_ON_ERROR;
+		PB_ASSERT(m_commonComputePipelineLayout);
+	}
+
+	PipelineData PipelineCache::CreateGraphicsPipeline(const GraphicsPipelineDesc& desc)
+	{
 		VkRect2D scissor = { static_cast<int64_t>(desc.m_renderArea.x), static_cast<int64_t>(desc.m_renderArea.y), desc.m_renderArea.w, desc.m_renderArea.h };
 		VkViewport viewPort;
 		viewPort.minDepth = 0.0f;
@@ -82,14 +128,14 @@ namespace PB
 		viewPort.width = static_cast<float>(desc.m_renderArea.w);
 		viewPort.height = static_cast<float>(desc.m_renderArea.h);
 
-		VkPipelineViewportStateCreateInfo viewportState = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, nullptr };
+		VkPipelineViewportStateCreateInfo viewportState{ VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, nullptr };
 		viewportState.flags = 0;
 		viewportState.scissorCount = 1;
 		viewportState.pScissors = &scissor;
 		viewportState.viewportCount = 1;
 		viewportState.pViewports = &viewPort;
 
-		CLib::Vector<VkVertexInputBindingDescription, PipelineDesc::MaxVertexBuffers> bindingDescs;
+		CLib::Vector<VkVertexInputBindingDescription, GraphicsPipelineDesc::MaxVertexBuffers> bindingDescs;
 		{
 			u32 bindingIndex = 0;
 			for (auto& bufferDesc : desc.m_vertexBuffers)
@@ -145,19 +191,19 @@ namespace PB
 			}
 		}
 
-		VkPipelineVertexInputStateCreateInfo vertexInputState = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, nullptr };
+		VkPipelineVertexInputStateCreateInfo vertexInputState{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, nullptr };
 		vertexInputState.flags = 0;
 		vertexInputState.vertexAttributeDescriptionCount = attrDescriptions.Count();
 		vertexInputState.pVertexAttributeDescriptions = attrDescriptions.Data();
 		vertexInputState.vertexBindingDescriptionCount = bindingDescs.Count();
 		vertexInputState.pVertexBindingDescriptions = bindingDescs.Data();
 
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, nullptr };
+		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState{ VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, nullptr };
 		inputAssemblyState.flags = 0;
 		inputAssemblyState.primitiveRestartEnable = VK_FALSE;
 		inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-		VkPipelineMultisampleStateCreateInfo multisampleState = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO, nullptr };
+		VkPipelineMultisampleStateCreateInfo multisampleState{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO, nullptr };
 		multisampleState.flags = 0;
 		multisampleState.alphaToCoverageEnable = VK_FALSE;
 		multisampleState.alphaToOneEnable = VK_FALSE;
@@ -166,7 +212,7 @@ namespace PB
 		multisampleState.sampleShadingEnable = VK_FALSE;
 		multisampleState.pSampleMask = nullptr;
 
-		VkPipelineRasterizationStateCreateInfo rasterState = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO, nullptr };
+		VkPipelineRasterizationStateCreateInfo rasterState{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO, nullptr };
 		rasterState.flags = 0;
 		rasterState.depthBiasEnable = VK_FALSE;
 		rasterState.depthClampEnable = VK_FALSE;
@@ -191,7 +237,7 @@ namespace PB
 			break;
 		}
 
-		VkPipelineDepthStencilStateCreateInfo depthStencilState = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO, nullptr };
+		VkPipelineDepthStencilStateCreateInfo depthStencilState{ VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO, nullptr };
 		depthStencilState.maxDepthBounds = 1.0f;
 		depthStencilState.minDepthBounds = 0.0f;
 		depthStencilState.depthCompareOp = PBCompareOPtoVKCompareOP(desc.m_depthCompareOP);
@@ -217,7 +263,7 @@ namespace PB
 			attachmentState.alphaBlendOp = static_cast<VkBlendOp>(blendState.m_dstBlend);
 		}
 
-		VkPipelineColorBlendStateCreateInfo colorBlendState = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, nullptr };
+		VkPipelineColorBlendStateCreateInfo colorBlendState{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, nullptr };
 		colorBlendState.flags = 0;
 		colorBlendState.attachmentCount = colorBlendAttachmentStates.Count();
 		colorBlendState.pAttachments = colorBlendAttachmentStates.Data();
@@ -235,30 +281,30 @@ namespace PB
 			VK_DYNAMIC_STATE_SCISSOR
 		};
 
-		VkPipelineDynamicStateCreateInfo dynamicStatesInfo = { VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, nullptr };
+		VkPipelineDynamicStateCreateInfo dynamicStatesInfo{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, nullptr };
 		dynamicStatesInfo.flags = 0;
 		dynamicStatesInfo.dynamicStateCount = _countof(dynamicStates);
 		dynamicStatesInfo.pDynamicStates = dynamicStates;
 
-		CLib::Vector<VkPipelineShaderStageCreateInfo, static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT)> shaderStages;
-		for (u32 i = 0; i < static_cast<u32>(EShaderStage::PB_SHADER_STAGE_COUNT); ++i)
+		CLib::Vector<VkPipelineShaderStageCreateInfo, static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT)> shaderStages;
+		for (u32 i = 0; i < static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT); ++i)
 		{
-			VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr };
+			VkPipelineShaderStageCreateInfo stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr };
 			stage.flags = 0;
 			stage.module = reinterpret_cast<VkShaderModule>(desc.m_shaderModules[i]);
 			stage.pName = "main";
 			stage.pSpecializationInfo = nullptr;
-			stage.stage = ConvertPBShaderStageToVK(static_cast<EShaderStage>(i));
+			stage.stage = ConvertPBShaderStageToVK(static_cast<EGraphicsShaderStage>(i));
 			shaderStages.PushBack(stage);
 		}
 
-		VkGraphicsPipelineCreateInfo pipelineInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, nullptr };
+		VkGraphicsPipelineCreateInfo pipelineInfo{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, nullptr };
 		pipelineInfo.flags = 0;
 		pipelineInfo.renderPass = reinterpret_cast<VkRenderPass>(desc.m_renderPass);
 		pipelineInfo.subpass = static_cast<u32>(desc.m_subpass);
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineInfo.basePipelineIndex = 0;
-		pipelineInfo.layout = layout;
+		pipelineInfo.layout = m_commonGraphicsPipelineLayout;
 		pipelineInfo.pViewportState = &viewportState;
 		pipelineInfo.pDynamicState = nullptr;
 		pipelineInfo.pVertexInputState = &vertexInputState;
@@ -276,6 +322,30 @@ namespace PB
 		PB_ERROR_CHECK(vkCreateGraphicsPipelines(m_device->GetHandle(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline));
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(newPipeline);
-		return { layout, newPipeline };
+		return { m_commonGraphicsPipelineLayout, newPipeline, false };
+	}
+
+	PipelineData PipelineCache::CreateComputePipeline(const ComputePipelineDesc& desc)
+	{
+		VkComputePipelineCreateInfo computePipelineInfo{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr };
+		computePipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+		computePipelineInfo.basePipelineIndex = 0;
+		computePipelineInfo.flags = 0;
+		computePipelineInfo.layout = m_commonComputePipelineLayout;
+
+		VkPipelineShaderStageCreateInfo& computeStage = computePipelineInfo.stage;
+		computeStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		computeStage.pNext = nullptr;
+		computeStage.flags = 0;
+		computeStage.module = reinterpret_cast<VkShaderModule>(desc.m_computeModule);
+		computeStage.pName = "main";
+		computeStage.pSpecializationInfo = nullptr;
+		computeStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+
+		VkPipeline newPipeline = VK_NULL_HANDLE;
+		vkCreateComputePipelines(m_device->GetHandle(), VK_NULL_HANDLE, 1, nullptr, nullptr, &newPipeline);
+		PB_BREAK_ON_ERROR;
+		PB_ASSERT(newPipeline);
+		return { m_commonComputePipelineLayout, newPipeline, true };
 	}
 };

@@ -347,17 +347,17 @@ namespace PB
         }
 	}
 
-	VkShaderStageFlagBits ConvertPBShaderStageToVK(EShaderStage stage)
+	VkShaderStageFlagBits ConvertPBShaderStageToVK(EGraphicsShaderStage stage)
 	{
         switch (stage)
         {
-        case EShaderStage::VERTEX:
+        case EGraphicsShaderStage::VERTEX:
             return VK_SHADER_STAGE_VERTEX_BIT;
             break;
-        case EShaderStage::FRAGMENT:
+        case EGraphicsShaderStage::FRAGMENT:
             return VK_SHADER_STAGE_FRAGMENT_BIT;
             break;
-        case EShaderStage::PB_SHADER_STAGE_COUNT:
+        case EGraphicsShaderStage::GRAPHICS_STAGE_COUNT:
             PB_NOT_IMPLEMENTED;
             break;
         default:
@@ -417,6 +417,7 @@ namespace PB
 
 	void MakeInternalContext(CommandContext& context, Renderer* renderer)
 	{
+        PB_LOG("Creating an internal context. Don't forget to share these on the same threads in the future.");
         CommandContextDesc desc;
         desc.m_flags = ECommandContextFlags::PRIORITY;
         desc.m_usage = ECommandContextUsage::GRAPHICS;

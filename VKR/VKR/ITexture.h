@@ -106,11 +106,11 @@ namespace PB
 		*/
 		PARABLIT_INTERFACE void AliasTexture(ITexture* baseTexture) = 0;
 
-		PARABLIT_INTERFACE TextureView GetDefaultSRV() = 0;
+		PARABLIT_INTERFACE ResourceView GetDefaultSRV() = 0;
 
 		PARABLIT_INTERFACE TextureView GetDefaultRTV() = 0;
 
-		PARABLIT_INTERFACE TextureView GetView(TextureViewDesc& viewDesc) = 0;
+		PARABLIT_INTERFACE ResourceView GetView(TextureViewDesc& viewDesc) = 0;
 
 		PARABLIT_INTERFACE TextureView GetRenderTargetView(TextureViewDesc& viewDesc) = 0;
 	};

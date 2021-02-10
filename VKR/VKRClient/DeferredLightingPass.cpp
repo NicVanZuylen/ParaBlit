@@ -13,11 +13,11 @@ DeferredLightingPass::DeferredLightingPass(PB::IRenderer* renderer, CLib::Alloca
 	PB::BufferViewDesc lightViewDesc;
 	lightViewDesc.m_offset = 0;
 	lightViewDesc.m_size = sizeof(LightingBuffer::m_pointLights);
-	m_pointLightingView = m_lightingBuffer->GetView(lightViewDesc);
+	m_pointLightingView = m_lightingBuffer->GetViewAsUniformBuffer(lightViewDesc);
 
 	lightViewDesc.m_offset = sizeof(LightingBuffer::m_pointLights);
 	lightViewDesc.m_size = sizeof(LightingBuffer::m_directionalLights);
-	m_dirLightingView = m_lightingBuffer->GetView(lightViewDesc);
+	m_dirLightingView = m_lightingBuffer->GetViewAsUniformBuffer(lightViewDesc);
 
 	PB::SamplerDesc gBufferSamplerDesc;
 	gBufferSamplerDesc.m_anisotropyLevels = 1.0f;
@@ -67,13 +67,15 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		m_lightingBuffer->EndPopulate();
 		m_mappedLightingBuffer = nullptr;
 
+		PB::u8* mappedPtr = m_pointLightIndirectParamsBuffer->BeginPopulate();
 		PB::DrawIndexedIndirectParams indirectParams{};
 		indirectParams.offset = 0;
 		indirectParams.firstIndex = 0;
 		indirectParams.indexCount = m_pointLightVolumeMesh.IndexCount();
 		indirectParams.instanceCount = m_pointLightCount;
 		indirectParams.vertexOffset = 0;
-		m_pointLightIndirectParamsBuffer->PopulateWithDrawIndexedIndirectParams(indirectParams);
+		m_pointLightIndirectParamsBuffer->PopulateWithDrawIndexedIndirectParams(mappedPtr, indirectParams);
+		m_pointLightIndirectParamsBuffer->EndPopulate();
 	}
 
 	auto RecordPass = [&]()
@@ -90,18 +92,25 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		auto renderWidth = info.m_renderer->GetSwapchain()->GetWidth();
 		auto renderHeight = info.m_renderer->GetSwapchain()->GetHeight();
 
-		PB::BufferView bufferViews[2] = { m_mvpBuffer->GetView(), m_dirLightingView };
+		PB::UniformBufferView bufferViews[2] = { m_mvpBuffer->GetViewAsUniformBuffer(), m_dirLightingView };
+		PB::ResourceView resourceViews[5]
+		{
+			static_cast<PB::ResourceView>(info.m_renderTargetViews[0]),
+			static_cast<PB::ResourceView>(info.m_renderTargetViews[1]),
+			static_cast<PB::ResourceView>(info.m_renderTargetViews[2]),
+			static_cast<PB::ResourceView>(info.m_renderTargetViews[3]),
+			m_gBufferSampler
+		};
+
 		PB::BindingLayout bindingLayout{};
-		bindingLayout.m_bufferCount = _countof(bufferViews);
-		bindingLayout.m_buffers = bufferViews;
-		bindingLayout.m_samplerCount = 1;
-		bindingLayout.m_samplers = &m_gBufferSampler;
-		bindingLayout.m_textureCount = 4;
-		bindingLayout.m_textures = info.m_renderTargetViews; // Views should already be in the correct order.
+		bindingLayout.m_uniformBufferCount = _countof(bufferViews);
+		bindingLayout.m_uniformBuffers = bufferViews;
+		bindingLayout.m_resourceCount = _countof(resourceViews);
+		bindingLayout.m_resourceViews = resourceViews;
 
 		if (m_dirLightingPipeline == 0)
 		{
-			PB::PipelineDesc lightingPipelineDesc{};
+			PB::GraphicsPipelineDesc lightingPipelineDesc{};
 			lightingPipelineDesc.m_attachmentCount = 1;
 			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
 			lightingPipelineDesc.m_renderArea = { 0, 0, renderWidth, renderHeight };
@@ -109,8 +118,8 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 			lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 			lightingPipelineDesc.m_subpass = 0;
 			lightingPipelineDesc.m_renderPass = info.m_renderPass;
-			lightingPipelineDesc.m_shaderModules[PB::EShaderStage::VERTEX] = m_screenQuadShader->GetModule();
-			lightingPipelineDesc.m_shaderModules[PB::EShaderStage::FRAGMENT] = m_defDirLightShader->GetModule();
+			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_screenQuadShader->GetModule();
+			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_defDirLightShader->GetModule();
 
 			m_dirLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
 		}
@@ -124,7 +133,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 
 		if (m_pointLightingPipeline == 0)
 		{
-			PB::PipelineDesc lightingPipelineDesc{};
+			PB::GraphicsPipelineDesc lightingPipelineDesc{};
 			lightingPipelineDesc.m_attachmentCount = 1;
 			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
 			lightingPipelineDesc.m_renderArea = { 0, 0, renderWidth, renderHeight };
@@ -132,11 +141,11 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 			lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 			lightingPipelineDesc.m_subpass = 0;
 			lightingPipelineDesc.m_renderPass = info.m_renderPass;
-			lightingPipelineDesc.m_shaderModules[PB::EShaderStage::VERTEX] = m_pointLightVTXShader->GetModule();
-			lightingPipelineDesc.m_shaderModules[PB::EShaderStage::FRAGMENT] = m_pointLightShader->GetModule();
+			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_pointLightVTXShader->GetModule();
+			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_pointLightShader->GetModule();
 			lightingPipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
 			lightingPipelineDesc.m_vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT4 };
-			lightingPipelineDesc.m_colorBlendStates[0] = PB::PipelineDesc::DefaultBlendState();
+			lightingPipelineDesc.m_colorBlendStates[0] = PB::GraphicsPipelineDesc::DefaultBlendState();
 
 			m_pointLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
 		}

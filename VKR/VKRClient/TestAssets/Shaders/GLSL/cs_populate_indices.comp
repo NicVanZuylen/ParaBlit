@@ -1,0 +1,55 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+layout(push_constant) uniform Bindings
+{
+    uint uniformDataIndex;
+    uint outputBufferIndex;
+} bindings;
+
+layout(set = 0, binding = 0) uniform texture2D textures[];
+layout(set = 0, binding = 1) uniform sampler samplers[];
+
+layout(set = 0, binding = 2) buffer IndexBuffer
+{
+    uint indices[];
+} storageBuffers[];
+
+struct IndexBufferData
+{
+    uint inputIndexBufferIndex;
+    uint instanceIndex;
+    uint vertexBufferStartIndex;
+    uint startIndex;
+    uint indexCount;
+    uint pad0;
+};
+
+#define MAX_INDEX_BUFFERS 16
+
+layout(set = 1, binding = 0) uniform IndexBufferDataArray
+{
+    IndexBufferData data[MAX_INDEX_BUFFERS];
+} indexBuffers[];
+
+void main() 
+{
+    // Copy MAX_INDEX_BUFFERS index buffers per dispatch. We can't copy too many before the loop and branching becomes too expensive. 
+    for(uint i = bindings.uniformDataIndex; i < MAX_INDEX_BUFFERS; ++i)
+    {
+        IndexBufferData copySource = indexBuffers[bindings.uniformDataIndex].data[i];
+        if(gl_GlobalInvocationID.x >= copySource.startIndex && gl_GlobalInvocationID.x < copySource.startIndex + copySource.indexCount)
+        {
+            uint indexIndex = gl_GlobalInvocationID.x - copySource.startIndex;
+
+            // Vertex index and instance data index are packed together. 24 bits for vertex index, 8 bits for instance index.
+            uint vertexIndex = copySource.vertexBufferStartIndex + storageBuffers[copySource.inputIndexBufferIndex].indices[indexIndex];
+            uint instanceDataIndexMask = copySource.instanceIndex << 24;
+
+            storageBuffers[bindings.outputBufferIndex].indices[gl_GlobalInvocationID.x] = vertexIndex | instanceDataIndexMask;
+        }
+    }
+}

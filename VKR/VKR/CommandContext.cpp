@@ -20,6 +20,7 @@ namespace PB
 		m_isPriority = false;
 		m_isInternal = false;
 		m_activeRenderpass = false;
+		m_activePipelineIsCompute = false;
 		m_reusable = false;
 	}
 
@@ -60,11 +61,6 @@ namespace PB
 
 		m_renderer = reinterpret_cast<Renderer*>(desc.m_renderer);
 		m_device = m_renderer->GetDevice();
-		m_usage = desc.m_usage;
-		m_isPriority = (desc.m_flags & ECommandContextFlags::PRIORITY) > 0;
-		m_reusable = (desc.m_flags & ECommandContextFlags::REUSABLE) > 0;
-		m_activeRenderpass = false;
-
 		if (!m_bindingState)
 			m_bindingState = m_renderer->GetAllocator().Alloc<BindingState>();
 		else
@@ -72,6 +68,16 @@ namespace PB
 			m_bindingState->Clear();
 			m_bindingState->ClearUBOSets();
 		}
+
+		m_cmdBuffer = VK_NULL_HANDLE;
+		m_curPipelineLayout = VK_NULL_HANDLE;
+		m_state = ECmdContextState::OPEN;
+		m_usage = desc.m_usage;
+		m_isPriority = (desc.m_flags & ECommandContextFlags::PRIORITY) > 0;
+		m_isInternal = false;
+		m_activeRenderpass = false;
+		m_reusable = (desc.m_flags & ECommandContextFlags::REUSABLE) > 0;
+		m_reusableForRenderPass = false;
 	}
 
 	void CommandContext::Begin(PB::RenderPass renderPass, PB::Framebuffer frameBuffer)
@@ -160,7 +166,6 @@ namespace PB
 		PB_ASSERT(pass);
 
 		FramebufferDesc fbDesc;
-		//fbDesc.m_attachmentCount = static_cast<u32>(viewCount);
 		for(u32 i = 0; i < viewCount; ++i)
 			fbDesc.m_attachmentViews[i] = attachmentViews[i];
 		fbDesc.m_renderPass = pass;
@@ -324,12 +329,15 @@ namespace PB
 		ValidateRecordingState();
 
 		PipelineData* pipelineData = reinterpret_cast<PipelineData*>(pipeline);
-		vkCmdBindPipeline(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineData->m_pipeline);
+		m_activePipelineIsCompute = pipelineData->m_isCompute;
+		VkPipelineBindPoint bindPoint = !m_activePipelineIsCompute ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
+
+		vkCmdBindPipeline(m_cmdBuffer, bindPoint, pipelineData->m_pipeline);
 		m_curPipelineLayout = pipelineData->m_layout;
 
 		// Bind master descriptor set to the new pipeline.
 		VkDescriptorSet masterDescSet = m_renderer->GetMasterSet();
-		vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 0, 1, &masterDescSet, 0, nullptr);
+		vkCmdBindDescriptorSets(m_cmdBuffer, bindPoint, m_curPipelineLayout, 0, 1, &masterDescSet, 0, nullptr);
 
 		// Reset UBO binding state.
 		m_bindingState->Clear();
@@ -338,6 +346,7 @@ namespace PB
 	void CommandContext::CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType)
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
+		ValidatePipelineState(false);
 		CmdBindVertexBuffers(&vertexBuffer, 1, indexBuffer, indexType);
 	}
 
@@ -345,6 +354,7 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
+		ValidatePipelineState(false);
 
 		const BufferObject** internalVBuffers = reinterpret_cast<const BufferObject**>(vertexBuffers);
 
@@ -390,6 +400,7 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
+		ValidatePipelineState(false);
 		vkCmdDraw(m_cmdBuffer, vertexCount, instanceCount, 0, 0);
 	}
 
@@ -397,6 +408,7 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
+		ValidatePipelineState(false);
 		vkCmdDrawIndexed(m_cmdBuffer, indexCount, 1, 0, 0, 0);
 	}
 
@@ -404,11 +416,21 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
+		ValidatePipelineState(false);
 		vkCmdDrawIndexedIndirect(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), offset, 1, sizeof(VkDrawIndexedIndirectCommand));
+	}
+
+	void CommandContext::CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ)
+	{
+		ValidateRecordingState();
+		PB_ASSERT_MSG(m_activeRenderpass == false, "Dispatch commands cannot be issued during a render pass.");
+		ValidatePipelineState(true);
+		vkCmdDispatch(m_cmdBuffer, threadGroupX, threadGroupY, threadGroupZ);
 	}
 
 	void CommandContext::CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size)
 	{
+		PB_ASSERT_MSG(m_activeRenderpass == false, "Copy commands cannot be issued during a render pass.");
 		ValidateRecordingState();
 
 		BufferObject* srcInternal = reinterpret_cast<BufferObject*>(src);
@@ -424,90 +446,86 @@ namespace PB
 	void CommandContext::CmdBindResources(const BindingLayout& layout)
 	{
 		ValidateRecordingState();
+		ValidatePipelineState(m_activePipelineIsCompute); // This command function supports both compute and graphics.
+
+		constexpr u32 MaxBindings = MaxPushConstantBytes / sizeof(u32);
 
 		PB_ASSERT_MSG(m_curPipelineLayout != VK_NULL_HANDLE, "A pipeline must be bound before shader resources are bound.");
-		PB_ASSERT_MSG(layout.m_bufferCount <= m_device->GetDescriptorIndexingProperties()->maxDescriptorSetUpdateAfterBindUniformBuffers - 1, "Attempting to bind too many buffers.");
+		PB_ASSERT_MSG(layout.m_uniformBufferCount <= m_device->GetDescriptorIndexingProperties()->maxDescriptorSetUpdateAfterBindUniformBuffers - 1, "Attempting to bind too many buffers.");
+		PB_ASSERT_MSG(!(layout.m_uniformBufferCount + layout.m_resourceCount > MaxBindings), "Maximum amount of bindings exceeded.");
+		PB_ASSERT_MSG(layout.m_uniformBufferCount == 0 || layout.m_uniformBuffers != nullptr, "No uniform buffer data provided, yet there are more than zero uniform buffers to be bound.");
+		PB_ASSERT_MSG(layout.m_resourceCount == 0 || layout.m_resourceViews != nullptr, "No resource view data provided, yet there are more than zero resource views to be bound.");
 
-		if (layout.m_bindingLocation == EBindingLayoutLocation::DEFAULT)
+		// TODO: Currently, with the max push constant block size of 128 bytes, we can only bind 32 resources across all shader stages using 32-bit indices. Consider using 16-bit indices for a max of 64.
+		// It is also possible to use 8-bit indices for uniform buffers, since their maximum array size is very small, but it would require a dynamic maximum binding count.
+		u32 offset = 0;
+		u32 dynamicIndices[MaxBindings];
+
+		CLib::Vector<VkDescriptorBufferInfo, 3> uboBufferInfos;
+		bool redundantUBOBinding = true;
+		for (u16 i = 0; i < layout.m_uniformBufferCount; ++i, ++offset)
 		{
-			constexpr u32 MaxBindings = MaxPushConstantBytes / sizeof(u32);
+			UBOViewData* viewData = reinterpret_cast<UBOViewData*>(layout.m_uniformBuffers[i]);
 
-			u32 offset = 0;
-			u32 dynamicIndices[MaxBindings];
+			VkDescriptorBufferInfo& uboInfo = uboBufferInfos.PushBack();
+			uboInfo.buffer = viewData->m_buffer;
+			uboInfo.offset = viewData->m_offset;
+			uboInfo.range = viewData->m_size;
 
-			PB_ASSERT_MSG(!(layout.m_bufferCount + layout.m_textureCount + layout.m_samplerCount > MaxBindings), "Maximum amount of bindings exceeded.");
-
-			CLib::Vector<VkDescriptorBufferInfo, 3> uboBufferInfos;
-			bool redundantUBOBinding = true;
-			for (u16 i = 0; i < layout.m_bufferCount; ++i, ++offset)
+			if (i < m_bindingState->m_boundUBOs.Count())
 			{
-				BufferViewData* viewData = reinterpret_cast<BufferViewData*>(layout.m_buffers[i]);
-
-				VkDescriptorBufferInfo& uboInfo = uboBufferInfos.PushBack();
-				uboInfo.buffer = viewData->m_buffer;
-				uboInfo.offset = viewData->m_offset;
-				uboInfo.range = viewData->m_size;
-
-				if (i < m_bindingState->m_boundUBOs.Count())
-				{
-					VkDescriptorBufferInfo& boundBuffer = m_bindingState->m_boundUBOs[i];
-					redundantUBOBinding &= uboInfo.buffer == boundBuffer.buffer;
-					redundantUBOBinding &= uboInfo.offset == boundBuffer.offset;
-					redundantUBOBinding &= uboInfo.range == boundBuffer.range;
-				}
-				else
-					redundantUBOBinding = false;
-
-				dynamicIndices[offset] = i;
+				VkDescriptorBufferInfo& boundBuffer = m_bindingState->m_boundUBOs[i];
+				redundantUBOBinding &= uboInfo.buffer == boundBuffer.buffer;
+				redundantUBOBinding &= uboInfo.offset == boundBuffer.offset;
+				redundantUBOBinding &= uboInfo.range == boundBuffer.range;
 			}
+			else
+				redundantUBOBinding = false;
 
-			if (!redundantUBOBinding)
-			{
-				VkDescriptorSet uboSet = m_renderer->GetUBOSet();
-
-				// Update binding state.
-				m_bindingState->m_boundUBOs = uboBufferInfos;
-
-				// Update UBO descriptors.
-				VkWriteDescriptorSet uboWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
-				uboWrite.descriptorCount = uboBufferInfos.Count();
-				uboWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				uboWrite.dstArrayElement = 0;
-				uboWrite.dstBinding = 0;
-				uboWrite.dstSet = uboSet;
-				uboWrite.pBufferInfo = uboBufferInfos.Data();
-				uboWrite.pImageInfo = nullptr;
-				uboWrite.pTexelBufferView = nullptr;
-
-				vkUpdateDescriptorSets(m_device->GetHandle(), 1, &uboWrite, 0, nullptr);
-				vkCmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_curPipelineLayout, 1, 1, &uboSet, 0, nullptr);
-
-				if (!m_reusable)
-					m_renderer->ReturnUBOSet(uboSet);
-				else
-					m_bindingState->m_uboSets.PushBack(uboSet);
-			}
-
-			// Texture and sampler views are actually just descriptor indices, so we can just copy these.
-			for (u32 i = 0; i < layout.m_textureCount; ++i, ++offset)
-			{
-				dynamicIndices[offset] = static_cast<u32>(layout.m_textures[i]);
-			}
-			for (u32 i = 0; i < layout.m_samplerCount; ++i, ++offset)
-			{
-				dynamicIndices[offset] = static_cast<u32>(layout.m_samplers[i]);
-			}
-
-			vkCmdPushConstants(m_cmdBuffer, m_curPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, offset * sizeof(u32), dynamicIndices);
+			dynamicIndices[offset] = i;
 		}
-		else
+
+		if (!redundantUBOBinding)
 		{
-			PB_NOT_IMPLEMENTED;
+			VkDescriptorSet uboSet = m_renderer->GetUBOSet();
+
+			// Update binding state.
+			m_bindingState->m_boundUBOs = uboBufferInfos;
+
+			// Update UBO descriptors.
+			VkWriteDescriptorSet uboWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
+			uboWrite.descriptorCount = uboBufferInfos.Count();
+			uboWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			uboWrite.dstArrayElement = 0;
+			uboWrite.dstBinding = 0;
+			uboWrite.dstSet = uboSet;
+			uboWrite.pBufferInfo = uboBufferInfos.Data();
+			uboWrite.pImageInfo = nullptr;
+			uboWrite.pTexelBufferView = nullptr;
+
+			vkUpdateDescriptorSets(m_device->GetHandle(), 1, &uboWrite, 0, nullptr);
+			vkCmdBindDescriptorSets(m_cmdBuffer, !m_activePipelineIsCompute ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE, m_curPipelineLayout, 1, 1, &uboSet, 0, nullptr);
+
+			if (!m_reusable)
+				m_renderer->ReturnUBOSet(uboSet);
+			else
+				m_bindingState->m_uboSets.PushBack(uboSet);
 		}
+
+		// ResourceViews are actually just descriptor indices, so we can just copy these.
+		static_assert(sizeof(ResourceView) == sizeof(u32), "ResourceViews need to be the same type as the descriptor index type, as they should be identical in size and format for direct copy.");
+
+		u32 copySize = layout.m_resourceCount * sizeof(u32);
+		memcpy(&dynamicIndices[offset], layout.m_resourceViews, copySize);
+		offset += copySize;
+
+		// Dynamic indices are assigned, so they can be pushed.
+		vkCmdPushConstants(m_cmdBuffer, m_curPipelineLayout, m_activePipelineIsCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), 0, offset * sizeof(u32), dynamicIndices);
 	}
 
 	void CommandContext::CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst)
 	{
+		PB_ASSERT_MSG(!m_activeRenderpass, "Copy commands cannot be issued during a render pass.");
 		ValidateRecordingState();
 
 		PB::Texture* srcInternal = reinterpret_cast<PB::Texture*>(src);
@@ -549,5 +567,10 @@ namespace PB
 	{
 		PB_ASSERT_MSG(m_state == ECmdContextState::RECORDING, "Command context must be recording in-order to issue commands.");
 		PB_ASSERT(m_cmdBuffer != VK_NULL_HANDLE);
+	}
+
+	inline void CommandContext::ValidatePipelineState(bool computeFunction)
+	{
+		PB_ASSERT(m_curPipelineLayout != VK_NULL_HANDLE && m_activePipelineIsCompute == computeFunction);
 	}
 }

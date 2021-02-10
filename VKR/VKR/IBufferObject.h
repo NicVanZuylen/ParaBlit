@@ -63,8 +63,10 @@ namespace PB
 
 		/*
 		Description: Finish populating the buffer with it's initial contents.
+		Param:
+			u32 writeOffset: The offset in the dest buffer in which the staging buffer will be copied.
 		*/
-		PARABLIT_INTERFACE void EndPopulate() = 0;
+		PARABLIT_INTERFACE void EndPopulate(u32 writeOffset = 0) = 0;
 
 		/*
 		Description: Map the internal buffer and fill it with the provided data, then unmap it.
@@ -75,29 +77,45 @@ namespace PB
 		PARABLIT_INTERFACE void Populate(u8* data, u32 size) = 0;
 
 		/*
-		Description: Populate the buffer with indirect draw indexed command parameters.
+		Description: Populate the buffer with indirect draw indexed command parameters matching the API format.
 		Param:
-			u32 offset: The offset into the buffer in which the parameters will be stored.
-			u32 indexCount: The amount of indices used by the vertex input stage.
-			u32 instanceCount: The amount of instances to draw.
-			u32 firstIndex: The first index to read in the index buffer.
-			u32 vertexOffset: The offset to be applied to indices after reading them from the index buffer, and before using them to index the vertex buffer.
-			u32 firstInstance: The first instance to read data from the instance buffer.
+			PB::u8* location: The location to write the parameters, this should be a mapped pointer of this buffer.
+			const DrawIndexedIndirectParams& params: The parameters to format and fill the buffer with.
 		*/
-		PARABLIT_INTERFACE void PopulateWithDrawIndexedIndirectParams(const DrawIndexedIndirectParams& params) = 0;
+		PARABLIT_INTERFACE void PopulateWithDrawIndexedIndirectParams(u8* location, const DrawIndexedIndirectParams& params) = 0;
 
 		/*
-		Description: Get a default view of a range of this buffer object, used for shader bindings.
-		Return Type: BufferView
+		Description: Get the API structure size for DrawIndexedIndirect parameters.
+		Return Type: u32
 		*/
-		PARABLIT_INTERFACE BufferView GetView() = 0;
+		PARABLIT_INTERFACE u32 GetDrawIndexedIndirectParamsSize() = 0;
 
 		/*
-		Description: Get a view of a range of this buffer object, used for shader bindings.
-		Return Type: BufferView
+		Description: Get a default view of the entire range of this buffer object to use as a uniform buffer.
+		Return Type: UniformBufferView
+		*/
+		PARABLIT_INTERFACE UniformBufferView GetViewAsUniformBuffer() = 0;
+
+		/*
+		Description: Get a view of a range of this buffer object to use as a uniform buffer.
+		Return Type: UniformBufferView
 		Param:
 			const BufferViewDesc& viewDesc: Structure describing the view's properties.
 		*/
-		PARABLIT_INTERFACE BufferView GetView(BufferViewDesc& viewDesc) = 0;
+		PARABLIT_INTERFACE UniformBufferView GetViewAsUniformBuffer(BufferViewDesc& viewDesc) = 0;
+
+		/*
+		Description: Get a default view of the entire range of this buffer object to use as a shader storage buffer.
+		Return Type: ResourceView
+		*/
+		PARABLIT_INTERFACE ResourceView GetViewAsStorageBuffer() = 0;
+
+		/*
+		Description: Get a view of a range of this buffer object to use as a shader storage buffer.
+		Return Type: ResourceView
+		Param:
+			const BufferViewDesc& viewDesc: Structure describing the view's properties.
+		*/
+		PARABLIT_INTERFACE ResourceView GetViewAsStorageBuffer(BufferViewDesc& viewDesc) = 0;
 	};
 }

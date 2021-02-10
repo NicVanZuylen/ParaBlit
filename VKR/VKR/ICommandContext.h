@@ -92,11 +92,15 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdDrawIndexed(u32 indexCount, u32 instanceCount) = 0;
 
-		PARABLIT_INTERFACE void CmdDrawIndexedIndirect(PB::IBufferObject* paramsBuffer, u32 offset) = 0;
+		PARABLIT_INTERFACE void CmdDrawIndexedIndirect(IBufferObject* paramsBuffer, u32 offset) = 0;
 
-		PARABLIT_INTERFACE void CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst) = 0;
+		PARABLIT_INTERFACE void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) = 0;
 
-		PARABLIT_INTERFACE void CmdExecuteList(const PB::ICommandList* list) = 0;
+		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) = 0;
+
+		PARABLIT_INTERFACE void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) = 0;
+
+		PARABLIT_INTERFACE void CmdExecuteList(const ICommandList* list) = 0;
 	};
 
 	ICommandContext* CreateCommandContext(IRenderer* renderer);
