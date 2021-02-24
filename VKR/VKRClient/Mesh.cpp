@@ -98,6 +98,8 @@ namespace PBClient
 			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
 			indexBufferDesc.m_options = 0;
 			indexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX;
+			if (m_vertexPool != nullptr)
+				indexBufferDesc.m_usage |= PB::EBufferUsage::STORAGE;
 			m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
 
 			// Move read offset to vertex start offset.
@@ -247,6 +249,11 @@ namespace PBClient
 		return m_indexBuffer;
 	}
 
+	const VertexPool* Mesh::GetVertexPool() const
+	{
+		return m_vertexPool;
+	}
+
 	void Mesh::CalculateTangents(CLib::Vector<Vertex>& vertices, CLib::Vector<MeshIndex>& indices)
 	{
 		uint32_t nIndexCount = indices.Capacity();
@@ -374,6 +381,8 @@ namespace PBClient
 					chunkVertices[j].m_texCoords = glm::vec2(shape.mesh.texcoords[nTexIndex], 1.0f - shape.mesh.texcoords[nTexIndex + 1]);
 				else
 					chunkVertices[j].m_texCoords = glm::vec2(0.0f);
+
+				chunkVertices[j].m_pad0 = glm::vec2(0.0f, 0.0f);
 
 				// Add the vertex to the whole mesh vertex array.
 				vertices.PushBack(chunkVertices[j]);

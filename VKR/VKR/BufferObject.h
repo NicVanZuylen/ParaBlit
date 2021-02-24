@@ -27,7 +27,7 @@ namespace PB
 
 		void Unmap() override;
 
-		u8* BeginPopulate() override;
+		u8* BeginPopulate(u32 size = 0) override;
 
 		void EndPopulate(u32 writeOffset = 0) override;
 

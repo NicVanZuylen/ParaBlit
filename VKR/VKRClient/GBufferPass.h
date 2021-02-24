@@ -6,6 +6,8 @@
 #include "Shader.h"
 #include "ObjectDispatcher.h"
 
+class DrawBatch;
+
 class GBufferPass : public RenderGraphBehaviour
 {
 public:
@@ -34,14 +36,21 @@ private:
 	PBClient::Mesh* m_paintMesh = nullptr;
 	PBClient::Mesh* m_detailsMesh = nullptr;
 	PBClient::Mesh* m_glassMesh = nullptr;
+	PBClient::Mesh* m_planeMesh = nullptr;
 
 	PBClient::Texture* m_paintTextures[4]{};
 	PBClient::Texture* m_detailsTextures[4]{};
 	PBClient::Texture* m_glassTextures[4]{};
+	PB::ITexture* m_solidWhiteTex = nullptr;
+	PB::ITexture* m_solidBlackTex = nullptr;
+	PB::ITexture* m_flatNormalTex = nullptr;
 
 	PB::ResourceView m_paintViews[4]{};
 	PB::ResourceView m_detailsViews[4]{};
 	PB::ResourceView m_glassViews[4]{};
+
+	VertexPool* m_spinnerVertPool = nullptr;
+	DrawBatch* m_spinnerBatch = nullptr;
 
 	ObjectDispatchList m_geoDispatchList;
 

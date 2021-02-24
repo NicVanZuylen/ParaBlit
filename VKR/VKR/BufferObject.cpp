@@ -73,12 +73,12 @@ namespace PB
 			vkUnmapMemory(m_renderer->GetDevice()->GetHandle(), m_memoryPage.m_memory);
 	}
 
-	u8* BufferObject::BeginPopulate()
+	u8* BufferObject::BeginPopulate(u32 size)
 	{
 		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
 		PB_ASSERT_MSG(m_memoryPage.m_memoryType != EMemoryType::HOST_VISIBLE, "It is not recommended to use BeginPopulate() for HOST_VISIBLE buffers, as this function creates and maps a staging buffer for copy.");
 		PB_ASSERT_MSG(m_usage & EBufferUsage::COPY_DST, "Buffer Object must usable as a copy destination in order to use BeginPopulate().");
-		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_size, m_renderer->GetCurrentFrame());
+		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(size == 0 ? m_size : size, m_renderer->GetCurrentFrame());
 		return m_stagingBuffer.Map(m_renderer->GetDevice()->GetHandle());
 	}
 

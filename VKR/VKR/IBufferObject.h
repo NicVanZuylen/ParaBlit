@@ -58,8 +58,10 @@ namespace PB
 		/*
 		Description: Map the internal buffer for initial population by the user, works for device local memory.
 		Return Type: u8*
+		Param:
+			u32 size: Size of the writable region of this resource.
 		*/
-		PARABLIT_INTERFACE u8* BeginPopulate() = 0;
+		PARABLIT_INTERFACE u8* BeginPopulate(u32 size = 0) = 0;
 
 		/*
 		Description: Finish populating the buffer with it's initial contents.

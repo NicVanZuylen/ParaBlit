@@ -343,7 +343,7 @@ namespace PB
 		computeStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
 
 		VkPipeline newPipeline = VK_NULL_HANDLE;
-		vkCreateComputePipelines(m_device->GetHandle(), VK_NULL_HANDLE, 1, nullptr, nullptr, &newPipeline);
+		vkCreateComputePipelines(m_device->GetHandle(), VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &newPipeline);
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(newPipeline);
 		return { m_commonComputePipelineLayout, newPipeline, true };

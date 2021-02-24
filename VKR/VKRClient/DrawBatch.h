@@ -20,13 +20,13 @@ public:
 
 	PB::IBufferObject* GetPoolBuffer();
 
-	PB::UniformBufferView GetView();
+	PB::ResourceView GetViewAsStorageBuffer();
 
 private:
 
 	PB::IRenderer* m_renderer = nullptr;
 	PB::IBufferObject* m_poolBuffer = nullptr;
-	PB::UniformBufferView m_view = 0;
+	PB::ResourceView m_storageBufferView = 0;
 	PB::u32 m_vertexStride = 0;
 	PB::u32 m_currentPoolOffset = 0;
 	PB::u32 m_currentWriteBlockLength = 0;
@@ -38,18 +38,26 @@ public:
 
 	using DrawBatchInstance = PB::u32;
 
-	DrawBatch(PB::IRenderer* renderer, ObjectDispatchList* dispatchList, VertexPool* vertexPool, PB::u32 maxIndexCount = ((~PB::u32(0) << 8) >> 8));
+	DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::Pipeline drawBatchPipeline, PB::UniformBufferView mvpBufferView, ObjectDispatchList* dispatchList, VertexPool* vertexPool, PB::u32 maxIndexCount = ((~PB::u32(0) << 8) >> 8));
 	~DrawBatch();
 
 	DrawBatchInstance AddInstance(PBClient::Mesh* mesh, float* modelMatrix, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler);
+	void UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix);
 	void RemoveInstance(DrawBatchInstance instance);
+
+	void FinalizeUpdates();
 	void UpdateIndices(PB::ICommandContext* cmdContext);
 
 private:
 
 	// Size of compute work groups for dynamic index buffer updates.
-	static constexpr const PB::u32 WorkGroupSizeW = 128;
-	static constexpr const PB::u32 WorkGroupSizeH = 128;
+	static constexpr const PB::u32 WorkGroupCountInvalid = ~uint32_t(0);
+	static constexpr const PB::u32 WorkGroupSizeW = 1024; // Compute shader work group size.
+	static constexpr const PB::u32 WorkGroupSizeH = 1;
+	static constexpr const PB::u32 IndexUpdatesPerInvocation = 16; // The amount of indices updating by a single compute shader invocation.
+	static constexpr const PB::u32 MinWorkGroupsPerObject = 16; // Minimum workgroups assigned to updating a single object/mesh's indices.
+	static constexpr const PB::u32 MaxUpdateWorkGroupsPerBatch = 512; // Maximum workgroups allowed in a single update dispatch.
+	static constexpr const PB::u32 MaxObjects = 256;
 
 	// Contains the formatted update information for a single drawbatch instance.
 	struct DynamicIndexUpdate
@@ -60,6 +68,7 @@ private:
 		PB::u32 m_startIndex;
 		PB::u32 m_indexCount;
 		PB::u32 m_workGroupCount;
+		PB::u32 pad[2];
 	};
 
 	struct DrawBatchInstanceData
@@ -75,7 +84,7 @@ private:
 	};
 	static_assert(sizeof(DrawBatchInstanceData) % 16 == 0);
 
-	inline void AddToDispatchList(VertexPool* vertexPool);
+	inline void AddToDispatchList(PB::UniformBufferView mvpView);
 
 	inline DrawBatchInstanceData* GetInstanceData()
 	{
@@ -84,8 +93,10 @@ private:
 		return m_mappedInstanceData;
 	}
 
+	VertexPool* m_vertexPool = nullptr;
 	ObjectDispatchList* m_dispatchList = nullptr;
 	ObjectDispatchList::DispatchObjectHandle m_dispatchHandle;
+	PB::Pipeline m_batchUpdatePipeline = 0;
 	PB::Pipeline m_batchPipeline = 0;
 	PB::IRenderer* m_renderer = nullptr;
 	PB::IBufferObject* m_dynamicIndexUpdateBuffer = nullptr;
@@ -93,8 +104,6 @@ private:
 	PB::IBufferObject* m_instanceBuffer = nullptr;
 	DrawBatchInstanceData* m_mappedInstanceData = nullptr;
 	uint32_t m_instanceCount = 0;
-	uint32_t m_totalUpdateWorkgroupCount = 0;
-	CLib::Vector<DynamicIndexUpdate> m_dynamicUpdateQueue;
-	DynamicIndexUpdate* m_updateEntryUsingFinalInstance = nullptr;
 	CLib::Vector<uint32_t> m_dynamicUpdateQueueFreeList;
+	CLib::Vector<DynamicIndexUpdate> m_dynamicUpdateQueue;
 };

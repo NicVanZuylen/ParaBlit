@@ -362,14 +362,16 @@ namespace PB
 		CLib::Vector<VkDeviceSize, 8> vertexBufferOffsets(vertexBufferCount);
 		for (u32 i = 0; i < vertexBufferCount; ++i)
 		{
-			PB_ASSERT(internalVBuffers[i]);
+			if (internalVBuffers[i] == nullptr)
+				continue;
 			PB_ASSERT_MSG(internalVBuffers[i]->GetUsage() & EBufferUsage::VERTEX, "Provided vertex buffer cannot be used as a vertex buffer. Add the usage flag PB_BUFFER_USAGE_VERTEX to use it as a vertex buffer.");
 			vertexBufferHandles.PushBack() = internalVBuffers[i]->GetHandle();
 			vertexBufferOffsets.PushBack() = 0;
 		}
 
 		VkDeviceSize vertexOffset = 0;
-		vkCmdBindVertexBuffers(m_cmdBuffer, 0, vertexBufferCount, vertexBufferHandles.Data(), vertexBufferOffsets.Data());
+		if(vertexBufferCount > 0)
+			vkCmdBindVertexBuffers(m_cmdBuffer, 0, vertexBufferCount, vertexBufferHandles.Data(), vertexBufferOffsets.Data());
 
 		if (indexBuffer != nullptr)
 		{

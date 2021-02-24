@@ -19,6 +19,7 @@ namespace PBClient
 		glm::vec4 m_normal;
 		glm::vec4 m_tangent;
 		glm::vec2 m_texCoords;
+		glm::vec2 m_pad0;
 	};
 
 	struct MeshCacheData
@@ -100,6 +101,12 @@ namespace PBClient
 		Return Type: const PB::IBufferObject*
 		*/
 		const PB::IBufferObject* GetIndexBuffer() const;
+
+		/*
+		Description: Get the vertex pool this mesh was allocated from.
+		Return Type: const VertexPool*
+		*/
+		const VertexPool* GetVertexPool() const;
 
 	private:
 

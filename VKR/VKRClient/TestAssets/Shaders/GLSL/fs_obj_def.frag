@@ -57,7 +57,6 @@ void main()
     ).r;
 
     outColor = vec4(color.rgb, 1.0);
-    //outNormal = fsInput.normal;
     outNormal = vec4(normalize(fsInput.tbnMatrix * (normal * 2.0 - 1.0)), 1.0);
     outSpecAndRough = vec4(spec, roughness);
 }

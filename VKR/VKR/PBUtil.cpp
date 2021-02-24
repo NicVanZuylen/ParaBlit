@@ -417,7 +417,6 @@ namespace PB
 
 	void MakeInternalContext(CommandContext& context, Renderer* renderer)
 	{
-        PB_LOG("Creating an internal context. Don't forget to share these on the same threads in the future.");
         CommandContextDesc desc;
         desc.m_flags = ECommandContextFlags::PRIORITY;
         desc.m_usage = ECommandContextUsage::GRAPHICS;

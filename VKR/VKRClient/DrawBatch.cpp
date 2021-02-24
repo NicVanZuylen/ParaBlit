@@ -1,5 +1,6 @@
 #include "DrawBatch.h"
 #include "Mesh.h"
+#include "Shader.h"
 
 VertexPool::VertexPool(PB::IRenderer* renderer, PB::u32 poolSize, PB::u32 vertexStride)
 {
@@ -8,18 +9,18 @@ VertexPool::VertexPool(PB::IRenderer* renderer, PB::u32 poolSize, PB::u32 vertex
 
     PB::BufferObjectDesc poolBufferDesc;
     poolBufferDesc.m_bufferSize = poolSize;
-    poolBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::UNIFORM; // TODO: Analyse the performance of storage buffers (read-only if possible) vs uniform. Use the faster approach.
+    poolBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX | PB::EBufferUsage::STORAGE;
     poolBufferDesc.m_options = 0;
     m_poolBuffer = m_renderer->AllocateBuffer(poolBufferDesc);
 
-    m_view = m_poolBuffer->GetViewAsUniformBuffer();
+    m_storageBufferView = m_poolBuffer->GetViewAsStorageBuffer();
 }
 
 VertexPool::~VertexPool()
 {
     m_renderer->FreeBuffer(m_poolBuffer);
     m_poolBuffer = nullptr;
-    m_view = 0;
+    m_storageBufferView = 0;
 
     m_currentPoolOffset = 0;
     m_currentWriteBlockLength = 0;
@@ -29,7 +30,7 @@ PB::u8* VertexPool::AllocateAndBeginWrite(PB::u32 size, PB::u32& firstVertex)
 {
     firstVertex = m_currentPoolOffset / m_vertexStride;
     m_currentWriteBlockLength = size;
-    return m_poolBuffer->BeginPopulate();
+    return m_poolBuffer->BeginPopulate(size);
 }
 
 void VertexPool::EndWrite()
@@ -44,14 +45,15 @@ PB::IBufferObject* VertexPool::GetPoolBuffer()
     return m_poolBuffer;
 }
 
-PB::UniformBufferView VertexPool::GetView()
+PB::ResourceView VertexPool::GetViewAsStorageBuffer()
 {
-    return m_view;
+    return m_storageBufferView;
 }
 
-DrawBatch::DrawBatch(PB::IRenderer* renderer, ObjectDispatchList* dispatchList, VertexPool* vertexPool, PB::u32 maxIndexCount)
+DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::Pipeline drawBatchPipeline, PB::UniformBufferView mvpBufferView, ObjectDispatchList* dispatchList, VertexPool* vertexPool, PB::u32 maxIndexCount)
 {
     m_renderer = renderer;
+    m_vertexPool = vertexPool;
     m_dispatchList = dispatchList;
 
     PB::BufferObjectDesc indexBufferDesc;
@@ -60,13 +62,26 @@ DrawBatch::DrawBatch(PB::IRenderer* renderer, ObjectDispatchList* dispatchList, 
     indexBufferDesc.m_usage = PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
     m_dynamicIndexBuffer = renderer->AllocateBuffer(indexBufferDesc);
 
+    PB::BufferObjectDesc indexUpdateBufferDesc;
+    indexUpdateBufferDesc.m_bufferSize = (sizeof(DynamicIndexUpdate) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch / IndexUpdatesPerInvocation) * sizeof(uint32_t));
+    indexUpdateBufferDesc.m_options = 0;
+    indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
+    m_dynamicIndexUpdateBuffer = renderer->AllocateBuffer(indexUpdateBufferDesc);
+
     PB::BufferObjectDesc instanceBufferDesc;
-    instanceBufferDesc.m_bufferSize = 0;
+    instanceBufferDesc.m_bufferSize = sizeof(DrawBatchInstanceData) * MaxObjects;
     instanceBufferDesc.m_options = 0;
-    instanceBufferDesc.m_usage = PB::EBufferUsage::UNIFORM | PB::EBufferUsage::COPY_DST;
+    //instanceBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
+    instanceBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::VERTEX | PB::EBufferUsage::COPY_DST;
     m_instanceBuffer = renderer->AllocateBuffer(instanceBufferDesc);
 
-    AddToDispatchList(vertexPool);
+    PB::ComputePipelineDesc updatePipelineDesc;
+    updatePipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_populate_indices.spv", allocator);
+    m_batchUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
+
+    m_batchPipeline = drawBatchPipeline;
+
+    AddToDispatchList(mvpBufferView);
 }
 
 DrawBatch::~DrawBatch()
@@ -75,11 +90,14 @@ DrawBatch::~DrawBatch()
 
     m_renderer->FreeBuffer(m_instanceBuffer);
     m_renderer->FreeBuffer(m_dynamicIndexBuffer);
+    m_renderer->FreeBuffer(m_dynamicIndexUpdateBuffer);
 }
 
 DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float* modelMatrix, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
 {
-    constexpr const PB::u32 WorkGroupInvocationCount = 64 * 64;
+    constexpr const PB::u32 WorkGroupIndexCount = WorkGroupSizeW * WorkGroupSizeH * IndexUpdatesPerInvocation;
+
+    assert(mesh->GetVertexPool() == m_vertexPool && "Mesh must be allocated from the same vertex pool assigned to this draw batch.");
 
     uint32_t freeIndex = m_dynamicUpdateQueue.Count();
     if (m_dynamicUpdateQueueFreeList.Count() > 0)
@@ -87,14 +105,17 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     else
         m_dynamicUpdateQueue.PushBack();
     DynamicIndexUpdate& entry = m_dynamicUpdateQueue[freeIndex];
-    m_updateEntryUsingFinalInstance = &entry;
 
     entry.m_inputIndexBufferIndex = mesh->GetIndexBuffer()->GetViewAsStorageBuffer();
-    entry.m_instanceIndex = m_instanceCount++;
+    if(freeIndex != m_dynamicUpdateQueue.Count())
+        entry.m_instanceIndex = m_instanceCount++;
     entry.m_firstVertex = mesh->FirstVertex();
     entry.m_startIndex = 0;
     entry.m_indexCount = mesh->IndexCount();
-    m_totalUpdateWorkgroupCount += entry.m_workGroupCount = (entry.m_indexCount / WorkGroupInvocationCount) + (entry.m_indexCount % WorkGroupInvocationCount > 0 ? 1 : 0);
+    entry.m_workGroupCount = (entry.m_indexCount / WorkGroupIndexCount) + ((entry.m_indexCount % WorkGroupIndexCount > 0) ? 1 : 0);
+
+    // Account for minimum work group count. This means workGroupCount isn't the actual work group count, but the amount of indices used for these work groups.
+    entry.m_workGroupCount = (entry.m_workGroupCount / MinWorkGroupsPerObject) + (entry.m_workGroupCount % MinWorkGroupsPerObject ? 1 : 0);
 
     DrawBatchInstanceData& instanceData = GetInstanceData()[entry.m_instanceIndex];
     memcpy(instanceData.m_modelMatrix, modelMatrix, sizeof(instanceData.m_modelMatrix));
@@ -104,34 +125,68 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     return freeIndex;
 }
 
+void DrawBatch::UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix)
+{
+    DrawBatchInstanceData& data = GetInstanceData()[m_dynamicUpdateQueue[instance].m_instanceIndex];
+    memcpy(data.m_modelMatrix, modelMatrix, sizeof(float) * 16);
+}
+
 void DrawBatch::RemoveInstance(DrawBatchInstance instance)
 {
     DynamicIndexUpdate& entryToRemove = m_dynamicUpdateQueue[instance];
+    entryToRemove.m_workGroupCount = WorkGroupCountInvalid; // Invalidate instance.
     
-    // Swap the entry-to-remove's instance with the final instance in the instance buffer to eliminate the gap in valid instance data.
-    DrawBatchInstanceData* instanceData = GetInstanceData();
-    memcpy(&instanceData[entryToRemove.m_instanceIndex], &instanceData[m_instanceCount - 1], sizeof(DrawBatchInstanceData));
-    --m_instanceCount; // Decrement count to remove the duplicate instance.
+    if (instance == m_dynamicUpdateQueue.Count() - 1)
+        --m_instanceCount;
+    else
+        m_dynamicUpdateQueueFreeList.PushBack(instance);
+}
 
-    // Remove entry workgroups from total count.
-    m_totalUpdateWorkgroupCount -= entryToRemove.m_workGroupCount;
+void DrawBatch::FinalizeUpdates()
+{
+    if (m_mappedInstanceData == nullptr)
+        return;
 
-    // Update the instance index in the entry who owns the final instance.
-    m_updateEntryUsingFinalInstance->m_instanceIndex = entryToRemove.m_instanceIndex;
-    m_updateEntryUsingFinalInstance = nullptr;
-
-    m_dynamicUpdateQueueFreeList.PushBack(instance);
+    m_instanceBuffer->EndPopulate();
+    m_mappedInstanceData = nullptr;
 }
 
 void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
 {
+    FinalizeUpdates();
+
     PB::u8* data = m_dynamicIndexUpdateBuffer->BeginPopulate();
+
+    // Copy update data indices.
+
+    uint32_t* indicesStart = reinterpret_cast<uint32_t*>(&data[sizeof(DynamicIndexUpdate) * MaxObjects]);
+    uint32_t totalWorkGroupIndex = 0;
+    uint32_t totalIndexCount = 0;
+    for (uint32_t i = 0; i < m_dynamicUpdateQueue.Count(); ++i)
+    {
+        auto& updateData = m_dynamicUpdateQueue[i];
+        if (updateData.m_workGroupCount == WorkGroupCountInvalid) // Skip invalid entries.
+            continue;
+
+        updateData.m_startIndex = totalIndexCount;
+        totalIndexCount += updateData.m_indexCount;
+
+        for (uint32_t j = 0; j < updateData.m_workGroupCount; ++j, ++totalWorkGroupIndex)
+            indicesStart[totalWorkGroupIndex] = i;
+    }
+
+    // Copy update data.
     memcpy(data, m_dynamicUpdateQueue.Data(), sizeof(DynamicIndexUpdate) * m_dynamicUpdateQueue.Count());
-    m_dynamicIndexBuffer->EndPopulate();
 
-    m_dynamicUpdateQueue.Clear();
+    m_dynamicIndexUpdateBuffer->EndPopulate();
 
-    cmdContext->CmdBindPipeline(m_batchPipeline);
+    // Update draw parameters with the new index count.
+    PB::DrawIndexedIndirectParams drawParams{};
+    drawParams.indexCount = totalIndexCount;
+    drawParams.instanceCount = 1;
+    m_dispatchList->SetIndirectParams(m_dispatchHandle, drawParams);
+
+    cmdContext->CmdBindPipeline(m_batchUpdatePipeline);
 
     PB::BindingLayout updateBindingLayout;
     updateBindingLayout.m_uniformBufferCount = 0;
@@ -146,15 +201,15 @@ void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
     updateBindingLayout.m_resourceViews = views;
     cmdContext->CmdBindResources(updateBindingLayout);
 
-    cmdContext->CmdDispatch(m_totalUpdateWorkgroupCount, 1, 1);
+    cmdContext->CmdDispatch(totalWorkGroupIndex * MinWorkGroupsPerObject, 1, 1);
 }
 
-void DrawBatch::AddToDispatchList(VertexPool* vertexPool)
+void DrawBatch::AddToDispatchList(PB::UniformBufferView mvpView)
 {
     PB::DrawIndexedIndirectParams drawParams{};
     PB::BindingLayout bindingLayout{};
 
-    PB::UniformBufferView uniformBuffers[] = { vertexPool->GetView(), m_instanceBuffer->GetViewAsUniformBuffer() };
+    PB::UniformBufferView uniformBuffers[] = { mvpView };
     bindingLayout.m_uniformBufferCount = _countof(uniformBuffers);
     bindingLayout.m_uniformBuffers = uniformBuffers;
 
@@ -165,10 +220,11 @@ void DrawBatch::AddToDispatchList(VertexPool* vertexPool)
 
     PB::ResourceView resources[] =
     {
-        m_renderer->GetSampler(colorSamplerDesc),
+        m_vertexPool->GetViewAsStorageBuffer(),
+        m_instanceBuffer->GetViewAsStorageBuffer()
     };
     bindingLayout.m_resourceCount = _countof(resources);
     bindingLayout.m_resourceViews = resources;
 
-    m_dispatchHandle = m_dispatchList->AddObject(m_batchPipeline, nullptr, m_dynamicIndexBuffer, bindingLayout, drawParams, m_instanceBuffer);
+    m_dispatchHandle = m_dispatchList->AddObject(m_batchPipeline, nullptr, m_dynamicIndexBuffer, bindingLayout, drawParams, nullptr);
 }

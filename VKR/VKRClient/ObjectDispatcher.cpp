@@ -151,8 +151,10 @@ void ObjectDispatchList::RecordDispatchSubListCommands(BakedCommandList& list, P
 		scopedContext->CmdBindResources(ir->m_bindingLayout);
 
 		const PB::IBufferObject* vertexBuffers[2] = { ir->m_vertexBuffer, ir->m_instanceBuffer };
-		if(ir->m_vertexBuffer)
+		if(vertexBuffers[0])
 			scopedContext->CmdBindVertexBuffers(vertexBuffers, 2, ir->m_indexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
+		else if(ir->m_indexBuffer)
+			scopedContext->CmdBindVertexBuffers(nullptr, 0, ir->m_indexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
 		scopedContext->CmdDrawIndexedIndirect(m_indirectParamsPages[ir->m_drawParamsBufferIndex].m_buffer, ir->m_drawParamsOffset);
 
 		ir = ir->m_next;

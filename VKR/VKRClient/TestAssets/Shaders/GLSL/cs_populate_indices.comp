@@ -2,11 +2,14 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-layout (local_size_x = 16, local_size_y = 16) in;
+#define WORKGROUP_SIZE_X 1024
+#define WORKGROUP_SIZE_Y 1
+#define WORKGROUP_AREA WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y
+layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
 
 layout(push_constant) uniform Bindings
 {
-    uint uniformDataIndex;
+    uint updateDataIndex;
     uint outputBufferIndex;
 } bindings;
 
@@ -22,34 +25,43 @@ struct IndexBufferData
 {
     uint inputIndexBufferIndex;
     uint instanceIndex;
-    uint vertexBufferStartIndex;
+    uint firstVertex;
     uint startIndex;
     uint indexCount;
+    uint workGroupCount;
     uint pad0;
+    uint pad1;
 };
 
-#define MAX_INDEX_BUFFERS 16
+#define INVOCATION_INDEX_COUNT 16 // We write this amount of indices per shader invocation.
+#define MIN_INDEX_BUFFER_WORKGROUP_COUNT 16 // The minimum amount of work groups that can be invoked to copy a single index buffer.
+#define MAX_INDEX_BUFFERS_PER_DRAW 256
 
-layout(set = 1, binding = 0) uniform IndexBufferDataArray
+layout(set = 0, binding = 2) buffer IndexBufferDataArray
 {
-    IndexBufferData data[MAX_INDEX_BUFFERS];
+    IndexBufferData data[MAX_INDEX_BUFFERS_PER_DRAW];
+    uint indexBufferDataIndices[];
 } indexBuffers[];
 
 void main() 
 {
-    // Copy MAX_INDEX_BUFFERS index buffers per dispatch. We can't copy too many before the loop and branching becomes too expensive. 
-    for(uint i = bindings.uniformDataIndex; i < MAX_INDEX_BUFFERS; ++i)
+    uint indexBufferDataIndex = indexBuffers[nonuniformEXT(bindings.updateDataIndex)].indexBufferDataIndices[gl_WorkGroupID.x / MIN_INDEX_BUFFER_WORKGROUP_COUNT];
+    IndexBufferData data = indexBuffers[nonuniformEXT(bindings.updateDataIndex)].data[indexBufferDataIndex];
+
+    uint localWorkGroupIndex = gl_WorkGroupID.x % (MIN_INDEX_BUFFER_WORKGROUP_COUNT * data.workGroupCount);
+    uint groupStartIndex = localWorkGroupIndex * WORKGROUP_AREA * INVOCATION_INDEX_COUNT;
+    uint invocationStride = gl_LocalInvocationIndex * INVOCATION_INDEX_COUNT;
+    uint writeLocation = data.startIndex + groupStartIndex + invocationStride;
+
+    uint instanceMask = data.instanceIndex << 24;
+
+    for(uint i = 0; i < INVOCATION_INDEX_COUNT; ++i)
     {
-        IndexBufferData copySource = indexBuffers[bindings.uniformDataIndex].data[i];
-        if(gl_GlobalInvocationID.x >= copySource.startIndex && gl_GlobalInvocationID.x < copySource.startIndex + copySource.indexCount)
-        {
-            uint indexIndex = gl_GlobalInvocationID.x - copySource.startIndex;
+        // Mask out read/write overflow.
+        if(groupStartIndex + invocationStride + i >= data.indexCount)
+            return;
 
-            // Vertex index and instance data index are packed together. 24 bits for vertex index, 8 bits for instance index.
-            uint vertexIndex = copySource.vertexBufferStartIndex + storageBuffers[copySource.inputIndexBufferIndex].indices[indexIndex];
-            uint instanceDataIndexMask = copySource.instanceIndex << 24;
-
-            storageBuffers[bindings.outputBufferIndex].indices[gl_GlobalInvocationID.x] = vertexIndex | instanceDataIndexMask;
-        }
+        uint writeIndex = storageBuffers[nonuniformEXT(data.inputIndexBufferIndex)].indices[groupStartIndex + invocationStride + i] + data.firstVertex;
+        storageBuffers[nonuniformEXT(bindings.outputBufferIndex)].indices[writeLocation + i] = writeIndex | instanceMask;
     }
 }
