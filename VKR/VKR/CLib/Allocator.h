@@ -2,9 +2,12 @@
 #include "Vector.h"
 #include <cstdint>
 
+#if CLIB_ALLOCATOR_DEBUG
+#include <unordered_set>
+#endif
+
 namespace CLib
 {
-	
 	class Allocator
 	{
 	public:
@@ -23,7 +26,7 @@ namespace CLib
 		template<typename T, typename... Args>
 		inline T* Alloc(Args&&... args)
 		{
-			return new(InternalAlloc(sizeof(T), std::alignment_of<T>().value)) T(args...);
+			return new(InternalAlloc(sizeof(T), std::alignment_of<T>().value, typeid(T).name())) T(args...);
 		}
 
 		// Free an allocated class/struct object and call it's destructor.
@@ -34,10 +37,14 @@ namespace CLib
 			InternalFree(ptr);
 		}
 
+		const char* GetBlockName(void* ptr);
+
+		void DumpMemoryLeaks();
+
 	private:
 
 		// Internal allocation function, all allocation functions will use this as a base for thier allocations.
-		inline void* InternalAlloc(uint32_t size, uint32_t alignment = 0);
+		inline void* InternalAlloc(uint32_t size, uint32_t alignment = 0, const char* typeName = "void*");
 
 		// Internal free function. All free functions will use this to free memory in the allocator.
 		inline void InternalFree(void* ptr);
@@ -63,11 +70,18 @@ namespace CLib
 		{
 			inline bool IsFree() { return m_prevNode != nullptr; };
 
+#if CLIB_ALLOCATOR_DEBUG
+			const char* m_typeName;
+#endif
 			BlockNode* m_prevNode;
 			uint32_t m_size;
 		};
 
 		static uint32_t m_segSizes[10];
+
+#if CLIB_ALLOCATOR_DEBUG
+		std::unordered_set<BlockNode*> m_allocatedNodes; // Allocation tracking
+#endif
 
 		uint32_t m_pageSize;
 		BlockNode* m_freeLists[_countof(m_segSizes)];

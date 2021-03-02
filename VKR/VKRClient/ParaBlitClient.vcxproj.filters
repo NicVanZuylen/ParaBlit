@@ -66,14 +66,17 @@
     <ClCompile Include="GBufferPass.cpp">
       <Filter>RenderGraphBehaviours</Filter>
     </ClCompile>
-    <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp">
-      <Filter>CLib</Filter>
-    </ClCompile>
     <ClCompile Include="ObjectDispatcher.cpp">
       <Filter>RenderGraph</Filter>
     </ClCompile>
     <ClCompile Include="DrawBatch.cpp">
       <Filter>RenderGraph</Filter>
+    </ClCompile>
+    <ClCompile Include="ClientPlayground.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp">
+      <Filter>CLib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -122,11 +125,14 @@
     <ClInclude Include="ObjectDispatcher.h">
       <Filter>RenderGraph</Filter>
     </ClInclude>
-    <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h">
-      <Filter>CLib</Filter>
-    </ClInclude>
     <ClInclude Include="DrawBatch.h">
       <Filter>RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="ClientPlayground.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h">
+      <Filter>CLib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

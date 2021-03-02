@@ -62,8 +62,8 @@ layout(location = 0) out VS_OUT
 
 void main() 
 {
-    uint vertexIndex = gl_VertexIndex & 0xFFFFFF; // Mask out final 8 bits for vertex index.
-    uint instanceIndex = gl_VertexIndex >> 24; // Shift 24 bits right for instance index.
+    uint vertexIndex = uint(gl_VertexIndex) & 0xFFFFFF; // Mask out final 8 bits for vertex index.
+    uint instanceIndex = uint(gl_VertexIndex) >> 24; // Shift 24 bits right for instance index.
 
     VS_IN vsInput = vertexBuffers[nonuniformEXT(bindings.vertexBufferIndex)].vertices[nonuniformEXT(vertexIndex)];
     VS_INSTANCE vsInstance = instanceBuffers[nonuniformEXT(bindings.instanceBufferIndex)].instances[nonuniformEXT(instanceIndex)];

@@ -31,8 +31,13 @@ public:
 
 	virtual void OnPostRenderPass(const RenderGraphInfo& info) = 0;
 
+	PB::RenderPass GetRenderPass() { return m_renderPass; };
+
 protected:
 
+	friend class RenderGraphBuilder;
+
 	PB::IRenderer* m_renderer = nullptr;
+	PB::RenderPass m_renderPass = nullptr;
 	CLib::Allocator* m_allocator = nullptr;
 };

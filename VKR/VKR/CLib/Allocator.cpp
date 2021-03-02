@@ -1,5 +1,17 @@
 #include "Allocator.h"
 
+#include <cassert>
+
+#if CLIB_ALLOCATOR_DEBUG
+#define DEBUG_STORE_TYPE_NAME(blockNode, name) blockNode->m_typeName = name
+#define DEBUG_TRACK_BLOCK(blockNode) m_allocatedNodes.insert(blockNode)
+#define DEBUG_UNTRACK_BLOCK(blockNode) m_allocatedNodes.erase(blockNode)
+#else
+#define DEBUG_STORE_TYPE_NAME(blockNode, name)
+#define DEBUG_TRACK_BLOCK(blockNode)
+#define DEBUG_UNTRACK_BLOCK(blockNode)
+#endif
+
 namespace CLib
 {
 	uint32_t Allocator::m_segSizes[10] = { 0, 32, 64, 128, 256, 512, 1024, 2048, 4096, 0 };
@@ -15,6 +27,10 @@ namespace CLib
 
 	Allocator::~Allocator()
 	{
+#if CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION
+		DumpMemoryLeaks();
+#endif
+
 		// Free memory pages. Users should free any objects that are initialized by this allocator. Especially if they allocate memory on another allocator, otherwise it will be leaked.
 		for (auto& page : m_pages)
 		{
@@ -35,7 +51,35 @@ namespace CLib
 		InternalFree(ptr);
 	}
 
-	void* Allocator::InternalAlloc(uint32_t size, uint32_t alignment)
+	const char* Allocator::GetBlockName(void* ptr)
+	{
+#if CLIB_ALLOCATOR_DEBUG
+		BlockNode* node = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(ptr) - sizeof(BlockNode));
+		return node->m_typeName;
+#else
+		return "void*";
+#endif
+	}
+
+	void Allocator::DumpMemoryLeaks()
+	{
+#if CLIB_ALLOCATOR_DEBUG
+		if (m_allocatedNodes.empty())
+			return;
+
+		printf("---------------------------------------------------------------------------------------\n");
+		printf("CLib::Allocator: Detected memory leaks! Beginning dump...\n");
+		printf("---------------------------------------------------------------------------------------\n");
+
+		for (auto& node : m_allocatedNodes)
+			printf("Block: %p - Size: %u - Type Name: %s\n", reinterpret_cast<void*>(reinterpret_cast<uint64_t>(node) + sizeof(BlockNode)), node->m_size, node->m_typeName);
+
+		printf("---------------------------------------------------------------------------------------\n");
+		printf("CLib::Allocator: End dump.\n");
+#endif
+	}
+
+	void* Allocator::InternalAlloc(uint32_t size, uint32_t alignment, const char* typeName)
 	{
 		// TODO: Consider falling back to malloc for blocks too large to fit on any page. Track if a block was allocated with malloc so we can free it with 'free'.
 		uint32_t alignmentPad = alignment > 0 ? alignment - ((size + sizeof(BlockNode)) % alignment) : 0;
@@ -57,6 +101,10 @@ namespace CLib
 					{
 						BlockNode* returnNode = blockRef;
 						blockRef = blockRef->m_prevNode;
+
+						DEBUG_STORE_TYPE_NAME(returnNode, typeName);
+						DEBUG_TRACK_BLOCK(returnNode);
+
 						return reinterpret_cast<void*>(reinterpret_cast<size_t>(returnNode) + sizeof(BlockNode));
 					}
 
@@ -67,6 +115,8 @@ namespace CLib
 			{
 				auto* block = freeList;
 				freeList = freeList->m_prevNode;
+				DEBUG_STORE_TYPE_NAME(block, typeName);
+				DEBUG_TRACK_BLOCK(block);
 				return reinterpret_cast<void*>(reinterpret_cast<size_t>(block) + sizeof(BlockNode));
 			}
 		}
@@ -78,6 +128,8 @@ namespace CLib
 		// Allocate an new block from untouched page memory.
 		BlockNode* newNode = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(currentPage.m_block) + currentPage.m_allocated);
 		newNode->m_size = requiredSize;
+		DEBUG_STORE_TYPE_NAME(newNode, typeName);
+		DEBUG_TRACK_BLOCK(newNode);
 
 		currentPage.m_allocated += sizeof(BlockNode) + requiredSize;
 
@@ -87,6 +139,7 @@ namespace CLib
 	void Allocator::InternalFree(void* ptr)
 	{
 		BlockNode* node = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(ptr) - sizeof(BlockNode));
+		DEBUG_UNTRACK_BLOCK(node);
 
 		// Push the block back onto the free list.
 		BlockNode*& freeList = m_freeLists[GetLowerFreeListIdx(node->m_size)];

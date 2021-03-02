@@ -17,7 +17,8 @@ struct GLFWwindow;
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 
-#define FRAMERATE_CAP 100000.0f
+#define FRAMERATE_CAP 120.0f
+//#define FRAMERATE_CAP 100000.0f
 
 #define DISPLAY_FRAME_TIME 1
 
@@ -53,8 +54,8 @@ private:
 	static bool m_isfullScreen;
 	static bool m_glfwInitialized;
 
-	float deltaTime = 0.0f;
-	float elapsedTime = 0.0f;
-	float debugDisplayTime = 0.0f;
+	float m_deltaTime = 0.0f;
+	float m_elapsedTime = 0.0f;
+	float m_debugDisplayTime = 0.0f;
 };
 

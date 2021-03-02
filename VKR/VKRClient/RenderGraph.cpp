@@ -190,6 +190,7 @@ RenderGraph* RenderGraphBuilder::Build()
 		}
 
 		execNode->m_renderPass = m_renderer->GetRenderPassCache()->GetRenderPass(rpDesc);
+		execNode->m_behaviour->m_renderPass = execNode->m_renderPass;
 
 		// Framebuffer
 		PB::FramebufferDesc fbDesc{};

@@ -38,8 +38,10 @@ public:
 
 	using DrawBatchInstance = PB::u32;
 
-	DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::Pipeline drawBatchPipeline, PB::UniformBufferView mvpBufferView, ObjectDispatchList* dispatchList, VertexPool* vertexPool, PB::u32 maxIndexCount = ((~PB::u32(0) << 8) >> 8));
+	DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, VertexPool* vertexPool, PB::u32 maxIndexCount = ((~PB::u32(0) << 8) >> 8));
 	~DrawBatch();
+
+	void AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings);
 
 	DrawBatchInstance AddInstance(PBClient::Mesh* mesh, float* modelMatrix, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler);
 	void UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix);
@@ -56,7 +58,7 @@ private:
 	static constexpr const PB::u32 WorkGroupSizeH = 1;
 	static constexpr const PB::u32 IndexUpdatesPerInvocation = 16; // The amount of indices updating by a single compute shader invocation.
 	static constexpr const PB::u32 MinWorkGroupsPerObject = 16; // Minimum workgroups assigned to updating a single object/mesh's indices.
-	static constexpr const PB::u32 MaxUpdateWorkGroupsPerBatch = 512; // Maximum workgroups allowed in a single update dispatch.
+	static constexpr const PB::u32 MaxUpdateWorkGroupsPerBatch = 4096 * 2; // Maximum workgroups allowed in a single update dispatch.
 	static constexpr const PB::u32 MaxObjects = 256;
 
 	// Contains the formatted update information for a single drawbatch instance.
@@ -97,8 +99,8 @@ private:
 	ObjectDispatchList* m_dispatchList = nullptr;
 	ObjectDispatchList::DispatchObjectHandle m_dispatchHandle;
 	PB::Pipeline m_batchUpdatePipeline = 0;
-	PB::Pipeline m_batchPipeline = 0;
 	PB::IRenderer* m_renderer = nullptr;
+	CLib::Allocator* m_allocator = nullptr;
 	PB::IBufferObject* m_dynamicIndexUpdateBuffer = nullptr;
 	PB::IBufferObject* m_dynamicIndexBuffer = nullptr;
 	PB::IBufferObject* m_instanceBuffer = nullptr;
