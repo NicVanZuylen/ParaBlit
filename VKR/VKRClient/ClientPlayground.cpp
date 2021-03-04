@@ -178,6 +178,9 @@ void ClientPlayground::InitResources()
 	m_detailsTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_roughness.tga");
 	m_glassTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_roughness.tga");
 
+	m_metalTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Metal/diffuse.tga");
+	m_metalTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Metal/normal.tga");
+
 	for (int i = 0; i < _countof(m_paintTextures); ++i)
 		m_paintViews[i] = m_paintTextures[i]->GetTexture()->GetDefaultSRV();
 
@@ -215,6 +218,11 @@ void ClientPlayground::DestroyResources()
 		m_allocator->Free(tex);
 		tex = nullptr;
 	}
+	for (auto& tex : m_metalTextures)
+	{
+		m_allocator->Free(tex);
+		tex = nullptr;
+	}
 
 	m_allocator->Free(m_paintMesh);
 	m_allocator->Free(m_detailsMesh);
@@ -244,7 +252,8 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	{
 		m_deferredLightingPass->SetMVPBuffer(m_mvpBuffer);
 
-		m_deferredLightingPass->SetDirectionalLight(0, { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
+		//m_deferredLightingPass->SetDirectionalLight(0, { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
+		//m_deferredLightingPass->SetDirectionalLight(0, { 1.0f, 0.3f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
 		m_deferredLightingPass->SetPointLight(0, { -1.0f, 2.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
 		m_deferredLightingPass->SetPointLight(1, { 1.0f, 2.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
 	}
@@ -369,16 +378,14 @@ void ClientPlayground::SetupDrawBatch()
 	PB::ResourceView plainViews[]
 	{
 		m_solidWhiteTexture->GetDefaultSRV(),
-		m_flatNormalTexture->GetDefaultSRV(),
+		m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
 		m_solidBlackTexture->GetDefaultSRV(),
 		m_solidBlackTexture->GetDefaultSRV()
 	};
 
-	//for (uint32_t i = 0; i < (256 / 3) - 1; ++i)
 	for (uint32_t i = 0; i < 255 / 3; ++i)
 	{
 		modelMat = glm::translate(glm::mat4(), glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10)));
-		//spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 		spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
 		if (i == 0)

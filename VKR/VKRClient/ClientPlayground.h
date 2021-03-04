@@ -92,6 +92,7 @@ private:
 	PBClient::Texture* m_paintTextures[4]{};
 	PBClient::Texture* m_detailsTextures[4]{};
 	PBClient::Texture* m_glassTextures[4]{};
+	PBClient::Texture* m_metalTextures[2]{};
 
 	PB::ITexture* m_solidWhiteTexture = nullptr;
 	PB::ITexture* m_solidBlackTexture = nullptr;

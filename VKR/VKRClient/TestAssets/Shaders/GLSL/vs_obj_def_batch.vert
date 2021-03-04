@@ -49,7 +49,6 @@ layout(set = 0, binding = 2) buffer InstanceBuffer
 
 layout(location = 0) out VS_OUT
 {
-    vec4 normal;
     vec4 position;
     vec2 texCoord;
 
@@ -57,7 +56,7 @@ layout(location = 0) out VS_OUT
     flat uint samplerIdx;
     flat uint textureIndices[7];
 
-    mat3 tbnMatrix;
+    mat3 tbnMatrix; // Normal is 3rd vector component.
 } vsOutput;
 
 void main() 
@@ -68,23 +67,17 @@ void main()
     VS_IN vsInput = vertexBuffers[nonuniformEXT(bindings.vertexBufferIndex)].vertices[nonuniformEXT(vertexIndex)];
     VS_INSTANCE vsInstance = instanceBuffers[nonuniformEXT(bindings.instanceBufferIndex)].instances[nonuniformEXT(instanceIndex)];
 
-    mat4 model = mvp[nonuniformEXT(bindings.mvpIndex)].model;
-    mat4 view = mvp[nonuniformEXT(bindings.mvpIndex)].view;
-    mat4 proj = mvp[nonuniformEXT(bindings.mvpIndex)].proj;
+    mat3 modelCpy = mat3(vsInstance.model);
+    vec3 biTangent = cross(vsInput.normal.xyz, vsInput.tangent.xyz);
 
-    mat3 modelCpy = mat3(vsInstance.model[0].xyz, vsInstance.model[1].xyz, vsInstance.model[2].xyz);
+    vsOutput.tbnMatrix = mat3
+    (
+        modelCpy * vsInput.tangent.xyz,  // t
+        modelCpy * biTangent,            // b
+        modelCpy * vsInput.normal.xyz    // n
+    );
 
-    vec3 biTangent = normalize(cross(vsInput.normal.xyz, vsInput.tangent.xyz));
-
-    vec3 t = modelCpy * vsInput.tangent.xyz;
-	vec3 b = modelCpy * biTangent;
-	vec3 n = modelCpy * vsInput.normal.xyz;
-
-    vsOutput.tbnMatrix = mat3(t, b, n);
-
-    gl_Position = proj * view * vsInstance.model * vsInput.position;
-    vsOutput.normal = normalize(vsInstance.model * vec4(vsInput.normal.xyz, 0.0));
-    vsOutput.normal.w = 1.0;
+    gl_Position = mvp[nonuniformEXT(bindings.mvpIndex)].proj * mvp[nonuniformEXT(bindings.mvpIndex)].view * vsInstance.model * vsInput.position;
     vsOutput.position = vsInstance.model * vsInput.position;
     vsOutput.position.w = 1.0;
     vsOutput.texCoord = vsInput.texCoord;

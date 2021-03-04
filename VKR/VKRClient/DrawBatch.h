@@ -104,7 +104,7 @@ private:
 	PB::IBufferObject* m_dynamicIndexUpdateBuffer = nullptr;
 	PB::IBufferObject* m_dynamicIndexBuffer = nullptr;
 	PB::IBufferObject* m_instanceBuffer = nullptr;
-	DrawBatchInstanceData* m_mappedInstanceData = nullptr;
+	DrawBatchInstanceData* m_mappedInstanceData = nullptr; // TODO: This doesn't work. We need a way of populating multiple regions of a resource without erasing the data in between.
 	uint32_t m_instanceCount = 0;
 	CLib::Vector<uint32_t> m_dynamicUpdateQueueFreeList;
 	CLib::Vector<DynamicIndexUpdate> m_dynamicUpdateQueue;

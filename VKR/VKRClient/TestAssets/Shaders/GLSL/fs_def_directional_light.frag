@@ -148,7 +148,7 @@ void main()
     ).r;
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, invView, invProj);
 
-    outColor = vec4(color * 0.1, 1.0);
+    outColor = vec4(color * 0.05, 1.0);
 
     vec3 dirToCam = normalize(position - camPos.xyz);
 

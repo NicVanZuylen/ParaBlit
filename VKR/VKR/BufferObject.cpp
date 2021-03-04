@@ -75,35 +75,29 @@ namespace PB
 
 	u8* BufferObject::BeginPopulate(u32 size)
 	{
-		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
+		PB_ASSERT(!m_stagingBuffer.m_mappedPtr);
 		PB_ASSERT_MSG(m_memoryPage.m_memoryType != EMemoryType::HOST_VISIBLE, "It is not recommended to use BeginPopulate() for HOST_VISIBLE buffers, as this function creates and maps a staging buffer for copy.");
 		PB_ASSERT_MSG(m_usage & EBufferUsage::COPY_DST, "Buffer Object must usable as a copy destination in order to use BeginPopulate().");
-		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(size == 0 ? m_size : size, m_renderer->GetCurrentFrame());
-		return m_stagingBuffer.Map(m_renderer->GetDevice()->GetHandle());
+		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(size == 0 ? m_size : size, m_renderer->GetCurrentSwapchainImageIndex());
+		return m_stagingBuffer.Start();
 	}
 
 	void BufferObject::EndPopulate(u32 writeOffset)
 	{
-		PB_ASSERT(m_stagingBuffer.m_parentBuffer && m_stagingBuffer.m_parentMemory);
-		m_stagingBuffer.Unmap(m_renderer->GetDevice()->GetHandle());
+		PB_ASSERT(m_stagingBuffer.m_mappedPtr);
 		CopyStagingBuffer(m_stagingBuffer, writeOffset);
-		m_stagingBuffer.m_parentBuffer = VK_NULL_HANDLE;
-		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
+		m_stagingBuffer.m_mappedPtr = nullptr;
 	}
 
 	void BufferObject::Populate(u8* data, u32 size)
 	{
 		PB_ASSERT(data && size);
-		PB_ASSERT(!m_stagingBuffer.m_parentBuffer && !m_stagingBuffer.m_parentMemory);
-		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_size, m_renderer->GetCurrentFrame());
-		auto vkDevice = m_renderer->GetDevice()->GetHandle();
-		u8* stagingData = m_stagingBuffer.Map(vkDevice);
-		memcpy(stagingData, data, size);
-		m_stagingBuffer.Unmap(vkDevice);
+		PB_ASSERT(!m_stagingBuffer.m_mappedPtr);
+		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(m_size, m_renderer->GetCurrentSwapchainImageIndex());
+		memcpy(m_stagingBuffer.Start(), data, size);
 
 		CopyStagingBuffer(m_stagingBuffer, 0);
-		m_stagingBuffer.m_parentBuffer = VK_NULL_HANDLE;
-		m_stagingBuffer.m_parentMemory = VK_NULL_HANDLE;
+		m_stagingBuffer.m_mappedPtr = nullptr;
 	}
 
 	void BufferObject::PopulateWithDrawIndexedIndirectParams(u8* location, const DrawIndexedIndirectParams& params)
@@ -221,11 +215,8 @@ namespace PB
 				auto device = m_renderer->GetDevice();
 
 				// Since this buffer's memory is not host visible, we'll need to create a temporary host visible staging buffer to zero-initialize, and copy over this one,
-				auto stagingBuffer = device->GetTempBufferAllocator().NewTempBuffer(desc.m_bufferSize, m_renderer->GetCurrentFrame());
-
-				u8* mapped = stagingBuffer.Map(device->GetHandle());
-				memset(mapped, 0, desc.m_bufferSize);
-				stagingBuffer.Unmap(device->GetHandle());
+				auto stagingBuffer = device->GetTempBufferAllocator().NewTempBuffer(desc.m_bufferSize, m_renderer->GetCurrentSwapchainImageIndex());
+				memset(stagingBuffer.Start(), 0, desc.m_bufferSize);
 
 				CopyStagingBuffer(stagingBuffer, 0);
 			}
@@ -242,7 +233,7 @@ namespace PB
 
 		// Staging buffers don't use the IBufferObject API, so we'll have to issue the copy command here.
 		VkBufferCopy copyRegion{ buffer.m_offset, writeOffset, buffer.m_size };
-		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), buffer.m_parentBuffer, m_handle, 1, &copyRegion);
+		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), buffer.m_buffer, m_handle, 1, &copyRegion);
 
 		internalContext.End();
 		internalContext.Return();

@@ -14,7 +14,6 @@ layout(set = 0, binding = 1) uniform sampler samplers[];
 
 layout (location = 0) in FS_IN
 {
-    vec4 normal;
     vec4 position;
     vec2 texCoord;
     flat uint samplerIdx;

@@ -116,6 +116,23 @@ vec3 WorldPosFromDepth(float depth, vec2 texCoords, inout mat4 invView, inout ma
 	return worldPos.xyz;
 }
 
+// Similar to common attenuation (1/d) but with 0.1 added to dist to avoid the sudden drop in attenuation at one tenth of the light multiplier (or radius) in distance.
+// Uses a natural logarithmic approach to help determine attenuation using a single multipler/radius.
+// This function uses 1/d instead of 1/d^2 so attenuation isn't quite as harsh over distance.
+float AttenuateLight(float dist, float lightMultiplier)
+{
+    float attn = -log((dist + 0.1) / lightMultiplier);
+    return clamp(attn, 0.0, 1.0);
+}
+
+// Similar to real-world attenuation (1/d^2) but with 0.1 added to dist to avoid the sudden drop in attenuation at one tenth of the light multiplier (or radius) in distance.
+// Uses a natural logarithmic approach to help determine attenuation using a single multipler/radius.
+float AttenuateLightRealistic(float dist, float lightMultiplier)
+{
+    float attn = pow(log(min((dist + 0.1), lightMultiplier) / lightMultiplier), 2);
+    return clamp(attn, 0.0, 1.0);
+}
+
 void main() 
 {
     mat4 invView = mvp[nonuniformEXT(bindings.mvpUBOIndex)].invView;
@@ -169,7 +186,7 @@ void main()
 
     // Attenuation function
     float dist = length(light.position.xyz - position);
-    float attenuation = max(-pow((dist / light.radius) + 0.1f, 3) + 1, 0.0);
+    float attenuation = AttenuateLight(dist, light.radius);
 
     vec3 diffuse = orenNayar * light.color;
     vec3 spec = cookTorrence * specular * light.color;

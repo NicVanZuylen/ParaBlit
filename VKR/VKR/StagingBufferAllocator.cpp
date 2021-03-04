@@ -4,16 +4,10 @@
 
 namespace PB
 {
-	u8* TempBuffer::Map(VkDevice device, u32 mapOffset)
+	void TempBufferAllocator::ResetFrame(u32 frameIndex)
 	{
-		u8* uptr;
-		vkMapMemory(device, m_parentMemory, static_cast<VkDeviceSize>(m_offset) + mapOffset, m_size, 0, reinterpret_cast<void**>(&uptr));
-		return uptr;
-	}
-
-	void TempBuffer::Unmap(VkDevice device)
-	{
-		vkUnmapMemory(device, m_parentMemory);
+		for (u32 i = 0; i < MemoryTypeCount; ++i)
+			m_freeLists[i].AppendList(m_frameLists[frameIndex][i]);
 	}
 
 	void TempBufferAllocator::Create(Device* device)
@@ -23,73 +17,90 @@ namespace PB
 
 	void TempBufferAllocator::Destroy()
 	{
-		for (auto& pageArray : m_bufferPages)
+		VkDevice deviceHandle = m_device->GetHandle();
+
+		// Free all frame pages.
+		for (u32 i = 0; i < MemoryTypeCount; ++i)
 		{
-			for (auto& page : pageArray)
+			for (u32 j = 0; j < PB_FRAME_IN_FLIGHT_COUNT; ++j)
+				m_freeLists[i].AppendList(m_frameLists[j][i]);
+
+			PageListNode* currentNode = m_freeLists[i].m_start;
+			while (currentNode)
 			{
-				vkDestroyBuffer(m_device->GetHandle(), page.m_buffer, nullptr);
-				vkFreeMemory(m_device->GetHandle(), page.m_memory, nullptr);
-				page.m_buffer = VK_NULL_HANDLE;
-				page.m_memory = VK_NULL_HANDLE;
-				page.m_size = 0;
-				page.m_lastUsedFrame = 0;
+				PageListNode* nodeToFree = currentNode;
+				currentNode = currentNode->m_next;
+				nodeToFree->Unlink();
+
+				vkDestroyBuffer(deviceHandle, nodeToFree->m_buffer, nullptr);
+				vkFreeMemory(deviceHandle, nodeToFree->m_memory, nullptr);
+				m_pageAllocator.Free(nodeToFree);
 			}
-			pageArray.Clear();
 		}
 	}
 
-	TempBuffer TempBufferAllocator::NewTempBuffer(u32 size, u64 currentFrame, EMemoryType memoryType)
+	TempBuffer TempBufferAllocator::NewTempBuffer(u32 size, u32 frameIndex, EMemoryType memoryType)
 	{
 		u32 memoryTypeIdx = static_cast<u32>(memoryType);
+		PageList& frameList = m_frameLists[frameIndex][memoryTypeIdx];
 
-		// Attempt to sub-allocate from an existing page first before otherwise allocating a new buffer entirely.
-		for (auto& page : m_bufferPages[memoryTypeIdx])
+		// Check if the last node owned by this frame has enough space...
+		PageListNode* lastOwnedNode = frameList.m_end;
+		if (lastOwnedNode && lastOwnedNode->CanFit(size))
 		{
-			if (page.m_lastUsedFrame < currentFrame)
-			{
-				// Clear this page if there are no in-flight allocations using it.
-				page.m_allocated = 0;
-				// Swap this page to the beginning of the array to avoid iteration.
-				std::swap<InternalBuffer>(page, m_bufferPages[memoryTypeIdx][0]);
-			}
-
-			if (page.m_size - page.m_allocated < size)
-				continue;
-
-			TempBuffer view;
-			view.m_parentBuffer = page.m_buffer;
-			view.m_parentMemory = page.m_memory;
-			view.m_offset = page.m_allocated;
-			view.m_size = size;
-
-			page.m_allocated += size;
-			page.m_lastUsedFrame = currentFrame + (PB_FRAME_IN_FLIGHT_COUNT - 1); // All in-flight frames using this page need to finish before it can be cleared.
-			return view;
+			TempBuffer returnView;
+			lastOwnedNode->BuildView(returnView, size);
+			return returnView;
 		}
 
-		// Out of page memory, allocate another page.
-		AllocatePageBuffer(memoryType, size);
-		auto& newPage = m_bufferPages[memoryTypeIdx].Back();
-		TempBuffer newView;
-		newView.m_parentBuffer = newPage.m_buffer;
-		newView.m_parentMemory = newPage.m_memory;
-		newView.m_offset = 0;
-		newView.m_size = size;
+		// Otherwise look at the free list.
+		if (!m_freeLists[memoryTypeIdx].IsEmpty())
+		{
+			// Search for large enough node in the free list.
+			PageListNode* currentNode = m_freeLists[memoryTypeIdx].m_end;
+			while (currentNode)
+			{
+				// Check for size and disregard allocated bytes, since this memory won't be in use by anything.
+				if (currentNode->m_size < size)
+				{
+					currentNode = currentNode->m_prev;
+					continue;
+				}
 
-		newPage.m_allocated += size;
-		newPage.m_lastUsedFrame = currentFrame + (PB_FRAME_IN_FLIGHT_COUNT - 1); // All in-flight frames using this page need to finish before it can be cleared.
+				// The current node's allocated byte count won't have been reset when added to the free list, so we do it here.
+				currentNode->m_bytesAllocated = 0;
 
-		return newView;
+				m_freeLists[memoryTypeIdx].UnlinkNode(currentNode);
+				frameList.AppendNode(currentNode);
+
+				TempBuffer returnBuffer;
+				currentNode->BuildView(returnBuffer, size);
+				return returnBuffer;
+			}
+		}
+
+		// Allocate a new page node, since no others fit the requested size.
+		PageListNode* newNode = AllocatePageBuffer(memoryType, size);
+		frameList.AppendNode(newNode);
+		if (size > MinPageSize && frameList.m_start != frameList.m_end)
+		{
+			PB_LOG_FORMAT("Warning: Allocating massive temporary buffer of size: %u that exceeds the page size of %u. It is recommended that the maximum staged bytes per frame should be limited to a low multiple of %u.", size, MinPageSize, MinPageSize);
+
+			// The new page is guaranteed to be full, so we'll add this node to the frame list behind the end node, to allow further suballocations from the end node.
+			frameList.SwapNodes(newNode, newNode->m_prev);
+			newNode = frameList.m_end->m_prev;
+		}
+
+		TempBuffer returnBuffer;
+		newNode->BuildView(returnBuffer, size);
+		return returnBuffer;
 	}
 
-	inline void TempBufferAllocator::AllocatePageBuffer(EMemoryType memoryType, u32 desiredSize)
+	inline TempBufferAllocator::PageListNode* TempBufferAllocator::AllocatePageBuffer(EMemoryType memoryType, u32 desiredSize)
 	{
-		constexpr u32 pageAlignment = 64;
-		constexpr u32 pageSize = 512;
+		u32 requiredSize = MinPageSize >= desiredSize ? MinPageSize : desiredSize;
 
-		u32 requiredSize = pageSize >= desiredSize ? pageSize : desiredSize;
-
-		InternalBuffer& newPage = m_bufferPages[static_cast<u32>(memoryType)].PushBackInit();
+		PageListNode& newPage = *m_pageAllocator.Alloc<PageListNode>();
 		auto queueFamilyIndex = static_cast<u32>(m_device->GetGraphicsQueueFamilyIndex());
 
 		VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr };
@@ -118,7 +129,7 @@ namespace PB
 		VkMemoryRequirements bufferMemRequirements;
 		vkGetBufferMemoryRequirements(m_device->GetHandle(), newPage.m_buffer, &bufferMemRequirements);
 		PB_ASSERT(bufferMemRequirements.size >= requiredSize);
-		newPage.m_size = desiredSize;
+		newPage.m_size = requiredSize;
 
 		VkMemoryAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr };
 		allocInfo.allocationSize = bufferMemRequirements.size;
@@ -129,5 +140,129 @@ namespace PB
 
 		PB_ERROR_CHECK(vkBindBufferMemory(m_device->GetHandle(), newPage.m_buffer, newPage.m_memory, 0));
 		PB_BREAK_ON_ERROR;
+
+		PB_ERROR_CHECK(vkMapMemory(m_device->GetHandle(), newPage.m_memory, 0, desiredSize, 0, reinterpret_cast<void**>(&newPage.m_mappedMemory)));
+		PB_BREAK_ON_ERROR;
+
+		return &newPage;
+	}
+
+	void TempBufferAllocator::PageList::AppendNode(TempBufferAllocator::PageListNode* node)
+	{
+		node->Unlink();
+
+		PB_ASSERT(m_start != nullptr || m_end == nullptr);
+		PB_ASSERT(m_end == nullptr || m_end->m_next == nullptr);
+		if (!m_start)
+		{
+			m_start = node;
+			m_end = node;
+			return;
+		}
+
+		// Link end node and input node.
+		m_end->m_next = node;
+		node->m_prev = m_end;
+
+		// Update end node.
+		m_end = node;
+	}
+
+	void TempBufferAllocator::PageList::AppendList(PageList& list)
+	{
+		PB_ASSERT(m_start != nullptr || m_end == nullptr);
+
+		if (list.IsEmpty())
+			return;
+
+		PB_ASSERT(list.m_end->m_next == nullptr);
+
+		if (!m_start)
+		{
+			m_start = list.m_start;
+			m_end = list.m_end;
+
+			// Invalidate input list. It now longer owns it's nodes.
+			list.Invalidate();
+			return;
+		}
+
+		// Link end of this list with the start of the input list.
+		m_end->m_next = list.m_start;
+		list.m_start->m_prev = m_end;
+
+		// Update this list's end node.
+		m_end = list.m_end;
+
+		// Invalidate input list. It now longer owns it's nodes.
+		list.Invalidate();
+	}
+
+	void TempBufferAllocator::PageList::SwapNodes(PageListNode* first, PageListNode* second)
+	{
+		if (first == nullptr || second == nullptr)
+			return;
+
+		PageListNode cacheFirst = *first;
+		PageListNode* firstNext = first->m_next;
+		PageListNode* secondNext = second->m_next;
+		PageListNode* firstPrev = first->m_prev;
+		PageListNode* secondPrev = second->m_prev;
+
+		*first = *second;
+		*second = cacheFirst;
+
+		first->m_next = firstNext;
+		first->m_prev = firstPrev;
+
+		second->m_next = secondNext;
+		second->m_prev = secondPrev;
+	}
+
+	void TempBufferAllocator::PageList::UnlinkNode(PageListNode* node)
+	{
+		if (m_start == node)
+		{
+			Invalidate();
+			node->Unlink();
+			return;
+		}
+
+		node->m_prev->m_next = node->m_next;
+		if (node == m_end)
+			m_end = m_end->m_prev;
+
+		node->Unlink();
+	}
+
+	TempBufferAllocator::PageListNode* TempBufferAllocator::PageList::UnlinkEnd()
+	{
+		PageListNode* returnNode = m_end;
+		m_end = m_end->m_prev;
+		m_end->m_next = nullptr;
+
+		returnNode->Unlink();
+		return returnNode;
+	}
+
+	void TempBufferAllocator::PageListNode::Unlink()
+	{
+		m_prev = nullptr;
+		m_next = nullptr;
+	}
+
+	bool TempBufferAllocator::PageListNode::CanFit(u32 size)
+	{
+		return m_size - m_bytesAllocated >= size;
+	}
+
+	void TempBufferAllocator::PageListNode::BuildView(TempBuffer& view, u32 size)
+	{
+		view.m_buffer = m_buffer;
+		view.m_mappedPtr = m_mappedMemory;
+		view.m_offset = m_bytesAllocated;
+
+		m_bytesAllocated += size;
+		view.m_size = size;
 	}
 }

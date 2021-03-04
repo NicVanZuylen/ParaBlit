@@ -317,12 +317,8 @@ namespace PB
 		}
 		else if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA)
 		{
-			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentFrame());
-			auto* ptr = stagingBuffer.Map(m_device->GetHandle());
-
-			memcpy(ptr, desc.m_data.m_data, desc.m_data.m_size);
-
-			stagingBuffer.Unmap(m_device->GetHandle());
+			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentSwapchainImageIndex());
+			memcpy(stagingBuffer.Start(), desc.m_data.m_data, desc.m_data.m_size);
 
 			PB::CommandContext internalContext;
 			MakeInternalContext(internalContext, m_renderer);
@@ -341,7 +337,7 @@ namespace PB
 			region.imageSubresource.baseArrayLayer = 0;
 			region.imageSubresource.mipLevel = 0;
 			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			vkCmdCopyBufferToImage(internalContext.GetCmdBuffer(), stagingBuffer.m_parentBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+			vkCmdCopyBufferToImage(internalContext.GetCmdBuffer(), stagingBuffer.m_buffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 			internalContext.End();
 			internalContext.Return();

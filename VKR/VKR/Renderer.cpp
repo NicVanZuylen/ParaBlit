@@ -189,6 +189,8 @@ namespace PB
 		m_uboDescSets += curFrameInfo.m_submittedUBODescSets;
 		curFrameInfo.m_submittedUBODescSets.Clear();
 
+		m_device.GetTempBufferAllocator().ResetFrame(m_curFrameInfoIdx);
+
 		PB_ASSERT(curFrameInfo.m_frameSemaphore);
 		PB_ERROR_CHECK(vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx));
 
