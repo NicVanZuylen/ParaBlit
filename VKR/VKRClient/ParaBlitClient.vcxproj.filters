@@ -134,5 +134,8 @@
     <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h">
       <Filter>CLib</Filter>
     </ClInclude>
+    <ClInclude Include="ManagedInstanceBuffer.h">
+      <Filter>RenderGraph</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

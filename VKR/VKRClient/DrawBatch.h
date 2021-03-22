@@ -1,6 +1,7 @@
 #pragma once
 #include "IRenderer.h"
 #include "ObjectDispatcher.h"
+#include "ManagedInstanceBuffer.h"
 
 namespace PBClient
 {
@@ -86,15 +87,6 @@ private:
 	};
 	static_assert(sizeof(DrawBatchInstanceData) % 16 == 0);
 
-	inline void AddToDispatchList(PB::UniformBufferView mvpView);
-
-	inline DrawBatchInstanceData* GetInstanceData()
-	{
-		if (!m_mappedInstanceData)
-			m_mappedInstanceData = reinterpret_cast<DrawBatchInstanceData*>(m_instanceBuffer->BeginPopulate());
-		return m_mappedInstanceData;
-	}
-
 	VertexPool* m_vertexPool = nullptr;
 	ObjectDispatchList* m_dispatchList = nullptr;
 	ObjectDispatchList::DispatchObjectHandle m_dispatchHandle;
@@ -103,8 +95,7 @@ private:
 	CLib::Allocator* m_allocator = nullptr;
 	PB::IBufferObject* m_dynamicIndexUpdateBuffer = nullptr;
 	PB::IBufferObject* m_dynamicIndexBuffer = nullptr;
-	PB::IBufferObject* m_instanceBuffer = nullptr;
-	DrawBatchInstanceData* m_mappedInstanceData = nullptr; // TODO: This doesn't work. We need a way of populating multiple regions of a resource without erasing the data in between.
+	ManagedInstanceBuffer<DrawBatchInstanceData, MaxObjects, MaxObjects> m_instanceBuffer;
 	uint32_t m_instanceCount = 0;
 	CLib::Vector<uint32_t> m_dynamicUpdateQueueFreeList;
 	CLib::Vector<DynamicIndexUpdate> m_dynamicUpdateQueue;

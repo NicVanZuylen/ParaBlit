@@ -23,6 +23,13 @@ namespace PB
 		bool operator == (const BufferViewDesc& other) const;
 	};
 
+	struct BufferCopyRegion
+	{
+		u64 m_srcOffset;
+		u64 m_dstOffset;
+		u64 m_size;
+	};
+
 	class IBufferObject
 	{
 	public:
@@ -64,11 +71,24 @@ namespace PB
 		PARABLIT_INTERFACE u8* BeginPopulate(u32 size = 0) = 0;
 
 		/*
+		Description: Get the staging buffer start offset to use for copy regions.
+		Return Type: u32
+		*/
+		PARABLIT_INTERFACE u32 StagingBufferOffset() = 0;
+
+		/*
 		Description: Finish populating the buffer with it's initial contents.
 		Param:
 			u32 writeOffset: The offset in the dest buffer in which the staging buffer will be copied.
 		*/
 		PARABLIT_INTERFACE void EndPopulate(u32 writeOffset = 0) = 0;
+
+		/*
+		Description: Overload of EndPopulate that allows the user to specify regions of the staging buffer to copy.
+		Param:
+			BufferCopyRegion* regions: Array of structures detailing the regions of the staging buffer to copy.
+		*/
+		PARABLIT_INTERFACE void EndPopulate(BufferCopyRegion* regions, u32 regionCount) = 0;
 
 		/*
 		Description: Map the internal buffer and fill it with the provided data, then unmap it.

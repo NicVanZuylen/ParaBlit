@@ -68,11 +68,7 @@ DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, Vertex
     indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
     m_dynamicIndexUpdateBuffer = renderer->AllocateBuffer(indexUpdateBufferDesc);
 
-    PB::BufferObjectDesc instanceBufferDesc;
-    instanceBufferDesc.m_bufferSize = sizeof(DrawBatchInstanceData) * MaxObjects;
-    instanceBufferDesc.m_options = 0;
-    instanceBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::VERTEX | PB::EBufferUsage::COPY_DST;
-    m_instanceBuffer = renderer->AllocateBuffer(instanceBufferDesc);
+    m_instanceBuffer.Init(m_renderer, PB::EBufferUsage::STORAGE);
 
     PB::ComputePipelineDesc updatePipelineDesc;
     updatePipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_populate_indices.spv", allocator);
@@ -83,7 +79,6 @@ DrawBatch::~DrawBatch()
 {
     m_dispatchList->RemoveDispatchObject(m_dispatchHandle);
 
-    m_renderer->FreeBuffer(m_instanceBuffer);
     m_renderer->FreeBuffer(m_dynamicIndexBuffer);
     m_renderer->FreeBuffer(m_dynamicIndexUpdateBuffer);
 }
@@ -105,7 +100,7 @@ void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBat
     PB::ResourceView batchResources[] =
     {
         m_vertexPool->GetViewAsStorageBuffer(),
-        m_instanceBuffer->GetViewAsStorageBuffer()
+        m_instanceBuffer.GetBuffer()->GetViewAsStorageBuffer()
     };
     finalBindingLayout.m_resourceCount = bindings.m_resourceCount + _countof(batchResources);
 
@@ -149,7 +144,7 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     // Account for minimum work group count. This means workGroupCount isn't the actual work group count, but the amount of indices used for these work groups.
     entry.m_workGroupCount = (entry.m_workGroupCount / MinWorkGroupsPerObject) + (entry.m_workGroupCount % MinWorkGroupsPerObject ? 1 : 0);
 
-    DrawBatchInstanceData& instanceData = GetInstanceData()[entry.m_instanceIndex];
+    DrawBatchInstanceData& instanceData = *reinterpret_cast<DrawBatchInstanceData*>(m_instanceBuffer.MapElement(entry.m_instanceIndex, 0, sizeof(DrawBatchInstanceData)));
     memcpy(instanceData.m_modelMatrix, modelMatrix, sizeof(instanceData.m_modelMatrix));
     memcpy(instanceData.m_textures, textures, textureCount * sizeof(PB::ResourceView));
     instanceData.m_sampler = sampler;
@@ -161,8 +156,8 @@ void DrawBatch::UpdateInstanceModelMatrix(DrawBatchInstance instance, float* mod
 {
     assert(modelMatrix);
 
-    DrawBatchInstanceData& data = GetInstanceData()[m_dynamicUpdateQueue[instance].m_instanceIndex];
-    memcpy(data.m_modelMatrix, modelMatrix, sizeof(float) * 16);
+    PB::u8* data = m_instanceBuffer.MapElement(m_dynamicUpdateQueue[instance].m_instanceIndex, 0, sizeof(float) * 16);
+    memcpy(data, modelMatrix, sizeof(float) * 16);
 }
 
 void DrawBatch::RemoveInstance(DrawBatchInstance instance)
@@ -178,11 +173,7 @@ void DrawBatch::RemoveInstance(DrawBatchInstance instance)
 
 void DrawBatch::FinalizeUpdates()
 {
-    if (m_mappedInstanceData == nullptr)
-        return;
-
-    m_instanceBuffer->EndPopulate();
-    m_mappedInstanceData = nullptr;
+    m_instanceBuffer.FlushChanges();
 }
 
 void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
@@ -238,9 +229,4 @@ void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
     cmdContext->CmdBindResources(updateBindingLayout);
 
     cmdContext->CmdDispatch(totalWorkGroupIndex * MinWorkGroupsPerObject, 1, 1);
-}
-
-void DrawBatch::AddToDispatchList(PB::UniformBufferView mvpView)
-{
-    
 }

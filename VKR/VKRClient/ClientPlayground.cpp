@@ -99,11 +99,11 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 
 		m_mvpBuffer->EndPopulate();
 
-		/*m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[0], glm::value_ptr(model));
-		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[1], glm::value_ptr(model));
-		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[2], glm::value_ptr(model));
+		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[0], glm::value_ptr(modelCpy));
+		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[1], glm::value_ptr(modelCpy));
+		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[2], glm::value_ptr(modelCpy));
 
-		m_drawBatch->FinalizeUpdates();*/
+		m_drawBatch->FinalizeUpdates();
 	}
 	// ---------------------------------------------------------------------------------------------------------------
 

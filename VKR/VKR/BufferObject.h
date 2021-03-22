@@ -29,7 +29,11 @@ namespace PB
 
 		u8* BeginPopulate(u32 size = 0) override;
 
+		u32 StagingBufferOffset() override;
+
 		void EndPopulate(u32 writeOffset = 0) override;
+
+		void EndPopulate(BufferCopyRegion* regions, u32 regionCount) override;
 
 		void Populate(u8* data, u32 size) override;
 

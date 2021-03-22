@@ -48,6 +48,7 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DeferredLightingPass.h" />
     <ClInclude Include="Input.h" />
+    <ClInclude Include="ManagedInstanceBuffer.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="ObjectDispatcher.h" />
     <ClInclude Include="QuickIO.h" />

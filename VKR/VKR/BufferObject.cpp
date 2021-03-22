@@ -82,10 +82,28 @@ namespace PB
 		return m_stagingBuffer.Start();
 	}
 
+	u32 BufferObject::StagingBufferOffset()
+	{
+		return m_stagingBuffer.m_offset;
+	}
+
 	void BufferObject::EndPopulate(u32 writeOffset)
 	{
 		PB_ASSERT(m_stagingBuffer.m_mappedPtr);
 		CopyStagingBuffer(m_stagingBuffer, writeOffset);
+		m_stagingBuffer.m_mappedPtr = nullptr;
+	}
+
+	void BufferObject::EndPopulate(BufferCopyRegion* regions, u32 regionCount)
+	{
+		CommandContext internalContext;
+		MakeInternalContext(internalContext, m_renderer);
+		internalContext.Begin();
+
+		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), m_stagingBuffer.m_buffer, m_handle, regionCount, reinterpret_cast<const VkBufferCopy*>(regions));
+
+		internalContext.End();
+		internalContext.Return();
 		m_stagingBuffer.m_mappedPtr = nullptr;
 	}
 
