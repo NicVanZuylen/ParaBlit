@@ -256,9 +256,9 @@ namespace PB
 		m_physDeviceFeatures.features.multiViewport = false;
 		m_physDeviceFeatures.features.pipelineStatisticsQuery = false;
 
-		m_physDeviceDescIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_FALSE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind = VK_FALSE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind = VK_FALSE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+		m_physDeviceDescIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
 		m_physDeviceDescIndexingFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceDescIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceDescIndexingFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;

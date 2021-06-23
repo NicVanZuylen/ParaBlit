@@ -36,7 +36,7 @@ namespace PB
 
 	size_t SamplerDescHasher::operator()(const SamplerDesc& desc) const
 	{
-		PB_STATIC_ASSERT(sizeof(SamplerDesc) % 16 == 0, "SamplerDesc does not meet optimal alignment requirements for hashing.");
+		PB_STATIC_ASSERT(sizeof(SamplerDesc) % 8 == 0, "SamplerDesc does not meet optimal alignment requirements for hashing.");
 		return MurmurHash3_x64_64(&desc, sizeof(SamplerDesc), 0);
 	}
 
@@ -103,7 +103,12 @@ namespace PB
 		auto it = m_texViewCache.find(desc);
 		bool cacheMiss = it == m_texViewCache.end();
 		PB_ASSERT(cacheMiss == false);
-		m_descriptorRegistry.FreeView(EDescriptorType::DESCRIPTORTYPE_TEXTURE, it->second.m_descriptorIndex);
+
+		if(desc.m_expectedState == PB::ETextureState::SAMPLED)
+			m_descriptorRegistry.FreeView(EDescriptorType::DESCRIPTORTYPE_TEXTURE, it->second.m_descriptorIndex);
+		else if(desc.m_expectedState == PB::ETextureState::STORAGE)
+			m_descriptorRegistry.FreeView(EDescriptorType::DESCRIPTORTYPE_STORAGE_IMAGE, it->second.m_descriptorIndex);
+
 		vkDestroyImageView(m_device->GetHandle(), it->second.m_view, nullptr);
 		m_texViewCache.erase(it);
 	}
@@ -218,8 +223,15 @@ namespace PB
 		viewData.m_view = newView;
 		viewData.m_expectedState = desc.m_expectedState;
 
-		if(desc.m_expectedState == ETextureState::SAMPLED)
+		if (desc.m_expectedState == ETextureState::SAMPLED)
 			m_descriptorRegistry.RegisterView(viewData);
+		else if(desc.m_expectedState == ETextureState::STORAGE)
+		{
+			StorageImageViewData storageView;
+			storageView.m_view = newView;
+			m_descriptorRegistry.RegisterView(storageView);
+			viewData.m_descriptorIndex = storageView.m_descriptorIndex;
+		}
 		internalTex->RegisterView(desc);
 
 		return viewData;
@@ -257,13 +269,10 @@ namespace PB
 		{
 		case ESamplerFilter::NEAREST:
 			return VK_FILTER_NEAREST;
-			break;
 		case ESamplerFilter::BILINEAR:
 			return VK_FILTER_LINEAR;
-			break;
 		default:
 			return VK_FILTER_NEAREST;
-			break;
 		}
 	}
 
@@ -273,16 +282,14 @@ namespace PB
 		{
 		case ESamplerRepeatMode::REPEAT:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-			break;
 		case ESamplerRepeatMode::MIRRORED_REPEAT:
 			return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-			break;
-		case ESamplerRepeatMode::CLAMP:
+		case ESamplerRepeatMode::CLAMP_EDGE:
 			return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
-			break;
+		case ESamplerRepeatMode::CLAMP_BORDER:
+			return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 		default:
 			return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-			break;
 		}
 	}
 
@@ -292,13 +299,23 @@ namespace PB
 		{
 		case ESamplerFilter::NEAREST:
 			return VK_SAMPLER_MIPMAP_MODE_NEAREST;
-			break;
 		case ESamplerFilter::BILINEAR:
 			return VK_SAMPLER_MIPMAP_MODE_LINEAR;
-			break;
 		default:
 			return VK_SAMPLER_MIPMAP_MODE_NEAREST;
-			break;
+		}
+	}
+
+	inline VkBorderColor PBBorderColorToVkBorderColor(const ESamplerBorderColor& color)
+	{
+		switch (color)
+		{
+		case ESamplerBorderColor::BLACK:
+			return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		case ESamplerBorderColor::WHITE:
+			return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		default:
+			return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
 		}
 	}
 
@@ -312,13 +329,13 @@ namespace PB
 		samplerInfo.addressModeW = PBRepeatModeToVkSamplerAddressMode(desc.m_repeatMode);
 		samplerInfo.anisotropyEnable = desc.m_anisotropyLevels > 1.0f;
 		samplerInfo.maxAnisotropy = desc.m_anisotropyLevels;
-		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		samplerInfo.borderColor = PBBorderColorToVkBorderColor(desc.m_borderColor);
 		samplerInfo.minFilter = PBFilterToVKFilter(desc.m_filter);
 		samplerInfo.magFilter = PBFilterToVKFilter(desc.m_filter);
 		samplerInfo.mipmapMode = PBFilterToSamplerMipMode(desc.m_mipFilter);
 		samplerInfo.minLod = 0.0f;
 		samplerInfo.mipLodBias = 0.0f;
-		
+
 		SamplerData data{};
 		PB_ERROR_CHECK(vkCreateSampler(m_device->GetHandle(), &samplerInfo, nullptr, &data.m_sampler));
 		PB_BREAK_ON_ERROR;

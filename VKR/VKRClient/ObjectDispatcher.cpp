@@ -15,9 +15,22 @@ ObjectDispatchList::~ObjectDispatchList()
 	}
 
 	for (auto& list : m_dispatchSubLists)
-		m_generalAllocator->Free(list.second);
+	{
+		// Free all draw instructions.
+		ObjectDrawInstruction* instruction = list.second->m_instructionList;
+		while (instruction)
+		{
+			// Free binding storage.
+			if(instruction->m_bindingLayout.m_uniformBuffers)
+				m_bindingStorage.Free(reinterpret_cast<void*>(instruction->m_bindingLayout.m_uniformBuffers));
+			if(instruction->m_bindingLayout.m_resourceViews)
+				m_bindingStorage.Free(reinterpret_cast<void*>(instruction->m_bindingLayout.m_resourceViews));
 
-	// Binding storage memory doesn't really need to be freed, since the allocator will be destroyed here.
+			list.second->m_drawInstructionStorage.Free(instruction);
+			instruction = instruction->m_next;
+		}
+		m_generalAllocator->Free(list.second);
+	}
 }
 
 void ObjectDispatchList::Init(PB::IRenderer* renderer, CLib::Allocator* allocator)

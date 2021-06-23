@@ -53,7 +53,7 @@ namespace PB
 	enum class ETextureState : u16
 	{
 		NONE			=	0,
-		RAW				=	1,
+		STORAGE				=	1,
 		COLORTARGET		=	1 << 1,
 		DEPTHTARGET		=	1 << 2,
 		SAMPLED			=	1 << 3,
@@ -88,7 +88,8 @@ namespace PB
 		NONE			=	0,
 		COLOR			=	1,
 		DEPTHSTENCIL	=	1 << 1,
-		READ			=	1 << 2
+		READ			=	1 << 2,
+		STORAGE			=	1 << 3,
 	};
 	PB_DEFINE_ENUM_FIELD(AttachmentUsageFlags, EAttachmentUsage, u8)
 

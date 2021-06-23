@@ -9,12 +9,14 @@ namespace PB
 
 	struct TempBuffer
 	{
-		u8* Start() { return m_mappedPtr + m_offset; }
+		u8* Start() const { return m_mappedPtr + m_offset; }
+		u32 RealSize() const { return m_size - m_alignment; };
 
 		VkBuffer m_buffer;
 		u8* m_mappedPtr;
 		u32 m_offset;
 		u32 m_size;
+		u32 m_alignment;
 	};
 
 	class TempBufferAllocator
@@ -28,7 +30,7 @@ namespace PB
 		void Destroy();
 
 		// Allocate temporary buffer. Lifetime is for as long as the buffer's frame it was allocated for is in flight.
-		TempBuffer NewTempBuffer(u32 size, u32 frameIndex, EMemoryType memoryType = EMemoryType::HOST_VISIBLE);
+		TempBuffer NewTempBuffer(u32 size, u32 frameIndex, EMemoryType memoryType = EMemoryType::HOST_VISIBLE, u32 alignment = 4);
 
 	private:
 
@@ -49,7 +51,7 @@ namespace PB
 		{
 			void Unlink();
 			bool CanFit(u32 size);
-			void BuildView(TempBuffer& view, u32 size);
+			void BuildView(TempBuffer& view, u32 size, u32 alignment);
 
 			VkBuffer m_buffer;
 			VkDeviceMemory m_memory;

@@ -25,7 +25,9 @@ class VertexPool;
 class DrawBatch;
 class RenderGraph;
 
+class ShadowMapPass;
 class GBufferPass;
+class ShadowAccumPass;
 class DeferredLightingPass;
 
 class ClientPlayground
@@ -39,6 +41,8 @@ public:
 
 private:
 
+	static constexpr const uint32_t ShadowmapResolution = 4096;
+
 	// -------------------------------------------------------------------------
 	// Helper Functions
 	inline void InitResources();
@@ -50,6 +54,7 @@ private:
 
 	inline PB::Pipeline GetGBufferDrawBatchPipeline();
 	inline PB::BindingLayout GetGBufferDrawBatchBindings(PB::UniformBufferView& mvpView);
+	inline PB::Pipeline GetShadowDrawBatchPipeline();
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------
@@ -76,7 +81,9 @@ private:
 
 	// -------------------------------------------------------------------------
 	// Render Graph
+	ShadowMapPass* m_shadowmapPass = nullptr;
 	GBufferPass* m_gBufferPass = nullptr;
+	ShadowAccumPass* m_shadowAccumPass = nullptr;
 	DeferredLightingPass* m_deferredLightingPass = nullptr;
 	// -------------------------------------------------------------------------
 
@@ -103,9 +110,11 @@ private:
 	PB::ResourceView m_glassViews[4]{};
 	PB::ResourceView m_colorSampler = 0;
 
+	PBClient::Shader* m_shadowVertShader = nullptr;
 	PBClient::Shader* m_vertShader = nullptr;
 	PBClient::Shader* m_fragShader = nullptr;
 
+	ObjectDispatchList* m_geoShadowDispatchList = nullptr;
 	ObjectDispatchList* m_geoDispatchList = nullptr;
 	VertexPool* m_vertexPool = nullptr;
 	DrawBatch* m_drawBatch = nullptr;

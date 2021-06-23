@@ -78,6 +78,12 @@
     <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp">
       <Filter>CLib</Filter>
     </ClCompile>
+    <ClCompile Include="ShadowMapPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
+    <ClCompile Include="ShadowAccumPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -136,6 +142,12 @@
     </ClInclude>
     <ClInclude Include="ManagedInstanceBuffer.h">
       <Filter>RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowMapPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowAccumPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

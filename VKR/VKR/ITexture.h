@@ -54,17 +54,24 @@ namespace PB
 		bool operator == (const TextureViewDesc& other) const;
 	};
 
-	enum class ESamplerFilter
+	enum class ESamplerFilter : u8
 	{
 		NEAREST,
 		BILINEAR,
 	};
 
-	enum class ESamplerRepeatMode
+	enum class ESamplerRepeatMode : u8
 	{
 		REPEAT,
 		MIRRORED_REPEAT,
-		CLAMP,
+		CLAMP_EDGE,
+		CLAMP_BORDER,
+	};
+
+	enum class ESamplerBorderColor : u8
+	{
+		WHITE,
+		BLACK
 	};
 
 	struct SamplerDesc
@@ -72,6 +79,7 @@ namespace PB
 		ESamplerFilter m_filter = ESamplerFilter::BILINEAR;
 		ESamplerFilter m_mipFilter = ESamplerFilter::BILINEAR;
 		ESamplerRepeatMode m_repeatMode = ESamplerRepeatMode::REPEAT;
+		ESamplerBorderColor m_borderColor = ESamplerBorderColor::BLACK;
 		float m_anisotropyLevels = 0.0f;
 
 		bool operator == (const SamplerDesc& other) const;
@@ -111,6 +119,10 @@ namespace PB
 		PARABLIT_INTERFACE TextureView GetDefaultRTV() = 0;
 
 		PARABLIT_INTERFACE ResourceView GetView(TextureViewDesc& viewDesc) = 0;
+
+		PARABLIT_INTERFACE ResourceView GetDefaultSIV() = 0;
+
+		PARABLIT_INTERFACE ResourceView GetViewAsStorageImage(TextureViewDesc& viewDesc) = 0;
 
 		PARABLIT_INTERFACE TextureView GetRenderTargetView(TextureViewDesc& viewDesc) = 0;
 	};

@@ -88,8 +88,12 @@ private:
 	static_assert(sizeof(DrawBatchInstanceData) % 16 == 0);
 
 	VertexPool* m_vertexPool = nullptr;
-	ObjectDispatchList* m_dispatchList = nullptr;
-	ObjectDispatchList::DispatchObjectHandle m_dispatchHandle;
+	struct DispatchInfo
+	{
+		ObjectDispatchList* m_dispatchList = nullptr;
+		ObjectDispatchList::DispatchObjectHandle m_dispatchHandle;
+	};
+	CLib::Vector<DispatchInfo> m_dispatchInfos;
 	PB::Pipeline m_batchUpdatePipeline = 0;
 	PB::IRenderer* m_renderer = nullptr;
 	CLib::Allocator* m_allocator = nullptr;

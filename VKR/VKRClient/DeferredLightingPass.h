@@ -11,11 +11,11 @@ public:
 
 	~DeferredLightingPass();
 
-	void OnPreRenderPass(const RenderGraphInfo& info) override;
+	void OnPrePass(const RenderGraphInfo& info) override;
 
 	void OnPassBegin(const RenderGraphInfo& info) override;
 
-	void OnPostRenderPass(const RenderGraphInfo& info) override;
+	void OnPostPass(const RenderGraphInfo& info) override;
 
 	void SetOutputTexture(PB::ITexture* tex);
 

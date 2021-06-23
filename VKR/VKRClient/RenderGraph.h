@@ -10,8 +10,10 @@
 enum class EAttachmentFlags
 {
 	NONE = 0,
-	COPY_SRC = 1 << 0,
-	COPY_DST = 1 << 1
+	COPY_SRC = 1 << 0,			// Target will be copied to within the same pass.
+	COPY_DST = 1 << 1,			// Target will be copied from within the same pass.
+	SECONDARY_SAMPLED = 1 << 2,	// Target will also be sampled from within the same pass.
+	SECONDARY_STORAGE = 1 << 3,	// Target will also be used as a storage image within the same pass.
 };
 using AttachmentFlags = PB::EnumField<EAttachmentFlags>;
 
@@ -33,7 +35,8 @@ struct NodeDesc
 	uint32_t m_attachmentCount = 0;
 	uint32_t m_renderWidth = 0;
 	uint32_t m_renderHeight = 0;
-	bool useReusableCommandLists = false;
+	bool m_useReusableCommandLists = false;
+	bool m_computeOnlyPass = false;
 };
 
 class RenderGraph;
@@ -81,6 +84,7 @@ private:
 		uint32_t m_renderWidth = 0;
 		uint32_t m_renderHeight = 0;
 		bool m_useReusableCommandLists = false;
+		bool m_computeOnlyPass = false;
 	};
 
 	// Tracks the usage of named attachments

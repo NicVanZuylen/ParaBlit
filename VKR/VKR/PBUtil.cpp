@@ -10,7 +10,7 @@ namespace PB
         case VK_IMAGE_LAYOUT_UNDEFINED:
             return ETextureState::NONE;
         case VK_IMAGE_LAYOUT_GENERAL:
-            return ETextureState::RAW;
+            return ETextureState::STORAGE;
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
             return ETextureState::COLORTARGET;
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
@@ -46,7 +46,7 @@ namespace PB
         {
         case ETextureState::NONE:
             return VK_IMAGE_LAYOUT_UNDEFINED;
-        case ETextureState::RAW:
+        case ETextureState::STORAGE:
             return VK_IMAGE_LAYOUT_GENERAL;
         case ETextureState::COLORTARGET:
             return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -70,8 +70,8 @@ namespace PB
 	VkImageUsageFlags ConvertPBAvailableStatesToUsageFlags(TextureStateFlags availableStates)
 	{
         VkImageUsageFlags vkFlags = 0;
-        if (availableStates & ETextureState::RAW)
-            PB_NOT_IMPLEMENTED;
+        if (availableStates & ETextureState::STORAGE)
+            vkFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
         if (availableStates & ETextureState::COLORTARGET)
             vkFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         if (availableStates & ETextureState::DEPTHTARGET)
@@ -113,7 +113,7 @@ namespace PB
             return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             break;
         case ETextureState::SAMPLED:
-            return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             break;
         case ETextureState::COLORTARGET:
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -121,8 +121,8 @@ namespace PB
         case ETextureState::DEPTHTARGET:
             return VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             break;
-        case ETextureState::RAW:
-            PB_NOT_IMPLEMENTED;
+        case ETextureState::STORAGE:
+            return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
             break;
         case ETextureState::COPY_SRC:
             return VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -148,7 +148,7 @@ namespace PB
             return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             break;
         case ETextureState::SAMPLED:
-            return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             break;
         case ETextureState::COLORTARGET:
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -156,8 +156,8 @@ namespace PB
         case ETextureState::DEPTHTARGET:
             return VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             break;
-        case ETextureState::RAW:
-            PB_NOT_IMPLEMENTED;
+        case ETextureState::STORAGE:
+            return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
             break;
         case ETextureState::COPY_SRC:
             return VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -191,8 +191,8 @@ namespace PB
         case ETextureState::DEPTHTARGET:
             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             break;
-        case ETextureState::RAW:
-            PB_NOT_IMPLEMENTED;
+        case ETextureState::STORAGE:
+            return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
             break;
         case ETextureState::COPY_SRC:
             return VK_ACCESS_TRANSFER_READ_BIT;
@@ -227,8 +227,8 @@ namespace PB
         case ETextureState::DEPTHTARGET:
             return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             break;
-        case ETextureState::RAW:
-            PB_NOT_IMPLEMENTED;
+        case ETextureState::STORAGE:
+            return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
             break;
         case ETextureState::COPY_SRC:
             return VK_ACCESS_TRANSFER_READ_BIT;

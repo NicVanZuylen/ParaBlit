@@ -51,6 +51,10 @@ namespace PB
 
 		ResourceView GetView(TextureViewDesc& viewDesc) override;
 
+		ResourceView GetDefaultSIV() override;
+
+		ResourceView GetViewAsStorageImage(TextureViewDesc& viewDesc) override;
+
 		TextureView GetRenderTargetView(TextureViewDesc& viewDesc) override;
 
 		VkExtent3D GetExtent();

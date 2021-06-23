@@ -26,6 +26,8 @@ inline PB::TextureStateFlags TextureStateFromAttachmentUsage(PB::AttachmentUsage
 		stateFlags |= PB::ETextureState::DEPTHTARGET;
 	if (usage & PB::EAttachmentUsage::READ)
 		stateFlags |= PB::ETextureState::SAMPLED;
+	if (usage & PB::EAttachmentUsage::STORAGE)
+		stateFlags |= PB::ETextureState::STORAGE;
 	return stateFlags;
 }
 
@@ -36,7 +38,8 @@ void RenderGraphBuilder::AddNode(const NodeDesc& desc)
 	currentBuildNode.m_behaviour = desc.m_behaviour;
 	currentBuildNode.m_renderWidth = desc.m_renderWidth;
 	currentBuildNode.m_renderHeight = desc.m_renderHeight;
-	currentBuildNode.m_useReusableCommandLists = desc.useReusableCommandLists;
+	currentBuildNode.m_useReusableCommandLists = desc.m_useReusableCommandLists;
+	currentBuildNode.m_computeOnlyPass = desc.m_computeOnlyPass;
 
 	RG_ASSERT(desc.m_renderWidth > 0);
 	RG_ASSERT(desc.m_renderHeight > 0);
@@ -189,17 +192,21 @@ RenderGraph* RenderGraphBuilder::Build()
 			}
 		}
 
-		execNode->m_renderPass = m_renderer->GetRenderPassCache()->GetRenderPass(rpDesc);
-		execNode->m_behaviour->m_renderPass = execNode->m_renderPass;
+		// Compute only passes don't need framebuffers or render pass objects.
+		if (buildNode.m_computeOnlyPass == false)
+		{
+			execNode->m_renderPass = m_renderer->GetRenderPassCache()->GetRenderPass(rpDesc);
+			execNode->m_behaviour->m_renderPass = execNode->m_renderPass;
 
-		// Framebuffer
-		PB::FramebufferDesc fbDesc{};
-		memcpy(fbDesc.m_attachmentViews, validViews.Data(), sizeof(PB::TextureView) * validViews.Count());
-		fbDesc.m_width = buildNode.m_renderWidth;
-		fbDesc.m_height = buildNode.m_renderHeight;
-		fbDesc.m_renderPass = execNode->m_renderPass;
+			// Framebuffer
+			PB::FramebufferDesc fbDesc{};
+			memcpy(fbDesc.m_attachmentViews, validViews.Data(), sizeof(PB::TextureView) * validViews.Count());
+			fbDesc.m_width = buildNode.m_renderWidth;
+			fbDesc.m_height = buildNode.m_renderHeight;
+			fbDesc.m_renderPass = execNode->m_renderPass;
 
-		execNode->m_framebuffer = m_renderer->GetFramebufferCache()->GetFramebuffer(fbDesc);
+			execNode->m_framebuffer = m_renderer->GetFramebufferCache()->GetFramebuffer(fbDesc);
+		}
 	}
 
 	return graph;
@@ -218,6 +225,10 @@ void RenderGraphBuilder::TextureDescFromAttachmentMeta(const AttachmentMeta& met
 		outDesc.m_usageStates |= PB::ETextureState::COPY_SRC;
 	if (meta.m_flags & EAttachmentFlags::COPY_DST)
 		outDesc.m_usageStates |= PB::ETextureState::COPY_DST;
+	if (meta.m_flags & EAttachmentFlags::SECONDARY_SAMPLED)
+		outDesc.m_usageStates |= PB::ETextureState::SAMPLED;
+	if (meta.m_flags & EAttachmentFlags::SECONDARY_STORAGE)
+		outDesc.m_usageStates |= PB::ETextureState::STORAGE;
 }
 
 void RenderGraphBuilder::UpdateNamedAttachment(const AttachmentDesc& desc, uint32_t timePoint)
@@ -321,8 +332,8 @@ PB::ITexture* RenderGraphBuilder::FindTexture(const AttachmentMeta& meta, Render
 		
 			auto lhsScore = findScore(&lhs);
 			auto rhsScore = findScore(&rhs);
-		
-			return lhsScore >= rhsScore;
+
+			return lhsScore > rhsScore;
 		}
 
 	} compareData;
@@ -378,7 +389,7 @@ PB::TextureView RenderGraphBuilder::GetTextureView(const AttachmentMeta& meta, P
 	viewDesc.m_texture = meta.m_texture;
 	viewDesc.m_expectedState = expectedState;
 	
-	if(expectedState != PB::ETextureState::SAMPLED)
+	if(expectedState != PB::ETextureState::SAMPLED && expectedState != PB::ETextureState::STORAGE)
 		return meta.m_texture->GetRenderTargetView(viewDesc);
 	else
 		return meta.m_texture->GetView(viewDesc);
@@ -429,12 +440,14 @@ void RenderGraph::Execute()
 				cmdContext->CmdTransitionTexture(currentNode->m_attachments[i], currentNode->m_attachmentStates[i]);
 		}
 
-		currentNode->m_behaviour->OnPreRenderPass(m_passInfo);
-		cmdContext->CmdBeginRenderPass(currentNode->m_renderPass, currentNode->m_renderWidth, currentNode->m_renderHeight, currentNode->m_framebuffer, currentNode->m_clearColors, currentNode->m_attachmentCount, currentNode->m_useReusableCommandLists);
+		currentNode->m_behaviour->OnPrePass(m_passInfo);
+		if(m_passInfo.m_renderPass)
+			cmdContext->CmdBeginRenderPass(currentNode->m_renderPass, currentNode->m_renderWidth, currentNode->m_renderHeight, currentNode->m_framebuffer, currentNode->m_clearColors, currentNode->m_attachmentCount, currentNode->m_useReusableCommandLists);
 
 		currentNode->m_behaviour->OnPassBegin(m_passInfo);
-		cmdContext->CmdEndRenderPass();
-		currentNode->m_behaviour->OnPostRenderPass(m_passInfo);
+		if (m_passInfo.m_renderPass)
+			cmdContext->CmdEndRenderPass();
+		currentNode->m_behaviour->OnPostPass(m_passInfo);
 
 		currentNode = currentNode->m_next;
 	}

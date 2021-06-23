@@ -78,6 +78,26 @@ namespace PB
 		vkUpdateDescriptorSets(m_device->GetHandle(), 1, &ssboWrite, 0, nullptr);
 	}
 
+	void DescriptorRegistry::RegisterView(StorageImageViewData& storageImageData)
+	{
+		storageImageData.m_descriptorIndex = GetDescriptorIndex(EDescriptorType::DESCRIPTORTYPE_STORAGE_IMAGE);
+
+		VkWriteDescriptorSet storageImgWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
+		storageImgWrite.descriptorCount = 1;
+		storageImgWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		storageImgWrite.dstSet = m_masterSet;
+		storageImgWrite.dstBinding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_STORAGE_IMAGE);
+		storageImgWrite.dstArrayElement = storageImageData.m_descriptorIndex;
+
+		VkDescriptorImageInfo storageImageInfo;
+		storageImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		storageImageInfo.imageView = storageImageData.m_view;
+		storageImageInfo.sampler = VK_NULL_HANDLE;
+		storageImgWrite.pImageInfo = &storageImageInfo;
+
+		vkUpdateDescriptorSets(m_device->GetHandle(), 1, &storageImgWrite, 0, nullptr);
+	}
+
 	void DescriptorRegistry::FreeView(EDescriptorType type, u32 index)
 	{
 		if(index < DESCRIPTORINDEX_INVALID)
@@ -115,6 +135,7 @@ namespace PB
 		PB_ASSERT_MSG(MaxTextureDescriptors < m_device->GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindSampledImages, "MaxTextureDescriptors count not supported by device.");
 		PB_ASSERT_MSG(MaxSamplers < m_device->GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindSamplers, "MaxSamplers count not supported by device.");
 		PB_ASSERT_MSG(MaxSSBOs < m_device->GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindStorageBuffers, "MaxSSBOs count not supported by device.");
+		PB_ASSERT_MSG(MaxStorageImages < m_device->GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindStorageImages, "MaxStorageImages count not supported by device.");
 
 		VkDescriptorPoolSize& texPoolSize = poolSizes.PushBack();
 		texPoolSize.descriptorCount = MaxTextureDescriptors;
@@ -128,8 +149,12 @@ namespace PB
 		ssboPoolSize.descriptorCount = MaxSSBOs;
 		ssboPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 
+		VkDescriptorPoolSize& storageImagePoolSize = poolSizes.PushBack();
+		storageImagePoolSize.descriptorCount = MaxStorageImages;
+		storageImagePoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
 		VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr };
-		poolInfo.flags = 0;
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 		poolInfo.poolSizeCount = poolSizes.Count();
 		poolInfo.pPoolSizes = poolSizes.Data();
 		poolInfo.maxSets = 1;
@@ -148,13 +173,19 @@ namespace PB
 		// TODO: Should we really have one pair of descriptor sets to share across all shader stages? What is the performance impact of this?
 		VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
+		VkDescriptorBindingFlags commonBindingFlags
+		{
+			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+			VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
+		};
+
 		VkDescriptorSetLayoutBinding& texBinding = bindings.PushBack();
 		texBinding.binding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_TEXTURE);
 		texBinding.descriptorCount = MaxTextureDescriptors;
 		texBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		texBinding.pImmutableSamplers = nullptr;
 		texBinding.stageFlags = stageFlags;
-		bindingFlags.PushBack() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+		bindingFlags.PushBack() = commonBindingFlags;
 		
 		VkDescriptorSetLayoutBinding& samplerBinding = bindings.PushBack();
 		samplerBinding.binding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_SAMPLER);
@@ -162,7 +193,7 @@ namespace PB
 		samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 		samplerBinding.pImmutableSamplers = nullptr;
 		samplerBinding.stageFlags = stageFlags;
-		bindingFlags.PushBack() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+		bindingFlags.PushBack() = commonBindingFlags;
 
 		VkDescriptorSetLayoutBinding& ssboBinding = bindings.PushBack();
 		ssboBinding.binding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_STORAGE_BUFFER);
@@ -170,7 +201,15 @@ namespace PB
 		ssboBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		ssboBinding.pImmutableSamplers = nullptr;
 		ssboBinding.stageFlags = stageFlags;
-		bindingFlags.PushBack() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+		bindingFlags.PushBack() = commonBindingFlags;
+
+		VkDescriptorSetLayoutBinding& storageImgBinding = bindings.PushBack();
+		storageImgBinding.binding = static_cast<u32>(EDescriptorType::DESCRIPTORTYPE_STORAGE_IMAGE);
+		storageImgBinding.descriptorCount = MaxStorageImages;
+		storageImgBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		storageImgBinding.pImmutableSamplers = nullptr;
+		storageImgBinding.stageFlags = stageFlags;
+		bindingFlags.PushBack() = commonBindingFlags;
 
 		// Binding flags for the bindings above, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT is required for descriptor indexing.
 		VkDescriptorSetLayoutBindingFlagsCreateInfo masterBindingFlagsInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, nullptr };
@@ -178,7 +217,7 @@ namespace PB
 		masterBindingFlagsInfo.pBindingFlags = bindingFlags.Data();
 
 		VkDescriptorSetLayoutCreateInfo masterSetLayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr };
-		masterSetLayoutInfo.flags = 0;
+		masterSetLayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 		masterSetLayoutInfo.bindingCount = bindings.Count();
 		masterSetLayoutInfo.pBindings = bindings.Data();
 		masterSetLayoutInfo.pNext = &masterBindingFlagsInfo;

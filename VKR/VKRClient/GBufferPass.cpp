@@ -1,7 +1,5 @@
 #include "GBufferPass.h"
 
-#include "DrawBatch.h"
-
 using namespace PBClient;
 
 GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : RenderGraphBehaviour(renderer, allocator)
@@ -14,7 +12,7 @@ GBufferPass::~GBufferPass()
 {
 }
 
-void GBufferPass::OnPreRenderPass(const RenderGraphInfo& info)
+void GBufferPass::OnPrePass(const RenderGraphInfo& info)
 {
 	if (m_listRequiresUpdate)
 	{
@@ -29,7 +27,7 @@ void GBufferPass::OnPassBegin(const RenderGraphInfo& info)
 		m_geoDispatchList->Dispatch(info.m_commandContext, info.m_renderPass, info.m_frameBuffer);
 }
 
-void GBufferPass::OnPostRenderPass(const RenderGraphInfo& info)
+void GBufferPass::OnPostPass(const RenderGraphInfo& info)
 {
 	if (!m_outputTexture)
 		return;

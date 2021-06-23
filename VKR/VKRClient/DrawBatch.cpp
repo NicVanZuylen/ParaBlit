@@ -77,7 +77,8 @@ DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, Vertex
 
 DrawBatch::~DrawBatch()
 {
-    m_dispatchList->RemoveDispatchObject(m_dispatchHandle);
+    for (auto& info : m_dispatchInfos)
+        info.m_dispatchList->RemoveDispatchObject(info.m_dispatchHandle);
 
     m_renderer->FreeBuffer(m_dynamicIndexBuffer);
     m_renderer->FreeBuffer(m_dynamicIndexUpdateBuffer);
@@ -87,8 +88,6 @@ void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBat
 {
     assert(list);
     assert(drawBatchPipeline);
-
-    m_dispatchList = list;
 
     PB::DrawIndexedIndirectParams drawParams{};
 
@@ -112,7 +111,8 @@ void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBat
     }
     memcpy(&finalBindingLayout.m_resourceViews[bindings.m_resourceCount], batchResources, sizeof(PB::ResourceView) * _countof(batchResources));
 
-    m_dispatchHandle = m_dispatchList->AddObject(drawBatchPipeline, nullptr, m_dynamicIndexBuffer, finalBindingLayout, drawParams, nullptr);
+    auto dispatchHandle = list->AddObject(drawBatchPipeline, nullptr, m_dynamicIndexBuffer, finalBindingLayout, drawParams, nullptr);
+    m_dispatchInfos.PushBack() = { list, dispatchHandle };
     m_allocator->Free(finalBindingLayout.m_resourceViews);
 }
 
@@ -211,7 +211,8 @@ void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
     PB::DrawIndexedIndirectParams drawParams{};
     drawParams.indexCount = totalIndexCount;
     drawParams.instanceCount = 1;
-    m_dispatchList->SetIndirectParams(m_dispatchHandle, drawParams);
+    for(auto& info : m_dispatchInfos)
+        info.m_dispatchList->SetIndirectParams(info.m_dispatchHandle, drawParams);
 
     cmdContext->CmdBindPipeline(m_batchUpdatePipeline);
 

@@ -325,11 +325,11 @@ namespace PB
 
 	void CommandContext::CmdBindPipeline(Pipeline pipeline)
 	{
-		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
 
 		PipelineData* pipelineData = reinterpret_cast<PipelineData*>(pipeline);
 		m_activePipelineIsCompute = pipelineData->m_isCompute;
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true) || (m_reusable == true && m_activePipelineIsCompute));
 		VkPipelineBindPoint bindPoint = !m_activePipelineIsCompute ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
 
 		vkCmdBindPipeline(m_cmdBuffer, bindPoint, pipelineData->m_pipeline);
@@ -517,9 +517,8 @@ namespace PB
 		// ResourceViews are actually just descriptor indices, so we can just copy these.
 		static_assert(sizeof(ResourceView) == sizeof(u32), "ResourceViews need to be the same type as the descriptor index type, as they should be identical in size and format for direct copy.");
 
-		u32 copySize = layout.m_resourceCount * sizeof(u32);
-		memcpy(&dynamicIndices[offset], layout.m_resourceViews, copySize);
-		offset += copySize;
+		memcpy(&dynamicIndices[offset], layout.m_resourceViews, layout.m_resourceCount * sizeof(u32));
+		offset += layout.m_resourceCount;
 
 		// Dynamic indices are assigned, so they can be pushed.
 		vkCmdPushConstants(m_cmdBuffer, m_curPipelineLayout, m_activePipelineIsCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), 0, offset * sizeof(u32), dynamicIndices);

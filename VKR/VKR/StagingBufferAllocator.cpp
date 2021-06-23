@@ -39,17 +39,18 @@ namespace PB
 		}
 	}
 
-	TempBuffer TempBufferAllocator::NewTempBuffer(u32 size, u32 frameIndex, EMemoryType memoryType)
+	TempBuffer TempBufferAllocator::NewTempBuffer(u32 size, u32 frameIndex, EMemoryType memoryType, u32 alignment)
 	{
 		u32 memoryTypeIdx = static_cast<u32>(memoryType);
+		u32 requiredSize = size + alignment;
 		PageList& frameList = m_frameLists[frameIndex][memoryTypeIdx];
 
 		// Check if the last node owned by this frame has enough space...
 		PageListNode* lastOwnedNode = frameList.m_end;
-		if (lastOwnedNode && lastOwnedNode->CanFit(size))
+		if (lastOwnedNode && lastOwnedNode->CanFit(requiredSize))
 		{
 			TempBuffer returnView;
-			lastOwnedNode->BuildView(returnView, size);
+			lastOwnedNode->BuildView(returnView, requiredSize, alignment);
 			return returnView;
 		}
 
@@ -61,7 +62,7 @@ namespace PB
 			while (currentNode)
 			{
 				// Check for size and disregard allocated bytes, since this memory won't be in use by anything.
-				if (currentNode->m_size < size)
+				if (currentNode->m_size < requiredSize)
 				{
 					currentNode = currentNode->m_prev;
 					continue;
@@ -74,15 +75,15 @@ namespace PB
 				frameList.AppendNode(currentNode);
 
 				TempBuffer returnBuffer;
-				currentNode->BuildView(returnBuffer, size);
+				currentNode->BuildView(returnBuffer, requiredSize, alignment);
 				return returnBuffer;
 			}
 		}
 
 		// Allocate a new page node, since no others fit the requested size.
-		PageListNode* newNode = AllocatePageBuffer(memoryType, size);
+		PageListNode* newNode = AllocatePageBuffer(memoryType, requiredSize);
 		frameList.AppendNode(newNode);
-		if (size > MinPageSize && frameList.m_start != frameList.m_end)
+		if (requiredSize > MinPageSize && frameList.m_start != frameList.m_end)
 		{
 			PB_LOG_FORMAT("Warning: Allocating massive temporary buffer of size: %u that exceeds the page size of %u. It is recommended that the maximum staged bytes per frame should be limited to a low multiple of %u.", size, MinPageSize, MinPageSize);
 
@@ -92,7 +93,7 @@ namespace PB
 		}
 
 		TempBuffer returnBuffer;
-		newNode->BuildView(returnBuffer, size);
+		newNode->BuildView(returnBuffer, requiredSize, alignment);
 		return returnBuffer;
 	}
 
@@ -256,11 +257,12 @@ namespace PB
 		return m_size - m_bytesAllocated >= size;
 	}
 
-	void TempBufferAllocator::PageListNode::BuildView(TempBuffer& view, u32 size)
+	void TempBufferAllocator::PageListNode::BuildView(TempBuffer& view, u32 size, u32 alignment)
 	{
 		view.m_buffer = m_buffer;
 		view.m_mappedPtr = m_mappedMemory;
-		view.m_offset = m_bytesAllocated;
+		view.m_offset = m_bytesAllocated + (m_bytesAllocated % alignment);
+		view.m_alignment = alignment;
 
 		m_bytesAllocated += size;
 		view.m_size = size;

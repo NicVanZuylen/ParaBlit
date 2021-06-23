@@ -160,6 +160,21 @@ namespace PB
 		return m_renderer->GetViewCache()->GetTextureView(viewDesc);
 	}
 
+	ResourceView Texture::GetDefaultSIV()
+	{
+		TextureViewDesc defaultSIVDesc;
+		defaultSIVDesc.m_expectedState = ETextureState::STORAGE;
+		defaultSIVDesc.m_format = m_format;
+		defaultSIVDesc.m_texture = this;
+		return m_renderer->GetViewCache()->GetTextureView(defaultSIVDesc);
+	}
+
+	ResourceView Texture::GetViewAsStorageImage(TextureViewDesc& viewDesc)
+	{
+		viewDesc.m_texture = this;
+		return m_renderer->GetViewCache()->GetTextureView(viewDesc);
+	}
+
 	TextureView Texture::GetRenderTargetView(TextureViewDesc& viewDesc)
 	{
 		viewDesc.m_texture = this;
@@ -281,7 +296,7 @@ namespace PB
 			MakeInternalContext(internalContext, m_renderer);
 			internalContext.Begin();
 
-			if (m_currentState != ETextureState::COPY_DST && m_currentState != ETextureState::RAW)
+			if (m_currentState != ETextureState::COPY_DST && m_currentState != ETextureState::STORAGE)
 			{
 				SubresourceRange pbSubresourceRange;
 				pbSubresourceRange.m_baseMip = 0; // TODO: Support for subresources.
@@ -317,7 +332,8 @@ namespace PB
 		}
 		else if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA)
 		{
-			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentSwapchainImageIndex());
+			// TODO: Alignment needs to be the size of a texel. Right now we're assuming the worst-case scenario rather than checking the format texel size.
+			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentSwapchainImageIndex(), PB::EMemoryType::HOST_VISIBLE, 16);
 			memcpy(stagingBuffer.Start(), desc.m_data.m_data, desc.m_data.m_size);
 
 			PB::CommandContext internalContext;

@@ -25,11 +25,11 @@ public:
 
 	RenderGraphBehaviour(PB::IRenderer* renderer, CLib::Allocator* allocator);
 
-	virtual void OnPreRenderPass(const RenderGraphInfo& info) = 0;
+	virtual void OnPrePass(const RenderGraphInfo& info) = 0;
 
 	virtual void OnPassBegin(const RenderGraphInfo& info) = 0;
 
-	virtual void OnPostRenderPass(const RenderGraphInfo& info) = 0;
+	virtual void OnPostPass(const RenderGraphInfo& info) = 0;
 
 	PB::RenderPass GetRenderPass() { return m_renderPass; };
 

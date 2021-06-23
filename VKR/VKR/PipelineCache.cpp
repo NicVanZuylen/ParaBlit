@@ -247,7 +247,7 @@ namespace PB
 		depthStencilState.stencilTestEnable = desc.m_stencilTestEnable;
 		depthStencilState.flags = 0;
 
-		PB_ASSERT(desc.m_attachmentCount > 0);
+		PB_ASSERT(desc.m_attachmentCount > 0 || !desc.m_shaderModules[static_cast<u32>(EGraphicsShaderStage::FRAGMENT)]);
 		CLib::Vector<VkPipelineColorBlendAttachmentState, 8> colorBlendAttachmentStates;
 		for (u32 i = 0; i < desc.m_attachmentCount; ++i)
 		{
@@ -289,6 +289,9 @@ namespace PB
 		CLib::Vector<VkPipelineShaderStageCreateInfo, static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT)> shaderStages;
 		for (u32 i = 0; i < static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT); ++i)
 		{
+			if (!desc.m_shaderModules[i])
+				continue;
+
 			VkPipelineShaderStageCreateInfo stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr };
 			stage.flags = 0;
 			stage.module = reinterpret_cast<VkShaderModule>(desc.m_shaderModules[i]);
@@ -313,7 +316,7 @@ namespace PB
 		pipelineInfo.pMultisampleState = &multisampleState;
 		pipelineInfo.pRasterizationState = &rasterState;
 		pipelineInfo.pDepthStencilState = &depthStencilState;
-		pipelineInfo.pColorBlendState = &colorBlendState;
+		pipelineInfo.pColorBlendState = desc.m_attachmentCount > 0 ? &colorBlendState : nullptr;
 
 		pipelineInfo.pStages = shaderStages.Data();
 		pipelineInfo.stageCount = shaderStages.Count();

@@ -1,5 +1,7 @@
 #include "DeferredLightingPass.h"
 
+#include <random>
+
 using namespace PBClient;
 
 DeferredLightingPass::DeferredLightingPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : RenderGraphBehaviour(renderer, allocator)
@@ -23,13 +25,13 @@ DeferredLightingPass::DeferredLightingPass(PB::IRenderer* renderer, CLib::Alloca
 	gBufferSamplerDesc.m_anisotropyLevels = 1.0f;
 	gBufferSamplerDesc.m_filter = PB::ESamplerFilter::NEAREST;
 	gBufferSamplerDesc.m_mipFilter = PB::ESamplerFilter::NEAREST;
-	gBufferSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP;
+	gBufferSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
 	m_gBufferSampler = renderer->GetSampler(gBufferSamplerDesc);
 
 	m_pointLightVolumeMesh.Init(m_renderer, "TestAssets/Primitives/sphere.obj");
 
 	m_screenQuadShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/vs_screenQuad.spv", m_allocator);
-	m_defDirLightShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/fs_def_directional_light.spv", m_allocator);
+	m_defDirLightShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/fs_def_directional_light_shadow.spv", m_allocator);
 	m_pointLightVTXShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/vs_obj_point_light.spv", m_allocator);
 	m_pointLightShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/fs_def_point_light.spv", m_allocator);
 
@@ -55,9 +57,9 @@ DeferredLightingPass::~DeferredLightingPass()
 	m_renderer->FreeBuffer(m_pointLightIndirectParamsBuffer);
 }
 
-void DeferredLightingPass::OnPreRenderPass(const RenderGraphInfo& info)
+void DeferredLightingPass::OnPrePass(const RenderGraphInfo& info)
 {
-	
+
 }
 
 void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
@@ -92,21 +94,22 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		auto renderWidth = info.m_renderer->GetSwapchain()->GetWidth();
 		auto renderHeight = info.m_renderer->GetSwapchain()->GetHeight();
 
-		PB::UniformBufferView bufferViews[2] = { m_mvpBuffer->GetViewAsUniformBuffer(), m_dirLightingView };
-		PB::ResourceView resourceViews[5]
+		PB::UniformBufferView dirBufferViews[] = { m_mvpBuffer->GetViewAsUniformBuffer(), m_dirLightingView };
+		PB::ResourceView dirResourceViews[]
 		{
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[0]),
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[1]),
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[2]),
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[3]),
-			m_gBufferSampler
+			static_cast<PB::ResourceView>(info.m_renderTargetViews[4]),
+			m_gBufferSampler,
 		};
 
-		PB::BindingLayout bindingLayout{};
-		bindingLayout.m_uniformBufferCount = _countof(bufferViews);
-		bindingLayout.m_uniformBuffers = bufferViews;
-		bindingLayout.m_resourceCount = _countof(resourceViews);
-		bindingLayout.m_resourceViews = resourceViews;
+		PB::BindingLayout dirBindingLayout{};
+		dirBindingLayout.m_uniformBufferCount = _countof(dirBufferViews);
+		dirBindingLayout.m_uniformBuffers = dirBufferViews;
+		dirBindingLayout.m_resourceCount = _countof(dirResourceViews);
+		dirBindingLayout.m_resourceViews = dirResourceViews;
 
 		if (m_dirLightingPipeline == 0)
 		{
@@ -127,7 +130,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		// Directional lighting
 		{
 			scopedContext->CmdBindPipeline(m_dirLightingPipeline);
-			scopedContext->CmdBindResources(bindingLayout);
+			scopedContext->CmdBindResources(dirBindingLayout);
 			scopedContext->CmdDraw(6, 1);
 		}
 
@@ -153,10 +156,24 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		// Point lighting
 		if (m_pointLightCount > 0)
 		{
-			bufferViews[1] = m_pointLightingView;
+			PB::UniformBufferView pntBufferViews[] = { m_mvpBuffer->GetViewAsUniformBuffer(), m_pointLightingView };
+			PB::ResourceView pntResourceViews[]
+			{
+				static_cast<PB::ResourceView>(info.m_renderTargetViews[0]),
+				static_cast<PB::ResourceView>(info.m_renderTargetViews[1]),
+				static_cast<PB::ResourceView>(info.m_renderTargetViews[2]),
+				static_cast<PB::ResourceView>(info.m_renderTargetViews[3]),
+				m_gBufferSampler,
+			};
+
+			PB::BindingLayout pntBindingLayout{};
+			pntBindingLayout.m_uniformBufferCount = _countof(pntBufferViews);
+			pntBindingLayout.m_uniformBuffers = pntBufferViews;
+			pntBindingLayout.m_resourceCount = _countof(pntResourceViews);
+			pntBindingLayout.m_resourceViews = pntResourceViews;
 
 			scopedContext->CmdBindPipeline(m_pointLightingPipeline);
-			scopedContext->CmdBindResources(bindingLayout);
+			scopedContext->CmdBindResources(pntBindingLayout);
 			scopedContext->CmdBindVertexBuffer(m_pointLightVolumeMesh.GetVertexBuffer(), m_pointLightVolumeMesh.GetIndexBuffer(), PB::EIndexType::PB_INDEX_TYPE_UINT32);
 			scopedContext->CmdDrawIndexedIndirect(m_pointLightIndirectParamsBuffer, 0);
 		}
@@ -170,9 +187,12 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 	info.m_commandContext->CmdExecuteList(m_reusableCmdList);
 }
 
-void DeferredLightingPass::OnPostRenderPass(const RenderGraphInfo& info)
+void DeferredLightingPass::OnPostPass(const RenderGraphInfo& info)
 {
-	constexpr uint32_t outputTarget = 4;
+	constexpr uint32_t outputTarget = 5;
+
+	if (!m_outputTexture)
+		return;
 
 	// Transition color and output to correct layouts...
 	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[outputTarget], PB::ETextureState::COPY_SRC);

@@ -247,10 +247,10 @@ namespace PB
 		MakeInternalContext(internalContext, m_renderer);
 		internalContext.Begin();
 
-		PB_ASSERT(buffer.m_size <= m_size - writeOffset);
+		PB_ASSERT(buffer.RealSize() <= m_size - writeOffset);
 
 		// Staging buffers don't use the IBufferObject API, so we'll have to issue the copy command here.
-		VkBufferCopy copyRegion{ buffer.m_offset, writeOffset, buffer.m_size };
+		VkBufferCopy copyRegion{ buffer.m_offset, writeOffset, buffer.RealSize() };
 		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), buffer.m_buffer, m_handle, 1, &copyRegion);
 
 		internalContext.End();
