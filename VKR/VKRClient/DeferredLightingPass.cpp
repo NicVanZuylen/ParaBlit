@@ -1,4 +1,5 @@
 #include "DeferredLightingPass.h"
+#include "RenderGraph.h"
 
 #include <random>
 
@@ -102,6 +103,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[2]),
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[3]),
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[4]),
+			static_cast<PB::ResourceView>(info.m_renderTargetViews[5]),
 			m_gBufferSampler,
 		};
 
@@ -114,9 +116,9 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		if (m_dirLightingPipeline == 0)
 		{
 			PB::GraphicsPipelineDesc lightingPipelineDesc{};
-			lightingPipelineDesc.m_attachmentCount = 1;
+			lightingPipelineDesc.m_attachmentCount = 2;
 			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
-			lightingPipelineDesc.m_renderArea = { 0, 0, renderWidth, renderHeight };
+			lightingPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 			lightingPipelineDesc.m_stencilTestEnable = false;
 			lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 			lightingPipelineDesc.m_subpass = 0;
@@ -130,6 +132,8 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		// Directional lighting
 		{
 			scopedContext->CmdBindPipeline(m_dirLightingPipeline);
+			scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+			scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
 			scopedContext->CmdBindResources(dirBindingLayout);
 			scopedContext->CmdDraw(6, 1);
 		}
@@ -137,9 +141,9 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		if (m_pointLightingPipeline == 0)
 		{
 			PB::GraphicsPipelineDesc lightingPipelineDesc{};
-			lightingPipelineDesc.m_attachmentCount = 1;
+			lightingPipelineDesc.m_attachmentCount = 2;
 			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
-			lightingPipelineDesc.m_renderArea = { 0, 0, renderWidth, renderHeight };
+			lightingPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 			lightingPipelineDesc.m_stencilTestEnable = false;
 			lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 			lightingPipelineDesc.m_subpass = 0;
@@ -149,6 +153,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 			lightingPipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
 			lightingPipelineDesc.m_vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT4 };
 			lightingPipelineDesc.m_colorBlendStates[0] = PB::GraphicsPipelineDesc::DefaultBlendState();
+			lightingPipelineDesc.m_colorBlendStates[1] = PB::GraphicsPipelineDesc::DefaultBlendState();
 
 			m_pointLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
 		}
@@ -162,7 +167,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 				static_cast<PB::ResourceView>(info.m_renderTargetViews[0]),
 				static_cast<PB::ResourceView>(info.m_renderTargetViews[1]),
 				static_cast<PB::ResourceView>(info.m_renderTargetViews[2]),
-				static_cast<PB::ResourceView>(info.m_renderTargetViews[3]),
+				static_cast<PB::ResourceView>(info.m_renderTargetViews[4]),
 				m_gBufferSampler,
 			};
 
@@ -195,14 +200,94 @@ void DeferredLightingPass::OnPostPass(const RenderGraphInfo& info)
 		return;
 
 	// Transition color and output to correct layouts...
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[outputTarget], PB::ETextureState::COPY_SRC);
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST);
+	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[outputTarget], PB::ETextureState::COLORTARGET, PB::ETextureState::COPY_SRC);
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT, PB::ETextureState::COPY_DST);
 
 	// Copy color to output.
 	info.m_commandContext->CmdCopyTextureToTexture(info.m_renderTargets[outputTarget], m_outputTexture);
 
 	// Transition output texture to present.
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT);
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST, PB::ETextureState::PRESENT);
+	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[outputTarget], PB::ETextureState::COPY_SRC, PB::ETextureState::COLORTARGET);
+}
+
+void DeferredLightingPass::AddToRenderGraph(RenderGraphBuilder* builder)
+{
+	if (m_reusableCmdList)
+	{
+		m_renderer->FreeCommandList(m_reusableCmdList);
+		m_reusableCmdList = nullptr;
+	}
+
+	NodeDesc nodeDesc{};
+	nodeDesc.m_behaviour = this;
+	nodeDesc.m_useReusableCommandLists = true;
+
+	PB::ISwapChain* swapchain = m_renderer->GetSwapchain();
+
+	// Read G Buffers
+	AttachmentDesc& colorReadDesc = nodeDesc.m_attachments[0];
+	colorReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+	colorReadDesc.m_width = swapchain->GetWidth();
+	colorReadDesc.m_height = swapchain->GetHeight();
+	colorReadDesc.m_name = "G_Color";
+	colorReadDesc.m_usage = PB::EAttachmentUsage::READ;
+
+	AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
+	normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+	normalDesc.m_width = swapchain->GetWidth();
+	normalDesc.m_height = swapchain->GetHeight();
+	normalDesc.m_name = "G_Normal";
+	normalDesc.m_usage = PB::EAttachmentUsage::READ;
+
+	AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments[2];
+	specAndRoughDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+	specAndRoughDesc.m_width = swapchain->GetWidth();
+	specAndRoughDesc.m_height = swapchain->GetHeight();
+	specAndRoughDesc.m_name = "G_SpecAndRough";
+	specAndRoughDesc.m_usage = PB::EAttachmentUsage::READ;
+
+	AttachmentDesc& emissionDesc = nodeDesc.m_attachments[3];
+	emissionDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+	emissionDesc.m_width = swapchain->GetWidth();
+	emissionDesc.m_height = swapchain->GetHeight();
+	emissionDesc.m_name = "G_Emission";
+	emissionDesc.m_usage = PB::EAttachmentUsage::READ;
+
+	AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[4];
+	depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+	depthReadDesc.m_width = swapchain->GetWidth();
+	depthReadDesc.m_height = swapchain->GetHeight();
+	depthReadDesc.m_name = "G_Depth";
+	depthReadDesc.m_usage = PB::EAttachmentUsage::READ;
+
+	AttachmentDesc& shadowMaskReadDesc = nodeDesc.m_attachments[5];
+	shadowMaskReadDesc.m_format = PB::ETextureFormat::R8_UNORM;
+	shadowMaskReadDesc.m_width = swapchain->GetWidth();
+	shadowMaskReadDesc.m_height = swapchain->GetHeight();
+	shadowMaskReadDesc.m_name = "ShadowMaskA";
+	shadowMaskReadDesc.m_usage = PB::EAttachmentUsage::READ;
+
+	// Output
+	AttachmentDesc& colorDesc = nodeDesc.m_attachments[6];
+	colorDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+	colorDesc.m_width = swapchain->GetWidth();
+	colorDesc.m_height = swapchain->GetHeight();
+	colorDesc.m_name = "LightingColorOutput";
+	colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
+
+	AttachmentDesc& sdrColorDesc = nodeDesc.m_attachments[7];
+	sdrColorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+	sdrColorDesc.m_width = swapchain->GetWidth();
+	sdrColorDesc.m_height = swapchain->GetHeight();
+	sdrColorDesc.m_name = "LightingColorOutputSDR";
+	sdrColorDesc.m_usage = PB::EAttachmentUsage::COLOR;
+
+	nodeDesc.m_attachmentCount = 8;
+	nodeDesc.m_renderWidth = colorDesc.m_width;
+	nodeDesc.m_renderHeight = colorDesc.m_height;
+
+	builder->AddNode(nodeDesc);
 }
 
 void DeferredLightingPass::SetOutputTexture(PB::ITexture* tex)
@@ -224,8 +309,11 @@ void DeferredLightingPass::SetDirectionalLight(uint32_t index, PB::Float4 direct
 	lights.m_lights[index].m_direction = direction;
 	lights.m_lights[index].m_color = color;
 
-	if(lights.m_lightCount <= index)
-		m_mappedLightingBuffer->m_directionalLights.m_lightCount = index + 1;
+	if(m_directionalLightCount <= index)
+		m_directionalLightCount = index + 1;
+
+	lights.m_lightCount = static_cast<int32_t>(m_directionalLightCount);
+	lights.m_emissionIntensityScale = 2.0f;
 }
 
 void DeferredLightingPass::SetPointLight(uint32_t index, PB::Float4 position, PB::Float3 color, float radius)

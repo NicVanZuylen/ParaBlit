@@ -48,6 +48,7 @@ layout(location = 0) in FS_IN fsInput;
 layout(location = 1) flat in int instanceIndex;
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outColorSDR;
 
 float OrenNayarDiff(vec3 normal, vec3 lightDir, vec3 surfToCam, float roughness) 
 {
@@ -56,8 +57,8 @@ float OrenNayarDiff(vec3 normal, vec3 lightDir, vec3 surfToCam, float roughness)
     float A = 1.0f - (0.5f * (roughSqr / (roughSqr + 0.33f)));
 	float B = 0.45f * (roughSqr / (roughSqr + 0.09f));
 
-	float normalDotLight = max(dot(normal, lightDir), 0.0f);
-	float normalDotSurfToCam = max(dot(normal, surfToCam), 0.0f);
+	float normalDotLight = dot(normal, lightDir);
+	float normalDotSurfToCam = dot(normal, surfToCam);
 
 	vec3 lightProj = normalize(lightDir - (normal * normalDotLight));
 	vec3 viewProj = normalize(surfToCam - (normal * normalDotSurfToCam));
@@ -69,7 +70,8 @@ float OrenNayarDiff(vec3 normal, vec3 lightDir, vec3 surfToCam, float roughness)
 
 	float dx = alpha * beta;
 
-	return normalDotLight * (A + B * cx * dx);
+    normalDotLight = max(normalDotLight, 0.0f);
+	return clamp(normalDotLight * (A + B * cx * dx), 0.0f, 1.0f);
 }
 
 #define PI 3.14159265359f
@@ -192,4 +194,5 @@ void main()
     vec3 spec = cookTorrence * specular * light.color;
 
     outColor += vec4((diffuse + spec) * attenuation * color, 1.0);
+    outColorSDR = outColor;
 }

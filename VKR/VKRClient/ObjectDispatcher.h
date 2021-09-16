@@ -37,13 +37,17 @@ public:
 	ObjectDispatchList() = default;
 	~ObjectDispatchList();
 
-	void Init(PB::IRenderer* renderer, CLib::Allocator* allocator);
+	void Init(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::Rect renderArea);
 
 	DispatchObjectHandle AddObject(PB::Pipeline pipeline, const PB::IBufferObject* vertexBuffer, const PB::IBufferObject* indexBuffer, PB::BindingLayout bindingLayout, PB::DrawIndexedIndirectParams drawParams, const PB::IBufferObject* instanceBuffer);
 
 	void RemoveDispatchObject(DispatchObjectHandle& handle);
 
 	void SetIndirectParams(DispatchObjectHandle handle, PB::DrawIndexedIndirectParams params);
+
+	void FlushCommandLists();
+
+	void UpdateRenderArea(PB::Rect renderArea);
 
 	void Update(PB::ICommandContext* commandContext);
 
@@ -105,6 +109,7 @@ private:
 
 	PB::IRenderer* m_renderer = nullptr;
 	CLib::Allocator* m_generalAllocator = nullptr;
+	PB::Rect m_renderArea{ 0, 0, 0, 0 };
 	CLib::Allocator m_bindingStorage{ sizeof(void*) * 256 };
 	CLib::Vector<IndirectParamsPage> m_indirectParamsPages;
 	CLib::Vector<IndirectParamsLocation, 8, 8> m_indirectParamsFreeList; // Offsets of free indirect draw parameter blocks in the indirect parameters buffer.

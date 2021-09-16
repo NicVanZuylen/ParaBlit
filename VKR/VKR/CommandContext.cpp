@@ -152,7 +152,7 @@ namespace PB
 		}
 	}
 
-	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists)
+	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, RenderTargetView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists)
 	{
 		ValidateRecordingState();
 		PB_ASSERT(renderPass);
@@ -278,18 +278,16 @@ namespace PB
 		vkCmdClearAttachments(m_cmdBuffer, targetCount, clearAttachments.Data(), targetCount, clearRects.Data());
 	}
 
-	void CommandContext::CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange)
+	void CommandContext::CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange)
 	{
 		ValidateRecordingState();
 		PB_ASSERT(texture);
 		PB_ASSERT(newState < ETextureState::MAX);
 
-		Texture* internalTex = reinterpret_cast<Texture*>(texture);
-
-		auto oldState = internalTex->GetState();
-
 		if (oldState == newState)
 			return;
+
+		Texture* internalTex = reinterpret_cast<Texture*>(texture);
 
 		PB_ASSERT((internalTex->GetUsage() & newState) > 0);
 
@@ -306,9 +304,15 @@ namespace PB
 
 		barrierSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		if (internalTex->HasDepthPlane())
+		{
+			PB_ASSERT(subResourceRange.m_mipCount == 1);
 			barrierSubresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		}
 		if (internalTex->HasStencilPlane())
+		{
+			PB_ASSERT(subResourceRange.m_mipCount == 1);
 			barrierSubresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
 
 		barrierSubresourceRange.baseMipLevel = subResourceRange.m_baseMip;
 		barrierSubresourceRange.levelCount = subResourceRange.m_mipCount;
@@ -320,7 +324,6 @@ namespace PB
 
 		// TODO: Add functionality to batch transitions with the same stage masks. Batching will be optional is it may affect transition order.
 		vkCmdPipelineBarrier(m_cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
-		internalTex->SetState(newState);
 	}
 
 	void CommandContext::CmdBindPipeline(Pipeline pipeline)
@@ -341,6 +344,24 @@ namespace PB
 
 		// Reset UBO binding state.
 		m_bindingState->Clear();
+	}
+
+	void CommandContext::SetViewport(PB::Rect viewRect, float minDepth, float maxDepth)
+	{
+		VkViewport viewport;
+		viewport.x = static_cast<float>(viewRect.x);
+		viewport.y = static_cast<float>(viewRect.y);
+		viewport.width = static_cast<float>(viewRect.w);
+		viewport.height = static_cast<float>(viewRect.h);
+		viewport.minDepth = minDepth;
+		viewport.maxDepth = maxDepth;
+
+		vkCmdSetViewport(m_cmdBuffer, 0, 1, &viewport);
+	}
+
+	void CommandContext::SetScissor(PB::Rect scissorRect)
+	{
+		vkCmdSetScissor(m_cmdBuffer, 0, 1, reinterpret_cast<VkRect2D*>(&scissorRect));
 	}
 
 	void CommandContext::CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType)
@@ -450,7 +471,7 @@ namespace PB
 		ValidateRecordingState();
 		ValidatePipelineState(m_activePipelineIsCompute); // This command function supports both compute and graphics.
 
-		constexpr u32 MaxBindings = MaxPushConstantBytes / sizeof(u32);
+		static constexpr const u32 MaxBindings = MaxPushConstantBytes / sizeof(u32);
 
 		PB_ASSERT_MSG(m_curPipelineLayout != VK_NULL_HANDLE, "A pipeline must be bound before shader resources are bound.");
 		PB_ASSERT_MSG(layout.m_uniformBufferCount <= m_device->GetDescriptorIndexingProperties()->maxDescriptorSetUpdateAfterBindUniformBuffers - 1, "Attempting to bind too many buffers.");
@@ -532,9 +553,10 @@ namespace PB
 		PB::Texture* srcInternal = reinterpret_cast<PB::Texture*>(src);
 		PB::Texture* dstInternal = reinterpret_cast<PB::Texture*>(dst);
 
-		PB_ASSERT(srcInternal->GetUsage() & ETextureState::COPY_SRC && dstInternal->GetUsage() & ETextureState::COPY_DST);
+		PB_ASSERT_MSG(srcInternal->GetUsage() & ETextureState::COPY_SRC && dstInternal->GetUsage() & ETextureState::COPY_DST, "Src and Dst image layouts are incorrect.");
 		PB_ASSERT(dstInternal->GetExtent().width >= srcInternal->GetExtent().width && dstInternal->GetExtent().height >= srcInternal->GetExtent().height);
 		PB_ASSERT((srcInternal->HasDepthPlane() && dstInternal->HasDepthPlane()) || (!srcInternal->HasDepthPlane() && !dstInternal->HasDepthPlane()));
+		PB_ASSERT_MSG(srcInternal->GetMipCount() == dstInternal->GetMipCount(), "Src and Dst mip count must be equal.");
 
 		VkImageCopy region;
 		region.dstOffset = { 0, 0, 0 };
@@ -544,9 +566,15 @@ namespace PB
 		auto& srcSubresource = region.srcSubresource;
 		srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		if (srcInternal->HasDepthPlane())
+		{
+			PB_ASSERT(srcInternal->GetMipCount() == 1);
 			srcSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		}
 		if (srcInternal->HasStencilPlane())
+		{
+			PB_ASSERT(srcInternal->GetMipCount() == 1);
 			srcSubresource.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
 
 		srcSubresource.baseArrayLayer = 0;
 		srcSubresource.layerCount = 1;

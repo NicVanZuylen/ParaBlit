@@ -3,6 +3,8 @@
 #include "Shader.h"
 #include "Mesh.h"
 
+class RenderGraphBuilder;
+
 class DeferredLightingPass : public RenderGraphBehaviour
 {
 public:
@@ -16,6 +18,8 @@ public:
 	void OnPassBegin(const RenderGraphInfo& info) override;
 
 	void OnPostPass(const RenderGraphInfo& info) override;
+
+	void AddToRenderGraph(RenderGraphBuilder* builder);
 
 	void SetOutputTexture(PB::ITexture* tex);
 
@@ -46,13 +50,15 @@ private:
 				PB::Float4 m_direction;
 				PB::Float4 m_color;
 			} m_lights[8];
-			int m_lightCount;
+			int32_t m_lightCount;
+			float m_emissionIntensityScale;
 		} m_directionalLights;
-	};
+	} m_localLightingData{};
 
 	PB::ITexture* m_outputTexture = nullptr;
 	PBClient::Mesh m_pointLightVolumeMesh;
 	PB::u32 m_pointLightCount = 0;
+	PB::u32 m_directionalLightCount = 0;
 	PB::IBufferObject* m_mvpBuffer = nullptr;
 	PB::IBufferObject* m_lightingBuffer = nullptr;
 

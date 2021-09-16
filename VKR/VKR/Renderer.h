@@ -53,6 +53,8 @@ namespace PB
 
 		PARABLIT_API ISwapChain* CreateSwapChain(const SwapChainDesc& desc) override;
 
+		PARABLIT_API void RecreateSwapchain(const SwapChainDesc& desc, WindowDesc* windowDesc) override;
+
 		PARABLIT_API Device* GetDevice();
 
 		PARABLIT_API IRenderPassCache* GetRenderPassCache() override;
@@ -127,6 +129,7 @@ namespace PB
 		VulkanInstance m_vkInstance;
 		Device m_device;
 		VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
+		WindowDesc m_windowDesc{};
 		SwapChainDesc m_swapchainDesc;
 		Swapchain m_swapchain;
 
@@ -153,7 +156,7 @@ namespace PB
 		VkQueue m_presentQueue = VK_NULL_HANDLE;
 		u64 m_currentFrame = 0;
 		u8 m_curFrameInfoIdx = 0;
-		u8 m_lastFrameInfoIdx = ~0;
+		bool m_resetSwapchain = false;
 		CLib::Vector<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT> m_frameInfos;
 		CLib::Vector<VkDescriptorSet, 16> m_uboDescSets;
 		CLib::Vector<VkDescriptorSet, 16> m_usedUBODescSets;

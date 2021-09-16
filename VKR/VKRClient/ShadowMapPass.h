@@ -7,6 +7,7 @@
 #include "ObjectDispatcher.h"
 
 class DrawBatch;
+class RenderGraphBuilder;
 
 class ShadowMapPass : public RenderGraphBehaviour
 {
@@ -21,6 +22,8 @@ public:
 	void OnPassBegin(const RenderGraphInfo& info) override;
 
 	void OnPostPass(const RenderGraphInfo& info) override;
+
+	void AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shadowmapResolution);
 
 	void SetDispatchList(ObjectDispatchList* list, bool updateList);
 
@@ -42,11 +45,11 @@ private:
 	{
 		float m_viewMatrix[16];
 		float m_projMatrix[16];
-		glm::vec3 m_shadowViewDirection;
+		PB::Float3 m_shadowViewDirection;
 		float m_shadowPenumbraDistance;
 		float m_shadowBiasMultiplier;
 		float m_pad[3];
-	} m_localShadowConstants;
+	} m_localShadowConstants{};
 	
 	PB::IBufferObject* m_shadowViewBuffer = nullptr;
 	PB::UniformBufferView m_svbView = 0;

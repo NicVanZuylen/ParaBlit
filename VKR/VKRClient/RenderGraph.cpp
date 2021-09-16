@@ -65,6 +65,7 @@ void RenderGraphBuilder::AddNode(const NodeDesc& desc)
 			meta.m_format = attach.m_format;
 			meta.m_width = attach.m_width;
 			meta.m_height = attach.m_height;
+			meta.m_mipCount = attach.m_mipCount;
 			meta.m_usage = TextureStateFromAttachmentUsage(attach.m_usage);
 			meta.m_flags = attach.m_flags;
 		}
@@ -96,6 +97,7 @@ RenderGraph* RenderGraphBuilder::Build()
 		execNode->m_renderHeight = buildNode.m_renderHeight;
 		execNode->m_useReusableCommandLists = buildNode.m_useReusableCommandLists;
 
+		CLib::Vector<AttachmentMeta, _countof(buildNode.m_attachments)> deferredMetaFrees;
 		for (uint32_t i = 0; i < buildNode.m_attachmentCount; ++i)
 		{
 			// Look up existing textures to use for attachments, build views and add them to the node.
@@ -110,22 +112,52 @@ RenderGraph* RenderGraphBuilder::Build()
 				attachMeta = it->second.m_meta;
 				attachMeta.m_name = name;
 
+				auto& namedAttachMeta = it->second.m_meta;
+
 				if (attachMeta.m_texture == nullptr)
 				{
 					attachMeta.m_texture = FindTexture(attachMeta, graph);
-					it->second.m_meta.m_texture = attachMeta.m_texture;
+					namedAttachMeta.m_texture = attachMeta.m_texture;
 				}
 
 				attachMeta.m_usage = currentUsage;
 				execNode->m_attachments[i] = attachMeta.m_texture;
 				execNode->m_attachmentViews[i] = GetTextureView(attachMeta, static_cast<PB::ETextureState>(attachMeta.m_usage));
+				execNode->m_attachmentPriorStates[i] = namedAttachMeta.m_lastUsage;
+				execNode->m_attachmentSubresourceRanges[i].m_mipCount = namedAttachMeta.m_mipCount;
+
+				// Track most recent usage for the next pass.
+				namedAttachMeta.m_lastUsage = TextureStateFromAttachmentUsage(buildNode.m_usages[i]);
+
+				// Track the prior state value of the first pass the texture is used in, to update later when we know the final state.
+				if (namedAttachMeta.m_firstPriorState == nullptr)
+					namedAttachMeta.m_firstPriorState = &execNode->m_attachmentPriorStates[i];
+				else
+					*namedAttachMeta.m_firstPriorState = namedAttachMeta.m_lastUsage;
+
+				if (it->second.m_mostRecentTimepoint == timePoint)
+				{
+					namedAttachMeta.m_name = attachMeta.m_name;
+					deferredMetaFrees.PushBack(namedAttachMeta);
+				}
 			}
 			else
 			{
 				attachMeta.m_texture = FindTexture(attachMeta, graph);
+
+				// Immediately add this texture to the free list since it's not named and therefore a temporary resource.
+				deferredMetaFrees.PushBack(attachMeta);
+
 				execNode->m_attachments[i] = attachMeta.m_texture;
 				execNode->m_attachmentViews[i] = GetTextureView(attachMeta, static_cast<PB::ETextureState>(attachMeta.m_usage));
+				execNode->m_attachmentSubresourceRanges[i].m_mipCount = attachMeta.m_mipCount;
 			}
+		}
+
+		for (auto& meta : deferredMetaFrees)
+		{
+			std::pair<size_t, AttachmentMeta> newPair{ GetSizeFromAttachMeta(meta), meta };
+			m_freeList.insert(newPair);
 		}
 
 		// Render pass
@@ -140,7 +172,7 @@ RenderGraph* RenderGraphBuilder::Build()
 		CLib::Vector<AttachmentMeta, _countof(buildNode.m_attachments)> validAttachments;
 		CLib::Vector<PB::Float4, _countof(buildNode.m_attachments)> validClearColors;
 		CLib::Vector<PB::EAttachmentUsage, _countof(buildNode.m_attachments)> validUsages;
-		CLib::Vector<PB::TextureView, _countof(buildNode.m_attachments)> validViews;
+		CLib::Vector<PB::RenderTargetView, _countof(buildNode.m_attachments)> validViews;
 		for (uint32_t i = 0; i < buildNode.m_attachmentCount; ++i)
 		{
 			if (buildNode.m_usages[i] != PB::EAttachmentUsage::READ)
@@ -167,29 +199,31 @@ RenderGraph* RenderGraphBuilder::Build()
 			attachmentDesc.m_expectedState = validAttachments[i].m_usage;
 			attachmentDesc.m_finalState = attachmentDesc.m_expectedState;
 			attachmentDesc.m_format = attach.m_format;
-			attachmentDesc.m_keepContents = true; // TODO: This should be set to false if this is the last use-case of the attachment.
-			attachmentDesc.m_loadAction = PB::EAttachmentAction::CLEAR;
+
+			if (attach.m_name)
+			{
+				auto namedIt = m_namedAttachments.find(attach.m_name);
+				RG_ASSERT(namedIt != m_namedAttachments.end());
+
+				// Don't need to keep contents if this is the last render pass using this texture.
+				attachmentDesc.m_keepContents = namedIt->second.m_mostRecentTimepoint != timePoint; 
+				// Don't need to load if this is the first pass using this texture.
+				PB::EAttachmentAction nonClearAction = namedIt->second.m_earliestTimePoint == timePoint ? PB::EAttachmentAction::NONE : PB::EAttachmentAction::LOAD;
+
+				attachmentDesc.m_loadAction = (attach.m_flags & EAttachmentFlags::CLEAR) ? PB::EAttachmentAction::CLEAR : nonClearAction;
+			}
+			else
+			{
+				// Don't bother keeping contents, as this attachment will not be used later in the frame.
+				attachmentDesc.m_keepContents = false;
+				// Non-named/single pass attachments will have no past contents to load.
+				attachmentDesc.m_loadAction = (attach.m_flags & EAttachmentFlags::CLEAR) ? PB::EAttachmentAction::CLEAR : PB::EAttachmentAction::NONE;
+			}
 
 			auto& attachmentUsage = subpass.m_attachments[i];
 			attachmentUsage.m_attachmentFormat = attach.m_format;
 			attachmentUsage.m_attachmentIdx = i;
 			attachmentUsage.m_usage = validUsages[i];
-
-			if (attach.m_name)
-			{
-				auto it = m_namedAttachments.find(attach.m_name);
-				auto& namedAttachment = it->second;
-				if (namedAttachment.m_mostRecentTimepoint == timePoint)
-				{
-					// Add to free pool.
-					m_freeList.push_back(namedAttachment.m_meta);
-					m_namedAttachments.erase(it);
-				}
-			}
-			else
-			{
-				m_freeList.push_back(attach);
-			}
 		}
 
 		// Compute only passes don't need framebuffers or render pass objects.
@@ -200,7 +234,7 @@ RenderGraph* RenderGraphBuilder::Build()
 
 			// Framebuffer
 			PB::FramebufferDesc fbDesc{};
-			memcpy(fbDesc.m_attachmentViews, validViews.Data(), sizeof(PB::TextureView) * validViews.Count());
+			memcpy(fbDesc.m_attachmentViews, validViews.Data(), sizeof(PB::RenderTargetView) * validViews.Count());
 			fbDesc.m_width = buildNode.m_renderWidth;
 			fbDesc.m_height = buildNode.m_renderHeight;
 			fbDesc.m_renderPass = execNode->m_renderPass;
@@ -208,6 +242,9 @@ RenderGraph* RenderGraphBuilder::Build()
 			execNode->m_framebuffer = m_renderer->GetFramebufferCache()->GetFramebuffer(fbDesc);
 		}
 	}
+
+	// All graph resources need to be transitioned to the initial state expected by the graph when executed.
+	RecordInitialTransitions();
 
 	return graph;
 }
@@ -217,6 +254,7 @@ void RenderGraphBuilder::TextureDescFromAttachmentMeta(const AttachmentMeta& met
 	outDesc.m_data.m_format = meta.m_format;
 	outDesc.m_width = meta.m_width;
 	outDesc.m_height = meta.m_height;
+	outDesc.m_mipCount = meta.m_mipCount;
 	outDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_NONE;
 	outDesc.m_initialState = PB::ETextureState::NONE;
 	outDesc.m_usageStates = meta.m_usage;
@@ -243,6 +281,8 @@ void RenderGraphBuilder::UpdateNamedAttachment(const AttachmentDesc& desc, uint3
 			attach.m_meta.m_width = desc.m_width;
 		if (desc.m_height > attach.m_meta.m_height)
 			attach.m_meta.m_height = desc.m_height;
+		if (desc.m_mipCount > attach.m_meta.m_mipCount)
+			attach.m_meta.m_mipCount = desc.m_mipCount;
 
 		attach.m_meta.m_usage |= TextureStateFromAttachmentUsage(desc.m_usage);
 		attach.m_meta.m_flags |= desc.m_flags;
@@ -256,15 +296,40 @@ void RenderGraphBuilder::UpdateNamedAttachment(const AttachmentDesc& desc, uint3
 		newAttach.m_earliestTimePoint = timePoint;
 		newAttach.m_mostRecentTimepoint = timePoint;
 
-
 		newAttach.m_meta.m_format = desc.m_format;
 		newAttach.m_meta.m_width = desc.m_width;
 		newAttach.m_meta.m_height = desc.m_height;
+		newAttach.m_meta.m_mipCount = desc.m_mipCount;
 		newAttach.m_meta.m_usage = TextureStateFromAttachmentUsage(desc.m_usage);
+		newAttach.m_meta.m_firstPriorState = nullptr;
 		newAttach.m_meta.m_flags = desc.m_flags;
 
 		m_namedAttachments.insert(newPair);
 	}
+}
+
+void RenderGraphBuilder::RecordInitialTransitions()
+{
+	PB::CommandContextDesc contextDesc{};
+	contextDesc.m_renderer = m_renderer;
+	contextDesc.m_usage = PB::ECommandContextUsage::GRAPHICS;
+
+	PB::SCommandContext scopedCmdContext(m_renderer);
+	PB::ICommandContext* cmdContext = scopedCmdContext.GetContext();
+	cmdContext->Init(contextDesc);
+
+	cmdContext->Begin();
+
+	for (auto& namedAttachment : m_namedAttachments)
+	{
+		auto& meta = namedAttachment.second.m_meta;
+		PB::SubresourceRange subresourceRange{};
+		subresourceRange.m_mipCount = meta.m_mipCount;
+		cmdContext->CmdTransitionTexture(meta.m_texture, PB::ETextureState::NONE, *meta.m_firstPriorState);
+	}
+
+	cmdContext->End();
+	cmdContext->Return();
 }
 
 inline uint32_t GetFormatBytesPerPixel(PB::ETextureFormat format)
@@ -309,60 +374,36 @@ inline uint32_t GetFormatBytesPerPixel(PB::ETextureFormat format)
 	return 0;
 }
 
+size_t RenderGraphBuilder::GetSizeFromAttachMeta(const AttachmentMeta& meta)
+{
+	return meta.m_width * meta.m_height * GetFormatBytesPerPixel(meta.m_format);
+}
+
 PB::ITexture* RenderGraphBuilder::FindTexture(const AttachmentMeta& meta, RenderGraph* graph)
 {
-	// Sort free list by usage, width and height. The most ideal attachments should be at the back of the list.
-	struct CompareData
-	{
-		uint32_t m_desiredSize = 0;
-		uint32_t m_suitableCount = 0;
-
-		bool operator()(const AttachmentMeta& lhs, const AttachmentMeta& rhs)
-		{
-			auto findScore = [&](const AttachmentMeta* meta)
-			{
-				auto totalImageSize = meta->m_width * meta->m_height * GetFormatBytesPerPixel(meta->m_format);
-				if (totalImageSize >= m_desiredSize)
-					++m_suitableCount;
-				else
-					return uint32_t(0);
-		
-				return (~uint32_t(0)) - (totalImageSize - m_desiredSize);
-			};
-		
-			auto lhsScore = findScore(&lhs);
-			auto rhsScore = findScore(&rhs);
-
-			return lhsScore > rhsScore;
-		}
-
-	} compareData;
-
-	compareData.m_desiredSize = meta.m_width * meta.m_height * GetFormatBytesPerPixel(meta.m_format);
-
-	std::sort(m_freeList.begin(), m_freeList.end(), compareData);
+	size_t desiredSize = GetSizeFromAttachMeta(meta);
 
 	// If compareData.anySuitable is true, we can just pop the back element off of the free list and use it, since it should be the most suitable texture.
-	if (compareData.m_suitableCount > 0)
+	if (m_freeList.empty() == false)
 	{
-		PB::TextureDesc aliasDesc;
+		PB::TextureDesc aliasDesc{};
 		TextureDescFromAttachmentMeta(meta, aliasDesc);
+		aliasDesc.m_data.m_aliasOther = true;
 		PB::ITexture* newAlias = m_renderer->AllocateTexture(aliasDesc);
 
-		// Try to alias the back texture. Since we sorted the free list the back is the most likely to be aliasable.
-		auto listIt = m_freeList.begin();
-		for (uint32_t i = 0; i < compareData.m_suitableCount; ++i, ++listIt)
+		// Find the smallest free texture large enough for the desired size.
+		auto freeIt = m_freeList.lower_bound(desiredSize);
+		if (freeIt != m_freeList.end() && newAlias->CanAlias(freeIt->second.m_texture))
 		{
-			if (newAlias->CanAlias(listIt->m_texture))
-			{
-				newAlias->AliasTexture(listIt->m_texture);
-				graph->m_aliasTextures.PushBack(newAlias);
+			printf("Alias texture [%s] created from memory of [%s].\n", meta.m_name, freeIt->second.m_name);
 
-				// Remove free list.
-				m_freeList.erase(listIt);
+			newAlias->AliasTexture(freeIt->second.m_texture);
+			graph->m_aliasTextures.PushBack(newAlias);
 
-				return newAlias;
-			}
+			// Remove free list.
+			m_freeList.erase(freeIt);
+
+			return newAlias;
 		}
 
 		m_renderer->FreeTexture(newAlias);
@@ -376,12 +417,12 @@ PB::ITexture* RenderGraphBuilder::FindTexture(const AttachmentMeta& meta, Render
 
 PB::ITexture* RenderGraphBuilder::CreateTexture(const AttachmentMeta& meta)
 {
-	PB::TextureDesc desc;
+	PB::TextureDesc desc{};
 	TextureDescFromAttachmentMeta(meta, desc);
 	return m_renderer->AllocateTexture(desc);
 }
 
-PB::TextureView RenderGraphBuilder::GetTextureView(const AttachmentMeta& meta, PB::ETextureState expectedState)
+PB::RenderTargetView RenderGraphBuilder::GetTextureView(const AttachmentMeta& meta, PB::ETextureState expectedState)
 {
 	PB::TextureViewDesc viewDesc;
 	viewDesc.m_format = meta.m_format;
@@ -437,7 +478,7 @@ void RenderGraph::Execute()
 		for (uint32_t i = 0; i < currentNode->m_attachmentCount; ++i)
 		{
 			if (currentNode->m_attachmentStates[i] != PB::ETextureState::NONE)
-				cmdContext->CmdTransitionTexture(currentNode->m_attachments[i], currentNode->m_attachmentStates[i]);
+				cmdContext->CmdTransitionTexture(currentNode->m_attachments[i], currentNode->m_attachmentPriorStates[i], currentNode->m_attachmentStates[i], currentNode->m_attachmentSubresourceRanges[i]);
 		}
 
 		currentNode->m_behaviour->OnPrePass(m_passInfo);

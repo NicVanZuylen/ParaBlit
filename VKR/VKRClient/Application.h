@@ -12,16 +12,6 @@ namespace PB
 
 struct GLFWwindow;
 
-#define DEBUG_DISPLAY_TIME 2.0f
-
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 720
-
-#define FRAMERATE_CAP 120.0f
-//#define FRAMERATE_CAP 100000.0f
-
-#define DISPLAY_FRAME_TIME 1
-
 class Application
 {
 public:
@@ -36,7 +26,7 @@ public:
 
 private:
 
-	static void CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen = false);
+	void CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen = false);
 
 	// GLFW Callbacks
 	static void ErrorCallBack(int error, const char* desc);
@@ -46,16 +36,26 @@ private:
 	static void MouseScrollCallBack(GLFWwindow* window, double dXOffset, double dYOffset);
 	static void WindowResizeCallback(GLFWwindow* window, int nWidth, int nHeight);
 
-	static CLib::Allocator m_allocator;
-	static PB::IRenderer* m_renderer;
-	static PB::ISwapChain* m_swapchain;
-	static GLFWwindow* m_window;
-	static Input* m_input;
-	static bool m_isfullScreen;
-	static bool m_glfwInitialized;
+	static bool m_windowResize;
 
+	CLib::Allocator m_allocator{};
+	PB::IRenderer* m_renderer = nullptr;
+	PB::ISwapChain* m_swapchain = nullptr;
+	GLFWwindow* m_window = nullptr;
+	Input* m_input = nullptr;
+
+	uint32_t m_defaultWindowWidth = 1280;
+	uint32_t m_defaultWindowHeight = 720;
+	float m_fpsCap = 10000.0f;
+	float m_debugDisplayInterval = 2.0f;
 	float m_deltaTime = 0.0f;
 	float m_elapsedTime = 0.0f;
 	float m_debugDisplayTime = 0.0f;
+
+	bool m_isfullScreen = false;
+	bool m_glfwInitialized = false;
+	bool m_displayPerfStats = true;
+	bool m_updateRendererResolution = false;
+	bool m_isMinimized = false;
 };
 

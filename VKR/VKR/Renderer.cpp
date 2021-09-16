@@ -82,6 +82,7 @@ namespace PB
 
 		m_pipelineCache.Init(this);
 
+		m_windowDesc = *desc.m_windowInfo;
 		CreateWindowSurface(desc.m_windowInfo);
 		CreateSyncObjects();
 		CreateCmdBuffers();
@@ -92,9 +93,16 @@ namespace PB
 
 	ISwapChain* Renderer::CreateSwapChain(const SwapChainDesc& desc)
 	{
-		m_swapchainDesc = desc; // Cache desc for swap chain re-creation if swap-chain is lost/outdated.
-		m_swapchain.Init(m_swapchainDesc, this, m_windowSurface);
+		m_swapchainDesc = desc;
+		m_swapchain.Init(desc, this, m_windowSurface);
 		return reinterpret_cast<ISwapChain*>(&m_swapchain);
+	}
+
+	void Renderer::RecreateSwapchain(const SwapChainDesc& desc, WindowDesc* windowDesc)
+	{
+		m_swapchainDesc = desc;
+		m_windowDesc = *windowDesc;
+		m_resetSwapchain = true;
 	}
 
 	Device* Renderer::GetDevice()
@@ -192,10 +200,38 @@ namespace PB
 		m_device.GetTempBufferAllocator().ResetFrame(m_curFrameInfoIdx);
 
 		PB_ASSERT(curFrameInfo.m_frameSemaphore);
-		PB_ERROR_CHECK(vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx));
+		VkResult res = vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx);
+		PB_ASSERT(res == VK_SUCCESS);
 
 		SubmitFrame();
 		Present();
+
+		if (m_resetSwapchain)
+		{
+			WaitIdle();
+
+			// Destroy sync objects.
+			for (u32 i = 0; i < m_frameInfos.Count(); ++i)
+			{
+				vkDestroyFence(m_device.GetHandle(), m_frameInfos[i].m_frameFence, nullptr);
+				vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAquireSempahore, nullptr);
+				vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_frameSemaphore, nullptr);
+			}
+
+			m_swapchain.Destroy();
+			CreateWindowSurface(&m_windowDesc);
+
+			m_swapchain.Init(m_swapchainDesc, this, m_windowSurface);
+
+			CreateSyncObjects();
+
+			// TODO: This will invalidate ALL cached framebuffers, including those used not using resolution-scaled render targets. Maybe we should find a way to only destroy the framebuffers we need to.
+			m_framebufferCache.Destroy();
+			m_framebufferCache.Init(&m_device);
+
+			m_resetSwapchain = false;
+		}
+
 		BeginNextFrame();
 		++m_currentFrame;
 	}
@@ -309,6 +345,9 @@ namespace PB
 
 	void Renderer::CreateWindowSurface(WindowDesc* windowInfo)
 	{
+		if (m_windowSurface)
+			vkDestroySurfaceKHR(m_vkInstance.GetHandle(), m_windowSurface, nullptr);
+
 #ifdef PARABLIT_WINDOWS
 		VkWin32SurfaceCreateInfoKHR surfaceInfo =
 		{
@@ -468,7 +507,8 @@ namespace PB
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pImageIndices = &curFrameInfo.m_presentImageIdx;
 
-		PB_ERROR_CHECK(vkQueuePresentKHR(m_presentQueue, &presentInfo));
+		VkResult res = vkQueuePresentKHR(m_presentQueue, &presentInfo);
+		PB_ASSERT(res == VK_SUCCESS || res == VK_ERROR_OUT_OF_DATE_KHR);
 
 		curFrameInfo.m_state = PB_FRAME_STATE_IN_FLIGHT;
 	}

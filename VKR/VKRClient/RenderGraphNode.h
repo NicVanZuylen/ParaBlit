@@ -15,7 +15,7 @@ struct RenderGraphInfo
 	PB::RenderPass m_renderPass = nullptr;
 	PB::Framebuffer m_frameBuffer = nullptr;
 	PB::ITexture** m_renderTargets = nullptr;
-	PB::TextureView* m_renderTargetViews = nullptr;
+	PB::RenderTargetView* m_renderTargetViews = nullptr;
 	uint32_t m_renderTargetCount = 0;
 };
 

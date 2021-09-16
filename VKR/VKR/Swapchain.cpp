@@ -17,8 +17,6 @@ namespace PB
 
 	void Swapchain::Init(const SwapChainDesc& desc, Renderer* renderer, VkSurfaceKHR windowSurface)
 	{
-		PB_ASSERT(m_device == nullptr);
-
 		m_renderer = renderer;
 		m_device = m_renderer->GetDevice();
 		m_windowSurface = windowSurface;
@@ -91,7 +89,7 @@ namespace PB
 		auto surfaceCapabilities = GetSurfaceCapabilities();
 
 		PB_ASSERT_MSG(GetDeviceSurfaceSupport() != VK_FALSE, "Physical device does not support surface.");
-		PB_ASSERT_MSG(m_width <= surfaceCapabilities.currentExtent.width && m_height < surfaceCapabilities.currentExtent.height, "Swap chain width/height cannot be greater than window dimensions.");
+		PB_ASSERT_MSG(m_width <= surfaceCapabilities.currentExtent.width && m_height <= surfaceCapabilities.currentExtent.height, "Swap chain width/height cannot be greater than window dimensions.");
 
 		if (m_width == 0)
 			m_width = surfaceCapabilities.currentExtent.width;
@@ -228,6 +226,7 @@ namespace PB
 		for (u32 i = 0; i < imageCount; ++i)
 		{
 			PB_ASSERT_MSG(m_swapchainImages[i], "Attempting to wrap NULL swapchain image");
+			PB_LOG_FORMAT("Wrapping swapchain image: %p", m_swapchainImages[i]);
 			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
 			wrappedTextureDesc.m_usageFlags = ETextureState::PRESENT | ETextureState::COLORTARGET | ETextureState::COPY_DST;
 			wrappedTextureDesc.m_width = m_width;
@@ -243,7 +242,7 @@ namespace PB
 
 		for (u32 i = 0; i < imageCount; ++i)
 		{
-			internalContext.CmdTransitionTexture(reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[i]), ETextureState::PRESENT, {});
+			internalContext.CmdTransitionTexture(reinterpret_cast<ITexture*>(&m_wrappedSwapchainImages[i]), ETextureState::NONE, ETextureState::PRESENT, {});
 		}
 
 		internalContext.End();

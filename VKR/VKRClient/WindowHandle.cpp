@@ -1,5 +1,5 @@
 #include "WindowHandle.h"
-#include "glfw3native.h"
+#include "GLFW/glfw3native.h"
 
 void* VKRClient::GetWindowHandle(GLFWwindow* window)
 {

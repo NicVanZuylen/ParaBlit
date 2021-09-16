@@ -51,10 +51,12 @@ namespace PB
 			const SwapChainDesc& desc
 		*/
 		PARABLIT_INTERFACE ISwapChain* CreateSwapChain(const SwapChainDesc& desc) = 0;
+		PARABLIT_INTERFACE void RecreateSwapchain(const SwapChainDesc& desc, WindowDesc* windowDesc) = 0;
 		PARABLIT_INTERFACE void EndFrame() = 0;
 		PARABLIT_INTERFACE void WaitIdle() = 0;
 
 		PARABLIT_INTERFACE u32 GetCurrentSwapchainImageIndex() = 0;
+
 
 		PARABLIT_INTERFACE ITexture* AllocateTexture(const TextureDesc& texDesc) = 0;
 		PARABLIT_INTERFACE void FreeTexture(ITexture* texture) = 0;

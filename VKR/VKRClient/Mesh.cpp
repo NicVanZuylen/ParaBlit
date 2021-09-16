@@ -1,5 +1,10 @@
 #include "Mesh.h"
 #include "DrawBatch.h"
+
+#pragma warning(push, 0)
+#include "glm/glm.hpp"
+#pragma warning(pop)
+
 #include <vector>
 #include <iostream>
 
@@ -183,22 +188,40 @@ namespace PBClient
 			// -----------------------------------------------------------------------------------------
 
 			// Create vertex and index buffers...
-			PB::BufferObjectDesc vertexBufferDesc;
-			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
-			vertexBufferDesc.m_options = 0;
-			vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
-			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+			if (m_vertexPool == nullptr)
+			{
+				// Allocate a standalone buffer for the vertices.
+				PB::BufferObjectDesc vertexBufferDesc;
+				vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
+				vertexBufferDesc.m_options = 0;
+				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+			}
 
 			PB::BufferObjectDesc indexBufferDesc;
 			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
 			indexBufferDesc.m_options = 0;
 			indexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX;
+			if (m_vertexPool != nullptr)
+				indexBufferDesc.m_usage |= PB::EBufferUsage::STORAGE;
 			m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
 
 			// Copy vertex data...
-			char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
-			memcpy(vertexAddress, wholeMeshVertices.Data(), vertexBufferSize);
-			m_vertexBuffer->EndPopulate();
+			if (m_vertexPool == nullptr)
+			{
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
+				memcpy(vertexAddress, wholeMeshVertices.Data(), vertexBufferSize);
+				m_vertexBuffer->EndPopulate();
+			}
+			else
+			{
+				PB::u32 firstVertex;
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexPool->AllocateAndBeginWrite(static_cast<PB::u32>(vertexBufferSize), firstVertex));
+				//cacheInStream.read(vertexAddress, vertexBufferSize);
+				memcpy(vertexAddress, wholeMeshVertices.Data(), vertexBufferSize);
+				m_vertexPool->EndWrite();
+				m_firstVertexInPool = firstVertex;
+			}
 
 			// Copy index data...
 			char* indexAddress = reinterpret_cast<char*>(m_indexBuffer->BeginPopulate());
@@ -263,14 +286,24 @@ namespace PBClient
 			// Tangents must be calculated per triangle. We find the correct vertices per tri by using the indices.
 
 			// Positions
-			glm::vec3 pos1 = vertices[indices[i]].m_position;
-			glm::vec3 pos2 = vertices[indices[i + 1]].m_position;
-			glm::vec3 pos3 = vertices[indices[i + 2]].m_position;
+			PB::Float4 pbpos1 = vertices[indices[i]].m_position;
+			PB::Float4 pbpos2 = vertices[indices[i + 1]].m_position;
+			PB::Float4 pbpos3 = vertices[indices[i + 2]].m_position;
+			
+			// Tex coords
+			PB::Float2 pbtex1 = vertices[indices[i]].m_texCoords;
+			PB::Float2 pbtex2 = vertices[indices[i + 1]].m_texCoords;
+			PB::Float2 pbtex3 = vertices[indices[i + 2]].m_texCoords;
+
+			// Positions
+			glm::vec3 pos1 = glm::vec3(pbpos1.x, pbpos1.y, pbpos1.z);
+			glm::vec3 pos2 = glm::vec3(pbpos2.x, pbpos2.y, pbpos2.z);
+			glm::vec3 pos3 = glm::vec3(pbpos3.x, pbpos3.y, pbpos3.z);
 
 			// Tex coords
-			glm::vec2 tex1 = vertices[indices[i]].m_texCoords;
-			glm::vec2 tex2 = vertices[indices[i + 1]].m_texCoords;
-			glm::vec2 tex3 = vertices[indices[i + 2]].m_texCoords;
+			glm::vec2 tex1 = glm::vec2(pbtex1.x, pbtex1.y);
+			glm::vec2 tex2 = glm::vec2(pbtex2.x, pbtex2.y);
+			glm::vec2 tex3 = glm::vec2(pbtex3.x, pbtex3.y);
 
 			// Delta positions
 			glm::vec3 dPos1 = pos2 - pos1;
@@ -290,9 +323,9 @@ namespace PBClient
 			tangent = glm::normalize(tangent);
 
 			// Assign tangents to vertices.
-			vertices[indices[i]].m_tangent = tangent;
-			vertices[indices[i + 1]].m_tangent = tangent;
-			vertices[indices[i + 2]].m_tangent = tangent;
+			vertices[indices[i]].m_tangent = PB::Float4(tangent.x, tangent.y, tangent.z, tangent.w);
+			vertices[indices[i + 1]].m_tangent = PB::Float4(tangent.x, tangent.y, tangent.z, tangent.w);
+			vertices[indices[i + 2]].m_tangent = PB::Float4(tangent.x, tangent.y, tangent.z, tangent.w);
 		}
 	}
 
@@ -366,23 +399,23 @@ namespace PBClient
 
 				// Copy positions...
 				if (shape.mesh.positions.size())
-					chunkVertices[j].m_position = glm::vec4(shape.mesh.positions[nIndex], shape.mesh.positions[nIndex + 1], shape.mesh.positions[nIndex + 2], 1.0f);
+					chunkVertices[j].m_position = PB::Float4(shape.mesh.positions[nIndex], shape.mesh.positions[nIndex + 1], shape.mesh.positions[nIndex + 2], 1.0f);
 				else
-					chunkVertices[j].m_position = glm::vec4(0.0f);
+					chunkVertices[j].m_position = PB::Float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 				// Copy normals...
 				if (shape.mesh.normals.size())
-					chunkVertices[j].m_normal = glm::vec4(shape.mesh.normals[nIndex], shape.mesh.normals[nIndex + 1], shape.mesh.normals[nIndex + 2], 1.0f);
+					chunkVertices[j].m_normal = PB::Float4(shape.mesh.normals[nIndex], shape.mesh.normals[nIndex + 1], shape.mesh.normals[nIndex + 2], 1.0f);
 				else
-					chunkVertices[j].m_normal = glm::vec4(0.0f);
+					chunkVertices[j].m_normal = PB::Float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 				// Copy texture coordinates.
 				if (shape.mesh.texcoords.size())
-					chunkVertices[j].m_texCoords = glm::vec2(shape.mesh.texcoords[nTexIndex], 1.0f - shape.mesh.texcoords[nTexIndex + 1]);
+					chunkVertices[j].m_texCoords = PB::Float2(shape.mesh.texcoords[nTexIndex], 1.0f - shape.mesh.texcoords[nTexIndex + 1]);
 				else
-					chunkVertices[j].m_texCoords = glm::vec2(0.0f);
+					chunkVertices[j].m_texCoords = PB::Float2(0.0f, 0.0f);
 
-				chunkVertices[j].m_pad0 = glm::vec2(0.0f, 0.0f);
+				chunkVertices[j].m_pad0 = PB::Float2(0.0f, 0.0f);
 
 				// Add the vertex to the whole mesh vertex array.
 				vertices.PushBack(chunkVertices[j]);

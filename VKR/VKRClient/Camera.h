@@ -1,9 +1,9 @@
 #pragma once
 
 #pragma warning(push, 0)
-#include "glm.hpp"
-#include "glm\include\gtc\quaternion.hpp"
-#include "glm/include/ext.hpp"
+#define GLM_FORCE_CTOR_INIT // Required to ensure glm constructors actually initialize vectors/matrices etc.
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 #pragma warning(pop)
 
 class Input;

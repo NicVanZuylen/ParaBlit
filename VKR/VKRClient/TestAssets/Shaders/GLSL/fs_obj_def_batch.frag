@@ -24,6 +24,7 @@ layout (location = 0) in FS_IN
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outSpecAndRough;
+layout(location = 3) out vec4 outEmission;
 
 void main() 
 {
@@ -32,6 +33,7 @@ void main()
     uint normalIdx = fsInput.textureIndices[1];
     uint specIdx = fsInput.textureIndices[2];
     uint roughIdx = fsInput.textureIndices[3];
+    uint emissionIdx = fsInput.textureIndices[4];
 
     vec4 color = texture
     (
@@ -57,7 +59,14 @@ void main()
         fsInput.texCoord
     ).r;
 
+    vec3 emission = texture
+    (
+        sampler2D(textures[nonuniformEXT(emissionIdx)], samplers[nonuniformEXT(samplerIdx)]), 
+        fsInput.texCoord
+    ).rgb;
+
     outColor = vec4(color.rgb, 1.0);
     outNormal = vec4(normalize(fsInput.tbnMatrix * (normal * 2.0 - 1.0)), 1.0);
     outSpecAndRough = vec4(spec, roughness);
+    outEmission = vec4(emission, 1.0);
 }

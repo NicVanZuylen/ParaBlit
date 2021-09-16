@@ -10,4 +10,4 @@ if %%~nxf==pb_genbuild.bat (
 	)
 )
 
-cd ../
+cd %HOME_PATH%

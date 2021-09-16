@@ -7,6 +7,7 @@
 #include "ObjectDispatcher.h"
 
 class DrawBatch;
+class RenderGraphBuilder;
 
 class GBufferPass : public RenderGraphBehaviour
 {
@@ -22,11 +23,13 @@ public:
 
 	void OnPostPass(const RenderGraphInfo& info) override;
 
+	void AddToRenderGraph(RenderGraphBuilder* builder);
+
 	void SetDispatchList(ObjectDispatchList* list, bool updateList);
 
 	void SetOutputTexture(PB::ITexture* tex);
 
-	PB::GraphicsPipelineDesc GetBasePipelineDesc(PB::ISwapChain* swapChain) const;
+	PB::GraphicsPipelineDesc GetBasePipelineDesc() const;
 
 private:
 

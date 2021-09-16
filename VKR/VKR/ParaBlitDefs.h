@@ -2,12 +2,17 @@
 
 namespace PB
 {
+	// Shorthand for unsigned 8-bit integer.
 	typedef unsigned char u8;
+	// Shorthand for unsigned 16-bit integer.
 	typedef unsigned short u16;
+	// Shorthand for unsigned 32-bit integer.
 	typedef unsigned int u32;
+	// Shorthand for unsigned 64-bit integer.
 	typedef unsigned long long u64;
 
 	// Bitmask helper class for strongly typed 'enum class' enums.
+	// Intended to replace C enums where ever possible, since C enums generate unscoped enum warnings in VS 2019+.
 	template<typename T, typename Val_T = u32>
 	class EnumField
 	{
@@ -36,12 +41,20 @@ namespace PB
 		inline operator Val_T() const { return m_values; }
 		inline operator T() const { return static_cast<T>(m_values); }
 
+		inline bool operator == (const EnumField<T, Val_T>& rhs) { return m_values == rhs.m_values; };
+		inline bool operator == (const T& rhs) { return m_values == static_cast<Val_T>(rhs); };
+		inline bool operator == (const Val_T& rhs) { return m_values == rhs; };
+
 	private:
 		Val_T m_values;
 	};
 
-// Used to define bit field enum class types with OR operators for the enum class type.
-#define PB_DEFINE_ENUM_FIELD(name, enumType, numType) using name = EnumField<enumType, numType>; inline name operator | (const enumType& lhs, const enumType& rhs) { return static_cast<numType>(lhs) | static_cast<numType>(rhs); }
+// Used to define bit field enum class types with basic operators for the enum class type.
+#define PB_DEFINE_ENUM_FIELD(name, enumType, numType)																					\
+	using name = PB::EnumField<enumType, numType>;																						\
+	inline name operator | (const enumType& lhs, const enumType& rhs) { return static_cast<numType>(lhs) | static_cast<numType>(rhs); } \
+	inline name operator & (const enumType& lhs, const enumType& rhs) { return static_cast<numType>(lhs) & static_cast<numType>(rhs); } \
+														
 
 	enum class EMemoryType : u16
 	{
@@ -140,48 +153,67 @@ namespace PB
 		GREATER
 	};
 
-	struct Float4
+	template<typename T>
+	struct TVec4
 	{
 		union
 		{
-			struct { float r, g, b, a; };
-			struct { float x, y, z, w; };
-			struct { float u, v; };
+			struct { T r, g, b, a; };
+			struct { T x, y, z, w; };
+			struct { T u, v; };
 			float m_data[4];
 		};
 
-		inline float& operator[](const u32& index) { return m_data[index]; }
-	};
+		TVec4() = default;
+		TVec4(T nX, T nY, T nZ, T nW) { x = nX; y = nY; z = nZ; w = nW; }
 
-	struct Float3
+		inline T& operator[](const u32& index) { return m_data[index]; }
+	};
+	using Float4 = TVec4<float>;
+	using Uint4 = TVec4<u32>;
+
+	template<typename T>
+	struct TVec3
 	{
 		union
 		{
-			struct { float r, g, b; };
-			struct { float x, y, z; };
-			struct { float u, v; };
+			struct { T r, g, b; };
+			struct { T x, y, z; };
+			struct { T u, v; };
 			float m_data[3];
 		};
 
-		inline float& operator[](const u32& index) { return m_data[index]; }
-	};
+		TVec3() = default;
+		TVec3(T nX, T nY, T nZ) { x = nX; y = nY; z = nZ; };
 
-	struct Float2
+		inline T& operator[](const u32& index) { return m_data[index]; }
+	};
+	using Float3 = TVec3<float>;
+	using Uint3 = TVec3<u32>;
+
+	template<typename T>
+	struct TVec2
 	{
 		union
 		{
-			struct { float r, g; };
-			struct { float x, y; };
-			struct { float u, v; };
+			struct { T r, g; };
+			struct { T x, y; };
+			struct { T u, v; };
 			float m_data[2];
 		};
 
-		inline float& operator[](const u32& index) { return m_data[index]; }
+		TVec2() = default;
+		TVec2(T nX, T nY) { x = nX; y = nY; }
+
+		inline T& operator[](const u32& index) { return m_data[index]; }
 	};
+	using Float2 = TVec2<float>;
+	using Uint2 = TVec2<u32>;
 
 	struct Rect
 	{
-		u32 x, y, w, h;
+		int x, y;
+		u32 w, h;
 	};
 
 	enum class ECmdContextState : u8
@@ -216,12 +248,13 @@ namespace PB
 		GRAPHICS_STAGE_COUNT
 	};
 
+	// Opaque view handle for uniform buffer views.
 	using UniformBufferView = void*;
 
-	// Used primarily for render target views, but can be used to store textures as generic resource views too, but a static cast is required to convert them back.
-	using TextureView = u64;
+	// Opaque view handle used primarily for render target views, but can be used to store textures as generic resource views too, but a static cast is required to convert them back.
+	using RenderTargetView = u64;
 
-	// Resource view index which is sent to the shader via push constants upon binding.
+	// Resource view index which is sent to the shader via push constants upon binding. Used for Textures, Samplers and Storage Buffers.
 	using ResourceView = u32;
 
 	// Opaque handle for a render pass object.

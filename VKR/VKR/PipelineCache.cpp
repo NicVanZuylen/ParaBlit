@@ -119,14 +119,21 @@ namespace PB
 
 	PipelineData PipelineCache::CreateGraphicsPipeline(const GraphicsPipelineDesc& desc)
 	{
-		VkRect2D scissor = { static_cast<int64_t>(desc.m_renderArea.x), static_cast<int64_t>(desc.m_renderArea.y), desc.m_renderArea.w, desc.m_renderArea.h };
+		PB::Rect renderArea = desc.m_renderArea;
+		if (renderArea.w * renderArea.h == 0)
+		{
+			renderArea.w = 128;
+			renderArea.h = 128;
+		}
+
+		VkRect2D scissor = { renderArea.x, renderArea.y, renderArea.w, renderArea.h };
 		VkViewport viewPort;
 		viewPort.minDepth = 0.0f;
 		viewPort.maxDepth = 1.0f;
-		viewPort.x = static_cast<float>(desc.m_renderArea.x);
-		viewPort.y = static_cast<float>(desc.m_renderArea.y);
-		viewPort.width = static_cast<float>(desc.m_renderArea.w);
-		viewPort.height = static_cast<float>(desc.m_renderArea.h);
+		viewPort.x = static_cast<float>(renderArea.x);
+		viewPort.y = static_cast<float>(renderArea.y);
+		viewPort.width = static_cast<float>(renderArea.w);
+		viewPort.height = static_cast<float>(renderArea.h);
 
 		VkPipelineViewportStateCreateInfo viewportState{ VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, nullptr };
 		viewportState.flags = 0;
@@ -309,7 +316,7 @@ namespace PB
 		pipelineInfo.basePipelineIndex = 0;
 		pipelineInfo.layout = m_commonGraphicsPipelineLayout;
 		pipelineInfo.pViewportState = &viewportState;
-		pipelineInfo.pDynamicState = nullptr;
+		pipelineInfo.pDynamicState = (desc.m_renderArea.w * desc.m_renderArea.h > 0) ? nullptr : &dynamicStatesInfo;
 		pipelineInfo.pVertexInputState = &vertexInputState;
 		pipelineInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineInfo.pTessellationState = nullptr;

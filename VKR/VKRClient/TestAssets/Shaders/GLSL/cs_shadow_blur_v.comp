@@ -8,6 +8,10 @@
 #define WORKGROUP_AREA WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y
 layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
 
+#define GAUSSIAN_KERNEL_SIZE 16
+#define GAUSSIAN_KERNEL_SIZE_MINUS_ONE (GAUSSIAN_KERNEL_SIZE - 1)
+#define BLUR_TILE_SIZE (WORKGROUP_SIZE_1D - (2 * GAUSSIAN_KERNEL_SIZE_MINUS_ONE))
+
 layout(push_constant) uniform Bindings
 {
     uint constantsIndex;
@@ -24,8 +28,8 @@ layout(set = 1, binding = 0) uniform Constants
     float depthDiscontinuityThreshold;
     float normalDiscontinuityThreshold;
     float depthScaleFactor;
-    float sigma; // AKA. Standard Deviation.
     float gaussianNormPart; // Normalization constant for the guassian function (the first half of the function).
+    vec4  weights[GAUSSIAN_KERNEL_SIZE];
 } constants[];
 
 layout(set = 0, binding = 0) uniform texture2D pb_textures[];
@@ -41,21 +45,10 @@ layout(set = 0, binding = 3, r8) uniform writeonly restrict image2D pb_storageIm
 
 #define CONST PB_UBO(constants, constantsIndex)
 
-#define GAUSSIAN_KERNEL_SIZE 15
-#define GAUSSIAN_KERNEL_SIZE_MINUS_ONE (GAUSSIAN_KERNEL_SIZE - 1)
-#define BLUR_TILE_SIZE (WORKGROUP_SIZE_1D - (2 * GAUSSIAN_KERNEL_SIZE_MINUS_ONE))
-
 shared vec4 sharedSamples[WORKGROUP_SIZE_1D];
-
-float GaussianWeight(float x)
-{
-    float sigmaSqr = pow(CONST.sigma, 2);
-    return exp(-(x * x) / (2 * sigmaSqr));
-}
 
 float GetDepthScale(float depth)
 {
-    //return 1 + log((1.0 - depth) * CONST.depthScaleFactor);
     return (CONST.depthScaleFactor * 0.98) - (CONST.depthScaleFactor * depth);
 }
 
@@ -129,13 +122,13 @@ void main()
     float depthScale = GetDepthScale(srcDepth);
     float kernelScale = float(GAUSSIAN_KERNEL_SIZE) * (MinScale + (ScaleRange * depthScale));
 
-    if(localReadLocation >= (WORKGROUP_SIZE_1D - (GAUSSIAN_KERNEL_SIZE + 1)))
+    if(gl_LocalInvocationID.y >= WORKGROUP_SIZE_Y - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
         return;
 
     for(int i = 1; i < GAUSSIAN_KERNEL_SIZE; ++i)
     {
         float sampleScale = clamp(kernelScale - float(i), 0.0, 1.0);
-        float weight = GaussianWeight(float(i));
+        float weight = CONST.weights[i].x;
 
         filteredColor += GaussianSample(srcColor, srcDepth, nDotU, localReadLocation + i, weight, sampleScale);
         filteredColor += GaussianSample(srcColor, srcDepth, nDotU, localReadLocation - i, weight, sampleScale);

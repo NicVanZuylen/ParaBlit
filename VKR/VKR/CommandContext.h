@@ -51,12 +51,14 @@ namespace PB
 		PARABLIT_API void Begin(PB::RenderPass renderPass = nullptr, PB::Framebuffer frameBuffer = nullptr) override;
 		PARABLIT_API void End() override;
 		PARABLIT_API ICommandList* Return() override;
-		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, TextureView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) override;
+		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, RenderTargetView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) override;
 		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) override;
 		PARABLIT_API void CmdEndRenderPass() override;
 		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
-		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState newState, const SubresourceRange& subResourceRange) override;
+		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange) override;
 		PARABLIT_API void CmdBindPipeline(Pipeline pipeline) override;
+		void SetViewport(PB::Rect viewRect, float minDepth, float maxDepth) override;
+		void SetScissor(PB::Rect scissorRect) override;
 		void CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType) override;
 		void CmdBindVertexBuffers(const IBufferObject** vertexBuffers, u32 vertexBufferCount, const IBufferObject* indexBuffer, EIndexType indexType) override;
 		PARABLIT_API void CmdDraw(u32 vertexCount, u32 instanceCount) override;

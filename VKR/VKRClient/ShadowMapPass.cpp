@@ -1,7 +1,9 @@
 #include "ShadowMapPass.h"
+#include "RenderGraph.h"
 
 #pragma warning(push, 0)
-#include "gtc/matrix_transform.hpp"
+#define GLM_FORCE_CTOR_INIT
+#include "glm/gtc/matrix_transform.hpp"
 #pragma warning(pop)
 
 using namespace PBClient;
@@ -53,14 +55,36 @@ void ShadowMapPass::OnPostPass(const RenderGraphInfo& info)
 		return;
 
 	// Transition color and output to correct layouts...
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[0], PB::ETextureState::COPY_SRC);
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST);
+	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[0], PB::ETextureState::COLORTARGET, PB::ETextureState::COPY_SRC);
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT, PB::ETextureState::COPY_DST);
 	
 	// Copy color to output.
 	info.m_commandContext->CmdCopyTextureToTexture(info.m_renderTargets[0], m_outputTexture);
 	
 	// Transition output texture to present.
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT);
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST, PB::ETextureState::PRESENT);
+}
+
+void ShadowMapPass::AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shadowmapResolution)
+{
+	NodeDesc nodeDesc;
+	nodeDesc.m_behaviour = this;
+	nodeDesc.m_useReusableCommandLists = true;
+
+	AttachmentDesc& depthDesc = nodeDesc.m_attachments[0];
+	depthDesc.m_format = PB::ETextureFormat::D16_UNORM;
+	depthDesc.m_width = shadowmapResolution;
+	depthDesc.m_height = shadowmapResolution;
+	depthDesc.m_name = "WorldShadowmap";
+	depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
+	depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	depthDesc.m_flags = EAttachmentFlags::CLEAR;
+
+	nodeDesc.m_attachmentCount = 1;
+	nodeDesc.m_renderWidth = depthDesc.m_width;
+	nodeDesc.m_renderHeight = depthDesc.m_height;
+
+	builder->AddNode(nodeDesc);
 }
 
 void ShadowMapPass::SetDispatchList(ObjectDispatchList* list, bool updateList)
@@ -82,7 +106,7 @@ void ShadowMapPass::SetViewMatrix(float* matrix)
 	memcpy(&viewAsMat4, matrix, sizeof(float) * 16);
 	viewAsMat4 = glm::inverse(viewAsMat4);
 
-	m_localShadowConstants.m_shadowViewDirection = viewAsMat4[3];
+	m_localShadowConstants.m_shadowViewDirection = PB::Float3(viewAsMat4[3].x, viewAsMat4[3].y, viewAsMat4[3].z);
 	m_shadowConstantsRequireUpdate = true;
 }
 

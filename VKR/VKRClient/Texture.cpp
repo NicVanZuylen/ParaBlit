@@ -32,7 +32,7 @@ namespace PBClient
 
 			auto size = m_width * m_height * 4;
 
-			PB::TextureDesc textureDesc;
+			PB::TextureDesc textureDesc{};
 			textureDesc.m_data.m_data = m_data;
 			textureDesc.m_data.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 			textureDesc.m_data.m_size = size; // TODO: Better format support

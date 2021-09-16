@@ -14,6 +14,7 @@ namespace PBClient
 	class Texture;
 	class Mesh;
 	class Shader;
+	class FontTexture;
 }
 
 struct GLFWwindow;
@@ -29,6 +30,7 @@ class ShadowMapPass;
 class GBufferPass;
 class ShadowAccumPass;
 class DeferredLightingPass;
+class BloomPass;
 
 class ClientPlayground
 {
@@ -38,6 +40,8 @@ public:
 	~ClientPlayground();
 
 	void Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime);
+
+	void UpdateResolution(uint32_t width, uint32_t height);
 
 private:
 
@@ -85,6 +89,7 @@ private:
 	GBufferPass* m_gBufferPass = nullptr;
 	ShadowAccumPass* m_shadowAccumPass = nullptr;
 	DeferredLightingPass* m_deferredLightingPass = nullptr;
+	BloomPass* m_bloomPass = nullptr;
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------
@@ -97,17 +102,19 @@ private:
 	PBClient::Mesh* m_planeMesh = nullptr;
 
 	PBClient::Texture* m_paintTextures[4]{};
-	PBClient::Texture* m_detailsTextures[4]{};
-	PBClient::Texture* m_glassTextures[4]{};
+	PBClient::Texture* m_detailsTextures[5]{};
+	PBClient::Texture* m_glassTextures[5]{};
 	PBClient::Texture* m_metalTextures[2]{};
 
 	PB::ITexture* m_solidWhiteTexture = nullptr;
 	PB::ITexture* m_solidBlackTexture = nullptr;
 	PB::ITexture* m_flatNormalTexture = nullptr;
 
-	PB::ResourceView m_paintViews[4]{};
-	PB::ResourceView m_detailsViews[4]{};
-	PB::ResourceView m_glassViews[4]{};
+	PBClient::FontTexture* m_fontTexture = nullptr;
+
+	PB::ResourceView m_paintViews[5]{};
+	PB::ResourceView m_detailsViews[5]{};
+	PB::ResourceView m_glassViews[5]{};
 	PB::ResourceView m_colorSampler = 0;
 
 	PBClient::Shader* m_shadowVertShader = nullptr;

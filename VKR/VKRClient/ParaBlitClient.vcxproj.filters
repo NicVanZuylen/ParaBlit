@@ -84,6 +84,18 @@
     <ClCompile Include="ShadowAccumPass.cpp">
       <Filter>RenderGraphBehaviours</Filter>
     </ClCompile>
+    <ClCompile Include="BloomPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
+    <ClCompile Include="TextRenderPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
+    <ClCompile Include="FontTexture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="BlurHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -148,6 +160,18 @@
     </ClInclude>
     <ClInclude Include="ShadowAccumPass.h">
       <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="BloomPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="TextRenderPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="FontTexture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BlurHelper.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

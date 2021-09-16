@@ -53,14 +53,11 @@ namespace PB
 		m_device = m_renderer->GetDevice();
 		m_image = desc.m_wrappedImage;
 		m_extents = { desc.m_width, desc.m_height, 1 };
-		m_currentState = desc.m_currentUsage;
 		m_availableStates = desc.m_usageFlags;
 		m_ownsImage = false;
 		m_hasDepthPlane = false;
 		m_hasStencilPlane = false;
 		m_isAlias = false;
-
-		PB_ASSERT(((m_availableStates & m_currentState) || m_currentState == ETextureState::NONE));
 	}
 
 	void Texture::Destroy()
@@ -76,10 +73,12 @@ namespace PB
 				m_image = VK_NULL_HANDLE;
 
 				// Free memory block.
-				if(!m_isAlias)
-					m_device->GetDeviceAllocator().Free(m_memoryBlock);
+				if (!m_isAlias)
+				{
+					//m_device->GetDeviceAllocator().Free(m_memoryBlock);
+					vkFreeMemory(m_device->GetHandle(), m_memoryBlock.m_memory, nullptr);
+				}
 
-				m_currentState = ETextureState::NONE;
 				m_availableStates = ETextureState::NONE;
 				m_format = ETextureFormat::UNKNOWN;
 				m_ownsImage = true;
@@ -92,19 +91,9 @@ namespace PB
 		return m_image;
 	}
 
-	void Texture::SetState(ETextureState state)
-	{
-		m_currentState = state;
-	}
-
 	TextureStateFlags Texture::GetUsage()
 	{
 		return m_availableStates;
-	}
-
-	ETextureState Texture::GetState()
-	{
-		return m_currentState;
 	}
 
 	bool Texture::CanAlias(ITexture* baseTexture)
@@ -143,7 +132,7 @@ namespace PB
 		return m_renderer->GetViewCache()->GetTextureView(defaultSRVDesc);
 	}
 
-	TextureView Texture::GetDefaultRTV()
+	RenderTargetView Texture::GetDefaultRTV()
 	{
 		PB_ASSERT_MSG(m_format != ETextureFormat::UNKNOWN, "Cannot get a default view of a texture with unknown format.");
 
@@ -175,7 +164,7 @@ namespace PB
 		return m_renderer->GetViewCache()->GetTextureView(viewDesc);
 	}
 
-	TextureView Texture::GetRenderTargetView(TextureViewDesc& viewDesc)
+	RenderTargetView Texture::GetRenderTargetView(TextureViewDesc& viewDesc)
 	{
 		viewDesc.m_texture = this;
 		return m_renderer->GetViewCache()->GetRenderTargetView(viewDesc);
@@ -191,21 +180,12 @@ namespace PB
 		m_viewDescs.PushBack() = desc;
 	}
 
-	bool Texture::HasDepthPlane()
-	{
-		return m_hasDepthPlane;
-	}
-
-	bool Texture::HasStencilPlane()
-	{
-		return m_hasStencilPlane;
-	}
-
 	bool Texture::CreateImageResource(const TextureDesc& desc)
 	{
 		PB_ASSERT_MSG(desc.m_usageStates != ETextureState::NONE, "No usage flags provided.");
 		PB_ASSERT_MSG((desc.m_usageStates & ETextureState::MAX) == 0, "Invalid texture usage flag provided.");
 		PB_ASSERT_MSG(desc.m_width > 0 && desc.m_height > 0, "Texture cannot be zero width or height.");
+		PB_ASSERT_MSG(desc.m_mipCount >= 1, "Texture should have at least one mip level.");
 
 		if (desc.m_usageStates == ETextureState::NONE || (desc.m_usageStates & ETextureState::MAX) > 0)
 			return false;
@@ -235,7 +215,7 @@ namespace PB
 		imageInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageInfo.extent = { desc.m_width, desc.m_height, 1U };
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageInfo.mipLevels = 1;
+		imageInfo.mipLevels = m_mipCount = desc.m_mipCount;
 		imageInfo.arrayLayers = 1;
 		auto queueFamilyIndex = static_cast<uint32_t>(m_renderer->GetDevice()->GetGraphicsQueueFamilyIndex());
 		imageInfo.pQueueFamilyIndices = &queueFamilyIndex;
@@ -271,7 +251,23 @@ namespace PB
 
 	bool Texture::AllocateMemory(const TextureDesc& desc, const VkMemoryRequirements& memRequirements)
 	{
-		m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, EMemoryType::DEVICE_LOCAL, static_cast<u32>(memRequirements.size));
+		// TODO: This allocator is bugged, and should be fixed to reduce device allocation count.
+		//m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, EMemoryType::DEVICE_LOCAL, static_cast<u32>(memRequirements.size));
+
+		m_memoryBlock.m_size = (u32)memRequirements.size;
+		m_memoryBlock.m_alignmentOffset = 0;
+		m_memoryBlock.m_start = 0;
+		m_memoryBlock.m_memoryType = PB::EMemoryType::DEVICE_LOCAL;
+		m_memoryBlock.m_memoryTypeIndex = m_device->FindMemoryTypeIndex(memRequirements.memoryTypeBits, PB::EMemoryType::DEVICE_LOCAL);
+
+		VkMemoryAllocateInfo allocInfo;
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.pNext = nullptr;
+		allocInfo.allocationSize = memRequirements.size;
+		allocInfo.memoryTypeIndex = m_memoryBlock.m_memoryTypeIndex;
+
+		vkAllocateMemory(m_device->GetHandle(), &allocInfo, nullptr, &m_memoryBlock.m_memory);
+
 		if (!m_memoryBlock.m_memory)
 		{
 			PB_ASSERT_MSG(false, "Failed to allocate texture memory block.");
@@ -296,35 +292,32 @@ namespace PB
 			MakeInternalContext(internalContext, m_renderer);
 			internalContext.Begin();
 
-			if (m_currentState != ETextureState::COPY_DST && m_currentState != ETextureState::STORAGE)
-			{
-				SubresourceRange pbSubresourceRange;
-				pbSubresourceRange.m_baseMip = 0; // TODO: Support for subresources.
-				pbSubresourceRange.m_mipCount = 1;
-				pbSubresourceRange.m_firstArrayElement = 0;
-				pbSubresourceRange.m_arrayCount = 1;
-				internalContext.CmdTransitionTexture(this, ETextureState::COPY_DST, pbSubresourceRange);
-			}
+			SubresourceRange pbSubresourceRange;
+			pbSubresourceRange.m_baseMip = 0; // TODO: Support for subresources.
+			pbSubresourceRange.m_mipCount = m_mipCount;
+			pbSubresourceRange.m_firstArrayElement = 0;
+			pbSubresourceRange.m_arrayCount = 1;
+			internalContext.CmdTransitionTexture(this, ETextureState::NONE, ETextureState::COPY_DST, pbSubresourceRange);
 
 			// Clear image to zero by clearing it with black.
 			VkImageSubresourceRange subresources;
 			subresources.baseMipLevel = 0;
 			subresources.baseArrayLayer = 0;
 			subresources.layerCount = 1;
-			subresources.levelCount = 1;
+			subresources.levelCount = m_mipCount;
 			if (m_hasDepthPlane)
 			{
 				VkClearDepthStencilValue depthClear = { 0.0f, 1 };
 				subresources.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 				if (m_hasStencilPlane)
 					subresources.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-				vkCmdClearDepthStencilImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(m_currentState), &depthClear, 1, &subresources);
+				vkCmdClearDepthStencilImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(ETextureState::COPY_DST), &depthClear, 1, &subresources);
 			}
 			else
 			{
 				VkClearColorValue clearColor = { 0, 0, 0, 0 };
 				subresources.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				vkCmdClearColorImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(m_currentState), &clearColor, 1, &subresources);
+				vkCmdClearColorImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(ETextureState::COPY_DST), &clearColor, 1, &subresources);
 			}
 			
 			internalContext.End();
@@ -332,6 +325,11 @@ namespace PB
 		}
 		else if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA)
 		{
+			if (m_mipCount > 1)
+			{
+				PB_NOT_IMPLEMENTED;
+			}
+
 			// TODO: Alignment needs to be the size of a texel. Right now we're assuming the worst-case scenario rather than checking the format texel size.
 			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentSwapchainImageIndex(), PB::EMemoryType::HOST_VISIBLE, 16);
 			memcpy(stagingBuffer.Start(), desc.m_data.m_data, desc.m_data.m_size);
@@ -341,7 +339,7 @@ namespace PB
 			internalContext.Begin();
 
 			PB::SubresourceRange subresources{};
-			internalContext.CmdTransitionTexture(this, ETextureState::COPY_DST, subresources);
+			internalContext.CmdTransitionTexture(this, ETextureState::NONE, ETextureState::COPY_DST, subresources);
 
 			VkBufferImageCopy region;
 			region.bufferOffset = stagingBuffer.m_offset;

@@ -41,7 +41,7 @@ namespace PB
 
 		ResourceView GetTextureView(const TextureViewDesc& desc);
 
-		TextureView GetRenderTargetView(const TextureViewDesc& desc);
+		RenderTargetView GetRenderTargetView(const TextureViewDesc& desc);
 
 		void DestroyTextureView(const TextureViewDesc& desc);
 

@@ -86,6 +86,8 @@ namespace PB
 			break;
 		}
 		desc.storeOp = pbDesc.m_keepContents ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		desc.stencilLoadOp = desc.loadOp;
+		desc.stencilStoreOp = desc.storeOp;
 		desc.samples = VK_SAMPLE_COUNT_1_BIT;
 		desc.flags = 0;
 	}

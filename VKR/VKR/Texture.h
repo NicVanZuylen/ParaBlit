@@ -13,7 +13,6 @@ namespace PB
 	struct WrappedTextureDesc
 	{
 		VkImage m_wrappedImage = VK_NULL_HANDLE;
-		ETextureState m_currentUsage = ETextureState::NONE;
 		TextureStateFlags m_usageFlags = ETextureState::NONE;
 		u32 m_width = 0;
 		u32 m_height = 0;
@@ -23,23 +22,19 @@ namespace PB
 	{
 	public:
 
-		PARABLIT_API Texture();
+		Texture();
 
-		PARABLIT_API ~Texture();
+		~Texture();
 
-		PARABLIT_API void Create(IRenderer* renderer, const TextureDesc& desc) override;
+		void Create(IRenderer* renderer, const TextureDesc& desc) override;
 
-		PARABLIT_API void Create(Renderer* renderer, WrappedTextureDesc desc);
+		void Create(Renderer* renderer, WrappedTextureDesc desc);
 
-		PARABLIT_API inline void Destroy();
+		inline void Destroy();
 
-		PARABLIT_API VkImage GetImage();
+		VkImage GetImage();
 
-		PARABLIT_API void SetState(ETextureState state);
-
-		PARABLIT_API TextureStateFlags GetUsage();
-
-		PARABLIT_API ETextureState GetState();
+		TextureStateFlags GetUsage();
 
 		bool CanAlias(ITexture* baseTexture) override;
 
@@ -47,7 +42,7 @@ namespace PB
 
 		ResourceView GetDefaultSRV() override;
 
-		TextureView GetDefaultRTV() override;
+		RenderTargetView GetDefaultRTV() override;
 
 		ResourceView GetView(TextureViewDesc& viewDesc) override;
 
@@ -55,23 +50,25 @@ namespace PB
 
 		ResourceView GetViewAsStorageImage(TextureViewDesc& viewDesc) override;
 
-		TextureView GetRenderTargetView(TextureViewDesc& viewDesc) override;
+		RenderTargetView GetRenderTargetView(TextureViewDesc& viewDesc) override;
 
 		VkExtent3D GetExtent();
 
 		void RegisterView(const TextureViewDesc& desc);
 
-		bool HasDepthPlane();
+		inline u32 GetMipCount() { return m_mipCount; }
 
-		bool HasStencilPlane();
+		inline bool HasDepthPlane() { return m_hasDepthPlane; }
+
+		inline bool HasStencilPlane() { return m_hasStencilPlane; }
 
 	private:
 
-		PARABLIT_API inline bool CreateImageResource(const TextureDesc& desc);
+		inline bool CreateImageResource(const TextureDesc& desc);
 
-		PARABLIT_API inline bool AllocateMemory(const TextureDesc& desc, const VkMemoryRequirements& memRequirements);
+		inline bool AllocateMemory(const TextureDesc& desc, const VkMemoryRequirements& memRequirements);
 
-		PARABLIT_API inline void InitializeMemory(const TextureDesc& desc);
+		inline void InitializeMemory(const TextureDesc& desc);
 
 		Renderer* m_renderer = nullptr;
 		Device* m_device = nullptr;
@@ -79,8 +76,8 @@ namespace PB
 		VkExtent3D m_extents = { 1, 1, 1 };
 		DeviceAllocator::PageView m_memoryBlock;
 		TextureStateFlags m_availableStates = ETextureState::NONE;
-		ETextureState m_currentState = ETextureState::NONE;
 		ETextureFormat m_format = ETextureFormat::UNKNOWN;
+		u32 m_mipCount = 1;
 		bool m_ownsImage : 1; // There may be some cases (Such as swap chain images), where the VkImage is already created for us. This flags (if false) for this object to not delete the VkImage when destroyed.
 		bool m_hasDepthPlane : 1;
 		bool m_hasStencilPlane : 1;

@@ -22,8 +22,11 @@
     <ClCompile Include="..\VKR\CLib\Allocator.cpp" />
     <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp" />
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="BloomPass.cpp" />
+    <ClCompile Include="BlurHelper.cpp" />
     <ClCompile Include="ClientPlayground.cpp" />
     <ClCompile Include="DrawBatch.cpp" />
+    <ClCompile Include="FontTexture.cpp" />
     <ClCompile Include="GBufferPass.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DeferredLightingPass.cpp" />
@@ -37,6 +40,7 @@
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ShadowAccumPass.cpp" />
     <ClCompile Include="ShadowMapPass.cpp" />
+    <ClCompile Include="TextRenderPass.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="WindowHandle.cpp" />
   </ItemGroup>
@@ -44,8 +48,11 @@
     <ClInclude Include="..\VKR\CLib\Allocator.h" />
     <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h" />
     <ClInclude Include="Application.h" />
+    <ClInclude Include="BloomPass.h" />
+    <ClInclude Include="BlurHelper.h" />
     <ClInclude Include="ClientPlayground.h" />
     <ClInclude Include="DrawBatch.h" />
+    <ClInclude Include="FontTexture.h" />
     <ClInclude Include="GBufferPass.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DeferredLightingPass.h" />
@@ -59,6 +66,7 @@
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ShadowAccumPass.h" />
     <ClInclude Include="ShadowMapPass.h" />
+    <ClInclude Include="TextRenderPass.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="Time.h" />
     <ClInclude Include="WindowHandle.h" />
@@ -141,13 +149,13 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)STB;$(SolutionDir)VKR;$(ProjectDir)GLFW_3.2.1\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\glm\include;$(SolutionDir)VKR\ContainerLib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>glfw3.lib;glfw3dll.lib;ParaBlit.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)x64\debug;$(ProjectDir)GLFW_3.2.1\lib-vc2015;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;ParaBlit.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)x64\debug;$(SolutionDir)External\glfw\glfw-build\src\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>
       </EntryPointSymbol>
@@ -179,7 +187,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)VKR;$(ProjectDir)GLFW_3.2.1\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\glm\include;$(SolutionDir)VKR\ContainerLib\include;$(ProjectDir)TinyObjLoader\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -187,7 +195,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>glfw3.lib;glfw3dll.lib;ParaBlit.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)x64\release;$(ProjectDir)GLFW_3.2.1\lib-vc2015;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)x64\release;$(SolutionDir)External\glfw\glfw-build\src\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>
       </EntryPointSymbol>

@@ -80,8 +80,8 @@ namespace PB
 		appInfo.apiVersion = VK_MAKE_VERSION(1, 2, VK_HEADER_VERSION);
 		appInfo.applicationVersion = 1;
 		appInfo.engineVersion = 1;
-		appInfo.pApplicationName = "VKR Client";
-		appInfo.pEngineName = "VKR";
+		appInfo.pApplicationName = "ParaBlitClient_debug";
+		appInfo.pEngineName = "ParaBlit";
 
 		VkInstanceCreateInfo cInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, nullptr };
 		cInfo.flags = 0;

@@ -40,6 +40,7 @@ namespace PB
 		TextureInitOptionFlags m_initOptions = ETextureInitOptions::PB_TEXTURE_INIT_NONE;
 		u32 m_width = 0;
 		u32 m_height = 0;
+		u32 m_mipCount = 1;
 	};
 
 	struct TextureViewDesc
@@ -81,6 +82,8 @@ namespace PB
 		ESamplerRepeatMode m_repeatMode = ESamplerRepeatMode::REPEAT;
 		ESamplerBorderColor m_borderColor = ESamplerBorderColor::BLACK;
 		float m_anisotropyLevels = 0.0f;
+		float minLod = 0.0f;
+		float maxLod = 1.0f;
 
 		bool operator == (const SamplerDesc& other) const;
 	};
@@ -116,7 +119,7 @@ namespace PB
 
 		PARABLIT_INTERFACE ResourceView GetDefaultSRV() = 0;
 
-		PARABLIT_INTERFACE TextureView GetDefaultRTV() = 0;
+		PARABLIT_INTERFACE RenderTargetView GetDefaultRTV() = 0;
 
 		PARABLIT_INTERFACE ResourceView GetView(TextureViewDesc& viewDesc) = 0;
 
@@ -124,6 +127,6 @@ namespace PB
 
 		PARABLIT_INTERFACE ResourceView GetViewAsStorageImage(TextureViewDesc& viewDesc) = 0;
 
-		PARABLIT_INTERFACE TextureView GetRenderTargetView(TextureViewDesc& viewDesc) = 0;
+		PARABLIT_INTERFACE RenderTargetView GetRenderTargetView(TextureViewDesc& viewDesc) = 0;
 	};
 }

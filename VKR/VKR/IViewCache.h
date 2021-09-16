@@ -12,7 +12,7 @@ namespace PB
 	{
 	public:
 
-		//PARABLIT_INTERFACE TextureView GetTextureView(const TextureViewDesc& desc) = 0;
+		//PARABLIT_INTERFACE RenderTargetView GetTextureView(const TextureViewDesc& desc) = 0;
 		//
 		//PARABLIT_INTERFACE BufferView GetBufferView(const BufferViewDesc& desc) = 0;
 		//

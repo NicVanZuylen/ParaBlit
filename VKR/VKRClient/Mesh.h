@@ -4,22 +4,27 @@
 #include "CLib/Vector.h"
 #include <string>
 
-#pragma warning(push, 0)
-#include "glm.hpp"
-#pragma warning(pop)
-
 #include "IRenderer.h"
 #include "DrawBatch.h"
 
 namespace PBClient
 {
-	struct Vertex
+	/*struct Vertex
 	{
 		glm::vec4 m_position;
 		glm::vec4 m_normal;
 		glm::vec4 m_tangent;
 		glm::vec2 m_texCoords;
 		glm::vec2 m_pad0;
+	};*/
+
+	struct Vertex
+	{
+		PB::Float4 m_position;
+		PB::Float4 m_normal;
+		PB::Float4 m_tangent;
+		PB::Float2 m_texCoords;
+		PB::Float2 m_pad0;
 	};
 
 	struct MeshCacheData

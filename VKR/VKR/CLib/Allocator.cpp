@@ -1,7 +1,5 @@
 #include "Allocator.h"
 
-#include <cassert>
-
 #if CLIB_ALLOCATOR_DEBUG
 #define DEBUG_STORE_TYPE_NAME(blockNode, name) blockNode->m_typeName = name
 #define DEBUG_TRACK_BLOCK(blockNode) m_allocatedNodes.insert(blockNode)
@@ -81,6 +79,8 @@ namespace CLib
 
 	void* Allocator::InternalAlloc(uint32_t size, uint32_t alignment, const char* typeName)
 	{
+		return malloc(size);
+
 		// TODO: Consider falling back to malloc for blocks too large to fit on any page. Track if a block was allocated with malloc so we can free it with 'free'.
 		uint32_t alignmentPad = alignment > 0 ? alignment - ((size + sizeof(BlockNode)) % alignment) : 0;
 		uint32_t requiredSize = size + alignmentPad;
@@ -138,6 +138,8 @@ namespace CLib
 
 	void Allocator::InternalFree(void* ptr)
 	{
+		return free(ptr);
+
 		BlockNode* node = reinterpret_cast<BlockNode*>(reinterpret_cast<size_t>(ptr) - sizeof(BlockNode));
 		DEBUG_UNTRACK_BLOCK(node);
 

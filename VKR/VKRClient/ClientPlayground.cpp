@@ -1,6 +1,6 @@
 #include "ClientPlayground.h"
 
-#include "glfw3.h"
+#include "GLFW/glfw3.h"
 
 #include "CLib/Allocator.h"
 
@@ -10,18 +10,17 @@
 #include "GBufferPass.h"
 #include "ShadowAccumPass.h"
 #include "DeferredLightingPass.h"
+#include "BloomPass.h"
 
 #include "Input.h"
 
+#include "FontTexture.h"
 #include "Mesh.h"
 #include "Shader.h"
 #include "ObjectDispatcher.h"
 #include "DrawBatch.h"
 
-#pragma warning(push, 0)
-#include "glm/include/glm.hpp"
-#include "gtc/matrix_transform.hpp"
-#pragma warning(pop)
+#include "glm/gtc/type_ptr.hpp"
 
 ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* allocator)
 {
@@ -35,10 +34,10 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	InitResources();
 
 	m_geoShadowDispatchList = m_allocator->Alloc<ObjectDispatchList>();
-	m_geoShadowDispatchList->Init(m_renderer, m_allocator);
+	m_geoShadowDispatchList->Init(m_renderer, m_allocator, { 0, 0, 0, 0 });
 
 	m_geoDispatchList = m_allocator->Alloc<ObjectDispatchList>();
-	m_geoDispatchList->Init(m_renderer, m_allocator);
+	m_geoDispatchList->Init(m_renderer, m_allocator, { 0, 0, m_swapchain->GetWidth(), m_swapchain->GetHeight() });
 
 	m_renderGraph = CreateRenderGraph();
 	SetupDrawBatch();
@@ -55,6 +54,8 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 
 	initCmdContext->End();
 	initCmdContext->Return();
+
+	m_fontTexture = m_allocator->Alloc<PBClient::FontTexture>(m_renderer, "TestAssets/Fonts/arial.ttf");
 }
 
 ClientPlayground::~ClientPlayground()
@@ -69,10 +70,13 @@ ClientPlayground::~ClientPlayground()
 	m_allocator->Free(m_renderGraph);
 
 	// Free rendergraph nodes.
+	m_allocator->Free(m_bloomPass);
 	m_allocator->Free(m_deferredLightingPass);
 	m_allocator->Free(m_shadowAccumPass);
 	m_allocator->Free(m_gBufferPass);
 	m_allocator->Free(m_shadowmapPass);
+
+	m_allocator->Free(m_fontTexture);
 }
 
 void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime)
@@ -121,12 +125,25 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 	{
 		PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 		auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
-		m_deferredLightingPass->SetOutputTexture(swapChainTex);
 		//m_shadowAccumPass->SetOutputTexture(swapChainTex);
+		m_bloomPass->SetOutputTexture(swapChainTex);
 	}
 	// ---------------------------------------------------------------------------------------------------------------
 
 	m_renderGraph->Execute();
+}
+
+void ClientPlayground::UpdateResolution(uint32_t width, uint32_t height)
+{
+	m_allocator->Free(m_renderGraph);
+	m_renderGraph = CreateRenderGraph();
+
+	m_geoShadowDispatchList->FlushCommandLists(); // Force command lists to be re-recorded.
+	m_geoDispatchList->UpdateRenderArea({ 0, 0, width, height }); // Will also flush command lists.
+
+	PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
+	auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
+	m_bloomPass->SetOutputTexture(swapChainTex);
 }
 
 void ClientPlayground::InitResources()
@@ -190,17 +207,23 @@ void ClientPlayground::InitResources()
 	m_detailsTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_roughness.tga");
 	m_glassTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_roughness.tga");
 
+	m_detailsTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_emissive.tga");
+	m_glassTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Spinner/glass2048/m_spinner_glass_emissive.tga");
+
 	m_metalTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Metal/diffuse.tga");
 	m_metalTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Metal/normal.tga");
 
 	for (int i = 0; i < _countof(m_paintTextures); ++i)
 		m_paintViews[i] = m_paintTextures[i]->GetTexture()->GetDefaultSRV();
+	m_paintViews[4] = m_solidBlackTexture->GetDefaultSRV();
 
 	for (int i = 0; i < _countof(m_detailsTextures); ++i)
 		m_detailsViews[i] = m_detailsTextures[i]->GetTexture()->GetDefaultSRV();
+	//m_detailsViews[4] = m_solidBlackTexture->GetDefaultSRV();
 
 	for (int i = 0; i < _countof(m_glassTextures); ++i)
 		m_glassViews[i] = m_glassTextures[i]->GetTexture()->GetDefaultSRV();
+	//m_glassViews[4] = m_solidBlackTexture->GetDefaultSRV();
 
 	PB::SamplerDesc colorSamplerDesc;
 	colorSamplerDesc.m_anisotropyLevels = 1.0f;
@@ -259,179 +282,37 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 
 		// Shadowmap Pass
 		{
-			NodeDesc nodeDesc;
-			nodeDesc.m_behaviour = m_shadowmapPass = m_allocator->Alloc<ShadowMapPass>(m_renderer, m_allocator);
-			nodeDesc.m_useReusableCommandLists = true;
-
-			AttachmentDesc& depthDesc = nodeDesc.m_attachments[0];
-			depthDesc.m_format = PB::ETextureFormat::D16_UNORM;
-			depthDesc.m_width = ShadowmapResolution;
-			depthDesc.m_height = ShadowmapResolution;
-			depthDesc.m_name = "WorldShadowmap";
-			depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
-			depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-			nodeDesc.m_attachmentCount = 1;
-			nodeDesc.m_renderWidth = depthDesc.m_width;
-			nodeDesc.m_renderHeight = depthDesc.m_height;
-
-			rgBuilder.AddNode(nodeDesc);
+			if(!m_shadowmapPass)
+				m_shadowmapPass = m_allocator->Alloc<ShadowMapPass>(m_renderer, m_allocator);
+			m_shadowmapPass->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
 		}
 
 		// GBuffer pass
 		{
-			NodeDesc nodeDesc{};
-			nodeDesc.m_behaviour = m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator);
-			nodeDesc.m_useReusableCommandLists = true;
-
-			AttachmentDesc& colorDesc = nodeDesc.m_attachments[0];
-			colorDesc.m_format = m_swapchain->GetImageFormat();
-			colorDesc.m_width = m_swapchain->GetWidth();
-			colorDesc.m_height = m_swapchain->GetHeight();
-			colorDesc.m_name = "G_Color";
-			colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
-			colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-
-			AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
-			normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
-			normalDesc.m_width = m_swapchain->GetWidth();
-			normalDesc.m_height = m_swapchain->GetHeight();
-			normalDesc.m_name = "G_Normal";
-			normalDesc.m_usage = PB::EAttachmentUsage::COLOR;
-			normalDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-
-			AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments[2];
-			specAndRoughDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-			specAndRoughDesc.m_width = m_swapchain->GetWidth();
-			specAndRoughDesc.m_height = m_swapchain->GetHeight();
-			specAndRoughDesc.m_name = "G_SpecAndRough";
-			specAndRoughDesc.m_usage = PB::EAttachmentUsage::COLOR;
-
-			AttachmentDesc& depthDesc = nodeDesc.m_attachments[3];
-			depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
-			depthDesc.m_width = m_swapchain->GetWidth();
-			depthDesc.m_height = m_swapchain->GetHeight();
-			depthDesc.m_name = "G_Depth";
-			depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
-			depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-			nodeDesc.m_attachmentCount = 4;
-			nodeDesc.m_renderWidth = colorDesc.m_width;
-			nodeDesc.m_renderHeight = colorDesc.m_height;
-
-			rgBuilder.AddNode(nodeDesc);
+			if(!m_gBufferPass)
+				m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator);
+			m_gBufferPass->AddToRenderGraph(&rgBuilder);
 		}
 		
 		// Shadow Accumulation Pass
 		{
-			NodeDesc nodeDesc{};
-			nodeDesc.m_behaviour = m_shadowAccumPass = m_allocator->Alloc<ShadowAccumPass>(m_renderer, m_allocator);
-			nodeDesc.m_useReusableCommandLists = true;
-
-			// Depth is needed for shadowmap comparison and retreiving world-space position of texels.
-			AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[0];
-			depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
-			depthReadDesc.m_width = m_swapchain->GetWidth();
-			depthReadDesc.m_height = m_swapchain->GetHeight();
-			depthReadDesc.m_name = "G_Depth";
-			depthReadDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			AttachmentDesc& normalReadDesc = nodeDesc.m_attachments[1];
-			normalReadDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
-			normalReadDesc.m_width = m_swapchain->GetWidth();
-			normalReadDesc.m_height = m_swapchain->GetHeight();
-			normalReadDesc.m_name = "G_Normal";
-			normalReadDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			AttachmentDesc& shadowmapReadDesc = nodeDesc.m_attachments[2];
-			shadowmapReadDesc.m_format = PB::ETextureFormat::D16_UNORM;
-			shadowmapReadDesc.m_width = ShadowmapResolution;
-			shadowmapReadDesc.m_height = ShadowmapResolution;
-			shadowmapReadDesc.m_name = "WorldShadowmap";
-			shadowmapReadDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			AttachmentDesc& shadowMaskDesc = nodeDesc.m_attachments[3];
-			shadowMaskDesc.m_format = PB::ETextureFormat::R8_UNORM;
-			shadowMaskDesc.m_width = m_swapchain->GetWidth();
-			shadowMaskDesc.m_height = m_swapchain->GetHeight();
-			shadowMaskDesc.m_name = "ShadowMaskA";
-			shadowMaskDesc.m_usage = PB::EAttachmentUsage::COLOR;
-			shadowMaskDesc.m_flags = (uint32_t)EAttachmentFlags::SECONDARY_SAMPLED | (uint32_t)EAttachmentFlags::SECONDARY_STORAGE;
-			shadowMaskDesc.m_flags |= EAttachmentFlags::COPY_SRC;
-			
-			AttachmentDesc& finalShadowMaskDesc = nodeDesc.m_attachments[4];
-			finalShadowMaskDesc.m_format = PB::ETextureFormat::R8_UNORM;
-			finalShadowMaskDesc.m_width = m_swapchain->GetWidth();
-			finalShadowMaskDesc.m_height = m_swapchain->GetHeight();
-			finalShadowMaskDesc.m_name = "ShadowMaskB";
-			finalShadowMaskDesc.m_usage = PB::EAttachmentUsage::READ;
-			finalShadowMaskDesc.m_flags = (uint32_t)EAttachmentFlags::SECONDARY_SAMPLED | (uint32_t)EAttachmentFlags::SECONDARY_STORAGE;
-			finalShadowMaskDesc.m_flags |= EAttachmentFlags::COPY_SRC; // TODO: Remove this.
-
-			nodeDesc.m_attachmentCount = 5;
-			nodeDesc.m_renderWidth = depthReadDesc.m_width;
-			nodeDesc.m_renderHeight = depthReadDesc.m_height;
-
-			rgBuilder.AddNode(nodeDesc);
+			if(!m_shadowAccumPass)
+				m_shadowAccumPass = m_allocator->Alloc<ShadowAccumPass>(m_renderer, m_allocator);
+			m_shadowAccumPass->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
 		}
 
 		// Deferred lighting pass
 		{
-			NodeDesc nodeDesc{};
-			nodeDesc.m_behaviour = m_deferredLightingPass = m_allocator->Alloc<DeferredLightingPass>(m_renderer, m_allocator);
-			nodeDesc.m_useReusableCommandLists = true;
+			if(!m_deferredLightingPass)
+				m_deferredLightingPass = m_allocator->Alloc<DeferredLightingPass>(m_renderer, m_allocator);
+			m_deferredLightingPass->AddToRenderGraph(&rgBuilder);
+		}
 
-			// Read G Buffers
-			AttachmentDesc& colorReadDesc = nodeDesc.m_attachments[0];
-			colorReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-			colorReadDesc.m_width = m_swapchain->GetWidth();
-			colorReadDesc.m_height = m_swapchain->GetHeight();
-			colorReadDesc.m_name = "G_Color";
-			colorReadDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
-			normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
-			normalDesc.m_width = m_swapchain->GetWidth();
-			normalDesc.m_height = m_swapchain->GetHeight();
-			normalDesc.m_name = "G_Normal";
-			normalDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments[2];
-			specAndRoughDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-			specAndRoughDesc.m_width = m_swapchain->GetWidth();
-			specAndRoughDesc.m_height = m_swapchain->GetHeight();
-			specAndRoughDesc.m_name = "G_SpecAndRough";
-			specAndRoughDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[3];
-			depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
-			depthReadDesc.m_width = m_swapchain->GetWidth();
-			depthReadDesc.m_height = m_swapchain->GetHeight();
-			depthReadDesc.m_name = "G_Depth";
-			depthReadDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			AttachmentDesc& shadowMaskReadDesc = nodeDesc.m_attachments[4];
-			shadowMaskReadDesc.m_format = PB::ETextureFormat::R8_UNORM;
-			shadowMaskReadDesc.m_width = m_swapchain->GetWidth();
-			shadowMaskReadDesc.m_height = m_swapchain->GetHeight();
-			shadowMaskReadDesc.m_name = "ShadowMaskA";
-			shadowMaskReadDesc.m_usage = PB::EAttachmentUsage::READ;
-
-			// Output
-			AttachmentDesc& colorDesc = nodeDesc.m_attachments[5];
-			colorDesc.m_format = m_swapchain->GetImageFormat();
-			colorDesc.m_width = m_swapchain->GetWidth();
-			colorDesc.m_height = m_swapchain->GetHeight();
-			colorDesc.m_name = "ColorOutput";
-			colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
-			colorDesc.m_flags = EAttachmentFlags::COPY_SRC;
-			colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-
-			nodeDesc.m_attachmentCount = 6;
-			nodeDesc.m_renderWidth = colorDesc.m_width;
-			nodeDesc.m_renderHeight = colorDesc.m_height;
-
-			rgBuilder.AddNode(nodeDesc);
+		// Bloom Pass
+		{
+			if(!m_bloomPass)
+				m_bloomPass = m_allocator->Alloc<BloomPass>(m_renderer, m_allocator, true);
+			m_bloomPass->AddToRenderGraph(&rgBuilder);
 		}
 
 		output = rgBuilder.Build();
@@ -444,7 +325,7 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	{
 		glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
 
-		Camera shadowCam(glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50), glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)));
+		Camera shadowCam(glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50.0f), glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)));
 
 		glm::mat4 shadowView = shadowCam.GetViewMatrix();
 
@@ -458,10 +339,12 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		m_shadowAccumPass->SetMVPBuffer(m_mvpBuffer);
 		m_shadowAccumPass->SetSVBBuffer(m_shadowmapPass->GetSVBView());
 
-		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
-		//m_deferredLightingPass->SetDirectionalLight(0, { 1.0f, 0.3f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
-		m_deferredLightingPass->SetPointLight(0, { -1.0f, 2.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
-		m_deferredLightingPass->SetPointLight(1, { 1.0f, 2.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
+		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.3f, 0.3f });
+		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
+		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f });
+		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
+		m_deferredLightingPass->SetPointLight(0, { -1.0f, 3.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
+		m_deferredLightingPass->SetPointLight(1, { 1.0f, 3.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
 	}
 
 	return output;
@@ -480,26 +363,28 @@ void ClientPlayground::SetupDrawBatch()
 	glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
 	glm::mat4 spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
-	//PB::ResourceView plainViews[]
-	//{
-	//	m_solidWhiteTexture->GetDefaultSRV(),
-	//	//m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
-	//	m_flatNormalTexture->GetDefaultSRV(),
-	//	m_solidBlackTexture->GetDefaultSRV(),
-	//	m_solidBlackTexture->GetDefaultSRV()
-	//};
-
 	PB::ResourceView plainViews[]
+	{
+		m_solidWhiteTexture->GetDefaultSRV(),
+		//m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
+		m_flatNormalTexture->GetDefaultSRV(),
+		m_solidBlackTexture->GetDefaultSRV(),
+		m_solidBlackTexture->GetDefaultSRV(),
+		m_solidBlackTexture->GetDefaultSRV()
+	};
+
+	/*PB::ResourceView plainViews[]
 	{
 		m_metalTextures[0]->GetTexture()->GetDefaultSRV(),
 		m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
 		m_solidBlackTexture->GetDefaultSRV(),
 		m_solidBlackTexture->GetDefaultSRV()
-	};
+	};*/
 
 	for (uint32_t i = 0; i < 2; ++i)
 	{
 		modelMat = glm::translate(glm::mat4(), glm::vec3(4.0f * (i / 10), -0.2f, -7.0f * (i % 10)));
+		modelMat = glm::rotate(modelMat, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
 		if (i == 0)
@@ -521,7 +406,7 @@ void ClientPlayground::SetupDrawBatch()
 
 PB::Pipeline ClientPlayground::GetGBufferDrawBatchPipeline()
 {
-	PB::GraphicsPipelineDesc pipelineDesc = m_gBufferPass->GetBasePipelineDesc(m_swapchain);
+	PB::GraphicsPipelineDesc pipelineDesc = m_gBufferPass->GetBasePipelineDesc();
 	pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_vertShader->GetModule();
 	pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_fragShader->GetModule();
 

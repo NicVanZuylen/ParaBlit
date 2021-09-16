@@ -21,10 +21,14 @@ ObjectDispatchList::~ObjectDispatchList()
 		while (instruction)
 		{
 			// Free binding storage.
-			if(instruction->m_bindingLayout.m_uniformBuffers)
-				m_bindingStorage.Free(reinterpret_cast<void*>(instruction->m_bindingLayout.m_uniformBuffers));
-			if(instruction->m_bindingLayout.m_resourceViews)
-				m_bindingStorage.Free(reinterpret_cast<void*>(instruction->m_bindingLayout.m_resourceViews));
+			if (instruction->m_bindingLayout.m_uniformBuffers)
+			{
+				m_bindingStorage.Free(instruction->m_bindingLayout.m_uniformBuffers);
+			}
+			if (instruction->m_bindingLayout.m_resourceViews)
+			{
+				m_bindingStorage.Free(instruction->m_bindingLayout.m_resourceViews);
+			}
 
 			list.second->m_drawInstructionStorage.Free(instruction);
 			instruction = instruction->m_next;
@@ -33,10 +37,11 @@ ObjectDispatchList::~ObjectDispatchList()
 	}
 }
 
-void ObjectDispatchList::Init(PB::IRenderer* renderer, CLib::Allocator* allocator)
+void ObjectDispatchList::Init(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::Rect renderArea)
 {
 	m_renderer = renderer;
 	m_generalAllocator = allocator;
+	m_renderArea = renderArea;
 }
 
 ObjectDispatchList::DispatchObjectHandle ObjectDispatchList::AddObject(PB::Pipeline pipeline, const PB::IBufferObject* vertexBuffer, const PB::IBufferObject* indexBuffer, PB::BindingLayout bindingLayout, PB::DrawIndexedIndirectParams drawParams, const PB::IBufferObject* instanceBuffer)
@@ -60,12 +65,13 @@ ObjectDispatchList::DispatchObjectHandle ObjectDispatchList::AddObject(PB::Pipel
 	instruction->m_instanceBuffer = instanceBuffer;
 	instruction->m_bindingLayout = bindingLayout;
 
-	
-	instruction->m_bindingLayout.m_uniformBuffers = reinterpret_cast<PB::UniformBufferView*>(m_bindingStorage.Alloc(sizeof(PB::UniformBufferView) * static_cast<PB::u32>(bindingLayout.m_uniformBufferCount)));
-	memcpy(instruction->m_bindingLayout.m_uniformBuffers, bindingLayout.m_uniformBuffers, sizeof(PB::UniformBufferView) * bindingLayout.m_uniformBufferCount);
-	
-	instruction->m_bindingLayout.m_resourceViews = reinterpret_cast<PB::ResourceView*>(m_bindingStorage.Alloc(sizeof(PB::ResourceView) * static_cast<PB::u32>(bindingLayout.m_resourceCount)));
-	memcpy(instruction->m_bindingLayout.m_resourceViews, bindingLayout.m_resourceViews, sizeof(PB::ResourceView) * bindingLayout.m_resourceCount);
+	PB::UniformBufferView* uboStorage = reinterpret_cast<PB::UniformBufferView*>(m_bindingStorage.Alloc(sizeof(PB::UniformBufferView) * bindingLayout.m_uniformBufferCount));
+	memcpy(uboStorage, bindingLayout.m_uniformBuffers, sizeof(PB::UniformBufferView) * bindingLayout.m_uniformBufferCount);
+	instruction->m_bindingLayout.m_uniformBuffers = uboStorage;
+
+	PB::ResourceView* viewStorage = reinterpret_cast<PB::ResourceView*>(m_bindingStorage.Alloc(sizeof(PB::ResourceView) * bindingLayout.m_resourceCount));
+	memcpy(viewStorage, bindingLayout.m_resourceViews, sizeof(PB::ResourceView) * bindingLayout.m_resourceCount);
+	instruction->m_bindingLayout.m_resourceViews = viewStorage;
 
 	if (m_indirectParamsFreeList.Count() == 0)
 		AddIndirectParamsPage();
@@ -94,6 +100,8 @@ void ObjectDispatchList::RemoveDispatchObject(DispatchObjectHandle& handle)
 
 	m_bindingStorage.Free(instruction.m_bindingLayout.m_resourceViews);
 	m_bindingStorage.Free(instruction.m_bindingLayout.m_uniformBuffers);
+	instruction.m_bindingLayout.m_resourceViews = nullptr;
+	instruction.m_bindingLayout.m_uniformBuffers = nullptr;
 
 	handle.m_dispatchList = nullptr;
 	handle.m_instruction = nullptr;
@@ -106,6 +114,18 @@ void ObjectDispatchList::SetIndirectParams(DispatchObjectHandle handle, PB::Draw
 	location.m_offset = handle.m_instruction->m_drawParamsOffset;
 
 	WriteIndirectParams(location, params);
+}
+
+void ObjectDispatchList::FlushCommandLists()
+{
+	for (auto& subList : m_dispatchSubLists)
+		subList.second->MarkForUpdate(m_renderer);
+}
+
+void ObjectDispatchList::UpdateRenderArea(PB::Rect renderArea)
+{
+	m_renderArea = renderArea;
+	FlushCommandLists();
 }
 
 void ObjectDispatchList::Update(PB::ICommandContext* commandContext)
@@ -155,6 +175,11 @@ void ObjectDispatchList::RecordDispatchSubListCommands(BakedCommandList& list, P
 
 	// Bind this sub list's pipeline.
 	scopedContext->CmdBindPipeline(list.m_pipeline);
+	if (m_renderArea.w * m_renderArea.h > 0)
+	{
+		scopedContext->SetViewport(m_renderArea, 0.0f, 1.0f);
+		scopedContext->SetScissor(m_renderArea);
+	}
 
 	ObjectDrawInstruction* ir = dispatchSubList.m_instructionList;
 	while (ir)

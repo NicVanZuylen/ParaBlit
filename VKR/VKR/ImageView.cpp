@@ -36,7 +36,7 @@ namespace PB
 
 	size_t SamplerDescHasher::operator()(const SamplerDesc& desc) const
 	{
-		PB_STATIC_ASSERT(sizeof(SamplerDesc) % 8 == 0, "SamplerDesc does not meet optimal alignment requirements for hashing.");
+		PB_STATIC_ASSERT(sizeof(SamplerDesc) % 16 == 0, "SamplerDesc does not meet optimal alignment requirements for hashing.");
 		return MurmurHash3_x64_64(&desc, sizeof(SamplerDesc), 0);
 	}
 
@@ -82,7 +82,7 @@ namespace PB
 			return it->second.m_descriptorIndex;
 	}
 
-	TextureView ViewCache::GetRenderTargetView(const TextureViewDesc& desc)
+	RenderTargetView ViewCache::GetRenderTargetView(const TextureViewDesc& desc)
 	{
 		PB_ASSERT_MSG(desc.m_expectedState == ETextureState::COLORTARGET || desc.m_expectedState == ETextureState::DEPTHTARGET, "Cannot use GetRenderTargetView to get a non-render target view. Use GetTextureView instead.");
 
@@ -91,10 +91,10 @@ namespace PB
 		{
 			auto& viewData = m_texViewCache[desc];
 			viewData = CreateTextureView(desc);
-			return reinterpret_cast<TextureView>(&viewData);
+			return reinterpret_cast<RenderTargetView>(&viewData);
 		}
 		else
-			return reinterpret_cast<TextureView>(&it->second);
+			return reinterpret_cast<RenderTargetView>(&it->second);
 	}
 
 	void ViewCache::DestroyTextureView(const TextureViewDesc& desc)
@@ -210,8 +210,8 @@ namespace PB
 
 		imageViewInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewInfo.subresourceRange.layerCount = 1;
-		imageViewInfo.subresourceRange.baseMipLevel = 0;
-		imageViewInfo.subresourceRange.levelCount = 1;
+		imageViewInfo.subresourceRange.baseMipLevel = desc.m_subresources.m_baseMip;
+		imageViewInfo.subresourceRange.levelCount = desc.m_subresources.m_mipCount;
 		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; // TODO: Allow for array views and in the future possibly 3D image views.
 
 		VkImageView newView = VK_NULL_HANDLE;
@@ -333,7 +333,8 @@ namespace PB
 		samplerInfo.minFilter = PBFilterToVKFilter(desc.m_filter);
 		samplerInfo.magFilter = PBFilterToVKFilter(desc.m_filter);
 		samplerInfo.mipmapMode = PBFilterToSamplerMipMode(desc.m_mipFilter);
-		samplerInfo.minLod = 0.0f;
+		samplerInfo.minLod = desc.minLod;
+		samplerInfo.maxLod = desc.maxLod;
 		samplerInfo.mipLodBias = 0.0f;
 
 		SamplerData data{};

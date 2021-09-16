@@ -31,14 +31,13 @@ namespace PB
 		auto it = m_moduleCache.find(desc);
 		if (it == m_moduleCache.end())
 		{
-			ShaderModule newModule = CreateModule(desc);
-
 			if (!desc.m_key || desc.m_size == 0)
 			{
-				PB_LOG("Warning: No key/identifier/keysize provided for shader module. Lookup will be impossible.");
+				return 0;
 			}
-			else
-				m_moduleCache[desc] = newModule;
+
+			ShaderModule newModule = CreateModule(desc);
+			m_moduleCache[desc] = newModule;
 			return newModule;
 		}
 		else

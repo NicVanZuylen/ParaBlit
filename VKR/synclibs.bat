@@ -6,5 +6,3 @@ call ../clonerepo.bat https://github.com/glfw/glfw.git glfw 201400b
 call ../clonerepo.bat https://github.com/g-truc/glm.git glm 06ed280
 
 cd ..\
-
-pause

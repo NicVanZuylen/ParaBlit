@@ -1,3 +1,3 @@
 #include "ParaBlitDebug.h"
 
-VkResult PB::errCheckRes = VK_SUCCESS;
+uint64_t PB::errCheckRes = 0ull;
