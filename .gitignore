@@ -392,6 +392,9 @@ healthchecksdb
 # Mesh cache files
 *.mcache
 
+# Asset Databases
+*.adb
+
 # TGA image files
 *.tga
 

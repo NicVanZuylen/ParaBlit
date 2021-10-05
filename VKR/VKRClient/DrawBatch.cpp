@@ -71,7 +71,7 @@ DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, Vertex
     m_instanceBuffer.Init(m_renderer, PB::EBufferUsage::STORAGE);
 
     PB::ComputePipelineDesc updatePipelineDesc;
-    updatePipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_populate_indices.spv", allocator);
+    updatePipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "Shaders/GLSL/cs_populate_indices", allocator, true);
     m_batchUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
 }
 

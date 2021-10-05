@@ -45,7 +45,7 @@ public:
 
 private:
 
-	static constexpr const uint32_t ShadowmapResolution = 4096;
+	static constexpr const uint32_t ShadowmapResolution = 2048;
 
 	// -------------------------------------------------------------------------
 	// Helper Functions

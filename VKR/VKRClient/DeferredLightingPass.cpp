@@ -29,12 +29,12 @@ DeferredLightingPass::DeferredLightingPass(PB::IRenderer* renderer, CLib::Alloca
 	gBufferSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
 	m_gBufferSampler = renderer->GetSampler(gBufferSamplerDesc);
 
-	m_pointLightVolumeMesh.Init(m_renderer, "TestAssets/Primitives/sphere.obj");
+	m_pointLightVolumeMesh.Init(m_renderer, "Meshes/Primitives/sphere", true);
 
-	m_screenQuadShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/vs_screenQuad.spv", m_allocator);
-	m_defDirLightShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/fs_def_directional_light_shadow.spv", m_allocator);
-	m_pointLightVTXShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/vs_obj_point_light.spv", m_allocator);
-	m_pointLightShader = m_allocator->Alloc<Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/fs_def_point_light.spv", m_allocator);
+	m_screenQuadShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/vs_screenQuad", m_allocator, true);
+	m_defDirLightShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/fs_def_directional_light_shadow", m_allocator, true);
+	m_pointLightVTXShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/vs_obj_point_light", m_allocator, true);
+	m_pointLightShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/fs_def_point_light", m_allocator, true);
 
 	PB::BufferObjectDesc indirectParamsDesc;
 	indirectParamsDesc.m_bufferSize = sizeof(PB::DrawIndexedIndirectParams);

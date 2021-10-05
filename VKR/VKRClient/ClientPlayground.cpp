@@ -181,15 +181,15 @@ void ClientPlayground::InitResources()
 	m_vertexPool = m_allocator->Alloc<VertexPool>(m_renderer, sizeof(PBClient::Vertex) * 1000000, sizeof(PBClient::Vertex));
 
 	// Shaders
-	m_shadowVertShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/vs_obj_shad_batch.spv");
-	m_vertShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/vs_obj_def_batch.spv");
-	m_fragShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "TestAssets/Shaders/SPIR-V/fs_obj_def_batch.spv");
+	m_shadowVertShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "Shaders/GLSL/vs_obj_shad_batch", m_allocator, true);
+	m_vertShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "Shaders/GLSL/vs_obj_def_batch", m_allocator, true);
+	m_fragShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "Shaders/GLSL/fs_obj_def_batch", m_allocator, true);
 
 	// Meshes & Textures
-	m_paintMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_paint.obj", m_vertexPool);
-	m_detailsMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_details.obj", m_vertexPool);
-	m_glassMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "TestAssets/Objects/Spinner/mesh_spinner_low_glass.obj", m_vertexPool);
-	m_planeMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "TestAssets/Primitives/plane.obj", m_vertexPool);
+	m_paintMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_paint", true, m_vertexPool);
+	m_detailsMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_details", true, m_vertexPool);
+	m_glassMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_glass", true, m_vertexPool);
+	m_planeMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Primitives/plane", true, m_vertexPool);
 
 	m_paintTextures[0] = m_allocator->Alloc<PBClient::Texture> (m_renderer, "TestAssets/Objects/Spinner/paint2048/m_spinner_paint_diffuse.tga");
 	m_detailsTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "TestAssets/Objects/Spinner/details2048/m_spinner_details_diffuse.tga");

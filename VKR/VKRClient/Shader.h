@@ -1,5 +1,6 @@
 #pragma once
 #include "IRenderer.h"
+#include "AssetEncoder/AssetDatabaseReader.h"
 
 namespace CLib
 {
@@ -12,7 +13,7 @@ namespace PBClient
 	{
 	public:
 
-		Shader(PB::IRenderer* renderer, const char* path, CLib::Allocator* allocator = nullptr);
+		Shader(PB::IRenderer* renderer, const char* path, CLib::Allocator* allocator = nullptr, bool loadFromDatabase = false);
 
 		~Shader();
 
@@ -22,6 +23,7 @@ namespace PBClient
 
 	private:
 
+		static AssetEncoder::AssetBinaryDatabaseReader s_shaderDatabaseLoader;
 		PB::ShaderModule m_module = 0;
 	};
 }

@@ -6,6 +6,7 @@
 
 #include "IRenderer.h"
 #include "DrawBatch.h"
+#include "AssetEncoder/AssetDatabaseReader.h"
 
 namespace PBClient
 {
@@ -43,21 +44,22 @@ namespace PBClient
 
 		Mesh() = default;
 
-		Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
+		Mesh(PB::IRenderer* renderer, const char* filePath, bool loadFromDatabase = false, VertexPool* vertexPool = nullptr);
 
 		~Mesh();
 
 		/*
 		Description: Constructor logic.
 		*/
-		void Init(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
+		void Init(PB::IRenderer* renderer, const char* filePath, bool loadFromDatabase = false, VertexPool* vertexPool = nullptr);
 
 		/*
 		Description: Load the mesh from a file, and any included materials.
 		Param:
 			const char* filePath: The path to the .obj mesh file.
+			bool loadFromDatabase: Whether or not to load the mesh from an asset database (.adb) file, and treat filePath as a database-local path.
 		*/
-		void Load(const char* filePath);
+		void Load(const char* filePath, bool loadFromDatabase = false);
 
 		/*
 		Description: Get the amount of vertices in the entire mesh.
@@ -128,6 +130,8 @@ namespace PBClient
 			const char* path: The file path of the .obj file to load.
 		*/
 		void LoadOBJ(CLib::Vector<Vertex>& vertices, CLib::Vector<MeshIndex>& indices, const char* path);
+
+		static AssetEncoder::AssetBinaryDatabaseReader s_meshDatabaseLoader;
 
 		PB::IRenderer* m_renderer = nullptr;
 		PB::IBufferObject* m_vertexBuffer = nullptr;

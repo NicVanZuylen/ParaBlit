@@ -1,0 +1,139 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : require
+
+#define WORKGROUP_SIZE_1D 1024
+
+#define WORKGROUP_SIZE_X WORKGROUP_SIZE_1D
+#define WORKGROUP_SIZE_Y 1
+#define WORKGROUP_AREA WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y
+layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
+
+#define GAUSSIAN_KERNEL_SIZE 16
+#define GAUSSIAN_KERNEL_SIZE_MINUS_ONE (GAUSSIAN_KERNEL_SIZE - 1)
+#define BLUR_TILE_SIZE (WORKGROUP_SIZE_1D - (2 * GAUSSIAN_KERNEL_SIZE_MINUS_ONE))
+
+layout(push_constant) uniform Bindings
+{
+    uint constantsIndex;
+    uint srcImageIndex;
+    uint depthIndex;
+    uint normalIndex;
+    uint srcSamplerIndex;
+    uint linearSamplerIdx;
+    uint dstImageIndex;
+} pb_bindings;
+
+layout(set = 1, binding = 0) uniform Constants
+{
+    float depthDiscontinuityThreshold;
+    float normalDiscontinuityThreshold;
+    float depthScaleFactor;
+    float gaussianNormPart; // Normalization constant for the guassian function (the first half of the function).
+    vec4  weights[GAUSSIAN_KERNEL_SIZE];
+} constants[];
+
+layout(set = 0, binding = 0) uniform texture2D pb_textures[];
+layout(set = 0, binding = 1) uniform sampler pb_samplers[];
+layout(set = 0, binding = 3, r8) uniform writeonly restrict image2D pb_storageImages[];
+
+#define PB_TEXTURE(index) pb_textures[nonuniformEXT(pb_bindings.index)]
+#define PB_SAMPLER(index) pb_samplers[nonuniformEXT(pb_bindings.index)]
+#define PB_STORAGE_IMAGE(index) pb_storageImages[nonuniformEXT(pb_bindings.index)]
+#define PB_UBO(name, index) name[nonuniformEXT(pb_bindings.index)]
+
+#define PB_COMBO_SAMPLER(textureIdx, samplerIdx) sampler2D(PB_TEXTURE(textureIdx), PB_SAMPLER(samplerIdx))
+
+#define CONST PB_UBO(constants, constantsIndex)
+
+shared vec4 sharedSamples[WORKGROUP_SIZE_1D];
+
+float GetDepthScale(float depth)
+{
+    return (CONST.depthScaleFactor * 0.98) - (CONST.depthScaleFactor * depth);
+}
+
+vec4 GetSamples(uint location)
+{
+    return sharedSamples[location + GAUSSIAN_KERNEL_SIZE_MINUS_ONE];
+}
+
+float GaussianSample(float srcColor, float srcDepth, float srcNormal, uint texCoord, float weight, float scale)
+{
+    vec4 sharedSample = GetSamples(texCoord);
+
+    // Check for depth discontinuity...
+    float sampleDepth = sharedSample.g;
+    if(abs(srcDepth - sampleDepth) > CONST.depthDiscontinuityThreshold)
+    {
+        return srcColor * weight;
+    }
+
+    // Check for normal discontinuity...
+    float sampleNormal = sharedSample.b;
+    if(abs(srcNormal - sampleNormal) > CONST.normalDiscontinuityThreshold)
+    {
+        return srcColor * weight;
+    }
+
+    float color = sharedSample.r;
+    return mix(srcColor, color, scale) * weight;
+}
+
+void main()
+{
+
+    int locationX = int((gl_WorkGroupID.x * WORKGROUP_SIZE_X) + gl_LocalInvocationID.x);
+    int locationY = int((gl_WorkGroupID.y * WORKGROUP_SIZE_Y) + gl_LocalInvocationID.y);
+
+    uint localReadLocation = gl_LocalInvocationID.x;
+
+    // In this instance, a tile represents the section of pixels we're rendering to in this thread group.
+    int tileStart = int((gl_WorkGroupID.x * BLUR_TILE_SIZE) + localReadLocation);
+    // The edge represents samples which need to be valid, but overflow from the edges of the tile.
+    int edgeStart = tileStart - GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
+
+    ivec2 writeLocation = ivec2(edgeStart, locationY);
+
+    ivec2 dstSize = imageSize(PB_STORAGE_IMAGE(dstImageIndex));
+    vec2 texelSize = 1.0 / dstSize;
+    vec2 screenTexCoord = vec2(writeLocation.x - GAUSSIAN_KERNEL_SIZE_MINUS_ONE, writeLocation.y) / dstSize;
+    screenTexCoord += texelSize * 0.5;
+
+    vec3 srcNormal = texture(PB_COMBO_SAMPLER(normalIndex, srcSamplerIndex), screenTexCoord).xyz;
+    float srcDepth = texture(PB_COMBO_SAMPLER(depthIndex, srcSamplerIndex), screenTexCoord).r;
+    float srcColor = texture(PB_COMBO_SAMPLER(srcImageIndex, srcSamplerIndex), screenTexCoord).r;
+
+    float nDotU = dot(srcNormal, vec3(0.0, 1.0, 0.0));
+    sharedSamples[localReadLocation] = vec4(srcColor.r, srcDepth, nDotU, 1.0);
+
+    // Sync shared samples within work group.
+    groupMemoryBarrier();
+    barrier();
+
+    vec4 centreSample = GetSamples(localReadLocation);
+    srcColor = centreSample.r;
+    srcDepth = centreSample.g;
+    nDotU = centreSample.b;
+
+    const float MinScale = 0.2;
+    const float ScaleRange = 1.0 - MinScale;
+
+    float filteredColor = srcColor;
+    float depthScale = GetDepthScale(srcDepth);
+    float kernelScale = float(GAUSSIAN_KERNEL_SIZE) * (MinScale + (ScaleRange * depthScale));
+
+    if(gl_LocalInvocationID.x >= WORKGROUP_SIZE_X - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
+        return;
+
+    for(int i = 1; i < GAUSSIAN_KERNEL_SIZE; ++i)
+    {
+        float sampleScale = clamp(kernelScale - float(i), 0.0, 1.0);
+        float weight = CONST.weights[i].x;
+
+        filteredColor += GaussianSample(srcColor, srcDepth, nDotU, localReadLocation + i, weight, sampleScale);
+        filteredColor += GaussianSample(srcColor, srcDepth, nDotU, localReadLocation - i, weight, sampleScale);
+    }
+        
+    filteredColor *= CONST.gaussianNormPart;
+    imageStore(PB_STORAGE_IMAGE(dstImageIndex), writeLocation, vec4(filteredColor));
+}

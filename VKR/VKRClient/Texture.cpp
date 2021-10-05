@@ -2,10 +2,10 @@
 #include <iostream>
 #include <string>
 
+#pragma warning(push)
+#pragma warning(disable : 26451 6262 26819) // Warnings coming from stb_image.h
 #define STB_IMAGE_IMPLEMENTATION
-#pragma warning(push, 0)
 #include "stb_image.h"
-#pragma warning(pop)
 
 namespace PBClient
 {
@@ -28,7 +28,7 @@ namespace PBClient
 
 		if (m_data)
 		{
-			std::cout << "Successfully loaded image: " << filePath << std::endl;
+			std::cout << "Texture: Successfully loaded image: " << filePath << std::endl;
 
 			auto size = m_width * m_height * 4;
 
@@ -50,7 +50,7 @@ namespace PBClient
 		}
 		else
 		{
-			std::cout << "Failed to load image: " << filePath << std::endl;
+			std::cout << "Texture: Failed to load image: " << filePath << std::endl;
 		}
 	}
 
@@ -77,3 +77,6 @@ namespace PBClient
 		return m_height;
 	}
 }
+
+#pragma warning(default : 26451 6262 26819) // Warnings coming from stb_image.h
+#pragma warning(pop)

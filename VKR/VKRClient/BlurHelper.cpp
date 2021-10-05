@@ -14,8 +14,8 @@ void BlurHelper::Init(PB::IRenderer* renderer, PB::u32 kernelSize)
 	m_renderer = renderer;
 	m_kernelSize = kernelSize;
 
-	m_verticalPassModule = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_blur_v_fast.spv").GetModule();
-	m_horizontalPassModule = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_blur_h_fast.spv").GetModule();
+	m_verticalPassModule = Shader(m_renderer, "Shaders/GLSL/cs_blur_v_fast", nullptr, true).GetModule();
+	m_horizontalPassModule = Shader(m_renderer, "Shaders/GLSL/cs_blur_h_fast", nullptr, true).GetModule();
 
 	PB::BufferObjectDesc constantsDesc{};
 	constantsDesc.m_bufferSize = sizeof(BlurConstants) + (sizeof(PB::Float4) * kernelSize);

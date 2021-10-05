@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <iostream>
+#include <filesystem>
 
 // Using tiny obj loader header lib for .obj file loading.
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -14,9 +15,11 @@
 
 namespace PBClient
 {
-	Mesh::Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool)
+	AssetEncoder::AssetBinaryDatabaseReader Mesh::s_meshDatabaseLoader;
+
+	Mesh::Mesh(PB::IRenderer* renderer, const char* filePath, bool loadFromDatabase, VertexPool* vertexPool)
 	{
-		Init(renderer, filePath, vertexPool);
+		Init(renderer, filePath, loadFromDatabase, vertexPool);
 	}
 
 	Mesh::~Mesh()
@@ -33,7 +36,7 @@ namespace PBClient
 		}
 	}
 
-	void Mesh::Init(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool)
+	void Mesh::Init(PB::IRenderer* renderer, const char* filePath, bool loadFromDatabase, VertexPool* vertexPool)
 	{
 		m_renderer = renderer;
 		m_filePath = filePath;
@@ -43,11 +46,72 @@ namespace PBClient
 		std::string tmpName = filePath;
 		m_name = "|" + tmpName.substr(tmpName.find_last_of('/') + 1) + "|";
 
-		Load(filePath);
+		Load(filePath, loadFromDatabase);
 	}
 
-	void Mesh::Load(const char* filePath)
+	void Mesh::Load(const char* filePath, bool loadFromDatabase)
 	{
+		if (loadFromDatabase)
+		{
+			constexpr const char* MeshDatabaseDir = "/Assets/build/meshes.adb";
+			if (s_meshDatabaseLoader.HasOpenFile() == false)
+			{
+				std::string dbDir = std::move(std::filesystem::current_path().parent_path().string());
+				dbDir += MeshDatabaseDir;
+				s_meshDatabaseLoader.OpenFile(dbDir.c_str());
+			}
+
+			const AssetEncoder::AssetMeta& assetInfo = s_meshDatabaseLoader.GetAssetInfo(filePath);
+			MeshCacheData cacheData;
+			s_meshDatabaseLoader.GetAssetBinaryRange(filePath, &cacheData, 0, sizeof(MeshCacheData));
+
+			m_totalVertexCount = cacheData.m_vertexCount;
+			m_totalIndexCount = cacheData.m_indexCount;
+
+			size_t vertexBufferSize = cacheData.m_vertexCount * sizeof(Vertex);
+			size_t indexBufferSize = cacheData.m_indexCount * sizeof(MeshIndex);
+
+			// Create vertex and index buffers...
+			if (m_vertexPool == nullptr)
+			{
+				// Allocate a standalone buffer for the vertices.
+				PB::BufferObjectDesc vertexBufferDesc;
+				vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
+				vertexBufferDesc.m_options = 0;
+				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+
+				PB::u8* vertexData = m_vertexBuffer->BeginPopulate();
+				s_meshDatabaseLoader.GetAssetBinaryRange(filePath, vertexData, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
+				m_vertexBuffer->EndPopulate();
+			}
+			else
+			{
+				PB::u32 firstVertex;
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexPool->AllocateAndBeginWrite(static_cast<PB::u32>(vertexBufferSize), firstVertex));
+				s_meshDatabaseLoader.GetAssetBinaryRange(filePath, vertexAddress, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
+				m_vertexPool->EndWrite();
+				m_firstVertexInPool = firstVertex;
+			}
+
+			PB::BufferObjectDesc indexBufferDesc;
+			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
+			indexBufferDesc.m_options = 0;
+			indexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX;
+			if (m_vertexPool != nullptr)
+				indexBufferDesc.m_usage |= PB::EBufferUsage::STORAGE;
+			m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
+
+			PB::u8* indexData = m_indexBuffer->BeginPopulate();
+			s_meshDatabaseLoader.GetAssetBinaryRange(filePath, indexData, cacheData.m_indexOffset, cacheData.m_indexOffset + indexBufferSize);
+			m_indexBuffer->EndPopulate();
+
+			m_empty = false;
+
+			printf("Mesh: Successfully loaded asset [%s] (%u bytes) from database: %s\n", filePath, uint32_t(assetInfo.m_binarySize), MeshDatabaseDir);
+			return;
+		}
+
 		// Delete old vertex buffer if there is one.
 		if (!m_empty)
 		{

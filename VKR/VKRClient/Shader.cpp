@@ -4,10 +4,13 @@
 
 #include <cstring>
 #include <assert.h>
+#include <filesystem>
 
 namespace PBClient
 {
-	Shader::Shader(PB::IRenderer* renderer, const char* path, CLib::Allocator* allocator)
+	AssetEncoder::AssetBinaryDatabaseReader Shader::s_shaderDatabaseLoader;
+
+	Shader::Shader(PB::IRenderer* renderer, const char* path, CLib::Allocator* allocator, bool loadFromDatabase)
 	{
 		PB::ShaderModuleDesc moduleDesc{};
 		moduleDesc.m_key = path;
@@ -16,10 +19,34 @@ namespace PBClient
 		if ((m_module = renderer->GetShaderModuleCache()->GetModule(moduleDesc)) == 0)
 		{
 			char* data = nullptr;
-			if (allocator)
-				QIO::LoadAlloc(path, &data, &moduleDesc.m_size, allocator);
+			if (loadFromDatabase == false)
+			{
+				if (allocator)
+					QIO::LoadAlloc(path, &data, &moduleDesc.m_size, allocator);
+				else
+					QIO::Load(path, &data, &moduleDesc.m_size);
+			}
 			else
-				QIO::Load(path, &data, &moduleDesc.m_size);
+			{
+				constexpr const char* ShaderDatabaseDir = "/Assets/build/shaders.adb";
+				if (s_shaderDatabaseLoader.HasOpenFile() == false)
+				{
+					std::string dbDir = std::move(std::filesystem::current_path().parent_path().string());
+					dbDir += ShaderDatabaseDir;
+					s_shaderDatabaseLoader.OpenFile(dbDir.c_str());
+				}
+
+				const AssetEncoder::AssetMeta& assetInfo = s_shaderDatabaseLoader.GetAssetInfo(path);
+				moduleDesc.m_size = assetInfo.m_binarySize;
+				if (allocator)
+					data = reinterpret_cast<char*>(allocator->Alloc(uint32_t(assetInfo.m_binarySize)));
+				else
+					data = new char[assetInfo.m_binarySize];
+
+				s_shaderDatabaseLoader.GetAssetBinary(path, data);
+
+				printf("Shader: Successfully loaded asset [%s] (%u bytes) from database: %s\n", path, uint32_t(assetInfo.m_binarySize), ShaderDatabaseDir);
+			}
 
 			moduleDesc.m_byteCode = data;
 			m_module = renderer->GetShaderModuleCache()->GetModule(moduleDesc);

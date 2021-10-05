@@ -5,6 +5,6 @@ mkdir glfw-build
 cmake -S . -B glfw-build
 cd glfw-build
 
-../../../buildsinglelib.bat CMakePredefinedTargets\ALL_BUILD x64
+../../../buildsinglelib.bat GLFW.sln CMakePredefinedTargets\ALL_BUILD x64
 
 cd ../

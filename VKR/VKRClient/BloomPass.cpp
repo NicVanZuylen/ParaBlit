@@ -94,7 +94,7 @@ void BloomPass::OnPassBegin(const RenderGraphInfo& info)
 		};
 
 		PB::ComputePipelineDesc colorExtractionPipelineDesc;
-		colorExtractionPipelineDesc.m_computeModule = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_bloom_color_extraction.spv", m_allocator).GetModule();
+		colorExtractionPipelineDesc.m_computeModule = Shader(m_renderer, "Shaders/GLSL/cs_bloom_color_extraction", m_allocator, true).GetModule();
 		PB::Pipeline colorExtractionPipeline = m_renderer->GetPipelineCache()->GetPipeline(colorExtractionPipelineDesc);
 
 		PB::UniformBufferView bloomConstantsView = m_bloomConstantsBuffer->GetViewAsUniformBuffer();
@@ -159,7 +159,7 @@ void BloomPass::OnPassBegin(const RenderGraphInfo& info)
 		}
 
 		PB::ComputePipelineDesc mergePipelineDesc{};
-		mergePipelineDesc.m_computeModule = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_merge_bloom.spv", m_allocator).GetModule();
+		mergePipelineDesc.m_computeModule = Shader(m_renderer, "Shaders/GLSL/cs_merge_bloom", m_allocator, true).GetModule();
 		PB::Pipeline mergePipeline = m_renderer->GetPipelineCache()->GetPipeline(mergePipelineDesc);
 
 		PB::TextureViewDesc mergeSrcView{};

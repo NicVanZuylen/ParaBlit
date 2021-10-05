@@ -112,8 +112,8 @@ void ShadowAccumPass::OnPassBegin(const RenderGraphInfo& info)
 		accumPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 		accumPipelineDesc.m_subpass = 0;
 		accumPipelineDesc.m_renderPass = info.m_renderPass;
-		accumPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/vs_screenQuad.spv", m_allocator).GetModule();
-		accumPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/fs_shadow_accum.spv", m_allocator).GetModule();
+		accumPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Shader(m_renderer, "Shaders/GLSL/vs_screenQuad", m_allocator, true).GetModule();
+		accumPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Shader(m_renderer, "Shaders/GLSL/fs_shadow_accum", m_allocator, true).GetModule();
 
 		PB::Pipeline accumPipeline = m_renderer->GetPipelineCache()->GetPipeline(accumPipelineDesc);
 		scopedContext->CmdBindPipeline(accumPipeline);
@@ -172,9 +172,9 @@ void ShadowAccumPass::OnPostPass(const RenderGraphInfo& info)
 		scopedContext->Begin();
 
 		PB::ComputePipelineDesc blurPipelineDesc{};
-		blurPipelineDesc.m_computeModule = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_shadow_blur_v_fast.spv", m_allocator).GetModule();
+		blurPipelineDesc.m_computeModule = Shader(m_renderer, "Shaders/GLSL/cs_shadow_blur_v_fast", m_allocator, true).GetModule();
 		PB::Pipeline verticalBlurPipeline = m_renderer->GetPipelineCache()->GetPipeline(blurPipelineDesc);
-		blurPipelineDesc.m_computeModule = Shader(m_renderer, "TestAssets/Shaders/SPIR-V/cs_shadow_blur_h_fast.spv", m_allocator).GetModule();
+		blurPipelineDesc.m_computeModule = Shader(m_renderer, "Shaders/GLSL/cs_shadow_blur_h_fast", m_allocator, true).GetModule();
 		PB::Pipeline horizontalBlurPipeline = m_renderer->GetPipelineCache()->GetPipeline(blurPipelineDesc);
 
 		constexpr const float TwoPi = 2.0f * 3.14159f;
