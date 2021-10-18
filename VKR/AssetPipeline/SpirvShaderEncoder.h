@@ -1,9 +1,15 @@
 #pragma once
 #include "AssetEncoder/EncoderBase.h"
 #include "AssetEncoder/AssetBinaryDatabase.h"
+#include "CLib/Allocator.h"
+
+#include <unordered_map>
+
+struct shaderc_include_result;
 
 namespace AssetPipeline
 {
+
 	class SpirvShaderEncoder : public AssetEncoder::EncoderBase
 	{
 	public:
@@ -14,7 +20,28 @@ namespace AssetPipeline
 
 	private:
 
+		struct IncludeData
+		{
+			std::unordered_map<std::string, CLib::Vector<char>> m_headerMap;
+		};
+
+		struct IncludeUserData
+		{
+			CLib::Allocator* m_allocator = nullptr;
+			const AssetStatus* m_asset = nullptr;
+			IncludeData* m_includeData = nullptr;
+			void* m_includeResult = nullptr;
+		};
+
+		static inline shaderc_include_result* IncludeResolveCallback(void* user_data, const char* requested_source, int type,
+			const char* requesting_source, size_t include_depth);
+
+		static inline void IncludeResultCallback(void* user_data, shaderc_include_result* include_result);
+
 		inline void BuildShader(const AssetStatus& asset);
+
+		CLib::Allocator m_allocator{ 16384 };
+		IncludeData m_includeData{};
 	};
 }
 

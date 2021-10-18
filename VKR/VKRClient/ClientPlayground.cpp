@@ -178,7 +178,7 @@ void ClientPlayground::InitResources()
 	m_flatNormalTexture = m_renderer->AllocateTexture(solidTextureDesc);
 
 	// Vertex pool
-	m_vertexPool = m_allocator->Alloc<VertexPool>(m_renderer, sizeof(PBClient::Vertex) * 1000000, sizeof(PBClient::Vertex));
+	m_vertexPool = m_allocator->Alloc<VertexPool>(m_renderer, uint32_t(sizeof(PBClient::Vertex) * 1000000), uint32_t(sizeof(PBClient::Vertex)));
 
 	// Shaders
 	m_shadowVertShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "Shaders/GLSL/vs_obj_shad_batch", m_allocator, true);
@@ -340,11 +340,11 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		m_shadowAccumPass->SetSVBBuffer(m_shadowmapPass->GetSVBView());
 
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.3f, 0.3f });
-		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
+		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f });
-		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
-		m_deferredLightingPass->SetPointLight(0, { -1.0f, 3.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
-		m_deferredLightingPass->SetPointLight(1, { 1.0f, 3.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
+		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
+		//m_deferredLightingPass->SetPointLight(0, { -1.0f, 3.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
+		//m_deferredLightingPass->SetPointLight(1, { 1.0f, 3.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
 	}
 
 	return output;

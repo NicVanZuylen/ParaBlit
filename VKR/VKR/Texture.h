@@ -3,6 +3,7 @@
 #include "ParaBlitApi.h"
 #include "ParaBlitDebug.h"
 #include "DeviceAllocator.h"
+#include "PoolAllocator.h"
 
 namespace PB 
 {
@@ -74,7 +75,7 @@ namespace PB
 		Device* m_device = nullptr;
 		VkImage m_image = VK_NULL_HANDLE;
 		VkExtent3D m_extents = { 1, 1, 1 };
-		DeviceAllocator::PageView m_memoryBlock;
+		PoolAllocator::PoolAllocation m_poolAllocation{};
 		TextureStateFlags m_availableStates = ETextureState::NONE;
 		ETextureFormat m_format = ETextureFormat::UNKNOWN;
 		u32 m_mipCount = 1;

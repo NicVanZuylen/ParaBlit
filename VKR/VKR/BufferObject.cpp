@@ -12,7 +12,7 @@ namespace PB
 		m_size = desc.m_bufferSize;
 
 		CreateVkBuffer(desc);
-		InitializeMemory(desc);
+		InitializeMemory(desc, m_poolAllocation, m_memoryType);
 	}
 
 	void BufferObject::Destroy()
@@ -37,8 +37,9 @@ namespace PB
 			}
 
 			vkDestroyBuffer(device->GetHandle(), m_handle, nullptr);
-			PB_ASSERT(m_memoryPage.m_memory != VK_NULL_HANDLE);
-			device->GetDeviceAllocator().Free(m_memoryPage);
+
+			PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE);
+			device->GetBufferAllocator(m_memoryType).Free(m_poolAllocation);
 		}
 	}
 
@@ -49,7 +50,7 @@ namespace PB
 
 	u32 BufferObject::GetStart() const
 	{
-		return m_memoryPage.AlignedOffset();
+		return m_poolAllocation.m_offset;
 	}
 
 	u32 BufferObject::GetSize()
@@ -60,23 +61,33 @@ namespace PB
 	u8* BufferObject::Map(u32 offset, u32 size)
 	{
 		void* data = nullptr;
-		if (m_memoryPage.m_memoryType == EMemoryType::HOST_VISIBLE)
+		if (m_memoryType == EMemoryType::HOST_VISIBLE)
 		{
-			vkMapMemory(m_renderer->GetDevice()->GetHandle(), m_memoryPage.m_memory, static_cast<VkDeviceSize>(m_memoryPage.AlignedOffset()) + offset, size, 0, &data);
+			data = reinterpret_cast<char*>(m_poolAllocation.m_ptr) + m_poolAllocation.m_offset + offset;
+			m_mapOffset = offset;
 		}
 		return reinterpret_cast<u8*>(data);
 	}
 
 	void BufferObject::Unmap()
 	{
-		if(m_memoryPage.m_memoryType == EMemoryType::HOST_VISIBLE)
-			vkUnmapMemory(m_renderer->GetDevice()->GetHandle(), m_memoryPage.m_memory);
+		if (m_memoryType == EMemoryType::HOST_VISIBLE)
+		{
+			VkMappedMemoryRange memoryRange{};
+			memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+			memoryRange.pNext = nullptr;
+			memoryRange.memory = m_poolAllocation.m_memoryHandle;
+			memoryRange.offset = (m_poolAllocation.m_offset + m_mapOffset);
+			memoryRange.size = (m_poolAllocation.m_size - m_mapOffset);
+
+			vkFlushMappedMemoryRanges(m_renderer->GetDevice()->GetHandle(), 1, &memoryRange);
+		}
 	}
 
 	u8* BufferObject::BeginPopulate(u32 size)
 	{
 		PB_ASSERT(!m_stagingBuffer.m_mappedPtr);
-		PB_ASSERT_MSG(m_memoryPage.m_memoryType != EMemoryType::HOST_VISIBLE, "It is not recommended to use BeginPopulate() for HOST_VISIBLE buffers, as this function creates and maps a staging buffer for copy.");
+		PB_ASSERT_MSG(m_memoryType != EMemoryType::HOST_VISIBLE, "It is not recommended to use BeginPopulate() for HOST_VISIBLE buffers, as this function creates and maps a staging buffer for copy.");
 		PB_ASSERT_MSG(m_usage & EBufferUsage::COPY_DST, "Buffer Object must usable as a copy destination in order to use BeginPopulate().");
 		m_stagingBuffer = m_renderer->GetDevice()->GetTempBufferAllocator().NewTempBuffer(size == 0 ? m_size : size, m_renderer->GetCurrentSwapchainImageIndex());
 		return m_stagingBuffer.Start();
@@ -120,7 +131,7 @@ namespace PB
 
 	void BufferObject::PopulateWithDrawIndexedIndirectParams(u8* location, const DrawIndexedIndirectParams& params)
 	{
-		PB_ASSERT_MSG(params.offset + sizeof(VkDrawIndexedIndirectCommand) <= m_memoryPage.m_size, "Provided offset would extend the parameters past the end of the buffer.");
+		PB_ASSERT_MSG(params.offset + sizeof(VkDrawIndexedIndirectCommand) <= m_poolAllocation.m_size, "Provided offset would extend the parameters past the end of the buffer.");
 		PB_ASSERT(location);
 		VkDrawIndexedIndirectCommand& data = *reinterpret_cast<VkDrawIndexedIndirectCommand*>(location);
 		data.indexCount = params.indexCount;
@@ -205,24 +216,24 @@ namespace PB
 
 		VkMemoryRequirements bufferMemRequirements;
 		vkGetBufferMemoryRequirements(device->GetHandle(), m_handle, &bufferMemRequirements);
-		EMemoryType memType = EMemoryType::DEVICE_LOCAL;
+		m_memoryType = EMemoryType::DEVICE_LOCAL;
 		if (desc.m_options & EBufferOptions::CPU_ACCESSIBLE)
-			memType = EMemoryType::HOST_VISIBLE;
+			m_memoryType = EMemoryType::HOST_VISIBLE;
 
-		m_memoryPage = device->GetDeviceAllocator().Alloc(bufferMemRequirements, memType, desc.m_bufferSize);
+		device->GetBufferAllocator(m_memoryType).Alloc(uint32_t(bufferMemRequirements.size), uint32_t(bufferMemRequirements.alignment), m_poolAllocation);
 
-		PB_ERROR_CHECK(vkBindBufferMemory(device->GetHandle(), m_handle, m_memoryPage.m_memory, m_memoryPage.AlignedOffset()));
+		PB_ERROR_CHECK(vkBindBufferMemory(device->GetHandle(), m_handle, m_poolAllocation.m_memoryHandle, m_poolAllocation.m_offset));
 		PB_BREAK_ON_ERROR;
 	}
 
-	inline void BufferObject::InitializeMemory(const BufferObjectDesc& desc)
+	inline void BufferObject::InitializeMemory(const BufferObjectDesc& desc, const PoolAllocator::PoolAllocation& allocation, EMemoryType memoryType)
 	{
 		if (desc.m_options & EBufferOptions::CPU_ACCESSIBLE)
 		{
 			if (desc.m_options & EBufferOptions::ZERO_INITIALIZE)
 			{
-				u8* mapped = Map(0, desc.m_bufferSize); // We don't need a staging buffer since this buffer's memory is host visible.
-				memset(mapped, 0, desc.m_bufferSize);
+				u8* mapped = Map(0, allocation.m_size); // We don't need a staging buffer since this buffer's memory is host visible.
+				memset(mapped, 0, allocation.m_size);
 				Unmap();
 			}
 		}
@@ -233,8 +244,8 @@ namespace PB
 				auto device = m_renderer->GetDevice();
 
 				// Since this buffer's memory is not host visible, we'll need to create a temporary host visible staging buffer to zero-initialize, and copy over this one,
-				auto stagingBuffer = device->GetTempBufferAllocator().NewTempBuffer(desc.m_bufferSize, m_renderer->GetCurrentSwapchainImageIndex());
-				memset(stagingBuffer.Start(), 0, desc.m_bufferSize);
+				auto stagingBuffer = device->GetTempBufferAllocator().NewTempBuffer(allocation.m_size, m_renderer->GetCurrentSwapchainImageIndex());
+				memset(stagingBuffer.Start(), 0, allocation.m_size);
 
 				CopyStagingBuffer(stagingBuffer, 0);
 			}
@@ -247,10 +258,9 @@ namespace PB
 		MakeInternalContext(internalContext, m_renderer);
 		internalContext.Begin();
 
-		PB_ASSERT(buffer.RealSize() <= m_size - writeOffset);
-
 		// Staging buffers don't use the IBufferObject API, so we'll have to issue the copy command here.
-		VkBufferCopy copyRegion{ buffer.m_offset, writeOffset, buffer.RealSize() };
+		u32 copySize = m_size < buffer.m_size ? m_size : buffer.m_size;
+		VkBufferCopy copyRegion{ buffer.m_offset, writeOffset, copySize };
 		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), buffer.m_buffer, m_handle, 1, &copyRegion);
 
 		internalContext.End();

@@ -461,8 +461,8 @@ namespace PB
 		
 		VkBufferCopy copyRegion;
 		copyRegion.size = size;
-		copyRegion.srcOffset = static_cast<VkDeviceSize>(srcInternal->GetStart()) + srcOffset;
-		copyRegion.dstOffset = static_cast<VkDeviceSize>(dstInternal->GetStart()) + dstOffset;
+		copyRegion.srcOffset = srcOffset;
+		copyRegion.dstOffset = dstOffset;
 		vkCmdCopyBuffer(m_cmdBuffer, srcInternal->GetHandle(), dstInternal->GetHandle(), 1, &copyRegion);
 	}
 

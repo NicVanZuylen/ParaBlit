@@ -25,7 +25,7 @@ namespace AssetEncoder
 		static constexpr size_t StringCachePageSize = 1024;
 		static constexpr size_t AssetCachePageSize = 64 * 1024 * 1024;
 
-		static void* StringPageAlloc(void* context, uint32_t& outSize)
+		static void* StringPageAlloc(void* context, uint32_t requestedMinSize, uint32_t& outSize)
 		{
 			outSize = StringCachePageSize;
 			void* newPage = malloc(outSize);
@@ -34,7 +34,7 @@ namespace AssetEncoder
 			return newPage;
 		}
 
-		static void* AssetPageAlloc(void* context, uint32_t& outSize)
+		static void* AssetPageAlloc(void* context, uint32_t requestedMinSize, uint32_t& outSize)
 		{
 			outSize = AssetCachePageSize;
 			void* newPage = malloc(outSize);

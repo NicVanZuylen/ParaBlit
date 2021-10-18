@@ -1,5 +1,5 @@
 #version 450
-#extension GL_EXT_nonuniform_qualifier : require
+#include "Common/pb_common.h"
 
 #define WORKGROUP_SIZE_X 2
 #define WORKGROUP_SIZE_Y 512
@@ -16,7 +16,7 @@ layout(push_constant) uniform Bindings
     uint srcImageIndex;
     uint srcSamplerIndex;
     uint dstImageIndex;
-} pb_bindings;
+} PB_BINDINGS_NAME;
 
 layout(set = 1, binding = 0) uniform Constants
 {
@@ -27,16 +27,9 @@ layout(set = 1, binding = 0) uniform Constants
     vec4 weights[GAUSSIAN_KERNEL_SIZE];
 } constants[];
 
-layout(set = 0, binding = 0) uniform texture2D pb_textures[];
-layout(set = 0, binding = 1) uniform sampler pb_samplers[];
-layout(set = 0, binding = 3, rgba8) uniform writeonly restrict image2D pb_storageImages[];
-
-#define PB_TEXTURE(index) pb_textures[nonuniformEXT(pb_bindings.index)]
-#define PB_SAMPLER(index) pb_samplers[nonuniformEXT(pb_bindings.index)]
-#define PB_STORAGE_IMAGE(index) pb_storageImages[nonuniformEXT(pb_bindings.index)]
-#define PB_UBO(name, index) name[nonuniformEXT(pb_bindings.index)]
-
-#define PB_COMBO_SAMPLER(textureIdx, samplerIdx) sampler2D(PB_TEXTURE(textureIdx), PB_SAMPLER(samplerIdx))
+PB_DEFINE_TEXTURE_BINDINGS;
+PB_DEFINE_SAMPLER_BINDINGS;
+PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict);
 
 #define CONST PB_UBO(constants, constantsIndex)
 
@@ -74,7 +67,7 @@ void main()
     vec2 screenTexCoord = vec2(writeLocation.x, writeLocation.y - GAUSSIAN_KERNEL_SIZE_MINUS_ONE) / dstSize;
     screenTexCoord += texelSize * 0.5;
 
-    vec3 srcColor = texture(PB_COMBO_SAMPLER(srcImageIndex, srcSamplerIndex), screenTexCoord).rgb;
+    vec3 srcColor = texture(PB_BUILD_SAMPLER(srcImageIndex, srcSamplerIndex), screenTexCoord).rgb;
     StoreSample(gl_LocalInvocationID.xy, srcColor);
 
     // Sync shared samples within work group.

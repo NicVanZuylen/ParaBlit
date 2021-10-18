@@ -2,6 +2,7 @@
 #include "IBufferObject.h"
 #include "ParaBlitApi.h"
 #include "DeviceAllocator.h"
+#include "PoolAllocator.h"
 #include "StagingBufferAllocator.h"
 
 namespace PB
@@ -63,16 +64,18 @@ namespace PB
 
 		inline void CreateVkBuffer(const BufferObjectDesc& desc);
 
-		inline void InitializeMemory(const BufferObjectDesc& desc);
+		inline void InitializeMemory(const BufferObjectDesc& desc, const PoolAllocator::PoolAllocation& allocation, EMemoryType memoryType);
 
 		inline void CopyStagingBuffer(const TempBuffer& buffer, const u32& copyOffset);
 
 		Renderer* m_renderer = nullptr;
 		VkBuffer m_handle = VK_NULL_HANDLE;
 		TempBuffer m_stagingBuffer{};
-		DeviceAllocator::PageView m_memoryPage{};
+		EMemoryType m_memoryType = EMemoryType::END_RANGE;
+		PoolAllocator::PoolAllocation m_poolAllocation{};
 		BufferUsageFlags m_usage = 0;
-		u32 m_size;
+		u32 m_size = 0;
+		u32 m_mapOffset = 0;
 		CLib::Vector<BufferViewOwnershipData, 1, 4> m_ownedViews;
 	};
 };

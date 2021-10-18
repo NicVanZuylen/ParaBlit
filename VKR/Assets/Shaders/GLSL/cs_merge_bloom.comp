@@ -1,6 +1,6 @@
 #version 450
+#include "Common/pb_common.h"
 #extension GL_ARB_separate_shader_objects : require
-#extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_samplerless_texture_functions : require
 
 #define WORKGROUP_SIZE_X 32
@@ -14,18 +14,11 @@ layout(push_constant) uniform Bindings
     uint colorBIdx;
     uint colorSamplerIdx;
     uint outputIdx;
-} pb_bindings;
+} PB_BINDINGS_NAME;
 
-layout(set = 0, binding = 0) uniform texture2D pb_textures[];
-layout(set = 0, binding = 1) uniform sampler pb_samplers[];
-layout(set = 0, binding = 3, rgba8) uniform writeonly restrict image2D pb_storageImages[];
-
-#define PB_TEXTURE(index) pb_textures[nonuniformEXT(pb_bindings.index)]
-#define PB_SAMPLER(index) pb_samplers[nonuniformEXT(pb_bindings.index)]
-#define PB_STORAGE_IMAGE(index) pb_storageImages[nonuniformEXT(pb_bindings.index)]
-#define PB_UBO(name, index) name[nonuniformEXT(pb_bindings.index)]
-
-#define PB_COMBO_SAMPLER(textureIdx, samplerIdx) sampler2D(PB_TEXTURE(textureIdx), PB_SAMPLER(samplerIdx))
+PB_DEFINE_TEXTURE_BINDINGS;
+PB_DEFINE_SAMPLER_BINDINGS;
+PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict);
 
 void main()
 {
@@ -35,13 +28,13 @@ void main()
     vec2 texelSize = 1.0 / srcSize;
     screenTexCoord += texelSize * 0.5;
 
-    vec4 colorA = texture(PB_COMBO_SAMPLER(colorAIdx, colorSamplerIdx), screenTexCoord);
+    vec4 colorA = texture(PB_BUILD_SAMPLER(colorAIdx, colorSamplerIdx), screenTexCoord);
 
-    int mipCount = textureQueryLevels(PB_COMBO_SAMPLER(colorBIdx, colorSamplerIdx));
+    int mipCount = textureQueryLevels(PB_BUILD_SAMPLER(colorBIdx, colorSamplerIdx));
     vec4 colorB = vec4(0.0);
     for(int i = 0; i < mipCount; ++i)
     {
-        colorB += textureLod(PB_COMBO_SAMPLER(colorBIdx, colorSamplerIdx), screenTexCoord, float(i));
+        colorB += textureLod(PB_BUILD_SAMPLER(colorBIdx, colorSamplerIdx), screenTexCoord, float(i));
     }
 
     colorA += colorB;

@@ -3,6 +3,7 @@
 #include "ExtensionManager.h"
 #include "ParaBlitDefs.h"
 #include "DeviceAllocator.h"
+#include "PoolAllocator.h"
 #include "StagingBufferAllocator.h"
 
 namespace PB 
@@ -37,10 +38,38 @@ namespace PB
 		PARABLIT_API u32 FindMemoryTypeIndex(const u32& typeFilter, const EMemoryType& memType);
 
 		/*
-		Description: Gets the memory allocator for allocating memory on this device.
+		Description: Gets the legacy memory allocator for allocating memory on this device.
 		Return Type: DeviceAllocator&
 		*/
 		PARABLIT_API DeviceAllocator& GetDeviceAllocator();
+
+		/*
+		Description: Gets the memory allocator for allocating memory with the specified memory type.
+		Return Type: PoolAllocator&
+		Param:
+			EMemoryType memoryType: The memory type used to get the correct allocator.
+		*/
+		PoolAllocator& GetBufferAllocator(EMemoryType memoryType) 
+		{
+			switch (memoryType)
+			{
+			case PB::EMemoryType::HOST_VISIBLE:
+				return m_hostBufferAllocator;
+			case PB::EMemoryType::DEVICE_LOCAL:
+				return m_deviceBufferAllocator;
+			case PB::EMemoryType::END_RANGE:
+			default:
+				PB_NOT_IMPLEMENTED;
+				return m_hostBufferAllocator;
+				break;
+			}
+		};
+
+		/*
+		Description: Gets the memory allocator for allocating memory on this device.
+		Return Type: PoolAllocator&
+		*/
+		PoolAllocator& GetTextureAllocator() { return m_textureAllocator; };
 
 		/*
 		Description: Gets the temporary buffer allocator.
@@ -93,6 +122,9 @@ namespace PB
 
 		int m_graphicsFamilyIndex = -1;
 		DeviceAllocator m_allocator;
+		PoolAllocator m_deviceBufferAllocator;
+		PoolAllocator m_hostBufferAllocator;
+		PoolAllocator m_textureAllocator;
 		TempBufferAllocator m_tempStagingBufferAllocator;
 	};
 }

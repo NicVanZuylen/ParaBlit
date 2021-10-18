@@ -75,8 +75,8 @@ namespace PB
 				// Free memory block.
 				if (!m_isAlias)
 				{
-					//m_device->GetDeviceAllocator().Free(m_memoryBlock);
-					vkFreeMemory(m_device->GetHandle(), m_memoryBlock.m_memory, nullptr);
+					//vkFreeMemory(m_device->GetHandle(), m_memoryBlock.m_memory, nullptr);
+					m_device->GetTextureAllocator().Free(m_poolAllocation);
 				}
 
 				m_availableStates = ETextureState::NONE;
@@ -106,18 +106,20 @@ namespace PB
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(m_device->GetHandle(), m_image, &memRequirements);
 
-		auto baseMemBlock = baseInternal->m_memoryBlock;
-		return baseMemBlock.m_size >= memRequirements.size && baseMemBlock.m_start % memRequirements.alignment == 0 && baseMemBlock.m_memoryTypeIndex == m_device->FindMemoryTypeIndex(memRequirements.memoryTypeBits, baseMemBlock.m_memoryType);
+		auto basePoolAllocation = baseInternal->m_poolAllocation;
+		bool validSize = basePoolAllocation.m_size >= memRequirements.size;
+		bool validAlignment = (basePoolAllocation.m_offset % memRequirements.alignment) == 0;
+		return (validSize && validAlignment);
 	}
 
 	void Texture::AliasTexture(ITexture* baseTexture)
 	{
 		PB_ASSERT_MSG(CanAlias(baseTexture), "This texture cannot alias the provided base texture.");
 
-		m_memoryBlock = reinterpret_cast<Texture*>(baseTexture)->m_memoryBlock;
+		m_poolAllocation = reinterpret_cast<Texture*>(baseTexture)->m_poolAllocation;
 
 		// Bind base texture memory to this alias.
-		PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_memoryBlock.m_memory, m_memoryBlock.AlignedOffset()));
+		PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_poolAllocation.m_memoryHandle, m_poolAllocation.m_offset));
 		PB_BREAK_ON_ERROR;
 	}
 
@@ -242,7 +244,7 @@ namespace PB
 			PB_ASSERT_MSG(AllocateMemory(desc, memRequirements), "Failed to allocate memory for image.");
 
 			// Bind memory block to this texture's image.
-			PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_memoryBlock.m_memory, m_memoryBlock.AlignedOffset()));
+			PB_ERROR_CHECK(vkBindImageMemory(m_device->GetHandle(), m_image, m_poolAllocation.m_memoryHandle, m_poolAllocation.m_offset));
 			PB_BREAK_ON_ERROR;
 		}
 
@@ -251,28 +253,15 @@ namespace PB
 
 	bool Texture::AllocateMemory(const TextureDesc& desc, const VkMemoryRequirements& memRequirements)
 	{
-		// TODO: This allocator is bugged, and should be fixed to reduce device allocation count.
-		//m_memoryBlock = m_device->GetDeviceAllocator().Alloc(memRequirements, EMemoryType::DEVICE_LOCAL, static_cast<u32>(memRequirements.size));
+		PB_ASSERT(memRequirements.size + memRequirements.alignment <= ~uint32_t(0));
+		m_device->GetTextureAllocator().Alloc(uint32_t(memRequirements.size), uint32_t(memRequirements.alignment), m_poolAllocation);
 
-		m_memoryBlock.m_size = (u32)memRequirements.size;
-		m_memoryBlock.m_alignmentOffset = 0;
-		m_memoryBlock.m_start = 0;
-		m_memoryBlock.m_memoryType = PB::EMemoryType::DEVICE_LOCAL;
-		m_memoryBlock.m_memoryTypeIndex = m_device->FindMemoryTypeIndex(memRequirements.memoryTypeBits, PB::EMemoryType::DEVICE_LOCAL);
-
-		VkMemoryAllocateInfo allocInfo;
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.pNext = nullptr;
-		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = m_memoryBlock.m_memoryTypeIndex;
-
-		vkAllocateMemory(m_device->GetHandle(), &allocInfo, nullptr, &m_memoryBlock.m_memory);
-
-		if (!m_memoryBlock.m_memory)
+		if (!m_poolAllocation.m_memoryHandle)
 		{
 			PB_ASSERT_MSG(false, "Failed to allocate texture memory block.");
 			return false;
 		}
+
 		return true;
 	}
 

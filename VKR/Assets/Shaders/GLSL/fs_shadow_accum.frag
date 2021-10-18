@@ -1,6 +1,6 @@
 #version 450
+#include "Common/pb_common.h"
 #extension GL_ARB_separate_shader_objects : require
-#extension GL_EXT_nonuniform_qualifier : require
 #extension GL_EXT_samplerless_texture_functions : require
 
 struct FS_IN
@@ -21,7 +21,7 @@ layout(push_constant) uniform Bindings
     //uint outputImageIndex;
     uint randomRotationTextureIndex;
     uint rotationSamplerIdx;
-} pb_bindings;
+} PB_BINDINGS_NAME;
 
 layout(set = 1, binding = 0) uniform MVP
 {
@@ -42,18 +42,12 @@ layout(set = 1, binding = 0) uniform ShadowConstants
     float shadowBiasMultiplier;
 } shadowConstants[];
 
-layout(set = 0, binding = 0) uniform texture2D pb_textures[];
-layout(set = 0, binding = 1) uniform sampler pb_samplers[];
+PB_DEFINE_TEXTURE_BINDINGS;
+PB_DEFINE_SAMPLER_BINDINGS;
 
 layout(location = 0) in FS_IN fsInput;
 
 layout(location = 0) out vec4 outColor;
-
-#define PB_TEXTURE(index) pb_textures[nonuniformEXT(pb_bindings.index)]
-#define PB_SAMPLER(index) pb_samplers[nonuniformEXT(pb_bindings.index)]
-#define PB_UBO(name, index) name[nonuniformEXT(pb_bindings.index)]
-
-#define PB_COMBO_SAMPLER(textureIdx, samplerIdx) sampler2D(PB_TEXTURE(textureIdx), PB_SAMPLER(samplerIdx))
 
 #define MVP_CONST PB_UBO(mvp, mvpIndex)
 #define SHAD_CONST PB_UBO(shadowConstants, svbIndex)
@@ -83,7 +77,7 @@ float SampleShadowmapDepth(vec2 sampleCoord)
 {
     return texture
     (
-        PB_COMBO_SAMPLER(shadowmapIndex, shadowSamplerIdx),
+        PB_BUILD_SAMPLER(shadowmapIndex, shadowSamplerIdx),
         sampleCoord
     ).r;
 }
@@ -97,7 +91,7 @@ vec4 SampleShadowmap4(vec2 sampleCoord, float refDepth)
 {
     vec4 depths = textureGather
     (
-        PB_COMBO_SAMPLER(shadowmapIndex, shadowSamplerIdx),
+        PB_BUILD_SAMPLER(shadowmapIndex, shadowSamplerIdx),
         sampleCoord
     );
     depths.x = (refDepth > depths.x) ? 0.0 : 1.0;
@@ -217,7 +211,7 @@ float ShadowPCSS(vec3 shadowmapScreenPos, float shadowBias, float refPenumbraDis
 
     vec2 randomRotation = texture
     (
-        PB_COMBO_SAMPLER(randomRotationTextureIndex, rotationSamplerIdx),
+        PB_BUILD_SAMPLER(randomRotationTextureIndex, rotationSamplerIdx),
         shadowmapScreenPos.xy * textureDimensions
     ).rg;
 
@@ -232,13 +226,13 @@ float ShadowPCSS(vec3 shadowmapScreenPos, float shadowBias, float refPenumbraDis
 
 void main()
 {
-    float depth = texture(PB_COMBO_SAMPLER(gDepthIndex, gBufferSamplerIdx), fsInput.texCoord).r;
-    vec3 normal = texture(PB_COMBO_SAMPLER(gNormalIndex, gBufferSamplerIdx), fsInput.texCoord).rgb;
+    float depth = texture(PB_BUILD_SAMPLER(gDepthIndex, gBufferSamplerIdx), fsInput.texCoord).r;
+    vec3 normal = texture(PB_BUILD_SAMPLER(gNormalIndex, gBufferSamplerIdx), fsInput.texCoord).rgb;
     float normalDotLight = dot(normal, SHAD_CONST.shadowViewDirection);
 
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, MVP_CONST.invView, MVP_CONST.invProj);
     vec3 shadowmapScreenPos = ScreenPosFromWorld(position, SHAD_CONST.view, SHAD_CONST.proj);
-    float shadowmapDepth = texture(PB_COMBO_SAMPLER(shadowmapIndex, shadowSamplerIdx), (shadowmapScreenPos.xy * 0.5) + 0.5).r;
+    float shadowmapDepth = texture(PB_BUILD_SAMPLER(shadowmapIndex, shadowSamplerIdx), (shadowmapScreenPos.xy * 0.5) + 0.5).r;
 
     float biasMult = SHAD_CONST.shadowBiasMultiplier;
     float shadowBias = max((0.003 * biasMult) * (1.0 - normalDotLight), (0.0015 * biasMult));

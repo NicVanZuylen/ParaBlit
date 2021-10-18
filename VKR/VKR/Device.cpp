@@ -29,6 +29,73 @@ namespace PB
 		CreateLogicalDevice();
 		m_allocator.Init(this);
 		m_tempStagingBufferAllocator.Create(this);
+
+		{
+			static constexpr uint32_t BufferPoolSize = 1024 * 1024 * 8; // 8MB pools.
+			static constexpr uint32_t BufferPoolMinAlignment = 256; // Common alignment requirement for Vulkan buffers.
+			CLib::Vector<uint32_t> bufferAllocatorSegments =
+			{
+				0,
+				128,
+				256,
+				512,
+				1024,
+				4096,
+				8192,
+				16384,
+				1024 * 64,
+				1024 * 256,
+				1024 * 512,
+				1024 * 1024,
+				1024 * 1024 * 8,
+				0
+			};
+			m_deviceBufferAllocator.Init(this, EMemoryType::DEVICE_LOCAL, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
+		}
+
+		{
+			static constexpr uint32_t BufferPoolSize = 1024 * 1024 * 8; // 8MB pools.
+			static constexpr uint32_t BufferPoolMinAlignment = 256; // Common alignment requirement for Vulkan buffers.
+			CLib::Vector<uint32_t> bufferAllocatorSegments =
+			{
+				0,
+				128,
+				256,
+				512,
+				1024,
+				4096,
+				8192,
+				16384,
+				1024 * 64,
+				1024 * 256,
+				1024 * 512,
+				1024 * 1024,
+				1024 * 1024 * 8,
+				0
+			};
+			m_hostBufferAllocator.Init(this, EMemoryType::HOST_VISIBLE, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
+		}
+
+		{
+			static constexpr uint32_t TexturePoolSize = 1024 * 1024 * 32; // 32MB pools.
+			static constexpr uint32_t TexturePoolMinAlignment = 1024; // Common alignment requirement for Vulkan images.
+			CLib::Vector<uint32_t> texAllocatorSegments =
+			{
+				0,
+				512,
+				1024 * 4,
+				1024 * 16,
+				1024 * 64,
+				1024 * 128,
+				1024 * 512,
+				1024 * 1024,
+				1024 * 1024 * 4,
+				1024 * 1024 * 16,
+				1024 * 1024 * 32,
+				0
+			};
+			m_textureAllocator.Init(this,EMemoryType::DEVICE_LOCAL, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
+		}
 	}
 
 	int Device::GetGraphicsQueueFamilyIndex()

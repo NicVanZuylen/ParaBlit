@@ -96,6 +96,9 @@
     <ClCompile Include="CLib\Allocator.cpp">
       <Filter>CLib</Filter>
     </ClCompile>
+    <ClCompile Include="PoolAllocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h">
@@ -205,6 +208,9 @@
     </ClInclude>
     <ClInclude Include="CLib\Allocator.h">
       <Filter>CLib</Filter>
+    </ClInclude>
+    <ClInclude Include="PoolAllocator.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
