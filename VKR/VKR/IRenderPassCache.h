@@ -23,15 +23,17 @@ namespace PB
 		ETextureState m_finalState = ETextureState::NONE;
 		EAttachmentAction m_loadAction = EAttachmentAction::NONE;
 		bool m_keepContents = true;
-		u8 m_pad[7]{};
+		u8 m_pad[8]{};
 	};
 
 	struct RenderPassDesc
 	{
 		u16 m_attachmentCount = 0;
 		u16 m_subpassCount = 0;
-		AttachmentDesc* m_attachments = nullptr;
-		SubpassDesc* m_subpasses = nullptr;
+		AttachmentDesc m_attachments[8];
+		SubpassDesc m_subpasses[8];
+		//AttachmentDesc* m_attachments = nullptr;
+		//SubpassDesc* m_subpasses = nullptr;
 
 		bool operator == (const RenderPassDesc& desc) const;
 	};

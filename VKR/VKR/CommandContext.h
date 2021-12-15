@@ -56,6 +56,8 @@ namespace PB
 		PARABLIT_API void CmdEndRenderPass() override;
 		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange) override;
+		void CmdGraphicsBarrier() override;
+		void CmdComputeBarrier() override;
 		PARABLIT_API void CmdBindPipeline(Pipeline pipeline) override;
 		void SetViewport(PB::Rect viewRect, float minDepth, float maxDepth) override;
 		void SetScissor(PB::Rect scissorRect) override;

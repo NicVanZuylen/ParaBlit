@@ -118,8 +118,9 @@ void BlurHelper::Encode(PB::ICommandContext* cmdContext, PB::Uint2 dstResolution
 	resourceViews[0] = srvA;
 	resourceViews[2] = sivB;
 	cmdContext->CmdBindResources(bindings);
-	cmdContext->CmdDispatch((dstResolution.x / WorkGroupX) + 1, workGroupCountV, 1);
+	cmdContext->CmdDispatch(dstResolution.x / WorkGroupX, workGroupCountV, 1);
 
+	cmdContext->CmdTransitionTexture(imageParams.m_buffer0, PB::ETextureState::SAMPLED, PB::ETextureState::STORAGE, subresources);
 	cmdContext->CmdTransitionTexture(imageParams.m_buffer1, PB::ETextureState::STORAGE, PB::ETextureState::SAMPLED, subresources);
 
 	// Horizontal blur pass.
@@ -127,7 +128,7 @@ void BlurHelper::Encode(PB::ICommandContext* cmdContext, PB::Uint2 dstResolution
 	resourceViews[0] = srvB;
 	resourceViews[2] = sivA;
 	cmdContext->CmdBindResources(bindings);
-	cmdContext->CmdDispatch(workGroupCountH, (dstResolution.y / WorkGroupX) + 1, 1);
+	cmdContext->CmdDispatch(workGroupCountH, dstResolution.y / WorkGroupX, 1);
 
 	subresources.m_baseMip = imageParams.m_buffer0Mip;
 	cmdContext->CmdTransitionTexture(imageParams.m_buffer0, PB::ETextureState::STORAGE, PB::ETextureState::SAMPLED, subresources);

@@ -8,6 +8,7 @@
 #include "IPipelineCache.h"
 #include "ITexture.h"
 #include "IBufferObject.h"
+#include "IResourcePool.h"
 
 #ifdef PARABLIT_WINDOWS
 #pragma warning(push, 0)
@@ -62,6 +63,8 @@ namespace PB
 		PARABLIT_INTERFACE void FreeTexture(ITexture* texture) = 0;
 		PARABLIT_INTERFACE IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc) = 0;
 		PARABLIT_INTERFACE void FreeBuffer(IBufferObject* buffer) = 0;
+		PARABLIT_INTERFACE IResourcePool* AllocateResourcePool(const ResourcePoolDesc& poolDesc) = 0;
+		PARABLIT_INTERFACE void FreeResourcePool(IResourcePool* pool) = 0;
 		PARABLIT_INTERFACE ResourceView GetSampler(const SamplerDesc& samplerDesc) = 0;
 		PARABLIT_INTERFACE void FreeCommandList(ICommandList* list) = 0;
 

@@ -12,7 +12,9 @@ namespace PB
 		m_size = desc.m_bufferSize;
 
 		CreateVkBuffer(desc);
-		InitializeMemory(desc, m_poolAllocation, m_memoryType);
+
+		if(!(desc.m_options & PB::EBufferOptions::POOL_PLACED))
+			InitializeMemory(desc, m_poolAllocation, m_memoryType);
 	}
 
 	void BufferObject::Destroy()
@@ -38,8 +40,8 @@ namespace PB
 
 			vkDestroyBuffer(device->GetHandle(), m_handle, nullptr);
 
-			PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE);
-			device->GetBufferAllocator(m_memoryType).Free(m_poolAllocation);
+			if(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE)
+				device->GetBufferAllocator(m_memoryType).Free(m_poolAllocation);
 		}
 	}
 
@@ -60,6 +62,8 @@ namespace PB
 
 	u8* BufferObject::Map(u32 offset, u32 size)
 	{
+		PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
+
 		void* data = nullptr;
 		if (m_memoryType == EMemoryType::HOST_VISIBLE)
 		{
@@ -71,6 +75,8 @@ namespace PB
 
 	void BufferObject::Unmap()
 	{
+		PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
+
 		if (m_memoryType == EMemoryType::HOST_VISIBLE)
 		{
 			VkMappedMemoryRange memoryRange{};
@@ -107,6 +113,8 @@ namespace PB
 
 	void BufferObject::EndPopulate(BufferCopyRegion* regions, u32 regionCount)
 	{
+		PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
+
 		CommandContext internalContext;
 		MakeInternalContext(internalContext, m_renderer);
 		internalContext.Begin();
@@ -144,6 +152,15 @@ namespace PB
 	u32 BufferObject::GetDrawIndexedIndirectParamsSize()
 	{
 		return sizeof(VkDrawIndexedIndirectCommand);
+	}
+
+	void BufferObject::GetPlacedResourceSizeAndAlign(u32& size, u32& align)
+	{
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(m_renderer->GetDevice()->GetHandle(), m_handle, &memRequirements);
+
+		size = static_cast<u32>(memRequirements.size);
+		align = static_cast<u32>(memRequirements.alignment);
 	}
 
 	UniformBufferView BufferObject::GetViewAsUniformBuffer()
@@ -214,16 +231,19 @@ namespace PB
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(m_handle != VK_NULL_HANDLE);
 
-		VkMemoryRequirements bufferMemRequirements;
-		vkGetBufferMemoryRequirements(device->GetHandle(), m_handle, &bufferMemRequirements);
-		m_memoryType = EMemoryType::DEVICE_LOCAL;
-		if (desc.m_options & EBufferOptions::CPU_ACCESSIBLE)
-			m_memoryType = EMemoryType::HOST_VISIBLE;
+		if (!(desc.m_options & PB::EBufferOptions::POOL_PLACED)) // Skip memory allocation & binding for placed buffers, as they will later be placed on a memory heap.
+		{
+			VkMemoryRequirements bufferMemRequirements;
+			vkGetBufferMemoryRequirements(device->GetHandle(), m_handle, &bufferMemRequirements);
+			m_memoryType = EMemoryType::DEVICE_LOCAL;
+			if (desc.m_options & EBufferOptions::CPU_ACCESSIBLE)
+				m_memoryType = EMemoryType::HOST_VISIBLE;
 
-		device->GetBufferAllocator(m_memoryType).Alloc(uint32_t(bufferMemRequirements.size), uint32_t(bufferMemRequirements.alignment), m_poolAllocation);
+			device->GetBufferAllocator(m_memoryType).Alloc(uint32_t(bufferMemRequirements.size), uint32_t(bufferMemRequirements.alignment), m_poolAllocation);
 
-		PB_ERROR_CHECK(vkBindBufferMemory(device->GetHandle(), m_handle, m_poolAllocation.m_memoryHandle, m_poolAllocation.m_offset));
-		PB_BREAK_ON_ERROR;
+			PB_ERROR_CHECK(vkBindBufferMemory(device->GetHandle(), m_handle, m_poolAllocation.m_memoryHandle, m_poolAllocation.m_offset));
+			PB_BREAK_ON_ERROR;
+		}
 	}
 
 	inline void BufferObject::InitializeMemory(const BufferObjectDesc& desc, const PoolAllocator::PoolAllocation& allocation, EMemoryType memoryType)

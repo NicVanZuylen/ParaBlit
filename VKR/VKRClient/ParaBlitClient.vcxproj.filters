@@ -96,6 +96,9 @@
     <ClCompile Include="BlurHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AmbientOcclusionPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -172,6 +175,9 @@
     </ClInclude>
     <ClInclude Include="BlurHelper.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AmbientOcclusionPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -17,7 +17,8 @@ layout (location = 0) in FS_IN
     vec4 position;
     vec2 texCoord;
     flat uint samplerIdx;
-    flat uint textureIndices[7];
+    flat uint vertexIdx;
+    flat uint textureIndices[6];
     mat3 tbnMatrix;
 } fsInput;
 

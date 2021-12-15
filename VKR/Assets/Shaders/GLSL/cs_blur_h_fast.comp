@@ -30,7 +30,7 @@ layout(set = 1, binding = 0) uniform Constants
 
 PB_DEFINE_TEXTURE_BINDINGS;
 PB_DEFINE_SAMPLER_BINDINGS;
-PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict);
+PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict, rgba8);
 
 #define CONST PB_UBO(constants, constantsIndex)
 
@@ -38,12 +38,12 @@ shared vec3 sharedSamples[WORKGROUP_AREA];
 
 void StoreSample(uvec2 location, vec3 storeSample)
 {
-    sharedSamples[location.y + (location.x * WORKGROUP_SIZE_Y)] = storeSample;
+    sharedSamples[location.x + (location.y * WORKGROUP_SIZE_X)] = storeSample;
 }
 
 vec3 GetSample(uvec2 location)
 {
-    return sharedSamples[location.y + (location.x * WORKGROUP_SIZE_Y)];
+    return sharedSamples[location.x + (location.y * WORKGROUP_SIZE_X)];
 }
 
 vec3 GaussianSample(uvec2 location, float weight)
@@ -78,7 +78,7 @@ void main()
     localReadLocation.x += GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
     vec3 filteredColor = GetSample(localReadLocation);
 
-    if(gl_LocalInvocationID.x >= WORKGROUP_SIZE_X - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
+    if(gl_LocalInvocationID.x >= WORKGROUP_SIZE_X - GAUSSIAN_KERNEL_SIZE_MINUS_ONE - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
         return;
 
     for(int i = 1; i < GAUSSIAN_KERNEL_SIZE; ++i)

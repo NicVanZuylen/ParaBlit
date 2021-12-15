@@ -42,6 +42,8 @@ namespace PB
 
 		u32 GetDrawIndexedIndirectParamsSize() override;
 
+		void GetPlacedResourceSizeAndAlign(u32& size, u32& align) override;
+
 		UniformBufferView GetViewAsUniformBuffer() override;
 
 		UniformBufferView GetViewAsUniformBuffer(BufferViewDesc& viewDesc) override;

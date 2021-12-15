@@ -29,7 +29,7 @@ layout(set = 1, binding = 0) uniform Constants
 
 PB_DEFINE_TEXTURE_BINDINGS;
 PB_DEFINE_SAMPLER_BINDINGS;
-PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict);
+PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict, rgba8);
 
 #define CONST PB_UBO(constants, constantsIndex)
 

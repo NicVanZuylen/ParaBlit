@@ -24,7 +24,7 @@ BloomPass::BloomPass(PB::IRenderer* renderer, CLib::Allocator* allocator, bool h
 
 	BloomConstants* bloomConstantsData = reinterpret_cast<BloomConstants*>(m_bloomConstantsBuffer->BeginPopulate());
 	bloomConstantsData->m_rgbChannelWeights = { 0.2126f, 0.7152f, 0.0722f };
-	bloomConstantsData->m_minBrightnessThreshold = 0.9f;
+	bloomConstantsData->m_minBrightnessThreshold = 1.35f;
 	m_bloomConstantsBuffer->EndPopulate();
 
 	PB::SamplerDesc colorSamplerDesc{};
@@ -141,8 +141,7 @@ void BloomPass::OnPassBegin(const RenderGraphInfo& info)
 			PB::SubresourceRange subresources{};
 			subresources.m_mipCount = BlurTargetMipCount;
 
-			scopedContext->CmdTransitionTexture(info.m_renderTargets[1], PB::ETextureState::STORAGE, PB::ETextureState::SAMPLED);
-			scopedContext->CmdTransitionTexture(info.m_renderTargets[1], PB::ETextureState::SAMPLED, PB::ETextureState::STORAGE);
+			scopedContext->CmdTransitionTexture(info.m_renderTargets[1], PB::ETextureState::STORAGE, PB::ETextureState::SAMPLED, subresources);
 		}
 
 		for (uint32_t i = 0; i < BlurTargetMipCount; ++i)
@@ -250,7 +249,7 @@ void BloomPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	outColorDesc.m_width = renderWidth;
 	outColorDesc.m_height = renderHeight;
 	outColorDesc.m_mipCount = BlurTargetMipCount;
-	outColorDesc.m_name = nullptr;
+	outColorDesc.m_name = "BloomOutColor";
 	outColorDesc.m_usage = PB::EAttachmentUsage::STORAGE;
 	outColorDesc.m_flags = EAttachmentFlags::COPY_SRC | EAttachmentFlags::SECONDARY_SAMPLED;
 
@@ -259,7 +258,7 @@ void BloomPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	blurColorBufferDesc.m_width = renderWidth;
 	blurColorBufferDesc.m_height = renderHeight;
 	blurColorBufferDesc.m_mipCount = BlurTargetMipCount;
-	blurColorBufferDesc.m_name = nullptr;
+	blurColorBufferDesc.m_name = "BloomBlurColor";
 	blurColorBufferDesc.m_usage = PB::EAttachmentUsage::STORAGE;
 	blurColorBufferDesc.m_flags = EAttachmentFlags::COPY_SRC | EAttachmentFlags::SECONDARY_SAMPLED;
 
@@ -267,19 +266,11 @@ void BloomPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	mergedOutputDesc.m_format = swapchain->GetImageFormat();
 	mergedOutputDesc.m_width = swapchain->GetWidth();
 	mergedOutputDesc.m_height = swapchain->GetHeight();
-	mergedOutputDesc.m_name = nullptr;
+	mergedOutputDesc.m_name = "BloomMergedOutput";
 	mergedOutputDesc.m_usage = PB::EAttachmentUsage::STORAGE;
 	mergedOutputDesc.m_flags = EAttachmentFlags::COPY_SRC | EAttachmentFlags::SECONDARY_SAMPLED;
 
-	AttachmentDesc& sdrColorDesc = nodeDesc.m_attachments[4];
-	sdrColorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-	sdrColorDesc.m_width = swapchain->GetWidth();
-	sdrColorDesc.m_height = swapchain->GetHeight();
-	sdrColorDesc.m_name = "LightingColorOutputSDR";
-	sdrColorDesc.m_usage = PB::EAttachmentUsage::READ;
-	sdrColorDesc.m_flags = EAttachmentFlags::NONE;
-
-	nodeDesc.m_attachmentCount = 5;
+	nodeDesc.m_attachmentCount = 4;
 	nodeDesc.m_renderWidth = outColorDesc.m_width;
 	nodeDesc.m_renderHeight = outColorDesc.m_height;
 

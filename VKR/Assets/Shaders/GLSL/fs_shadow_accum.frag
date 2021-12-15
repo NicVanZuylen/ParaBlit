@@ -52,21 +52,6 @@ layout(location = 0) out vec4 outColor;
 #define MVP_CONST PB_UBO(mvp, mvpIndex)
 #define SHAD_CONST PB_UBO(shadowConstants, svbIndex)
 
-vec3 WorldPosFromDepth(float depth, vec2 texCoords, in mat4 invView, in mat4 invProj)
-{
-	// Convert x & y to clip space and include z.
-	vec4 clipSpacePos = vec4(texCoords * 2.0f - 1.0f, depth, 1.0f);
-	vec4 viewSpacepos = invProj * clipSpacePos; // Transform clip space position to view space.
-
-	// Do perspective divide
-	viewSpacepos /= viewSpacepos.w;
-
-	// Transform to worldspace from viewspace.
-	vec4 worldPos = invView * viewSpacepos;
-
-	return worldPos.xyz;
-}
-
 vec3 ScreenPosFromWorld(vec3 worldPosition, in mat4 view, in mat4 proj)
 {
     vec4 screenPosRaw = proj * view * vec4(worldPosition, 1.0);

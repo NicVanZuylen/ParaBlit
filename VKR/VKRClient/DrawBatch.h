@@ -1,5 +1,6 @@
 #pragma once
 #include "IRenderer.h"
+#include "IResourcePool.h"
 #include "ObjectDispatcher.h"
 #include "ManagedInstanceBuffer.h"
 
@@ -15,22 +16,16 @@ public:
 	VertexPool(PB::IRenderer* renderer, PB::u32 poolSize, PB::u32 vertexStride);
 	~VertexPool();
 
-	PB::u8* AllocateAndBeginWrite(PB::u32 size, PB::u32& firstVertex);
+	void GetNextVertexOffset(PB::u32 size, PB::u32& firstVertex);
 
-	void EndWrite();
-
-	PB::IBufferObject* GetPoolBuffer();
-
-	PB::ResourceView GetViewAsStorageBuffer();
+	PB::IResourcePool* GetPool();
 
 private:
 
 	PB::IRenderer* m_renderer = nullptr;
-	PB::IBufferObject* m_poolBuffer = nullptr;
-	PB::ResourceView m_storageBufferView = 0;
+	PB::IResourcePool* m_pool = nullptr;
 	PB::u32 m_vertexStride = 0;
 	PB::u32 m_currentPoolOffset = 0;
-	PB::u32 m_currentWriteBlockLength = 0;
 };
 
 class DrawBatch
@@ -76,13 +71,14 @@ private:
 
 	struct DrawBatchInstanceData
 	{
-		static constexpr const PB::u32 MaxTextures = 7;
+		static constexpr const PB::u32 MaxTextures = 6;
 
 		// Per-object model transformation matrix.
 		float m_modelMatrix[16];
 
 		// Textures are kept in instance data as a way to pass on per-object textures to the fragment shader via stage IO.
 		PB::ResourceView m_textures[MaxTextures];
+		PB::ResourceView m_vertexBuffer;
 		PB::ResourceView m_sampler;
 	};
 	static_assert(sizeof(DrawBatchInstanceData) % 16 == 0);

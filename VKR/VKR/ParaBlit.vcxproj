@@ -164,6 +164,7 @@
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="RenderPassCache.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
+    <ClCompile Include="ResourcePool.cpp" />
     <ClCompile Include="ShaderModule.cpp" />
     <ClCompile Include="StagingBufferAllocator.cpp" />
     <ClCompile Include="Swapchain.cpp" />
@@ -189,6 +190,7 @@
     <ClInclude Include="IPipelineCache.h" />
     <ClInclude Include="IRenderer.h" />
     <ClInclude Include="IRenderPassCache.h" />
+    <ClInclude Include="IResourcePool.h" />
     <ClInclude Include="IShaderModule.h" />
     <ClInclude Include="ISwapChain.h" />
     <ClInclude Include="ITexture.h" />
@@ -201,6 +203,7 @@
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderPassCache.h" />
     <ClInclude Include="ResourceManager.h" />
+    <ClInclude Include="ResourcePool.h" />
     <ClInclude Include="ShaderModule.h" />
     <ClInclude Include="StagingBufferAllocator.h" />
     <ClInclude Include="Swapchain.h" />

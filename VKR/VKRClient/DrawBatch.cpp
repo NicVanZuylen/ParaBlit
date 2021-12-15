@@ -1,4 +1,5 @@
 #include "DrawBatch.h"
+#include "IBufferObject.h"
 #include "Mesh.h"
 #include "Shader.h"
 
@@ -7,47 +8,29 @@ VertexPool::VertexPool(PB::IRenderer* renderer, PB::u32 poolSize, PB::u32 vertex
     m_renderer = renderer;
     m_vertexStride = vertexStride;
 
-    PB::BufferObjectDesc poolBufferDesc;
-    poolBufferDesc.m_bufferSize = poolSize;
-    poolBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX | PB::EBufferUsage::STORAGE;
-    poolBufferDesc.m_options = 0;
-    m_poolBuffer = m_renderer->AllocateBuffer(poolBufferDesc);
-
-    m_storageBufferView = m_poolBuffer->GetViewAsStorageBuffer();
+    PB::ResourcePoolDesc poolDesc{};
+    poolDesc.m_size = poolSize;
+    poolDesc.m_memoryType = PB::EMemoryType::DEVICE_LOCAL;
+    m_pool = m_renderer->AllocateResourcePool(poolDesc);
 }
 
 VertexPool::~VertexPool()
 {
-    m_renderer->FreeBuffer(m_poolBuffer);
-    m_poolBuffer = nullptr;
-    m_storageBufferView = 0;
+    m_renderer->FreeResourcePool(m_pool);
+    m_pool = nullptr;
 
     m_currentPoolOffset = 0;
-    m_currentWriteBlockLength = 0;
 }
 
-PB::u8* VertexPool::AllocateAndBeginWrite(PB::u32 size, PB::u32& firstVertex)
+void VertexPool::GetNextVertexOffset(PB::u32 size, PB::u32& firstVertex)
 {
     firstVertex = m_currentPoolOffset / m_vertexStride;
-    m_currentWriteBlockLength = size;
-    return m_poolBuffer->BeginPopulate(size);
+    m_currentPoolOffset += size;
 }
 
-void VertexPool::EndWrite()
+PB::IResourcePool* VertexPool::GetPool()
 {
-    m_poolBuffer->EndPopulate(m_currentPoolOffset);
-    m_currentPoolOffset += m_currentWriteBlockLength;
-    m_currentWriteBlockLength = 0;
-}
-
-PB::IBufferObject* VertexPool::GetPoolBuffer()
-{
-    return m_poolBuffer;
-}
-
-PB::ResourceView VertexPool::GetViewAsStorageBuffer()
-{
-    return m_storageBufferView;
+    return m_pool;
 }
 
 DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, VertexPool* vertexPool, PB::u32 maxIndexCount)
@@ -98,7 +81,6 @@ void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBat
 
     PB::ResourceView batchResources[] =
     {
-        m_vertexPool->GetViewAsStorageBuffer(),
         m_instanceBuffer.GetBuffer()->GetViewAsStorageBuffer()
     };
     finalBindingLayout.m_resourceCount = bindings.m_resourceCount + _countof(batchResources);
@@ -136,7 +118,7 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     entry.m_inputIndexBufferIndex = mesh->GetIndexBuffer()->GetViewAsStorageBuffer();
     if(freeIndex != m_dynamicUpdateQueue.Count())
         entry.m_instanceIndex = m_instanceCount++;
-    entry.m_firstVertex = mesh->FirstVertex();
+    entry.m_firstVertex = 0;
     entry.m_startIndex = 0;
     entry.m_indexCount = mesh->IndexCount();
     entry.m_workGroupCount = (entry.m_indexCount / WorkGroupIndexCount) + ((entry.m_indexCount % WorkGroupIndexCount > 0) ? 1 : 0);
@@ -147,6 +129,7 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     DrawBatchInstanceData& instanceData = *reinterpret_cast<DrawBatchInstanceData*>(m_instanceBuffer.MapElement(entry.m_instanceIndex, 0, sizeof(DrawBatchInstanceData)));
     memcpy(instanceData.m_modelMatrix, modelMatrix, sizeof(instanceData.m_modelMatrix));
     memcpy(instanceData.m_textures, textures, textureCount * sizeof(PB::ResourceView));
+    instanceData.m_vertexBuffer = mesh->GetVertexBuffer()->GetViewAsStorageBuffer();
     instanceData.m_sampler = sampler;
 
     return freeIndex;

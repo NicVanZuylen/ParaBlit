@@ -10,6 +10,7 @@
 #include "GBufferPass.h"
 #include "ShadowAccumPass.h"
 #include "DeferredLightingPass.h"
+#include "AmbientOcclusionPass.h"
 #include "BloomPass.h"
 
 #include "Input.h"
@@ -29,8 +30,8 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	m_allocator = allocator;
 
 	glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
-	m_camera = Camera(glm::vec3(-2.0f, 0.5f, -6.0f), glm::vec3(glm::radians(-45.0f), glm::radians(-45.0f) , 0.0f), 0.5f, 5.0f);
-	//m_camera = Camera(sunDir * 500, glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)), 0.5f, 5.0f);
+	//m_camera = Camera(glm::vec3(-2.0f, 0.5f, -6.0f), glm::vec3(glm::radians(-45.0f), glm::radians(-45.0f) , 0.0f), 0.5f, 5.0f);
+	m_camera = Camera(sunDir * 5.0f, glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)), 0.5f, 5.0f);
 	InitResources();
 
 	m_geoShadowDispatchList = m_allocator->Alloc<ObjectDispatchList>();
@@ -71,6 +72,7 @@ ClientPlayground::~ClientPlayground()
 
 	// Free rendergraph nodes.
 	m_allocator->Free(m_bloomPass);
+	m_allocator->Free(m_ambientOcclusionPass);
 	m_allocator->Free(m_deferredLightingPass);
 	m_allocator->Free(m_shadowAccumPass);
 	m_allocator->Free(m_gBufferPass);
@@ -85,6 +87,9 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 
 	// Update Camera -------------------------------------------------------------------------------------------------
 	{
+		constexpr float fov = 75.0f;
+		constexpr float fovRadians = glm::radians(fov);
+
 		MVPBuffer* bufferMatrices = (MVPBuffer*)m_mvpBuffer->BeginPopulate();
 
 		// Model
@@ -103,11 +108,15 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		axisCorrection[2][2] = 1.0f;
 		axisCorrection[3][3] = 1.0f;
 
-		bufferMatrices->m_proj = axisCorrection * glm::perspectiveFov<float>(45.0f, (float)m_swapchain->GetWidth(), (float)m_swapchain->GetHeight(), 0.1f, 1000.0f);
+		bufferMatrices->m_proj = axisCorrection * glm::perspectiveFov<float>(fovRadians, (float)m_swapchain->GetWidth(), (float)m_swapchain->GetHeight(), 0.1f, 1000.0f);
 		bufferMatrices->m_invProj = glm::inverse(bufferMatrices->m_proj);
 
 		// Position
 		bufferMatrices->m_camPos = glm::vec4(m_camera.GetPosition(), 1.0f);
+
+		// Depth Reconstruction Constants
+		bufferMatrices->m_aspectRatio = float(m_swapchain->GetWidth()) / m_swapchain->GetHeight();
+		bufferMatrices->m_tanHalfFOV = glm::tan(fovRadians / 2);
 
 		glm::mat4 modelCpy = model;
 
@@ -125,8 +134,8 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 	{
 		PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 		auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
-		//m_shadowAccumPass->SetOutputTexture(swapChainTex);
 		m_bloomPass->SetOutputTexture(swapChainTex);
+		//m_ambientOcclusionPass->SetOutputTexture(swapChainTex);
 	}
 	// ---------------------------------------------------------------------------------------------------------------
 
@@ -301,6 +310,19 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 			m_shadowAccumPass->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
 		}
 
+		// Ambient Occlusion pass
+		{
+			if (!m_ambientOcclusionPass)
+			{
+				AmbientOcclusionPass::CreateDesc desc{};
+				desc.m_mvpUBOView = m_mvpBuffer->GetViewAsUniformBuffer();
+				desc.m_halfRes = false;
+
+				m_ambientOcclusionPass = m_allocator->Alloc<AmbientOcclusionPass>(m_renderer, m_allocator, desc);
+			}
+			m_ambientOcclusionPass->AddToRenderGraph(&rgBuilder);
+		}
+
 		// Deferred lighting pass
 		{
 			if(!m_deferredLightingPass)
@@ -342,9 +364,10 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.3f, 0.3f });
 		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f });
+		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 5.0f, 5.0f, 5.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
-		//m_deferredLightingPass->SetPointLight(0, { -1.0f, 3.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
-		//m_deferredLightingPass->SetPointLight(1, { 1.0f, 3.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
+		m_deferredLightingPass->SetPointLight(0, { -1.0f, 3.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
+		m_deferredLightingPass->SetPointLight(1, { 1.0f, 3.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
 	}
 
 	return output;
@@ -384,7 +407,7 @@ void ClientPlayground::SetupDrawBatch()
 	for (uint32_t i = 0; i < 2; ++i)
 	{
 		modelMat = glm::translate(glm::mat4(), glm::vec3(4.0f * (i / 10), -0.2f, -7.0f * (i % 10)));
-		modelMat = glm::rotate(modelMat, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		modelMat = glm::rotate(modelMat, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
 		if (i == 0)

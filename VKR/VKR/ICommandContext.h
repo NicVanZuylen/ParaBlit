@@ -80,6 +80,16 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange = {}) = 0;
 
+		/*
+		Description: Barrier which waits on all graphics work to complete.
+		*/
+		PARABLIT_INTERFACE void CmdGraphicsBarrier() = 0;
+
+		/*
+		Description: Barrier which waits on all compute work to complete.
+		*/
+		PARABLIT_INTERFACE void CmdComputeBarrier() = 0;
+
 		PARABLIT_INTERFACE void CmdBindPipeline(Pipeline pipeline) = 0;
 
 		PARABLIT_INTERFACE void SetViewport(PB::Rect viewRect, float minDepth, float maxDepth) = 0;

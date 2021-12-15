@@ -10,8 +10,8 @@ namespace PB
 	bool RenderPassDesc::operator==(const RenderPassDesc& desc) const
 	{
 		return !(m_attachmentCount != desc.m_attachmentCount || m_subpassCount != desc.m_subpassCount
-			|| memcmp(m_attachments, desc.m_attachments, sizeof(AttachmentDesc) * m_attachmentCount) != 0
-			|| memcmp(m_subpasses, desc.m_subpasses, sizeof(SubpassDesc) * m_subpassCount) != 0);
+			|| memcmp(m_attachments, desc.m_attachments, sizeof(m_attachments)) != 0
+			|| memcmp(m_subpasses, desc.m_subpasses, sizeof(m_subpasses)) != 0);
 	}
 
 	size_t RenderPassHasher::operator()(const RenderPassDesc& desc) const
@@ -52,8 +52,11 @@ namespace PB
 		if (it == m_cache.end())
 		{
 			auto newPass = CreateRenderPass(desc);
-			if(newPass != VK_NULL_HANDLE)
-				m_cache[desc] = static_cast<VkRenderPass>(newPass);
+			if (newPass != VK_NULL_HANDLE)
+			{
+				std::pair<RenderPassDesc, VkRenderPass> newPair{ desc, newPass };
+				m_cache.insert(newPair);
+			}
 			return newPass;
 		}
 		else

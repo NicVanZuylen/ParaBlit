@@ -14,32 +14,32 @@
 #ifdef _DEBUG
 
 // Break if 'condition' is not satisfied.
-#define PB_ASSERT(condition)									\
-{																\
-	if(condition)												\
-	{															\
-	}															\
-	else														\
-	{															\
-		printf("PARABLIT ASSERTION FAILED.\n");					\
-		__debugbreak();											\
-	}															\
-}																\
-PB_TERMINATE_MACRO												\
+#define PB_ASSERT(condition)															\
+{																						\
+	if(condition)																		\
+	{																					\
+	}																					\
+	else																				\
+	{																					\
+		printf("PARABLIT ASSERTION FAILED. \n");						\
+		__debugbreak();																	\
+	}																					\
+}										 												\
+PB_TERMINATE_MACRO																		\
 
 // Break and print a message to the console if 'condition' is not satisfied.
-#define PB_ASSERT_MSG(condition, message)						\
-{																\
-	if(condition)												\
-	{															\
-	}															\
-	else														\
-	{															\
-		printf("PARABLIT ASSERTION FAILED: %s\n", message);		\
-		__debugbreak();											\
-	}															\
-}																\
-PB_TERMINATE_MACRO												\
+#define PB_ASSERT_MSG(condition, message)												\
+{																						\
+	if(condition)																		\
+	{																					\
+	}																					\
+	else																				\
+	{																					\
+		printf("PARABLIT ASSERTION FAILED: Line: %s\n", message);		\
+		__debugbreak();																	\
+	}																					\
+}																						\
+PB_TERMINATE_MACRO																		\
 
 namespace PB
 {

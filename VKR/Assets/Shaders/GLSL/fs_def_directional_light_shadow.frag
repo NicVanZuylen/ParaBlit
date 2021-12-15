@@ -19,6 +19,7 @@ layout(push_constant) uniform Bindings
     int emissionRTVIdx;
     int depthRTVIdx;
     int shadowmaskIdx;
+    int aoIndex;
     int samplerIdx;
 } bindings;
 
@@ -51,7 +52,6 @@ layout(set = 1, binding = 0) uniform LightingData
 layout(location = 0) in FS_IN fsInput;
 
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outColorSDR;
 
 float OrenNayarDiff(vec3 normal, vec3 lightDir, vec3 surfToCam, float roughness) 
 {
@@ -172,7 +172,13 @@ void main()
         fsInput.texCoord
     ).r;
 
-    vec4 lightingColor = vec4(color * 0.1, 1.0);
+    float ao = texture
+    (
+        sampler2D(textures[nonuniformEXT(bindings.aoIndex)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        fsInput.texCoord
+    ).r;
+
+    vec4 lightingColor = vec4(color * ao * 0.15, 1.0);
 
     vec3 dirToCam = normalize(position - camPos.xyz);
 
@@ -199,5 +205,4 @@ void main()
 
     float emissionTotal = emission.r + emission.g + emission.b;
     outColor = emissionTotal == 0.0 ? lightingColor : emissionOutput;
-    outColorSDR = lightingColor;
 }

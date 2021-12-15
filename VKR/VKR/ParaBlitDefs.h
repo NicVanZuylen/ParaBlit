@@ -117,6 +117,7 @@ namespace PB
 	{
 		ZERO_INITIALIZE		=	1,
 		CPU_ACCESSIBLE		=	1 << 1,
+		POOL_PLACED			=	1 << 2,
 	};
 	PB_DEFINE_ENUM_FIELD(BufferOptionFlags, EBufferOptions, u32)
 

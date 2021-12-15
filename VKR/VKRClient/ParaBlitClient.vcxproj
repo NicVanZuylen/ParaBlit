@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="..\VKR\CLib\Allocator.cpp" />
     <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp" />
+    <ClCompile Include="AmbientOcclusionPass.cpp" />
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="BloomPass.cpp" />
     <ClCompile Include="BlurHelper.cpp" />
@@ -47,6 +48,7 @@
   <ItemGroup>
     <ClInclude Include="..\VKR\CLib\Allocator.h" />
     <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h" />
+    <ClInclude Include="AmbientOcclusionPass.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="BloomPass.h" />
     <ClInclude Include="BlurHelper.h" />

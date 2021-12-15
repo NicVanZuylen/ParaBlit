@@ -30,6 +30,7 @@ class ShadowMapPass;
 class GBufferPass;
 class ShadowAccumPass;
 class DeferredLightingPass;
+class AmbientOcclusionPass;
 class BloomPass;
 
 class ClientPlayground
@@ -71,6 +72,9 @@ private:
 		glm::mat4 m_invView;
 		glm::mat4 m_invProj;
 		glm::vec4 m_camPos;
+		float m_aspectRatio;
+		float m_tanHalfFOV;
+		float m_pad[2];
 	};
 	// -------------------------------------------------------------------------
 
@@ -89,6 +93,7 @@ private:
 	GBufferPass* m_gBufferPass = nullptr;
 	ShadowAccumPass* m_shadowAccumPass = nullptr;
 	DeferredLightingPass* m_deferredLightingPass = nullptr;
+	AmbientOcclusionPass* m_ambientOcclusionPass = nullptr;
 	BloomPass* m_bloomPass = nullptr;
 	// -------------------------------------------------------------------------
 

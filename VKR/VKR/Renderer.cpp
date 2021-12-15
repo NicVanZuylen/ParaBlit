@@ -260,6 +260,18 @@ namespace PB
 		m_allocator.Free(internalBuf);
 	}
 
+	IResourcePool* Renderer::AllocateResourcePool(const ResourcePoolDesc& poolDesc)
+	{
+		auto* internalPool = m_allocator.Alloc<ResourcePool>();
+		internalPool->Create(&m_device, poolDesc);
+		return internalPool;
+	}
+
+	void Renderer::FreeResourcePool(IResourcePool* pool)
+	{
+		m_allocator.Free(reinterpret_cast<ResourcePool*>(pool));
+	}
+
 	ITexture* Renderer::AllocateTexture(const TextureDesc& texDesc)
 	{
 		auto* internalTex = m_allocator.Alloc<Texture>();

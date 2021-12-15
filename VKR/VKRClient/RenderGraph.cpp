@@ -162,11 +162,12 @@ RenderGraph* RenderGraphBuilder::Build()
 
 		// Render pass
 		PB::RenderPassDesc rpDesc{};
-		PB::SubpassDesc subpass{};
+
+		PB::SubpassDesc& subpass = rpDesc.m_subpasses[0];
 		PB::AttachmentDesc attachmentDescs[_countof(buildNode.m_attachments)]{};
 		rpDesc.m_subpassCount = 1;
-		rpDesc.m_subpasses = &subpass;
-		rpDesc.m_attachments = attachmentDescs;
+		//rpDesc.m_subpasses = &subpass;
+		//rpDesc.m_attachments = attachmentDescs;
 
 		// Separate writable attachments from readonly attachments, as readonly attachments are not part of the renderpass and framebuffer.
 		CLib::Vector<AttachmentMeta, _countof(buildNode.m_attachments)> validAttachments;
@@ -175,7 +176,8 @@ RenderGraph* RenderGraphBuilder::Build()
 		CLib::Vector<PB::RenderTargetView, _countof(buildNode.m_attachments)> validViews;
 		for (uint32_t i = 0; i < buildNode.m_attachmentCount; ++i)
 		{
-			if (buildNode.m_usages[i] != PB::EAttachmentUsage::READ)
+			if (buildNode.m_usages[i] == PB::EAttachmentUsage::COLOR 
+				|| buildNode.m_usages[i] == PB::EAttachmentUsage::DEPTHSTENCIL)
 			{
 				validAttachments.PushBack() = buildNode.m_attachments[i];
 				validClearColors.PushBack() = buildNode.m_clearColors[i];
@@ -220,11 +222,16 @@ RenderGraph* RenderGraphBuilder::Build()
 				attachmentDesc.m_loadAction = (attach.m_flags & EAttachmentFlags::CLEAR) ? PB::EAttachmentAction::CLEAR : PB::EAttachmentAction::NONE;
 			}
 
+			// TODO: REMOVE THIS
+			attachmentDesc.m_keepContents = true;
+
 			auto& attachmentUsage = subpass.m_attachments[i];
 			attachmentUsage.m_attachmentFormat = attach.m_format;
 			attachmentUsage.m_attachmentIdx = i;
 			attachmentUsage.m_usage = validUsages[i];
 		}
+
+		memcpy(rpDesc.m_attachments, attachmentDescs, sizeof(attachmentDescs));
 
 		// Compute only passes don't need framebuffers or render pass objects.
 		if (buildNode.m_computeOnlyPass == false)

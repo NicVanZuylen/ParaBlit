@@ -113,6 +113,14 @@ namespace PB
 		PARABLIT_INTERFACE u32 GetDrawIndexedIndirectParamsSize() = 0;
 
 		/*
+		Description: Get the size and alignment of this buffer if it were placed on a resource pool.
+		Param:
+			out u32& size: Output size of the buffer on a resource pool.
+			out u32& align: Output alignment of the buffer on a resource pool.
+		*/
+		PARABLIT_INTERFACE void GetPlacedResourceSizeAndAlign(u32& size, u32& align) = 0;
+
+		/*
 		Description: Get a default view of the entire range of this buffer object to use as a uniform buffer.
 		Return Type: UniformBufferView
 		*/

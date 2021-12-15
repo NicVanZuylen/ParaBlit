@@ -25,8 +25,13 @@ namespace PB
 	{
 		if (alignBytes < m_minAlignment)
 		{
-			uint32_t alignPad = m_minAlignment % alignBytes;
-			alignBytes = m_minAlignment + alignBytes;
+			if (alignBytes == 0)
+				alignBytes = m_minAlignment;
+			else
+			{
+				uint32_t alignPad = m_minAlignment % alignBytes;
+				alignBytes = m_minAlignment + alignBytes;
+			}
 		}
 
 		std::lock_guard<std::mutex> lock(m_mutex);

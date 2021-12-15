@@ -47,6 +47,8 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	colorDesc.m_height = swapchain->GetHeight();
 	colorDesc.m_name = "G_Color";
 	colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
+	colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+	colorDesc.m_flags = EAttachmentFlags::CLEAR;
 
 	AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
 	normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;

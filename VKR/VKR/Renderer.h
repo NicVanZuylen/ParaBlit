@@ -13,6 +13,7 @@
 #include "ShaderModule.h"
 #include "PipelineCache.h"
 #include "BufferObject.h"
+#include "ResourcePool.h"
 
 #include <mutex>
 
@@ -84,6 +85,10 @@ namespace PB
 		PARABLIT_API IBufferObject* AllocateBuffer(const BufferObjectDesc& bufDesc) override;
 
 		PARABLIT_API void FreeBuffer(IBufferObject* buffer) override;
+
+		IResourcePool* AllocateResourcePool(const ResourcePoolDesc& poolDesc) override;
+
+		void FreeResourcePool(IResourcePool* pool) override;
 
 		PARABLIT_API ITexture* AllocateTexture(const TextureDesc& texDesc) override;
 

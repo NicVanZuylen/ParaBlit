@@ -1,11 +1,11 @@
 #version 450
+#include "Common/pb_common.h"
+
 #extension GL_ARB_separate_shader_objects : enable
-#extension GL_EXT_nonuniform_qualifier : enable
 
 layout(push_constant) uniform Bindings
 {
     uint mvpIndex;
-    uint vertexBufferIndex;
     uint instanceBufferIndex;
 } bindings;
 
@@ -33,12 +33,13 @@ layout(set = 0, binding = 2) buffer VertexBuffer
     VS_IN vertices[];
 } vertexBuffers[];
 
-#define INSTANCE_TEXTURE_COUNT 7
+#define INSTANCE_TEXTURE_COUNT 6
 
 struct VS_INSTANCE
 {
     mat4 model;
     uint textureIndices[INSTANCE_TEXTURE_COUNT];
+    uint vertexIndex;
     uint samplerIndex;
 };
 
@@ -54,7 +55,8 @@ layout(location = 0) out VS_OUT
 
     // This is a draw batch shader, so textures and sampler may differ on a per-object/per-vertex basis.
     flat uint samplerIdx;
-    flat uint textureIndices[7];
+    flat uint vertexIndex;
+    flat uint textureIndices[INSTANCE_TEXTURE_COUNT];
 
     mat3 tbnMatrix; // Normal is 3rd vector component.
 } vsOutput;
@@ -64,8 +66,9 @@ void main()
     uint vertexIndex = uint(gl_VertexIndex) & 0xFFFFFF; // Mask out final 8 bits for vertex index.
     uint instanceIndex = uint(gl_VertexIndex) >> 24; // Shift 24 bits right for instance index.
 
-    VS_IN vsInput = vertexBuffers[nonuniformEXT(bindings.vertexBufferIndex)].vertices[nonuniformEXT(vertexIndex)];
+    //VS_IN vsInput = vertexBuffers[nonuniformEXT(bindings.vertexBufferIndex)].vertices[nonuniformEXT(vertexIndex)];
     VS_INSTANCE vsInstance = instanceBuffers[nonuniformEXT(bindings.instanceBufferIndex)].instances[nonuniformEXT(instanceIndex)];
+    VS_IN vsInput = vertexBuffers[nonuniformEXT(vsInstance.vertexIndex)].vertices[nonuniformEXT(vertexIndex)];
 
     mat3 modelCpy = mat3(vsInstance.model);
     vec3 biTangent = cross(vsInput.normal.xyz, vsInput.tangent.xyz);

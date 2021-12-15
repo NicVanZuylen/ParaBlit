@@ -55,7 +55,7 @@ namespace PB
 #endif
 #if PB_SHOW_VALIDATION_INFO
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			VKR_LOG_FORMAT("VALIDATION INFO: %s", callbackData->pMessage);
+			PB_LOG_FORMAT("VALIDATION INFO: %s", callbackData->pMessage);
 			break;
 #endif
 		default:

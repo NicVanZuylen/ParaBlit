@@ -322,7 +322,7 @@ void ShadowAccumPass::AddToRenderGraph(RenderGraphBuilder* builder, uint32_t sha
 	finalShadowMaskDesc.m_format = PB::ETextureFormat::R8_UNORM;
 	finalShadowMaskDesc.m_width = swapchain->GetWidth();
 	finalShadowMaskDesc.m_height = swapchain->GetHeight();
-	finalShadowMaskDesc.m_name = nullptr;
+	finalShadowMaskDesc.m_name = "ShadowMaskB";
 	finalShadowMaskDesc.m_usage = PB::EAttachmentUsage::READ;
 	finalShadowMaskDesc.m_flags = EAttachmentFlags::SECONDARY_SAMPLED | EAttachmentFlags::SECONDARY_STORAGE;
 

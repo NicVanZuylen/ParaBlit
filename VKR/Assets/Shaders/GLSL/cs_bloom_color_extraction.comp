@@ -24,7 +24,7 @@ layout(set = 1, binding = 0) uniform BloomConstants
 
 PB_DEFINE_TEXTURE_BINDINGS;
 PB_DEFINE_SAMPLER_BINDINGS;
-PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict);
+PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict, rgba8);
 
 #define BLOOM_CONST PB_UBO(bloomConstants, bloomConstIdx)
 

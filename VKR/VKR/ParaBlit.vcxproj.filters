@@ -99,6 +99,9 @@
     <ClCompile Include="PoolAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ResourcePool.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Device.h">
@@ -211,6 +214,12 @@
     </ClInclude>
     <ClInclude Include="PoolAllocator.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ResourcePool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IResourcePool.h">
+      <Filter>Interface</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

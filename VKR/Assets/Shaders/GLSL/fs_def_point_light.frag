@@ -48,7 +48,6 @@ layout(location = 0) in FS_IN fsInput;
 layout(location = 1) flat in int instanceIndex;
 
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outColorSDR;
 
 float OrenNayarDiff(vec3 normal, vec3 lightDir, vec3 surfToCam, float roughness) 
 {
@@ -173,8 +172,6 @@ void main()
     ).r;
     vec3 position = WorldPosFromDepth(depth, texCoord, invView, invProj);
 
-    outColor = vec4(0.0, 0.0, 0.0, 1.0);
-
     PointLight light = lightingData[nonuniformEXT(bindings.lightingUBOIndex)].m_lights[instanceIndex];
 
     vec3 dirToCam = normalize(camPos.xyz - position);
@@ -193,6 +190,5 @@ void main()
     vec3 diffuse = orenNayar * light.color;
     vec3 spec = cookTorrence * specular * light.color;
 
-    outColor += vec4((diffuse + spec) * attenuation * color, 1.0);
-    outColorSDR = outColor;
+    outColor = vec4((diffuse + spec) * attenuation * color, 1.0);
 }

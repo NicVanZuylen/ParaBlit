@@ -104,6 +104,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[3]),
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[4]),
 			static_cast<PB::ResourceView>(info.m_renderTargetViews[5]),
+			static_cast<PB::ResourceView>(info.m_renderTargetViews[6]),
 			m_gBufferSampler,
 		};
 
@@ -116,7 +117,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		if (m_dirLightingPipeline == 0)
 		{
 			PB::GraphicsPipelineDesc lightingPipelineDesc{};
-			lightingPipelineDesc.m_attachmentCount = 2;
+			lightingPipelineDesc.m_attachmentCount = 1;
 			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
 			lightingPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 			lightingPipelineDesc.m_stencilTestEnable = false;
@@ -141,7 +142,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		if (m_pointLightingPipeline == 0)
 		{
 			PB::GraphicsPipelineDesc lightingPipelineDesc{};
-			lightingPipelineDesc.m_attachmentCount = 2;
+			lightingPipelineDesc.m_attachmentCount = 1;
 			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
 			lightingPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 			lightingPipelineDesc.m_stencilTestEnable = false;
@@ -153,7 +154,6 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 			lightingPipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
 			lightingPipelineDesc.m_vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT4 };
 			lightingPipelineDesc.m_colorBlendStates[0] = PB::GraphicsPipelineDesc::DefaultBlendState();
-			lightingPipelineDesc.m_colorBlendStates[1] = PB::GraphicsPipelineDesc::DefaultBlendState();
 
 			m_pointLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
 		}
@@ -268,20 +268,27 @@ void DeferredLightingPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	shadowMaskReadDesc.m_name = "ShadowMaskA";
 	shadowMaskReadDesc.m_usage = PB::EAttachmentUsage::READ;
 
+	AttachmentDesc& ambientOcclusionReadDesc = nodeDesc.m_attachments[6];
+	ambientOcclusionReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+	ambientOcclusionReadDesc.m_width = swapchain->GetWidth();
+	ambientOcclusionReadDesc.m_height = swapchain->GetHeight();
+	ambientOcclusionReadDesc.m_name = "AO_Output";
+	ambientOcclusionReadDesc.m_usage = PB::EAttachmentUsage::READ;
+
 	// Output
-	AttachmentDesc& colorDesc = nodeDesc.m_attachments[6];
+	AttachmentDesc& colorDesc = nodeDesc.m_attachments[7];
 	colorDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
 	colorDesc.m_width = swapchain->GetWidth();
 	colorDesc.m_height = swapchain->GetHeight();
 	colorDesc.m_name = "LightingColorOutput";
 	colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
 
-	AttachmentDesc& sdrColorDesc = nodeDesc.m_attachments[7];
-	sdrColorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-	sdrColorDesc.m_width = swapchain->GetWidth();
-	sdrColorDesc.m_height = swapchain->GetHeight();
-	sdrColorDesc.m_name = "LightingColorOutputSDR";
-	sdrColorDesc.m_usage = PB::EAttachmentUsage::COLOR;
+	//AttachmentDesc& sdrColorDesc = nodeDesc.m_attachments[7];
+	//sdrColorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+	//sdrColorDesc.m_width = swapchain->GetWidth();
+	//sdrColorDesc.m_height = swapchain->GetHeight();
+	//sdrColorDesc.m_name = "LightingColorOutputSDR";
+	//sdrColorDesc.m_usage = PB::EAttachmentUsage::COLOR;
 
 	nodeDesc.m_attachmentCount = 8;
 	nodeDesc.m_renderWidth = colorDesc.m_width;

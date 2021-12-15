@@ -72,13 +72,14 @@ namespace PBClient
 			size_t indexBufferSize = cacheData.m_indexCount * sizeof(MeshIndex);
 
 			// Create vertex and index buffers...
+			PB::BufferObjectDesc vertexBufferDesc;
+			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
+			vertexBufferDesc.m_options = 0;
+			vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
+
 			if (m_vertexPool == nullptr)
 			{
 				// Allocate a standalone buffer for the vertices.
-				PB::BufferObjectDesc vertexBufferDesc;
-				vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
-				vertexBufferDesc.m_options = 0;
-				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
 				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
 				PB::u8* vertexData = m_vertexBuffer->BeginPopulate();
@@ -87,10 +88,32 @@ namespace PBClient
 			}
 			else
 			{
+				// Allocate a placed buffer for vertex pools.
+				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::STORAGE;
+				vertexBufferDesc.m_options = PB::EBufferOptions::POOL_PLACED;
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+
 				PB::u32 firstVertex;
-				char* vertexAddress = reinterpret_cast<char*>(m_vertexPool->AllocateAndBeginWrite(static_cast<PB::u32>(vertexBufferSize), firstVertex));
+				m_vertexPool->GetNextVertexOffset(static_cast<PB::u32>(vertexBufferSize), firstVertex);
+
+				PB::u32 placementSizeBytes;
+				PB::u32 placementAlignBytes;
+				m_vertexBuffer->GetPlacedResourceSizeAndAlign(placementSizeBytes, placementAlignBytes);
+
+				PB::u32 placementLocation = firstVertex * sizeof(Vertex);
+				PB::u32 locationModAlign = placementLocation % placementAlignBytes;
+				if (locationModAlign != 0)
+				{
+					PB::u32 alignPad = placementAlignBytes - locationModAlign;
+					placementLocation += alignPad;
+				}
+
+				m_vertexPool->GetPool()->PlaceBuffer(m_vertexBuffer, placementLocation);
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
+
 				s_meshDatabaseLoader.GetAssetBinaryRange(filePath, vertexAddress, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
-				m_vertexPool->EndWrite();
+
+				m_vertexBuffer->EndPopulate();
 				m_firstVertexInPool = firstVertex;
 			}
 
@@ -155,13 +178,14 @@ namespace PBClient
 
 			if (m_vertexPool == nullptr)
 			{
-				// Allocate a standalone buffer for the vertices.
-				PB::BufferObjectDesc vertexBufferDesc;
-				vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
-				vertexBufferDesc.m_options = 0;
-				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
-				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+
 			}
+
+			// Allocate a standalone buffer for the vertices.
+			PB::BufferObjectDesc vertexBufferDesc;
+			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
+			vertexBufferDesc.m_options = 0;
+			vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
 
 			PB::BufferObjectDesc indexBufferDesc;
 			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
@@ -177,16 +201,37 @@ namespace PBClient
 			// Read vertex data...
 			if (m_vertexPool == nullptr)
 			{
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 				char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
 				cacheInStream.read(vertexAddress, inCacheData.m_vertexCount * sizeof(Vertex));
 				m_vertexBuffer->EndPopulate();
 			}
 			else
 			{
+				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::STORAGE;
+				vertexBufferDesc.m_options = PB::EBufferOptions::POOL_PLACED;
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+
 				PB::u32 firstVertex;
-				char* vertexAddress = reinterpret_cast<char*>(m_vertexPool->AllocateAndBeginWrite(static_cast<PB::u32>(vertexBufferSize), firstVertex));
+				m_vertexPool->GetNextVertexOffset(static_cast<PB::u32>(vertexBufferSize), firstVertex);
+
+				PB::u32 placementSizeBytes;
+				PB::u32 placementAlignBytes;
+				m_vertexBuffer->GetPlacedResourceSizeAndAlign(placementSizeBytes, placementAlignBytes);
+
+				PB::u32 placementLocation = firstVertex * sizeof(Vertex);
+				PB::u32 locationModAlign = placementLocation % placementAlignBytes;
+				if (locationModAlign != 0)
+				{
+					PB::u32 alignPad = placementAlignBytes - locationModAlign;
+					placementLocation += alignPad;
+				}
+
+				m_vertexPool->GetPool()->PlaceBuffer(m_vertexBuffer, placementLocation);
+
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
 				cacheInStream.read(vertexAddress, inCacheData.m_vertexCount * sizeof(Vertex));
-				m_vertexPool->EndWrite();
+				m_vertexBuffer->EndPopulate();
 				m_firstVertexInPool = firstVertex;
 			}
 
@@ -252,15 +297,10 @@ namespace PBClient
 			// -----------------------------------------------------------------------------------------
 
 			// Create vertex and index buffers...
-			if (m_vertexPool == nullptr)
-			{
-				// Allocate a standalone buffer for the vertices.
-				PB::BufferObjectDesc vertexBufferDesc;
-				vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
-				vertexBufferDesc.m_options = 0;
-				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
-				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
-			}
+			PB::BufferObjectDesc vertexBufferDesc;
+			vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
+			vertexBufferDesc.m_options = 0;
+			vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
 
 			PB::BufferObjectDesc indexBufferDesc;
 			indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
@@ -273,17 +313,37 @@ namespace PBClient
 			// Copy vertex data...
 			if (m_vertexPool == nullptr)
 			{
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 				char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
 				memcpy(vertexAddress, wholeMeshVertices.Data(), vertexBufferSize);
 				m_vertexBuffer->EndPopulate();
 			}
 			else
 			{
+				vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::STORAGE;
+				vertexBufferDesc.m_options = PB::EBufferOptions::POOL_PLACED;
+				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
+
 				PB::u32 firstVertex;
-				char* vertexAddress = reinterpret_cast<char*>(m_vertexPool->AllocateAndBeginWrite(static_cast<PB::u32>(vertexBufferSize), firstVertex));
-				//cacheInStream.read(vertexAddress, vertexBufferSize);
+				m_vertexPool->GetNextVertexOffset(static_cast<PB::u32>(vertexBufferSize), firstVertex);
+
+				PB::u32 placementSizeBytes;
+				PB::u32 placementAlignBytes;
+				m_vertexBuffer->GetPlacedResourceSizeAndAlign(placementSizeBytes, placementAlignBytes);
+
+				PB::u32 placementLocation = firstVertex * sizeof(Vertex);
+				PB::u32 locationModAlign = placementLocation % placementAlignBytes;
+				if (locationModAlign != 0)
+				{
+					PB::u32 alignPad = placementAlignBytes - locationModAlign;
+					placementLocation += alignPad;
+				}
+
+				m_vertexPool->GetPool()->PlaceBuffer(m_vertexBuffer, placementLocation);
+
+				char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
 				memcpy(vertexAddress, wholeMeshVertices.Data(), vertexBufferSize);
-				m_vertexPool->EndWrite();
+				m_vertexBuffer->EndPopulate();
 				m_firstVertexInPool = firstVertex;
 			}
 
