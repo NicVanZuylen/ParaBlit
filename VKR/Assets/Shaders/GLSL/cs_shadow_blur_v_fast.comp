@@ -1,8 +1,8 @@
 #version 450
 #include "Common/pb_common.h"
 
-#define WORKGROUP_SIZE_X 2
-#define WORKGROUP_SIZE_Y 512
+#define WORKGROUP_SIZE_X 1
+#define WORKGROUP_SIZE_Y 256
 #define WORKGROUP_AREA WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y
 layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
 

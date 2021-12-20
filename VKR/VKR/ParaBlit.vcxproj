@@ -96,14 +96,14 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.148.1\Include;D:\VulkanSDK\1.1.106.0\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <AdditionalDependencies>vulkan-1.lib;ContainerLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)External/CLib/ContainerLib/lib/$(Platform)/$(Configuration);$(SolutionDir)VulkanSDK\1.2.148.1\Lib;$(SolutionDir)External\glfw\glfw-build\src\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)External/CLib/ContainerLib/lib/$(Platform)/$(Configuration);$(SolutionDir)VulkanSDK\1.2.198.1\Lib;$(SolutionDir)External\glfw\glfw-build\src\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

@@ -32,8 +32,7 @@ namespace PB
 		u16 m_subpassCount = 0;
 		AttachmentDesc m_attachments[8];
 		SubpassDesc m_subpasses[8];
-		//AttachmentDesc* m_attachments = nullptr;
-		//SubpassDesc* m_subpasses = nullptr;
+		bool m_isDynamic = false;
 
 		bool operator == (const RenderPassDesc& desc) const;
 	};

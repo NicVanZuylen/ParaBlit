@@ -14,8 +14,6 @@ struct RenderGraphInfo
 
 	PB::RenderPass m_renderPass = nullptr;
 	PB::Framebuffer m_frameBuffer = nullptr;
-	PB::ITexture** m_renderTargets = nullptr;
-	PB::RenderTargetView* m_renderTargetViews = nullptr;
 	uint32_t m_renderTargetCount = 0;
 };
 
@@ -25,11 +23,11 @@ public:
 
 	RenderGraphBehaviour(PB::IRenderer* renderer, CLib::Allocator* allocator);
 
-	virtual void OnPrePass(const RenderGraphInfo& info) = 0;
+	virtual void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
 
-	virtual void OnPassBegin(const RenderGraphInfo& info) = 0;
+	virtual void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
 
-	virtual void OnPostPass(const RenderGraphInfo& info) = 0;
+	virtual void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
 
 	PB::RenderPass GetRenderPass() { return m_renderPass; };
 

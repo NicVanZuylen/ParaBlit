@@ -13,7 +13,7 @@ GBufferPass::~GBufferPass()
 {
 }
 
-void GBufferPass::OnPrePass(const RenderGraphInfo& info)
+void GBufferPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 	if (m_listRequiresUpdate)
 	{
@@ -22,13 +22,13 @@ void GBufferPass::OnPrePass(const RenderGraphInfo& info)
 	}
 }
 
-void GBufferPass::OnPassBegin(const RenderGraphInfo& info)
+void GBufferPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 	if (m_geoDispatchList)
 		m_geoDispatchList->Dispatch(info.m_commandContext, info.m_renderPass, info.m_frameBuffer);
 }
 
-void GBufferPass::OnPostPass(const RenderGraphInfo& info)
+void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 
 }
@@ -41,7 +41,7 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 
 	PB::ISwapChain* swapchain = m_renderer->GetSwapchain();
 
-	AttachmentDesc& colorDesc = nodeDesc.m_attachments[0];
+	AttachmentDesc& colorDesc = nodeDesc.m_attachments.PushBackInit();
 	colorDesc.m_format = swapchain->GetImageFormat();
 	colorDesc.m_width = swapchain->GetWidth();
 	colorDesc.m_height = swapchain->GetHeight();
@@ -50,8 +50,8 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	colorDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 	colorDesc.m_flags = EAttachmentFlags::CLEAR;
 
-	AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
-	normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+	AttachmentDesc& normalDesc = nodeDesc.m_attachments.PushBackInit();
+	normalDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
 	normalDesc.m_width = swapchain->GetWidth();
 	normalDesc.m_height = swapchain->GetHeight();
 	normalDesc.m_name = "G_Normal";
@@ -59,23 +59,14 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	normalDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 	normalDesc.m_flags = EAttachmentFlags::CLEAR;
 
-	AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments[2];
+	AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments.PushBackInit();
 	specAndRoughDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 	specAndRoughDesc.m_width = swapchain->GetWidth();
 	specAndRoughDesc.m_height = swapchain->GetHeight();
 	specAndRoughDesc.m_name = "G_SpecAndRough";
 	specAndRoughDesc.m_usage = PB::EAttachmentUsage::COLOR;
 
-	AttachmentDesc& emissionDesc = nodeDesc.m_attachments[3];
-	emissionDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-	emissionDesc.m_width = swapchain->GetWidth();
-	emissionDesc.m_height = swapchain->GetHeight();
-	emissionDesc.m_name = "G_Emission";
-	emissionDesc.m_usage = PB::EAttachmentUsage::COLOR;
-	emissionDesc.m_clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-	emissionDesc.m_flags = EAttachmentFlags::CLEAR;
-
-	AttachmentDesc& depthDesc = nodeDesc.m_attachments[4];
+	AttachmentDesc& depthDesc = nodeDesc.m_attachments.PushBackInit();
 	depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
 	depthDesc.m_width = swapchain->GetWidth();
 	depthDesc.m_height = swapchain->GetHeight();
@@ -84,7 +75,6 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	depthDesc.m_flags = EAttachmentFlags::CLEAR;
 
-	nodeDesc.m_attachmentCount = 5;
 	nodeDesc.m_renderWidth = colorDesc.m_width;
 	nodeDesc.m_renderHeight = colorDesc.m_height;
 
@@ -111,7 +101,7 @@ PB::GraphicsPipelineDesc GBufferPass::GetBasePipelineDesc() const
 	pipelineDesc.m_subpass = 0;
 	pipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 	pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
-	pipelineDesc.m_attachmentCount = 4;
+	pipelineDesc.m_attachmentCount = 3;
 
 	return pipelineDesc;
 }

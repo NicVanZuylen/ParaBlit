@@ -30,7 +30,7 @@ namespace CLib
 		}
 
 		// Copy constructor
-		Vector(const Vector<T>& other) noexcept
+		Vector(const Vector<T, FixedCapacity, ExpandRate>& other) noexcept
 		{
 			CopyFrom(other);
 		}

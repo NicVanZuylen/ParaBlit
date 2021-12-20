@@ -93,12 +93,12 @@ namespace PBClient
 				vertexBufferDesc.m_options = PB::EBufferOptions::POOL_PLACED;
 				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
-				PB::u32 firstVertex;
-				m_vertexPool->GetNextVertexOffset(static_cast<PB::u32>(vertexBufferSize), firstVertex);
-
 				PB::u32 placementSizeBytes;
 				PB::u32 placementAlignBytes;
 				m_vertexBuffer->GetPlacedResourceSizeAndAlign(placementSizeBytes, placementAlignBytes);
+
+				PB::u32 firstVertex;
+				m_vertexPool->GetNextVertexOffset(placementSizeBytes, firstVertex);
 
 				PB::u32 placementLocation = firstVertex * sizeof(Vertex);
 				PB::u32 locationModAlign = placementLocation % placementAlignBytes;
@@ -212,12 +212,12 @@ namespace PBClient
 				vertexBufferDesc.m_options = PB::EBufferOptions::POOL_PLACED;
 				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
-				PB::u32 firstVertex;
-				m_vertexPool->GetNextVertexOffset(static_cast<PB::u32>(vertexBufferSize), firstVertex);
-
 				PB::u32 placementSizeBytes;
 				PB::u32 placementAlignBytes;
 				m_vertexBuffer->GetPlacedResourceSizeAndAlign(placementSizeBytes, placementAlignBytes);
+
+				PB::u32 firstVertex;
+				m_vertexPool->GetNextVertexOffset(placementSizeBytes, firstVertex);
 
 				PB::u32 placementLocation = firstVertex * sizeof(Vertex);
 				PB::u32 locationModAlign = placementLocation % placementAlignBytes;
@@ -324,12 +324,12 @@ namespace PBClient
 				vertexBufferDesc.m_options = PB::EBufferOptions::POOL_PLACED;
 				m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
-				PB::u32 firstVertex;
-				m_vertexPool->GetNextVertexOffset(static_cast<PB::u32>(vertexBufferSize), firstVertex);
-
 				PB::u32 placementSizeBytes;
 				PB::u32 placementAlignBytes;
 				m_vertexBuffer->GetPlacedResourceSizeAndAlign(placementSizeBytes, placementAlignBytes);
+
+				PB::u32 firstVertex;
+				m_vertexPool->GetNextVertexOffset(placementSizeBytes, firstVertex);
 
 				PB::u32 placementLocation = firstVertex * sizeof(Vertex);
 				PB::u32 locationModAlign = placementLocation % placementAlignBytes;

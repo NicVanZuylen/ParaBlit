@@ -31,11 +31,23 @@ struct AttachmentDesc
 	AttachmentFlags m_flags = EAttachmentFlags::NONE;
 };
 
+struct TransientTextureDesc
+{
+	const char* m_name = nullptr;
+	uint32_t m_width = 0;
+	uint32_t m_height = 0;
+	PB::ETextureFormat m_format = PB::ETextureFormat::UNKNOWN;
+	PB::TextureStateFlags m_usageFlags = PB::ETextureState::NONE;
+	PB::ETextureState m_initialUsage = PB::ETextureState::NONE;
+	PB::ETextureState m_finalUsage = PB::ETextureState::NONE;
+	uint8_t m_mipCount = 1;
+};
+
 struct NodeDesc
 {
 	RenderGraphBehaviour* m_behaviour = nullptr;
-	AttachmentDesc m_attachments[8]{};
-	uint32_t m_attachmentCount = 0;
+	CLib::Vector<AttachmentDesc, 8> m_attachments{ 8 };
+	CLib::Vector<TransientTextureDesc, 8> m_transientTextures{ 8 };
 	uint32_t m_renderWidth = 0;
 	uint32_t m_renderHeight = 0;
 	bool m_useReusableCommandLists = false;
@@ -51,24 +63,32 @@ struct RenderGraphTexture
 	PB::TextureDesc m_desc{};
 };
 
-// Contains all necessary information to run a single render pass.
-struct RenderGraphExecuteNode
+struct RTTransitionData
 {
-	PB::ETextureState m_attachmentPriorStates[8]{};
-	PB::ETextureState m_attachmentStates[8]{};
-	PB::SubresourceRange m_attachmentSubresourceRanges[8]{};
-	PB::RenderTargetView m_attachmentViews[8]{};
-	PB::ITexture* m_attachments[8]{};
-	PB::Float4 m_clearColors[8]{};
+	PB::ITexture* m_texture;
+	PB::ETextureState m_oldState;
+	PB::ETextureState m_newState;
+	PB::SubresourceRange m_subresourceRange;
+};
+
+// Contains all necessary information to run a single render pass.
+struct RenderGraphRuntimeNode
+{
+	CLib::Vector<PB::RenderTargetView, 8, 8> m_renderTargetViews;
+	CLib::Vector<PB::Float4, 8, 8> m_clearColors;
+	CLib::Vector<PB::ITexture*, 8, 8> m_transientTextures;
+	CLib::Vector<RTTransitionData, 8, 8> m_transitions;
+
+	// Only valid for non-dynamic render passes.
 	PB::Framebuffer m_framebuffer = nullptr;
 	PB::RenderPass m_renderPass = nullptr;
-	uint32_t m_attachmentCount = 0;
+
 	uint32_t m_renderWidth = 0;
 	uint32_t m_renderHeight = 0;
 	bool m_useReusableCommandLists = false;
 
 	RenderGraphBehaviour* m_behaviour = nullptr;
-	RenderGraphExecuteNode* m_next = nullptr;
+	RenderGraphRuntimeNode* m_next = nullptr;
 };
 
 
@@ -86,15 +106,17 @@ public:
 
 private:
 
-	struct AttachmentMeta
+	struct TransientTextureMeta
 	{
-		PB::ITexture* m_texture = nullptr;
+		TransientTextureMeta() = default;
+
+		TransientTextureMeta(const AttachmentDesc& desc);
+		TransientTextureMeta(const TransientTextureDesc& desc);
+
 		const char* m_name = nullptr;
 		uint32_t m_width;
 		uint32_t m_height;
 		PB::TextureStateFlags m_usage;
-		PB::ETextureState* m_firstPriorState;
-		PB::ETextureState m_lastUsage;
 		PB::ETextureFormat m_format;
 		AttachmentFlags m_flags; 
 		uint32_t m_mipCount;
@@ -102,48 +124,64 @@ private:
 
 	struct InternalBuildNode
 	{
-		AttachmentMeta m_attachments[8]{};
-		PB::EAttachmentUsage m_usages[8]{};
-		PB::Float4 m_clearColors[8]{};
+		struct PassAttachmentUsageData
+		{
+			const char* m_attachmentName;
+			PB::EAttachmentUsage m_usage;
+			PB::Float4 m_clearColor;
+			bool m_clear = false;
+		};
+
+		struct PassTextureUsageData
+		{
+			const char* m_transientTextureName;
+			PB::ETextureState m_initialUsage;
+			PB::ETextureState m_finalUsage;
+		};
+
+		std::vector<PassAttachmentUsageData> m_attachments{};
+		std::vector<PassTextureUsageData> m_transientTextures{};
 		RenderGraphBehaviour* m_behaviour = nullptr;
-		uint32_t m_attachmentCount = 0;
 		uint32_t m_renderWidth = 0;
 		uint32_t m_renderHeight = 0;
 		bool m_useReusableCommandLists = false;
 		bool m_computeOnlyPass = false;
 	};
 
-	// Tracks the usage of named attachments
-	struct NamedAttachmentMeta
+	// Tracks the usage of attachments through multiple passes.
+	struct TextureUsageData
 	{
 		CLib::String<8, char> m_name;
-		uint32_t m_earliestTimePoint = ~0u;
-		uint32_t m_mostRecentTimepoint = ~0u;
+		PB::ITexture* m_texture = nullptr;
+		uint32_t m_firstPassIndex = ~0u;			// Index of the first pass where this texture is used.
+		uint32_t m_mostRecentPassIndex = ~0u;		// Index of the most recent pass this texture is used in so far (during build step).
+		PB::ETextureState m_firstUsageState;
+		PB::ETextureState m_mostRecentUsageState;
 		
-		AttachmentMeta m_meta;
+		TransientTextureMeta m_meta;
 	};
 
-	void TextureDescFromAttachmentMeta(const AttachmentMeta& meta, PB::TextureDesc& outDesc);
+	void TextureDescFromTransientMeta(const TransientTextureMeta& meta, PB::TextureDesc& outDesc);
 
-	void UpdateNamedAttachment(const AttachmentDesc& desc, uint32_t timePoint);
+	void UpdateTextureUsageData(const TransientTextureMeta& meta, PB::ETextureState initialUsage, uint32_t timePoint);
 
 	void RecordInitialTransitions();
 
-	size_t GetSizeFromAttachMeta(const AttachmentMeta& meta);
+	size_t GetSizeFromAttachMeta(const TransientTextureMeta& meta);
 
-	PB::ITexture* FindTexture(const AttachmentMeta& meta, RenderGraph* graph);
+	PB::ITexture* FindTexture(const TransientTextureMeta& meta, RenderGraph* graph);
 
-	PB::ITexture* CreateTexture(const AttachmentMeta& meta);
+	PB::ITexture* CreateTexture(const TransientTextureMeta& meta);
 
-	PB::RenderTargetView GetTextureView(const AttachmentMeta& meta, PB::ETextureState expectedState);
+	PB::RenderTargetView GetTextureView(const TextureUsageData& meta, PB::ETextureState expectedState);
 
 	PB::IRenderer* m_renderer = nullptr;
 	CLib::Allocator* m_allocator;
 
-	std::map<size_t, AttachmentMeta> m_freeList;
-	std::unordered_map<const char*, NamedAttachmentMeta> m_namedAttachments;
+	std::map<size_t, TextureUsageData> m_freeList;
+	std::unordered_map<const char*, TextureUsageData> m_texUsageDatas;
 
-	CLib::Vector<InternalBuildNode> m_buildNodes;
+	std::vector<InternalBuildNode> m_buildNodes;
 };
 
 class RenderGraph
@@ -164,5 +202,5 @@ private:
 	CLib::Vector<PB::ITexture*> m_aliasTextures;
 	RenderGraphInfo m_passInfo;
 
-	RenderGraphExecuteNode* m_start = nullptr;
+	RenderGraphRuntimeNode* m_start = nullptr;
 };

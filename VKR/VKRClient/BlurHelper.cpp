@@ -53,8 +53,8 @@ BlurHelper::~BlurHelper()
 
 void BlurHelper::Encode(PB::ICommandContext* cmdContext, PB::Uint2 dstResolution, const BlurImageParams& imageParams)
 {
-	constexpr PB::u32 WorkGroupX = 2;
-	constexpr PB::u32 WorkGroupY = 512;
+	constexpr PB::u32 WorkGroupX = 1;
+	constexpr PB::u32 WorkGroupY = 256;
 
 	PB::ResourceView resourceViews[]
 	{
@@ -129,9 +129,4 @@ void BlurHelper::Encode(PB::ICommandContext* cmdContext, PB::Uint2 dstResolution
 	resourceViews[2] = sivA;
 	cmdContext->CmdBindResources(bindings);
 	cmdContext->CmdDispatch(workGroupCountH, dstResolution.y / WorkGroupX, 1);
-
-	subresources.m_baseMip = imageParams.m_buffer0Mip;
-	cmdContext->CmdTransitionTexture(imageParams.m_buffer0, PB::ETextureState::STORAGE, PB::ETextureState::SAMPLED, subresources);
-	subresources.m_baseMip = imageParams.m_buffer1Mip;
-	cmdContext->CmdTransitionTexture(imageParams.m_buffer1, PB::ETextureState::SAMPLED, PB::ETextureState::STORAGE, subresources);
 }

@@ -169,6 +169,11 @@ namespace PB
 		return &m_physDeviceDescIndexingProps;
 	}
 
+	const VkPhysicalDeviceDynamicRenderingFeaturesKHR* Device::GetDynamicRenderingFeatures()
+	{
+		return &m_physDeviceDynamicRenderingFeatures;
+	}
+
 	void Device::EnumDevice()
 	{
 		u32 deviceCount = 0;
@@ -187,6 +192,10 @@ namespace PB
 			VkPhysicalDeviceFeatures2 deviceFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 			m_physDeviceDescIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
 			deviceFeatures.pNext = &m_physDeviceDescIndexingFeatures;
+
+			m_physDeviceDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+			m_physDeviceDescIndexingFeatures.pNext = &m_physDeviceDynamicRenderingFeatures;
+
 			vkGetPhysicalDeviceFeatures(device, &deviceFeatures.features);
 			vkGetPhysicalDeviceFeatures2(device, &deviceFeatures);
 
@@ -308,6 +317,9 @@ namespace PB
 
 		// Descriptor indexing is in the core, but this will shut up validation which complains about shaders requiring it.
 		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), "Could not enable descriptor indexing extension.");
+
+		// Can be used to create dynamic render passes which do not include subpasses and the caveats of tile-based rendering approaches.
+		PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME), "Could not enable dynamic rendering extension.");
 	}
 
 	void Device::EnableLayers(ExtensionManager& extManager)
@@ -330,6 +342,8 @@ namespace PB
 		m_physDeviceDescIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceDescIndexingFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceDescIndexingFeatures.descriptorBindingUpdateUnusedWhilePending = VK_FALSE;
+
+		m_physDeviceDynamicRenderingFeatures.dynamicRendering = VK_FALSE; // TODO: Try this out when Vk_KHR_dynamic_rendering extension is complete.
 	}
 
 	void Device::CreateLogicalDevice()

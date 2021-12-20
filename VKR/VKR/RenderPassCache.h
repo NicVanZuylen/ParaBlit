@@ -20,6 +20,16 @@ namespace PB
 	{
 	public:
 
+		struct DynamicRenderPass
+		{
+			VkRenderingInfoKHR m_renderingInfo;
+			CLib::Vector<VkRenderingAttachmentInfoKHR, 8> m_colorAttachmentInfos{};
+			VkRenderingAttachmentInfoKHR m_depthAttachmentInfo;
+			VkRenderingAttachmentInfoKHR m_stencilAttachmentInfo;
+			CLib::Vector<VkFormat, 8> m_colorAttachmentFormats{};
+			VkCommandBufferInheritanceRenderingInfoKHR m_inheritanceInfo{};
+		};
+
 		RenderPassCache();
 
 		~RenderPassCache();
@@ -33,8 +43,9 @@ namespace PB
 	private:
 
 		PARABLIT_API inline VkRenderPass CreateRenderPass(const RenderPassDesc& desc);
+		PARABLIT_API inline DynamicRenderPass* CreateRenderPassDynamic(const RenderPassDesc& desc);
 
-		std::unordered_map<RenderPassDesc, VkRenderPass, RenderPassHasher> m_cache;
+		std::unordered_map<RenderPassDesc, void*, RenderPassHasher> m_cache;
 		Device* m_device = nullptr;
 	};
 }

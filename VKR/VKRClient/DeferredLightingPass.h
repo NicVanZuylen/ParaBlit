@@ -13,11 +13,11 @@ public:
 
 	~DeferredLightingPass();
 
-	void OnPrePass(const RenderGraphInfo& info) override;
+	void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPassBegin(const RenderGraphInfo& info) override;
+	void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPostPass(const RenderGraphInfo& info) override;
+	void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
 	void AddToRenderGraph(RenderGraphBuilder* builder);
 
@@ -55,7 +55,6 @@ private:
 		} m_directionalLights;
 	} m_localLightingData{};
 
-	PB::ITexture* m_outputTexture = nullptr;
 	PBClient::Mesh m_pointLightVolumeMesh;
 	PB::u32 m_pointLightCount = 0;
 	PB::u32 m_directionalLightCount = 0;

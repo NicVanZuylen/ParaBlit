@@ -1,7 +1,6 @@
 #include "AmbientOcclusionPass.h"
 #include "RenderGraph.h"
 #include "Shader.h"
-#include "BlurHelper.h"
 
 #pragma warning(push, 0)
 #include "glm/glm.hpp"
@@ -24,12 +23,6 @@ AmbientOcclusionPass::AmbientOcclusionPass(PB::IRenderer* renderer, CLib::Alloca
 	colorSamplerDesc.m_mipFilter = PB::ESamplerFilter::NEAREST;
 	colorSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
 	m_colorSampler = renderer->GetSampler(colorSamplerDesc);
-
-	PB::SamplerDesc blurSamplerDesc{};
-	blurSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
-	blurSamplerDesc.m_mipFilter = PB::ESamplerFilter::BILINEAR;
-	blurSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_BORDER;
-	m_blurImageSampler = m_renderer->GetSampler(blurSamplerDesc);
 
 	PB::BufferObjectDesc aoSampleBufferDesc{};
 	aoSampleBufferDesc.m_bufferSize = sizeof(AOConstants);
@@ -57,34 +50,26 @@ AmbientOcclusionPass::AmbientOcclusionPass(PB::IRenderer* renderer, CLib::Alloca
 	randomRotationSamplerDesc.m_mipFilter = PB::ESamplerFilter::NEAREST;
 	randomRotationSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::REPEAT;
 	m_randomRotationSampler = m_renderer->GetSampler(randomRotationSamplerDesc);
-
-	m_blurHelper.Init(m_renderer, GaussianKernelSize);
 }
 
 AmbientOcclusionPass::~AmbientOcclusionPass()
 {
-	if (m_reusableCmdListA)
-		m_renderer->FreeCommandList(m_reusableCmdListA);
-
-	if (m_reusableCmdListB)
-		m_renderer->FreeCommandList(m_reusableCmdListB);
+	if (m_reusableCmdList)
+		m_renderer->FreeCommandList(m_reusableCmdList);
 
 	if (m_aoConstantsBuffer)
 		m_renderer->FreeBuffer(m_aoConstantsBuffer);
 
 	if (m_randomRotationTexture)
 		m_renderer->FreeTexture(m_randomRotationTexture);
-
-	if(m_blurConstants)
-		m_renderer->FreeBuffer(m_blurConstants);
 }
 
-void AmbientOcclusionPass::OnPrePass(const RenderGraphInfo& info)
+void AmbientOcclusionPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 
 }
 
-void AmbientOcclusionPass::OnPassBegin(const RenderGraphInfo& info)
+void AmbientOcclusionPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 	auto RecordPassA = [&]()
 	{
@@ -134,8 +119,8 @@ void AmbientOcclusionPass::OnPassBegin(const RenderGraphInfo& info)
 		PB::ResourceView resourceViews[] =
 		{
 			m_randomRotationTexture->GetDefaultSRV(),
-			info.m_renderTargets[0]->GetDefaultSRV(),
-			info.m_renderTargets[1]->GetDefaultSRV(),
+			transientTextures[0]->GetDefaultSRV(),
+			transientTextures[1]->GetDefaultSRV(),
 			m_colorSampler,
 			m_randomRotationSampler,
 		};
@@ -153,79 +138,22 @@ void AmbientOcclusionPass::OnPassBegin(const RenderGraphInfo& info)
 		return scopedContext->Return();
 	};
 
-	if (!m_reusableCmdListA)
-		m_reusableCmdListA = RecordPassA();
-	info.m_commandContext->CmdExecuteList(m_reusableCmdListA);
+	if (!m_reusableCmdList)
+		m_reusableCmdList = RecordPassA();
+	info.m_commandContext->CmdExecuteList(m_reusableCmdList);
 }
 
-void AmbientOcclusionPass::OnPostPass(const RenderGraphInfo& info)
+void AmbientOcclusionPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
-	auto RecordPassB = [&]()
-	{
-		PB::u32 halfResDenom = m_halfRes ? 2u : 1u;
 
-		auto renderWidth = info.m_renderer->GetSwapchain()->GetWidth() / halfResDenom;
-		auto renderHeight = info.m_renderer->GetSwapchain()->GetHeight() / halfResDenom;
-
-		PB::CommandContextDesc scopedContextDesc{};
-		scopedContextDesc.m_renderer = m_renderer;
-		scopedContextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
-		scopedContextDesc.m_flags = PB::ECommandContextFlags::REUSABLE;
-
-		PB::SCommandContext scopedContext(m_renderer);
-		scopedContext->Init(scopedContextDesc);
-		scopedContext->Begin();
-
-		scopedContext->CmdTransitionTexture(info.m_renderTargets[2], PB::ETextureState::COLORTARGET, PB::ETextureState::SAMPLED);
-
-		BlurImageParams blurParams;
-		blurParams.m_src = info.m_renderTargets[2];
-		blurParams.m_srcMip = 0;
-		blurParams.m_buffer0 = info.m_renderTargets[2];
-		blurParams.m_buffer0Mip = 0;
-		blurParams.m_buffer1 = info.m_renderTargets[3];
-		blurParams.m_buffer1Mip = 0;
-		blurParams.m_imageFormat = PB::ETextureFormat::R8_UNORM;
-		m_blurHelper.Encode(scopedContext.GetContext(), PB::Uint2(renderWidth, renderHeight), blurParams);
-
-		scopedContext->CmdTransitionTexture(info.m_renderTargets[2], PB::ETextureState::SAMPLED, PB::ETextureState::COLORTARGET);
-
-		scopedContext->End();
-		return scopedContext->Return();
-	};
-
-	if (!m_reusableCmdListB)
-		m_reusableCmdListB = RecordPassB();
-	info.m_commandContext->CmdExecuteList(m_reusableCmdListB);
-
-	if (!m_outputTexture)
-		return;
-
-	// Transition color and output to correct layouts...
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[2], PB::ETextureState::COLORTARGET, PB::ETextureState::COPY_SRC);
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT, PB::ETextureState::COPY_DST);
-
-	// Copy color to output.
-	info.m_commandContext->CmdCopyTextureToTexture(info.m_renderTargets[2], m_outputTexture);
-
-	// Transition output texture to present.
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST, PB::ETextureState::PRESENT);
-
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[2], PB::ETextureState::COPY_SRC, PB::ETextureState::COLORTARGET);
 }
 
 void AmbientOcclusionPass::AddToRenderGraph(RenderGraphBuilder* builder)
 {
-	if (m_reusableCmdListA)
+	if (m_reusableCmdList)
 	{
-		m_renderer->FreeCommandList(m_reusableCmdListA);
-		m_reusableCmdListA = nullptr;
-	}
-
-	if (m_reusableCmdListB)
-	{
-		m_renderer->FreeCommandList(m_reusableCmdListB);
-		m_reusableCmdListB = nullptr;
+		m_renderer->FreeCommandList(m_reusableCmdList);
+		m_reusableCmdList = nullptr;
 	}
 
 	NodeDesc nodeDesc{};
@@ -238,37 +166,30 @@ void AmbientOcclusionPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	PB::u32 renderWidth = swapchain->GetWidth() / halfResDenom;
 	PB::u32 renderHeight = swapchain->GetHeight() / halfResDenom;
 
-	AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[0];
+	TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 	depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
 	depthReadDesc.m_width = swapchain->GetWidth();
 	depthReadDesc.m_height = swapchain->GetHeight();
 	depthReadDesc.m_name = "G_Depth";
-	depthReadDesc.m_usage = PB::EAttachmentUsage::READ;
+	depthReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	depthReadDesc.m_usageFlags = depthReadDesc.m_initialUsage;
 
-	AttachmentDesc& normalReadDesc = nodeDesc.m_attachments[1];
-	normalReadDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+	TransientTextureDesc& normalReadDesc = nodeDesc.m_transientTextures.PushBackInit();
+	normalReadDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
 	normalReadDesc.m_width = swapchain->GetWidth();
 	normalReadDesc.m_height = swapchain->GetHeight();
 	normalReadDesc.m_name = "G_Normal";
-	normalReadDesc.m_usage = PB::EAttachmentUsage::READ;
+	normalReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	normalReadDesc.m_usageFlags = depthReadDesc.m_initialUsage;
 
-	AttachmentDesc& aoOutDesc = nodeDesc.m_attachments[2];
+	AttachmentDesc& aoOutDesc = nodeDesc.m_attachments.PushBack();
 	aoOutDesc.m_format = PB::ETextureFormat::R8_UNORM;
 	aoOutDesc.m_width = renderWidth;
 	aoOutDesc.m_height = renderHeight;
 	aoOutDesc.m_name = "AO_Output";
 	aoOutDesc.m_usage = PB::EAttachmentUsage::COLOR;
-	aoOutDesc.m_flags = EAttachmentFlags::COPY_SRC | EAttachmentFlags::SECONDARY_STORAGE | EAttachmentFlags::CLEAR;
+	aoOutDesc.m_flags = EAttachmentFlags::NONE;
 
-	AttachmentDesc& aoBlurBufferDesc = nodeDesc.m_attachments[3];
-	aoBlurBufferDesc.m_format = PB::ETextureFormat::R8_UNORM;
-	aoBlurBufferDesc.m_width = renderWidth;
-	aoBlurBufferDesc.m_height = renderHeight;
-	aoBlurBufferDesc.m_name = "AOBlurBuffer";
-	aoBlurBufferDesc.m_usage = PB::EAttachmentUsage::STORAGE;
-	aoBlurBufferDesc.m_flags = EAttachmentFlags::SECONDARY_SAMPLED;
-
-	nodeDesc.m_attachmentCount = 4;
 	nodeDesc.m_renderWidth = renderWidth;
 	nodeDesc.m_renderHeight = renderHeight;
 

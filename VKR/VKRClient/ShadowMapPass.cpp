@@ -27,7 +27,7 @@ ShadowMapPass::~ShadowMapPass()
 	m_shadowViewBuffer = nullptr;
 }
 
-void ShadowMapPass::OnPrePass(const RenderGraphInfo& info)
+void ShadowMapPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 	if (m_listRequiresUpdate)
 	{
@@ -36,7 +36,7 @@ void ShadowMapPass::OnPrePass(const RenderGraphInfo& info)
 	}
 }
 
-void ShadowMapPass::OnPassBegin(const RenderGraphInfo& info)
+void ShadowMapPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 	if (m_shadowConstantsRequireUpdate)
 	{
@@ -49,29 +49,18 @@ void ShadowMapPass::OnPassBegin(const RenderGraphInfo& info)
 		m_geoDispatchList->Dispatch(info.m_commandContext, info.m_renderPass, info.m_frameBuffer);
 }
 
-void ShadowMapPass::OnPostPass(const RenderGraphInfo& info)
+void ShadowMapPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
-	if (!m_outputTexture)
-		return;
 
-	// Transition color and output to correct layouts...
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[0], PB::ETextureState::COLORTARGET, PB::ETextureState::COPY_SRC);
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT, PB::ETextureState::COPY_DST);
-	
-	// Copy color to output.
-	info.m_commandContext->CmdCopyTextureToTexture(info.m_renderTargets[0], m_outputTexture);
-	
-	// Transition output texture to present.
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST, PB::ETextureState::PRESENT);
 }
 
 void ShadowMapPass::AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shadowmapResolution)
 {
-	NodeDesc nodeDesc;
+	NodeDesc nodeDesc{};
 	nodeDesc.m_behaviour = this;
 	nodeDesc.m_useReusableCommandLists = true;
 
-	AttachmentDesc& depthDesc = nodeDesc.m_attachments[0];
+	AttachmentDesc& depthDesc = nodeDesc.m_attachments.PushBackInit();
 	depthDesc.m_format = PB::ETextureFormat::D16_UNORM;
 	depthDesc.m_width = shadowmapResolution;
 	depthDesc.m_height = shadowmapResolution;
@@ -80,7 +69,6 @@ void ShadowMapPass::AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shado
 	depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	depthDesc.m_flags = EAttachmentFlags::CLEAR;
 
-	nodeDesc.m_attachmentCount = 1;
 	nodeDesc.m_renderWidth = depthDesc.m_width;
 	nodeDesc.m_renderHeight = depthDesc.m_height;
 

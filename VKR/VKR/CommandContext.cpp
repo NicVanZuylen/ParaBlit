@@ -15,6 +15,16 @@ namespace PB
 		m_cmdBuffer = cmdBuffer;
 	}
 
+	PFN_vkCmdBeginRenderingKHR CommandContext::vkCmdBeginRenderingKHRFunc;
+	PFN_vkCmdEndRenderingKHR CommandContext::vkCmdEndRenderingKHRFunc;
+
+	void CommandContext::GetExtensionFunctions(VkInstance instance)
+	{
+		// From VK_KHR_dynamic_rendering:
+		vkCmdBeginRenderingKHRFunc = (PFN_vkCmdBeginRenderingKHR)vkGetInstanceProcAddr(instance, "vkCmdBeginRenderingKHR");
+		vkCmdEndRenderingKHRFunc = (PFN_vkCmdEndRenderingKHR)vkGetInstanceProcAddr(instance, "vkCmdEndRenderingKHR");
+	}
+
 	CommandContext::CommandContext()
 	{
 		m_isPriority = false;
@@ -95,6 +105,13 @@ namespace PB
 		inheritInfo.framebuffer = reinterpret_cast<VkFramebuffer>(frameBuffer);
 		inheritInfo.occlusionQueryEnable = VK_FALSE;
 
+		if (renderPass != nullptr && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
+		{
+			RenderPassCache::DynamicRenderPass* dynamicPass = reinterpret_cast<RenderPassCache::DynamicRenderPass*>(inheritInfo.renderPass);
+			inheritInfo.renderPass = nullptr;
+			inheritInfo.pNext = &dynamicPass->m_inheritanceInfo;
+		}
+
 		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr };
 		if (m_reusable)
 		{
@@ -160,7 +177,7 @@ namespace PB
 		PB_ASSERT(viewCount > 0);
 		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to begin render passes.");
 		if (m_activeRenderpass)
-			vkCmdEndRenderPass(m_cmdBuffer);
+			CmdEndRenderPass();
 
 		VkRenderPass pass = reinterpret_cast<VkRenderPass>(renderPass);
 		PB_ASSERT(pass);
@@ -184,6 +201,7 @@ namespace PB
 
 		vkCmdBeginRenderPass(m_cmdBuffer, &beginInfo, !useCommandLists ? VK_SUBPASS_CONTENTS_INLINE : VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		m_activeRenderpass = true;
+		m_activeRenderPassIsDynamic = false;
 	}
 
 	void CommandContext::CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount, bool useCommandLists)
@@ -192,7 +210,7 @@ namespace PB
 		PB_ASSERT(renderPass);
 		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to begin render passes.");
 		if (m_activeRenderpass)
-			vkCmdEndRenderPass(m_cmdBuffer);
+			CmdEndRenderPass();
 
 		VkRenderPass pass = reinterpret_cast<VkRenderPass>(renderPass);
 		PB_ASSERT(pass);
@@ -207,6 +225,50 @@ namespace PB
 
 		vkCmdBeginRenderPass(m_cmdBuffer, &beginInfo, !useCommandLists ? VK_SUBPASS_CONTENTS_INLINE : VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		m_activeRenderpass = true;
+		m_activeRenderPassIsDynamic = false;
+	}
+
+	void CommandContext::CmdBeginRenderPassDynamic(RenderPass renderPass, u32 width, u32 height, RenderTargetView* attachmentViews, Float4* clearColors, bool useCommandLists)
+	{
+		ValidateRecordingState();
+		PB_ASSERT(renderPass);
+		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to begin render passes.");
+
+		if (m_activeRenderpass)
+			CmdEndRenderPass();
+
+		RenderPassCache::DynamicRenderPass* pass = reinterpret_cast<RenderPassCache::DynamicRenderPass*>(renderPass);
+		PB_ASSERT(pass);
+
+		// While most information for the pass is already known, some information needs to be set when the pass begins.
+		VkRenderingInfoKHR& info = pass->m_renderingInfo;
+		info.flags = !useCommandLists ? 0 : VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT_KHR;
+		info.renderArea.offset = { 0, 0 };
+		info.renderArea.extent = { width, height };
+
+		u32 attachIndex = 0;
+		u32 clearColorIndex = 0;
+		for (auto& attach : pass->m_colorAttachmentInfos)
+		{
+			TextureViewData* viewData = reinterpret_cast<TextureViewData*>(attachmentViews[attachIndex++]);
+			if (viewData->m_expectedState == PB::ETextureState::DEPTHTARGET)
+			{
+				auto& depthAttach = pass->m_depthAttachmentInfo;
+				depthAttach.imageView = viewData->m_view;
+				if(depthAttach.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR)
+					depthAttach.clearValue = *reinterpret_cast<VkClearValue*>(&clearColors[clearColorIndex++]);
+
+				viewData = reinterpret_cast<TextureViewData*>(attachmentViews[attachIndex++]);
+			}
+
+			attach.imageView = viewData->m_view;
+			if (attach.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR)
+				attach.clearValue = *reinterpret_cast<VkClearValue*>(&clearColors[clearColorIndex++]);
+		}
+		
+		vkCmdBeginRenderingKHRFunc(m_cmdBuffer, &info);
+		m_activeRenderpass = true;
+		m_activeRenderPassIsDynamic = true;
 	}
 
 	void CommandContext::CmdEndRenderPass()
@@ -214,7 +276,11 @@ namespace PB
 		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to end render passes.");
 		if (m_activeRenderpass)
 		{
-			vkCmdEndRenderPass(m_cmdBuffer);
+			if (m_activeRenderPassIsDynamic)
+				vkCmdEndRenderingKHRFunc(m_cmdBuffer);
+			else
+				vkCmdEndRenderPass(m_cmdBuffer);
+
 			m_activeRenderpass = false;
 		}
 	}

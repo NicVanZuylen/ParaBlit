@@ -188,7 +188,7 @@ void main()
     float attenuation = AttenuateLight(dist, light.radius);
 
     vec3 diffuse = orenNayar * light.color;
-    vec3 spec = cookTorrence * specular * light.color;
+    vec3 spec = cookTorrence * (specular + (1.0 - roughness)) * light.color;
 
     outColor = vec4((diffuse + spec) * attenuation * color, 1.0);
 }

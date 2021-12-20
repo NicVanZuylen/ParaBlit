@@ -11,7 +11,8 @@ namespace PB
 	{
 		return !(m_attachmentCount != desc.m_attachmentCount || m_subpassCount != desc.m_subpassCount
 			|| memcmp(m_attachments, desc.m_attachments, sizeof(m_attachments)) != 0
-			|| memcmp(m_subpasses, desc.m_subpasses, sizeof(m_subpasses)) != 0);
+			|| memcmp(m_subpasses, desc.m_subpasses, sizeof(m_subpasses)) != 0)
+			|| m_isDynamic != desc.m_isDynamic;
 	}
 
 	size_t RenderPassHasher::operator()(const RenderPassDesc& desc) const
@@ -41,7 +42,12 @@ namespace PB
 	void RenderPassCache::Destroy()
 	{
 		for (auto& pass : m_cache)
-			vkDestroyRenderPass(m_device->GetHandle(), pass.second, nullptr);
+		{
+			if (pass.first.m_isDynamic)
+				delete reinterpret_cast<DynamicRenderPass*>(pass.second);
+			else
+				vkDestroyRenderPass(m_device->GetHandle(), reinterpret_cast<VkRenderPass>(pass.second), nullptr);
+		}
 		m_cache.clear();
 	}
 
@@ -51,10 +57,10 @@ namespace PB
 		auto it = m_cache.find(desc);
 		if (it == m_cache.end())
 		{
-			auto newPass = CreateRenderPass(desc);
+			void* newPass = desc.m_isDynamic ? (void*)CreateRenderPassDynamic(desc) : (void*)CreateRenderPass(desc);
 			if (newPass != VK_NULL_HANDLE)
 			{
-				std::pair<RenderPassDesc, VkRenderPass> newPair{ desc, newPass };
+				std::pair<RenderPassDesc, void*> newPair{ desc, newPass };
 				m_cache.insert(newPair);
 			}
 			return newPass;
@@ -282,5 +288,97 @@ namespace PB
 		PB_ERROR_CHECK(vkCreateRenderPass(m_device->GetHandle(), &renderpassInfo, nullptr, &newPass));
 		PB_ASSERT(newPass);
 		return newPass;
+	}
+
+	inline RenderPassCache::DynamicRenderPass* RenderPassCache::CreateRenderPassDynamic(const RenderPassDesc& desc)
+	{
+		PB_ASSERT_MSG(desc.m_attachmentCount > 0 && desc.m_attachmentCount <= (desc.m_subpassCount * 8), "Too little or too many attachments specified.");
+		PB_ASSERT_MSG(desc.m_subpassCount == 1, "Too little or too many subpasses specified.");
+		PB_ASSERT(desc.m_attachments);
+		PB_ASSERT(desc.m_subpasses);
+
+		if (!desc.m_subpasses || !desc.m_attachments)
+			return nullptr;
+
+		DynamicRenderPass* pass = new DynamicRenderPass;
+		VkRenderingInfoKHR& renderingInfo = pass->m_renderingInfo;
+		VkCommandBufferInheritanceRenderingInfoKHR& inheritanceInfo = pass->m_inheritanceInfo;
+		auto& colorAttachmentInfos = pass->m_colorAttachmentInfos;
+
+		bool hasDepthAttachment = false;
+		for (u32 i = 0; i < _countof(SubpassDesc::m_attachments); ++i)
+		{
+			auto& attachUsage = desc.m_subpasses[0].m_attachments[i];
+			auto& attach = desc.m_attachments[attachUsage.m_attachmentIdx];
+
+			VkRenderingAttachmentInfoKHR* infoLocation = nullptr;
+			if (attachUsage.m_usage == PB::EAttachmentUsage::COLOR)
+			{
+				pass->m_colorAttachmentFormats.PushBack(ConvertPBFormatToVkFormat(attach.m_format));
+				infoLocation = &colorAttachmentInfos.PushBack();
+			}
+			else if (attachUsage.m_usage == PB::EAttachmentUsage::DEPTHSTENCIL)
+			{
+				inheritanceInfo.depthAttachmentFormat = ConvertPBFormatToVkFormat(attach.m_format);
+				infoLocation = &pass->m_depthAttachmentInfo;
+				hasDepthAttachment = true;
+			}
+			else
+			{
+				break;
+			}
+
+			PB_ASSERT(infoLocation);
+
+			VkRenderingAttachmentInfoKHR& attachmentInfo = *infoLocation;
+			attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+			attachmentInfo.pNext = nullptr;
+			attachmentInfo.imageView = VK_NULL_HANDLE;																			// Set at begin pass.
+			attachmentInfo.imageLayout = ConvertPBStateToImageLayout(attach.m_expectedState);
+			attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE_KHR;
+			attachmentInfo.resolveImageView = VK_NULL_HANDLE;
+			attachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			attachmentInfo.storeOp = attach.m_keepContents ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			attachmentInfo.clearValue = {};																					// Set at begin pass.
+
+			switch (attach.m_loadAction)
+			{
+			case EAttachmentAction::NONE:
+				attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+				break;
+			case EAttachmentAction::CLEAR:
+				attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				break;
+			case EAttachmentAction::LOAD:
+				attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+				break;
+			default:
+				PB_ASSERT_MSG(false, "Invalid attachment format provided.");
+				attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+				break;
+			}
+		}
+
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.pNext = nullptr;
+		renderingInfo.flags = 0; // VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT_KHR may be set at begin.
+		renderingInfo.layerCount = 1;
+		renderingInfo.viewMask = 0;
+		renderingInfo.renderArea = {}; // Set at begin pass.
+		renderingInfo.colorAttachmentCount = colorAttachmentInfos.Count();
+		renderingInfo.pColorAttachments = colorAttachmentInfos.Data();
+		renderingInfo.pDepthAttachment = hasDepthAttachment ? &pass->m_depthAttachmentInfo : nullptr;
+		renderingInfo.pStencilAttachment = nullptr;
+
+		inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_RENDERING_INFO_KHR;
+		inheritanceInfo.pNext = nullptr;
+		inheritanceInfo.viewMask = 0;
+		inheritanceInfo.flags = VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT_KHR;
+		inheritanceInfo.colorAttachmentCount = pass->m_colorAttachmentFormats.Count();
+		inheritanceInfo.pColorAttachmentFormats = pass->m_colorAttachmentFormats.Data();
+		inheritanceInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+		inheritanceInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+		return pass;
 	}
 }

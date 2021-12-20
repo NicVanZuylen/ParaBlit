@@ -10,17 +10,17 @@ TextRenderPass::~TextRenderPass()
 {
 }
 
-void TextRenderPass::OnPrePass(const RenderGraphInfo& info)
+void TextRenderPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 
 }
 
-void TextRenderPass::OnPassBegin(const RenderGraphInfo& info)
+void TextRenderPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 
 }
 
-void TextRenderPass::OnPostPass(const RenderGraphInfo& info)
+void TextRenderPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 
 }

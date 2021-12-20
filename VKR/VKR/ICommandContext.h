@@ -74,6 +74,8 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) = 0;
 
+		PARABLIT_INTERFACE void CmdBeginRenderPassDynamic(RenderPass renderPass, u32 width, u32 height, RenderTargetView* attachmentViews, Float4* clearColors, bool useCommandLists = false) = 0;
+
 		PARABLIT_INTERFACE void CmdEndRenderPass() = 0;
 
 		PARABLIT_INTERFACE void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) = 0;

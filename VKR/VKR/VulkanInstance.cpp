@@ -1,6 +1,7 @@
 #include "VulkanInstance.h"
 #include "ParaBlitDebug.h"
 #include "CLib/Vector.h"
+#include "CommandContext.h"
 
 #define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
 #define VK_LAYER_LUNARG_VALIDATION_NAME "VK_LAYER_LUNARG_standard_validation"
@@ -31,6 +32,7 @@ namespace PB
 		m_instanceExtensionManager.PrintAvailableExtensions();
 
 		m_instanceExtensionManager.EnableExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		m_instanceExtensionManager.EnableExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 	}
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback
@@ -113,6 +115,7 @@ namespace PB
 		PB_BREAK_ON_ERROR;
 
 		CreateDebugMessenger();
+		CommandContext::GetExtensionFunctions(m_instance);
 	}
 
 	void VulkanInstance::Destroy()

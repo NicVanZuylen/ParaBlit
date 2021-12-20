@@ -41,6 +41,9 @@ namespace PB
 	class CommandContext : public ICommandContext
 	{
 	public:
+
+		static void GetExtensionFunctions(VkInstance instance);
+
 		PARABLIT_API CommandContext();
 
 		PARABLIT_API ~CommandContext();
@@ -53,6 +56,7 @@ namespace PB
 		PARABLIT_API ICommandList* Return() override;
 		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, RenderTargetView* attachmentViews, u32 viewCount, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) override;
 		void CmdBeginRenderPass(RenderPass renderPass, u32 width, u32 height, Framebuffer frameBuffer, Float4* clearColors, u32 clearColorCount, bool useCommandLists = false) override;
+		void CmdBeginRenderPassDynamic(RenderPass renderPass, u32 width, u32 height, RenderTargetView* attachmentViews, Float4* clearColors, bool useCommandLists = false) override;
 		PARABLIT_API void CmdEndRenderPass() override;
 		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange) override;
@@ -91,6 +95,9 @@ namespace PB
 
 	private:
 
+		static PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHRFunc;
+		static PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHRFunc;
+
 		inline void ValidateRecordingState();
 
 		inline void ValidatePipelineState(bool computeFunction);
@@ -127,6 +134,7 @@ namespace PB
 				bool m_isPriority : 1;
 				bool m_isInternal : 1;
 				bool m_activeRenderpass : 1;
+				bool m_activeRenderPassIsDynamic : 1;
 				bool m_activePipelineIsCompute : 1;
 				bool m_reusable : 1;
 				bool m_reusableForRenderPass : 1;

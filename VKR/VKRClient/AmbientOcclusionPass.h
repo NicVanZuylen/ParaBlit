@@ -1,6 +1,5 @@
 #pragma once
 #include "RenderGraphNode.h"
-#include "BlurHelper.h"
 
 class RenderGraphBuilder;
 
@@ -18,11 +17,11 @@ public:
 
 	~AmbientOcclusionPass();
 
-	void OnPrePass(const RenderGraphInfo& info) override;
+	void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPassBegin(const RenderGraphInfo& info) override;
+	void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPostPass(const RenderGraphInfo& info) override;
+	void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
 	void AddToRenderGraph(RenderGraphBuilder* builder);
 
@@ -32,15 +31,6 @@ private:
 
 	static constexpr const uint32_t AOSampleKernelSize = 32;
 	static constexpr const uint32_t RandomRotationTextureResolution = 32;
-
-	static constexpr const uint32_t GaussianKernelSize = 8;
-	struct BlurConstants
-	{
-		float m_guassianNormPart;
-		float m_pad0[3];
-		PB::Float4 m_weights[GaussianKernelSize];
-	};
-
 	struct AOConstants
 	{
 		float m_sampleRadius;
@@ -58,11 +48,8 @@ private:
 
 	void GenerateRandomRotationTexture(PB::Float2* pixelValues);
 
-	PBClient::BlurHelper m_blurHelper;
-	PB::IBufferObject* m_blurConstants = nullptr;
 	PB::UniformBufferView m_mvpUBOView = nullptr;
 	PB::ResourceView m_colorSampler = 0;
-	PB::ResourceView m_blurImageSampler = 0;
 
 	PB::IBufferObject* m_aoConstantsBuffer = nullptr;
 	PB::UniformBufferView m_aoConstantsView = 0;
@@ -73,8 +60,7 @@ private:
 	PB::ResourceView m_randomRotationSampler = 0;
 
 	PB::ITexture* m_outputTexture = nullptr;
-	PB::ICommandList* m_reusableCmdListA = nullptr;
-	PB::ICommandList* m_reusableCmdListB = nullptr;
+	PB::ICommandList* m_reusableCmdList = nullptr;
 
 	bool m_halfRes = false;
 };

@@ -9,9 +9,12 @@
 #include "ShadowMapPass.h"
 #include "GBufferPass.h"
 #include "ShadowAccumPass.h"
+#include "ShadowBlurPass.h"
 #include "DeferredLightingPass.h"
 #include "AmbientOcclusionPass.h"
-#include "BloomPass.h"
+#include "AOBlurPass.h"
+#include "BloomExtractionPass.h"
+#include "BloomBlurPass.h"
 
 #include "Input.h"
 
@@ -71,9 +74,12 @@ ClientPlayground::~ClientPlayground()
 	m_allocator->Free(m_renderGraph);
 
 	// Free rendergraph nodes.
-	m_allocator->Free(m_bloomPass);
+	m_allocator->Free(m_bloomBlurPass);
+	m_allocator->Free(m_bloomExtractionPass);
+	m_allocator->Free(m_aoBlurPass);
 	m_allocator->Free(m_ambientOcclusionPass);
 	m_allocator->Free(m_deferredLightingPass);
+	m_allocator->Free(m_shadowBlurPass);
 	m_allocator->Free(m_shadowAccumPass);
 	m_allocator->Free(m_gBufferPass);
 	m_allocator->Free(m_shadowmapPass);
@@ -134,7 +140,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 	{
 		PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 		auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
-		m_bloomPass->SetOutputTexture(swapChainTex);
+		m_bloomBlurPass->SetOutputTexture(swapChainTex);
 		//m_ambientOcclusionPass->SetOutputTexture(swapChainTex);
 	}
 	// ---------------------------------------------------------------------------------------------------------------
@@ -152,7 +158,7 @@ void ClientPlayground::UpdateResolution(uint32_t width, uint32_t height)
 
 	PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 	auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
-	m_bloomPass->SetOutputTexture(swapChainTex);
+	m_bloomBlurPass->SetOutputTexture(swapChainTex);
 }
 
 void ClientPlayground::InitResources()
@@ -310,6 +316,13 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 			m_shadowAccumPass->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
 		}
 
+		// Shadow Blur Pass
+		{
+			if (!m_shadowBlurPass)
+				m_shadowBlurPass = m_allocator->Alloc<ShadowBlurPass>(m_renderer, m_allocator);
+			m_shadowBlurPass->AddToRenderGraph(&rgBuilder);
+		}
+
 		// Ambient Occlusion pass
 		{
 			if (!m_ambientOcclusionPass)
@@ -323,6 +336,18 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 			m_ambientOcclusionPass->AddToRenderGraph(&rgBuilder);
 		}
 
+		// Ambient Occlusion Blur pass
+		{
+			if (!m_aoBlurPass)
+			{
+				AOBlurPass::CreateDesc desc{};
+				desc.m_halfRes = false;
+
+				m_aoBlurPass = m_allocator->Alloc<AOBlurPass>(m_renderer, m_allocator, desc);
+			}
+			m_aoBlurPass->AddToRenderGraph(&rgBuilder);
+		}
+
 		// Deferred lighting pass
 		{
 			if(!m_deferredLightingPass)
@@ -330,11 +355,18 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 			m_deferredLightingPass->AddToRenderGraph(&rgBuilder);
 		}
 
-		// Bloom Pass
+		// Bloom Extraction Pass
 		{
-			if(!m_bloomPass)
-				m_bloomPass = m_allocator->Alloc<BloomPass>(m_renderer, m_allocator, true);
-			m_bloomPass->AddToRenderGraph(&rgBuilder);
+			if(!m_bloomExtractionPass)
+				m_bloomExtractionPass = m_allocator->Alloc<BloomExtractionPass>(m_renderer, m_allocator, true);
+			m_bloomExtractionPass->AddToRenderGraph(&rgBuilder);
+		}
+
+		// Bloom Blur Pass
+		{
+			if (!m_bloomBlurPass)
+				m_bloomBlurPass = m_allocator->Alloc<BloomBlurPass>(m_renderer, m_allocator, true);
+			m_bloomBlurPass->AddToRenderGraph(&rgBuilder);
 		}
 
 		output = rgBuilder.Build();
@@ -362,10 +394,10 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		m_shadowAccumPass->SetSVBBuffer(m_shadowmapPass->GetSVBView());
 
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.3f, 0.3f });
-		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
+		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 5.0f, 5.0f, 5.0f, 1.0f });
-		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
+		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
 		m_deferredLightingPass->SetPointLight(0, { -1.0f, 3.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
 		m_deferredLightingPass->SetPointLight(1, { 1.0f, 3.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
 	}

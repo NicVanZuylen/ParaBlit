@@ -22,8 +22,10 @@
     <ClCompile Include="..\VKR\CLib\Allocator.cpp" />
     <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp" />
     <ClCompile Include="AmbientOcclusionPass.cpp" />
+    <ClCompile Include="AOBlurPass.cpp" />
     <ClCompile Include="Application.cpp" />
-    <ClCompile Include="BloomPass.cpp" />
+    <ClCompile Include="BloomBlurPass.cpp" />
+    <ClCompile Include="BloomExtractionPass.cpp" />
     <ClCompile Include="BlurHelper.cpp" />
     <ClCompile Include="ClientPlayground.cpp" />
     <ClCompile Include="DrawBatch.cpp" />
@@ -40,6 +42,7 @@
     <ClCompile Include="RenderGraphNode.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ShadowAccumPass.cpp" />
+    <ClCompile Include="ShadowBlurPass.cpp" />
     <ClCompile Include="ShadowMapPass.cpp" />
     <ClCompile Include="TextRenderPass.cpp" />
     <ClCompile Include="Texture.cpp" />
@@ -49,8 +52,10 @@
     <ClInclude Include="..\VKR\CLib\Allocator.h" />
     <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h" />
     <ClInclude Include="AmbientOcclusionPass.h" />
+    <ClInclude Include="AOBlurPass.h" />
     <ClInclude Include="Application.h" />
-    <ClInclude Include="BloomPass.h" />
+    <ClInclude Include="BloomBlurPass.h" />
+    <ClInclude Include="BloomExtractionPass.h" />
     <ClInclude Include="BlurHelper.h" />
     <ClInclude Include="ClientPlayground.h" />
     <ClInclude Include="DrawBatch.h" />
@@ -67,6 +72,7 @@
     <ClInclude Include="RenderGraphNode.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ShadowAccumPass.h" />
+    <ClInclude Include="ShadowBlurPass.h" />
     <ClInclude Include="ShadowMapPass.h" />
     <ClInclude Include="TextRenderPass.h" />
     <ClInclude Include="Texture.h" />

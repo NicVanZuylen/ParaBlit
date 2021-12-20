@@ -17,11 +17,11 @@ public:
 
 	~ShadowMapPass();
 
-	void OnPrePass(const RenderGraphInfo& info) override;
+	void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPassBegin(const RenderGraphInfo& info) override;
+	void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPostPass(const RenderGraphInfo& info) override;
+	void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
 	void AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shadowmapResolution);
 

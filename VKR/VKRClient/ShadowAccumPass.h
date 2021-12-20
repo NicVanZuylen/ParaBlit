@@ -12,11 +12,11 @@ public:
 
 	~ShadowAccumPass();
 
-	void OnPrePass(const RenderGraphInfo& info) override;
+	void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPassBegin(const RenderGraphInfo& info) override;
+	void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPostPass(const RenderGraphInfo& info) override;
+	void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
 	void AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shadowmapResolution);
 
@@ -45,17 +45,13 @@ private:
 
 	PB::ITexture* m_outputTexture = nullptr;
 	PB::IBufferObject* m_mvpBuffer = nullptr;
-	PB::IBufferObject* m_blurConstants = nullptr;
 	PB::UniformBufferView m_svbView = nullptr;
-	PB::UniformBufferView m_blurConstantsView = nullptr;
 
 	PB::ITexture* m_randomRotationTexture = nullptr;
 	PB::ResourceView m_gBufferSampler = 0;
 	PB::ResourceView m_shadowSampler = 0;
 	PB::ResourceView m_randomRotationSampler = 0;
-	PB::ResourceView m_blurImageSampler = 0;
 
-	PB::ICommandList* m_reusableCmdListA = nullptr;
-	PB::ICommandList* m_reusableCmdListB = nullptr;
+	PB::ICommandList* m_reusableCmdList = nullptr;
 };
 

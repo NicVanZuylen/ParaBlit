@@ -16,7 +16,6 @@ layout(push_constant) uniform Bindings
     int colorRTVIdx;
     int normalRTVIdx;
     int specAndRoughRTVIdx;
-    int emissionRTVIdx;
     int depthRTVIdx;
     int shadowmaskIdx;
     int aoIndex;
@@ -133,11 +132,13 @@ void main()
     mat4 invProj = mvp[nonuniformEXT(bindings.mvpUBOIndex)].invProj;
     vec4 camPos  = mvp[nonuniformEXT(bindings.mvpUBOIndex)].cameraPosition;
 
-    vec3 color = texture
+    vec4 colorTexel = texture
     (
         sampler2D(textures[nonuniformEXT(bindings.colorRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
         fsInput.texCoord
-    ).rgb;
+    );
+    vec3 color = colorTexel.rgb;
+    float emissionMask = colorTexel.a;
 
     vec3 normal = texture
     (
@@ -152,12 +153,6 @@ void main()
     );
     vec3 specular = specAndRough.rgb;
     float roughness = specAndRough.a;
-
-    vec4 emission = texture
-    (
-        sampler2D(textures[nonuniformEXT(bindings.emissionRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
-        fsInput.texCoord
-    );
 
     float depth = texture
     (
@@ -195,14 +190,14 @@ void main()
         float cookTorrence = CookTorrenceSpec(normal, normLightDir, -dirToCam, normalDotLight, roughness, 1.0);
 
         vec3 diffuse = orenNayar * light.color.rgb;
-        vec3 spec = cookTorrence * specular * light.color.rgb;
+        vec3 spec = cookTorrence * (specular + (1.0 - roughness)) * light.color.rgb;
 
         lightingColor += vec4((diffuse + spec) * color * shadow, 0.0);
     }
 
     float emissionIntensityScale = lightingData[nonuniformEXT(bindings.lightingUBOIndex)].emissionIntensityScale;
-    vec4 emissionOutput = vec4(emission.rgb * (emission.a * emissionIntensityScale), 1.0);
+    vec4 emissionOutput = vec4(color.rgb * emissionIntensityScale, 1.0);
 
-    float emissionTotal = emission.r + emission.g + emission.b;
-    outColor = emissionTotal == 0.0 ? lightingColor : emissionOutput;
+    //float emissionTotal = emission.r + emission.g + emission.b;
+    outColor = emissionMask == 0.0 ? lightingColor : emissionOutput;
 }

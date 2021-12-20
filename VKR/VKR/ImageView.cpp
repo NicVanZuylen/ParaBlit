@@ -285,7 +285,7 @@ namespace PB
 		case ESamplerRepeatMode::MIRRORED_REPEAT:
 			return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 		case ESamplerRepeatMode::CLAMP_EDGE:
-			return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+			return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 		case ESamplerRepeatMode::CLAMP_BORDER:
 			return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 		default:

@@ -328,6 +328,21 @@ namespace PB
 		pipelineInfo.pStages = shaderStages.Data();
 		pipelineInfo.stageCount = shaderStages.Count();
 
+		VkPipelineRenderingCreateInfoKHR dynamicRenderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR, nullptr };
+		if (desc.m_renderPass && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
+		{
+			pipelineInfo.renderPass = nullptr;
+			pipelineInfo.pNext = &dynamicRenderingInfo;
+
+			RenderPassCache::DynamicRenderPass* pass = reinterpret_cast<RenderPassCache::DynamicRenderPass*>(desc.m_renderPass);
+
+			dynamicRenderingInfo.viewMask = 0;
+			dynamicRenderingInfo.colorAttachmentCount = pass->m_colorAttachmentFormats.Count();
+			dynamicRenderingInfo.pColorAttachmentFormats = pass->m_colorAttachmentFormats.Data();
+			dynamicRenderingInfo.depthAttachmentFormat = pass->m_inheritanceInfo.depthAttachmentFormat;
+			dynamicRenderingInfo.stencilAttachmentFormat = pass->m_inheritanceInfo.stencilAttachmentFormat;
+		}
+
 		VkPipeline newPipeline = VK_NULL_HANDLE;
 		PB_ERROR_CHECK(vkCreateGraphicsPipelines(m_device->GetHandle(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline));
 		PB_BREAK_ON_ERROR;

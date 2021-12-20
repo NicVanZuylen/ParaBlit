@@ -84,7 +84,7 @@
     <ClCompile Include="ShadowAccumPass.cpp">
       <Filter>RenderGraphBehaviours</Filter>
     </ClCompile>
-    <ClCompile Include="BloomPass.cpp">
+    <ClCompile Include="BloomExtractionPass.cpp">
       <Filter>RenderGraphBehaviours</Filter>
     </ClCompile>
     <ClCompile Include="TextRenderPass.cpp">
@@ -97,6 +97,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="AmbientOcclusionPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
+    <ClCompile Include="ShadowBlurPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
+    <ClCompile Include="AOBlurPass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
+    <ClCompile Include="BloomBlurPass.cpp">
       <Filter>RenderGraphBehaviours</Filter>
     </ClCompile>
   </ItemGroup>
@@ -164,7 +173,7 @@
     <ClInclude Include="ShadowAccumPass.h">
       <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
-    <ClInclude Include="BloomPass.h">
+    <ClInclude Include="BloomExtractionPass.h">
       <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
     <ClInclude Include="TextRenderPass.h">
@@ -177,6 +186,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="AmbientOcclusionPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowBlurPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="AOBlurPass.h">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="BloomBlurPass.h">
       <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
   </ItemGroup>

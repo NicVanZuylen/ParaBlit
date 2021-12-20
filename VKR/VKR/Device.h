@@ -89,6 +89,12 @@ namespace PB
 		*/
 		const VkPhysicalDeviceDescriptorIndexingProperties* GetDescriptorIndexingProperties();
 
+		/*
+		Description: Gets the feature toggle for dynamic rendering.
+		Return Type const VkPhysicalDeviceDynamicRenderingFeaturesKHR*
+		*/
+		const VkPhysicalDeviceDynamicRenderingFeaturesKHR* GetDynamicRenderingFeatures();
+
 	private:
 
 		// Enumerate physical devices and use the most suitable one.
@@ -115,6 +121,7 @@ namespace PB
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 		VkPhysicalDeviceFeatures2 m_physDeviceFeatures = {};
 		VkPhysicalDeviceDescriptorIndexingFeatures m_physDeviceDescIndexingFeatures = {};
+		VkPhysicalDeviceDynamicRenderingFeaturesKHR m_physDeviceDynamicRenderingFeatures = {};
 		VkPhysicalDeviceProperties2 m_physDeviceProperties = {};
 		VkPhysicalDeviceDescriptorIndexingProperties m_physDeviceDescIndexingProps = {};
 		VkPhysicalDeviceMemoryProperties m_memoryProperties = {};

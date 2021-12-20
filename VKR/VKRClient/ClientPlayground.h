@@ -26,13 +26,6 @@ class VertexPool;
 class DrawBatch;
 class RenderGraph;
 
-class ShadowMapPass;
-class GBufferPass;
-class ShadowAccumPass;
-class DeferredLightingPass;
-class AmbientOcclusionPass;
-class BloomPass;
-
 class ClientPlayground
 {
 public:
@@ -89,12 +82,15 @@ private:
 
 	// -------------------------------------------------------------------------
 	// Render Graph
-	ShadowMapPass* m_shadowmapPass = nullptr;
-	GBufferPass* m_gBufferPass = nullptr;
-	ShadowAccumPass* m_shadowAccumPass = nullptr;
-	DeferredLightingPass* m_deferredLightingPass = nullptr;
-	AmbientOcclusionPass* m_ambientOcclusionPass = nullptr;
-	BloomPass* m_bloomPass = nullptr;
+	class ShadowMapPass* m_shadowmapPass = nullptr;
+	class GBufferPass* m_gBufferPass = nullptr;
+	class ShadowAccumPass* m_shadowAccumPass = nullptr;
+	class ShadowBlurPass* m_shadowBlurPass = nullptr;
+	class DeferredLightingPass* m_deferredLightingPass = nullptr;
+	class AmbientOcclusionPass* m_ambientOcclusionPass = nullptr;
+	class AOBlurPass* m_aoBlurPass = nullptr;
+	class BloomExtractionPass* m_bloomExtractionPass = nullptr;
+	class BloomBlurPass* m_bloomBlurPass = nullptr;
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------

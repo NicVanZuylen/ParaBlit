@@ -1,17 +1,16 @@
 #pragma once
 #include "RenderGraphNode.h"
-
-#include "Shader.h"
+#include "BlurHelper.h"
 
 class RenderGraphBuilder;
 
-class TextRenderPass : public RenderGraphBehaviour
+class BloomExtractionPass : public RenderGraphBehaviour
 {
 public:
 
-	TextRenderPass(PB::IRenderer* renderer, CLib::Allocator* allocator);
+	BloomExtractionPass(PB::IRenderer* renderer, CLib::Allocator* allocator, bool halfRes = false);
 
-	~TextRenderPass();
+	~BloomExtractionPass();
 
 	void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
@@ -21,9 +20,20 @@ public:
 
 	void AddToRenderGraph(RenderGraphBuilder* builder);
 
-	void SetOutputTexture(PB::ITexture* tex);
-
 private:
 
-	PB::ITexture* m_outputTexture = nullptr;
+	static constexpr const uint32_t BlurTargetMipCount = 5;
+
+	struct BloomConstants
+	{
+		PB::Float3 m_rgbChannelWeights;
+		float m_minBrightnessThreshold;
+	};
+
+	PB::IBufferObject* m_bloomConstantsBuffer = nullptr;
+	PB::ResourceView m_colorSampler = 0;
+
+	PB::ICommandList* m_reusableCmdList = nullptr;
+
+	bool m_halfRes = false;
 };

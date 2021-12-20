@@ -58,12 +58,12 @@ DeferredLightingPass::~DeferredLightingPass()
 	m_renderer->FreeBuffer(m_pointLightIndirectParamsBuffer);
 }
 
-void DeferredLightingPass::OnPrePass(const RenderGraphInfo& info)
+void DeferredLightingPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 
 }
 
-void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
+void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 	if (m_mappedLightingBuffer)
 	{
@@ -98,13 +98,12 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 		PB::UniformBufferView dirBufferViews[] = { m_mvpBuffer->GetViewAsUniformBuffer(), m_dirLightingView };
 		PB::ResourceView dirResourceViews[]
 		{
-			static_cast<PB::ResourceView>(info.m_renderTargetViews[0]),
-			static_cast<PB::ResourceView>(info.m_renderTargetViews[1]),
-			static_cast<PB::ResourceView>(info.m_renderTargetViews[2]),
-			static_cast<PB::ResourceView>(info.m_renderTargetViews[3]),
-			static_cast<PB::ResourceView>(info.m_renderTargetViews[4]),
-			static_cast<PB::ResourceView>(info.m_renderTargetViews[5]),
-			static_cast<PB::ResourceView>(info.m_renderTargetViews[6]),
+			transientTextures[0]->GetDefaultSRV(),
+			transientTextures[1]->GetDefaultSRV(),
+			transientTextures[2]->GetDefaultSRV(),
+			transientTextures[3]->GetDefaultSRV(),
+			transientTextures[4]->GetDefaultSRV(),
+			transientTextures[5]->GetDefaultSRV(),
 			m_gBufferSampler,
 		};
 
@@ -164,10 +163,10 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 			PB::UniformBufferView pntBufferViews[] = { m_mvpBuffer->GetViewAsUniformBuffer(), m_pointLightingView };
 			PB::ResourceView pntResourceViews[]
 			{
-				static_cast<PB::ResourceView>(info.m_renderTargetViews[0]),
-				static_cast<PB::ResourceView>(info.m_renderTargetViews[1]),
-				static_cast<PB::ResourceView>(info.m_renderTargetViews[2]),
-				static_cast<PB::ResourceView>(info.m_renderTargetViews[4]),
+				transientTextures[0]->GetDefaultSRV(),
+				transientTextures[1]->GetDefaultSRV(),
+				transientTextures[2]->GetDefaultSRV(),
+				transientTextures[3]->GetDefaultSRV(),
 				m_gBufferSampler,
 			};
 
@@ -192,23 +191,9 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info)
 	info.m_commandContext->CmdExecuteList(m_reusableCmdList);
 }
 
-void DeferredLightingPass::OnPostPass(const RenderGraphInfo& info)
+void DeferredLightingPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
-	constexpr uint32_t outputTarget = 5;
 
-	if (!m_outputTexture)
-		return;
-
-	// Transition color and output to correct layouts...
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[outputTarget], PB::ETextureState::COLORTARGET, PB::ETextureState::COPY_SRC);
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT, PB::ETextureState::COPY_DST);
-
-	// Copy color to output.
-	info.m_commandContext->CmdCopyTextureToTexture(info.m_renderTargets[outputTarget], m_outputTexture);
-
-	// Transition output texture to present.
-	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST, PB::ETextureState::PRESENT);
-	info.m_commandContext->CmdTransitionTexture(info.m_renderTargets[outputTarget], PB::ETextureState::COPY_SRC, PB::ETextureState::COLORTARGET);
 }
 
 void DeferredLightingPass::AddToRenderGraph(RenderGraphBuilder* builder)
@@ -226,80 +211,66 @@ void DeferredLightingPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	PB::ISwapChain* swapchain = m_renderer->GetSwapchain();
 
 	// Read G Buffers
-	AttachmentDesc& colorReadDesc = nodeDesc.m_attachments[0];
+	TransientTextureDesc& colorReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 	colorReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 	colorReadDesc.m_width = swapchain->GetWidth();
 	colorReadDesc.m_height = swapchain->GetHeight();
 	colorReadDesc.m_name = "G_Color";
-	colorReadDesc.m_usage = PB::EAttachmentUsage::READ;
+	colorReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	colorReadDesc.m_usageFlags = PB::ETextureState::SAMPLED;
 
-	AttachmentDesc& normalDesc = nodeDesc.m_attachments[1];
-	normalDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+	TransientTextureDesc& normalDesc = nodeDesc.m_transientTextures.PushBackInit();
+	normalDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
 	normalDesc.m_width = swapchain->GetWidth();
 	normalDesc.m_height = swapchain->GetHeight();
 	normalDesc.m_name = "G_Normal";
-	normalDesc.m_usage = PB::EAttachmentUsage::READ;
+	normalDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	normalDesc.m_usageFlags = PB::ETextureState::SAMPLED;
 
-	AttachmentDesc& specAndRoughDesc = nodeDesc.m_attachments[2];
+	TransientTextureDesc& specAndRoughDesc = nodeDesc.m_transientTextures.PushBackInit();
 	specAndRoughDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 	specAndRoughDesc.m_width = swapchain->GetWidth();
 	specAndRoughDesc.m_height = swapchain->GetHeight();
 	specAndRoughDesc.m_name = "G_SpecAndRough";
-	specAndRoughDesc.m_usage = PB::EAttachmentUsage::READ;
+	specAndRoughDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	specAndRoughDesc.m_usageFlags = PB::ETextureState::SAMPLED;
 
-	AttachmentDesc& emissionDesc = nodeDesc.m_attachments[3];
-	emissionDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-	emissionDesc.m_width = swapchain->GetWidth();
-	emissionDesc.m_height = swapchain->GetHeight();
-	emissionDesc.m_name = "G_Emission";
-	emissionDesc.m_usage = PB::EAttachmentUsage::READ;
-
-	AttachmentDesc& depthReadDesc = nodeDesc.m_attachments[4];
+	TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 	depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
 	depthReadDesc.m_width = swapchain->GetWidth();
 	depthReadDesc.m_height = swapchain->GetHeight();
 	depthReadDesc.m_name = "G_Depth";
-	depthReadDesc.m_usage = PB::EAttachmentUsage::READ;
+	depthReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	depthReadDesc.m_usageFlags = PB::ETextureState::SAMPLED;
 
-	AttachmentDesc& shadowMaskReadDesc = nodeDesc.m_attachments[5];
+	TransientTextureDesc& shadowMaskReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 	shadowMaskReadDesc.m_format = PB::ETextureFormat::R8_UNORM;
 	shadowMaskReadDesc.m_width = swapchain->GetWidth();
 	shadowMaskReadDesc.m_height = swapchain->GetHeight();
-	shadowMaskReadDesc.m_name = "ShadowMaskA";
-	shadowMaskReadDesc.m_usage = PB::EAttachmentUsage::READ;
+	shadowMaskReadDesc.m_name = "ShadowMask";
+	shadowMaskReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	shadowMaskReadDesc.m_usageFlags = PB::ETextureState::SAMPLED;
 
-	AttachmentDesc& ambientOcclusionReadDesc = nodeDesc.m_attachments[6];
+	TransientTextureDesc& ambientOcclusionReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 	ambientOcclusionReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 	ambientOcclusionReadDesc.m_width = swapchain->GetWidth();
 	ambientOcclusionReadDesc.m_height = swapchain->GetHeight();
 	ambientOcclusionReadDesc.m_name = "AO_Output";
-	ambientOcclusionReadDesc.m_usage = PB::EAttachmentUsage::READ;
+	ambientOcclusionReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
+	ambientOcclusionReadDesc.m_usageFlags = PB::ETextureState::SAMPLED;
 
 	// Output
-	AttachmentDesc& colorDesc = nodeDesc.m_attachments[7];
-	colorDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+	AttachmentDesc& colorDesc = nodeDesc.m_attachments.PushBackInit();
+	colorDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
 	colorDesc.m_width = swapchain->GetWidth();
 	colorDesc.m_height = swapchain->GetHeight();
 	colorDesc.m_name = "LightingColorOutput";
 	colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
 
-	//AttachmentDesc& sdrColorDesc = nodeDesc.m_attachments[7];
-	//sdrColorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-	//sdrColorDesc.m_width = swapchain->GetWidth();
-	//sdrColorDesc.m_height = swapchain->GetHeight();
-	//sdrColorDesc.m_name = "LightingColorOutputSDR";
-	//sdrColorDesc.m_usage = PB::EAttachmentUsage::COLOR;
-
-	nodeDesc.m_attachmentCount = 8;
 	nodeDesc.m_renderWidth = colorDesc.m_width;
 	nodeDesc.m_renderHeight = colorDesc.m_height;
 
 	builder->AddNode(nodeDesc);
-}
-
-void DeferredLightingPass::SetOutputTexture(PB::ITexture* tex)
-{
-	m_outputTexture = tex;
 }
 
 void DeferredLightingPass::SetMVPBuffer(PB::IBufferObject* buf)
