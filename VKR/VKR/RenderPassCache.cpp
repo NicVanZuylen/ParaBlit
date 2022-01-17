@@ -191,6 +191,12 @@ namespace PB
 					access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 					dsRefs.PushBack(newRef);
 					break;
+				case EAttachmentUsage::READ_ONLY_DEPTHSTENCIL:
+					newRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+					stage |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+					access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+					dsRefs.PushBack(newRef);
+					break;
 				case EAttachmentUsage::READ:
 					newRef.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 					stage |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
@@ -317,7 +323,7 @@ namespace PB
 				pass->m_colorAttachmentFormats.PushBack(ConvertPBFormatToVkFormat(attach.m_format));
 				infoLocation = &colorAttachmentInfos.PushBack();
 			}
-			else if (attachUsage.m_usage == PB::EAttachmentUsage::DEPTHSTENCIL)
+			else if (attachUsage.m_usage == PB::EAttachmentUsage::DEPTHSTENCIL || attachUsage.m_usage == PB::EAttachmentUsage::READ_ONLY_DEPTHSTENCIL)
 			{
 				inheritanceInfo.depthAttachmentFormat = ConvertPBFormatToVkFormat(attach.m_format);
 				infoLocation = &pass->m_depthAttachmentInfo;

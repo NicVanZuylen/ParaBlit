@@ -52,6 +52,8 @@ namespace PB
             return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         case ETextureState::DEPTHTARGET:
             return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        case ETextureState::READ_ONLY_DEPTH_STENCIL:
+            return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         case ETextureState::SAMPLED:
             return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         case ETextureState::COPY_SRC:
@@ -75,6 +77,8 @@ namespace PB
         if (availableStates & ETextureState::COLORTARGET)
             vkFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         if (availableStates & ETextureState::DEPTHTARGET)
+            vkFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        if (availableStates & ETextureState::READ_ONLY_DEPTH_STENCIL)
             vkFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         if (availableStates & ETextureState::SAMPLED)
             vkFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -119,6 +123,7 @@ namespace PB
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             break;
         case ETextureState::DEPTHTARGET:
+        case ETextureState::READ_ONLY_DEPTH_STENCIL:
             return VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             break;
         case ETextureState::STORAGE:
@@ -154,6 +159,7 @@ namespace PB
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             break;
         case ETextureState::DEPTHTARGET:
+        case ETextureState::READ_ONLY_DEPTH_STENCIL:
             return VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             break;
         case ETextureState::STORAGE:
@@ -189,7 +195,10 @@ namespace PB
             return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             break;
         case ETextureState::DEPTHTARGET:
-            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            break;
+        case ETextureState::READ_ONLY_DEPTH_STENCIL:
+            return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
             break;
         case ETextureState::STORAGE:
             return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
@@ -227,6 +236,9 @@ namespace PB
         case ETextureState::DEPTHTARGET:
             return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             break;
+        case ETextureState::READ_ONLY_DEPTH_STENCIL:
+            return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+            break;
         case ETextureState::STORAGE:
             return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
             break;
@@ -263,6 +275,16 @@ namespace PB
             return VK_FORMAT_R8G8B8A8_UNORM;
         case ETextureFormat::B8G8R8A8_UNORM:
             return VK_FORMAT_B8G8R8A8_UNORM;
+        case ETextureFormat::R8_SRGB:
+            return VK_FORMAT_R8_SRGB;
+        case ETextureFormat::R8G8_SRGB:
+            return VK_FORMAT_R8G8_SRGB;
+        case ETextureFormat::R8G8B8_SRGB:
+            return VK_FORMAT_R8G8B8_SRGB;
+        case ETextureFormat::R8G8B8A8_SRGB:
+            return VK_FORMAT_R8G8B8A8_SRGB;
+        case ETextureFormat::B8G8R8A8_SRGB:
+            return VK_FORMAT_B8G8R8A8_SRGB;
         case ETextureFormat::R16_FLOAT:
             return VK_FORMAT_R16_SFLOAT;
         case ETextureFormat::R16G16_FLOAT:
@@ -313,6 +335,8 @@ namespace PB
             return ETextureFormat::R8G8B8A8_UNORM;
         case VK_FORMAT_B8G8R8A8_UNORM:
             return ETextureFormat::B8G8R8A8_UNORM;
+        case VK_FORMAT_B8G8R8A8_SRGB:
+            return ETextureFormat::B8G8R8A8_SRGB;
         case VK_FORMAT_R32_SFLOAT:
             return ETextureFormat::R32_FLOAT;
         case VK_FORMAT_R32G32_SFLOAT:
@@ -336,6 +360,53 @@ namespace PB
             break;
         }
         return ETextureFormat::UNKNOWN;
+    }
+
+    VkImageType PBImageDimensionToVKImageType(ETextureDimension dimension)
+    {
+        switch (dimension)
+        {
+        case PB::ETextureDimension::DIMENSION_NONE:
+        {
+            PB_NOT_IMPLEMENTED;
+            return VK_IMAGE_TYPE_MAX_ENUM;
+        }
+        case PB::ETextureDimension::DIMENSION_1D:
+            return VK_IMAGE_TYPE_1D;
+        case PB::ETextureDimension::DIMENSION_2D:
+            return VK_IMAGE_TYPE_2D;
+        case PB::ETextureDimension::DIMENSION_3D:
+        {
+            PB_NOT_IMPLEMENTED;
+            return VK_IMAGE_TYPE_3D;
+        }
+        case PB::ETextureDimension::DIMENSION_CUBE:
+            return VK_IMAGE_TYPE_2D;
+        default:
+            PB_NOT_IMPLEMENTED;
+            return VK_IMAGE_TYPE_MAX_ENUM;
+        }
+    }
+
+    VkImageViewType PBTextureViewTypeToVkImageViewType(ETextureViewType type)
+    {
+        switch (type)
+        {
+        case PB::ETextureViewType::VIEW_TYPE_1D:
+            PB_NOT_IMPLEMENTED;
+        case PB::ETextureViewType::VIEW_TYPE_2D:
+            return VK_IMAGE_VIEW_TYPE_2D;
+            break;
+        case PB::ETextureViewType::VIEW_TYPE_3D:
+            PB_NOT_IMPLEMENTED;
+            break;
+        case PB::ETextureViewType::VIEW_TYPE_CUBE:
+            return VK_IMAGE_VIEW_TYPE_CUBE;
+        default:
+            PB_NOT_IMPLEMENTED;
+            break;
+        }
+        return VK_IMAGE_VIEW_TYPE_2D;
     }
 
 	VkPipelineStageFlags ConvertPBAttachmentUsageToStageFlags(AttachmentUsageFlags usage)

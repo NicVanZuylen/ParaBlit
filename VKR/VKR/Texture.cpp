@@ -24,16 +24,20 @@ namespace PB
 	{
 		Destroy();
 
+		if (desc.m_usageStates & PB::ETextureState::READ_ONLY_DEPTH_STENCIL)
+		{
+			int i = 0;
+			++i;
+		}
+
 		m_renderer = reinterpret_cast<Renderer*>(renderer);
 		m_device = m_renderer->GetDevice();
 		m_availableStates = desc.m_usageStates;
-		m_extents = { desc.m_width, desc.m_height, 1 };
+		m_extents = { desc.m_width, desc.m_height, desc.m_depth };
 
-		auto& dataDesc = desc.m_data;
-		PB_ASSERT(dataDesc.m_format != ETextureFormat::UNKNOWN);
-
-		m_format = dataDesc.m_format;
-		m_isAlias = dataDesc.m_aliasOther;
+		PB_ASSERT(desc.m_format != ETextureFormat::UNKNOWN);
+		m_format = desc.m_format;
+		m_isAlias = desc.m_aliasOther;
 
 		if (!CreateImageResource(desc))
 		{
@@ -192,7 +196,7 @@ namespace PB
 		if (desc.m_usageStates == ETextureState::NONE || (desc.m_usageStates & ETextureState::MAX) > 0)
 			return false;
 
-		switch (desc.m_data.m_format)
+		switch (desc.m_format)
 		{
 		case ETextureFormat::D16_UNORM:
 		case ETextureFormat::D32_FLOAT:
@@ -214,11 +218,11 @@ namespace PB
 		VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, nullptr };
 		imageInfo.format = ConvertPBFormatToVkFormat(m_format);
 		imageInfo.flags = 0;
-		imageInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageInfo.extent = { desc.m_width, desc.m_height, 1U };
+		imageInfo.imageType = PBImageDimensionToVKImageType(desc.m_dimension);
+		imageInfo.extent = { desc.m_width, desc.m_height, desc.m_depth };
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageInfo.mipLevels = m_mipCount = desc.m_mipCount;
-		imageInfo.arrayLayers = 1;
+		imageInfo.arrayLayers = 1; // Cube maps require an array layer for each face.
 		auto queueFamilyIndex = static_cast<uint32_t>(m_renderer->GetDevice()->GetGraphicsQueueFamilyIndex());
 		imageInfo.pQueueFamilyIndices = &queueFamilyIndex;
 		imageInfo.queueFamilyIndexCount = 1;
@@ -226,9 +230,20 @@ namespace PB
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 
+		if (desc.m_dimension == ETextureDimension::DIMENSION_CUBE)
+		{
+			imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+			imageInfo.arrayLayers = 6;
+		}
+
 		// Determine image usage.
 		if (((desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA) || (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_ZERO_INITIALIZE)))
 			m_availableStates |= ETextureState::COPY_DST;
+
+		PB_ASSERT_MSG(((desc.m_initOptions & PB::ETextureInitOptions::PB_TEXTURE_INIT_GEN_MIPMAPS) == 0) || (desc.m_initOptions & PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA),
+			"Mipmaps cannot be generated for a texture without source data.");
+		if ((desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_GEN_MIPMAPS) && desc.m_mipCount > 1)
+			m_availableStates |= ETextureState::COPY_SRC;
 
 		imageInfo.usage = ConvertPBAvailableStatesToUsageFlags(m_availableStates);
 
@@ -314,33 +329,124 @@ namespace PB
 		}
 		else if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA)
 		{
-			if (m_mipCount > 1)
-			{
-				PB_NOT_IMPLEMENTED;
-			}
 
-			// TODO: Alignment needs to be the size of a texel. Right now we're assuming the worst-case scenario rather than checking the format texel size.
-			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentSwapchainImageIndex(), PB::EMemoryType::HOST_VISIBLE, 16);
-			memcpy(stagingBuffer.Start(), desc.m_data.m_data, desc.m_data.m_size);
+			//// TODO: Alignment needs to be the size of a texel. Right now we're assuming the worst-case scenario rather than checking the format texel size.
+			//auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentSwapchainImageIndex(), PB::EMemoryType::HOST_VISIBLE, 16);
+			//memcpy(stagingBuffer.Start(), desc.m_data.m_data, desc.m_data.m_size);
+
+			//PB::CommandContext internalContext;
+			//MakeInternalContext(internalContext, m_renderer);
+			//internalContext.Begin();
+
+			//PB::SubresourceRange subresources{};
+			//internalContext.CmdTransitionTexture(this, ETextureState::NONE, ETextureState::COPY_DST, subresources);
+
+			//VkBufferImageCopy region;
+			//region.bufferOffset = stagingBuffer.m_offset;
+			//region.bufferRowLength = desc.m_width;
+			//region.bufferImageHeight = desc.m_height;
+			//region.imageExtent = { desc.m_width, desc.m_height, 1 };
+			//region.imageOffset = { 0, 0, 0 };
+			//region.imageSubresource.layerCount = 1;
+			//region.imageSubresource.baseArrayLayer = 0;
+			//region.imageSubresource.mipLevel = 0;
+			//region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			//vkCmdCopyBufferToImage(internalContext.GetCmdBuffer(), stagingBuffer.m_buffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+			//internalContext.End();
+			//internalContext.Return();
+
+			PB_ASSERT_MSG(desc.m_data != nullptr, "Texture is initialized using data, but no data is provided.");
+
+			u32 totalDataSizeBytes = 0;
+			u32 highestMip = 0;
+			TextureDataDesc* currentDataDesc = desc.m_data;
+			while (currentDataDesc)
+			{
+				totalDataSizeBytes += currentDataDesc->m_size;
+
+				PB_ASSERT(currentDataDesc->m_data != nullptr);
+				PB_ASSERT(currentDataDesc->m_size > 0);
+				PB_ASSERT(currentDataDesc->m_mipLevel < desc.m_mipCount);
+				PB_ASSERT(currentDataDesc->m_arrayLayer < (desc.m_dimension == ETextureDimension::DIMENSION_CUBE ? 6 : 1));
+
+				if (currentDataDesc->m_mipLevel > highestMip)
+					highestMip = currentDataDesc->m_mipLevel;
+
+				currentDataDesc = currentDataDesc->m_next;
+			}
 
 			PB::CommandContext internalContext;
 			MakeInternalContext(internalContext, m_renderer);
 			internalContext.Begin();
 
 			PB::SubresourceRange subresources{};
+			subresources.m_mipCount = desc.m_mipCount;
+			subresources.m_arrayCount = desc.m_dimension == ETextureDimension::DIMENSION_CUBE ? 6 : 1;
 			internalContext.CmdTransitionTexture(this, ETextureState::NONE, ETextureState::COPY_DST, subresources);
 
-			VkBufferImageCopy region;
-			region.bufferOffset = stagingBuffer.m_offset;
-			region.bufferRowLength = desc.m_width;
-			region.bufferImageHeight = desc.m_height;
-			region.imageExtent = { desc.m_width, desc.m_height, 1 };
-			region.imageOffset = { 0, 0, 0 };
-			region.imageSubresource.layerCount = 1;
-			region.imageSubresource.baseArrayLayer = 0;
-			region.imageSubresource.mipLevel = 0;
-			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			vkCmdCopyBufferToImage(internalContext.GetCmdBuffer(), stagingBuffer.m_buffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(totalDataSizeBytes, m_renderer->GetCurrentSwapchainImageIndex(), PB::EMemoryType::HOST_VISIBLE, 16);
+			u8* dst = stagingBuffer.Start();
+			u32 dstLocation = stagingBuffer.m_offset;
+			CLib::Vector<VkBufferImageCopy, 8> dataDescs{};
+			currentDataDesc = desc.m_data;
+			while (currentDataDesc)
+			{
+				memcpy(dst, currentDataDesc->m_data, currentDataDesc->m_size);
+
+				VkBufferImageCopy& region = dataDescs.PushBack();
+				region.bufferOffset = dstLocation;
+				region.bufferRowLength = desc.m_width;
+				region.bufferImageHeight = desc.m_height;
+				region.imageExtent = { desc.m_width, desc.m_height, 1 };
+				region.imageOffset = { 0, 0, 0 };
+				region.imageSubresource.layerCount = 1;
+				region.imageSubresource.baseArrayLayer = currentDataDesc->m_arrayLayer;
+				region.imageSubresource.mipLevel = currentDataDesc->m_mipLevel;
+				region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+				dst += currentDataDesc->m_size;
+				dstLocation += currentDataDesc->m_size;
+				currentDataDesc = currentDataDesc->m_next;
+			}
+			vkCmdCopyBufferToImage(internalContext.GetCmdBuffer(), stagingBuffer.m_buffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, dataDescs.Count(), dataDescs.Data());
+
+			if (highestMip == 0 && (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_GEN_MIPMAPS))
+			{ 
+				CLib::Vector<VkImageBlit, 8> blitOps{ subresources.m_arrayCount * (desc.m_mipCount - 1) };
+				for (uint32_t layer = 0; layer < subresources.m_arrayCount; ++layer)
+				{
+					PB::SubresourceRange srcSubresource{};
+					srcSubresource.m_firstArrayElement = layer;
+					srcSubresource.m_baseMip = 0;
+					internalContext.CmdTransitionTexture(this, ETextureState::COPY_DST, ETextureState::COPY_SRC, srcSubresource);
+
+					int mipWidth = int(desc.m_width / 2);
+					int mipHeight = int(desc.m_height / 2);
+					for (uint32_t mip = 1; mip < desc.m_mipCount; ++mip)
+					{
+						VkImageBlit& blit = blitOps.PushBack();
+
+						blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+						blit.srcSubresource.baseArrayLayer = layer;
+						blit.srcSubresource.layerCount = 1;
+						blit.srcSubresource.mipLevel = 0;
+						blit.srcOffsets[0] = { 0, 0, 0 };
+						blit.srcOffsets[1] = { int(desc.m_width), int(desc.m_height), 1 };
+
+						blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+						blit.dstSubresource.baseArrayLayer = layer;
+						blit.dstSubresource.layerCount = 1;
+						blit.dstSubresource.mipLevel = mip;
+						blit.dstOffsets[0] = { 0, 0, 0 };
+						blit.dstOffsets[1] = { mipWidth, mipHeight, 1 };
+
+						mipWidth /= 2;
+						mipHeight /= 2;
+					}
+				}
+				vkCmdBlitImage(internalContext.GetCmdBuffer(), m_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, blitOps.Count() , blitOps.Data(), VK_FILTER_LINEAR);
+			}
 
 			internalContext.End();
 			internalContext.Return();

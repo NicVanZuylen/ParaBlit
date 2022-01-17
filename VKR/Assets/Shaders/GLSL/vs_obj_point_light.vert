@@ -1,8 +1,9 @@
 #version 450
+#include "Common/vertex_common.h"
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-layout(location = 0) in vec4 inPosition;
+layout(location = 0) in vec3 inPosition;
 
 struct VS_OUT
 {
@@ -47,7 +48,7 @@ void main()
 
     PointLight light = pointLightBuffer[nonuniformEXT(bindings.lightingUBOIdx)].m_lights[gl_InstanceIndex];
 
-    vec3 finalPos = (inPosition.xyz * light.radius) + light.position.xyz;
+    vec3 finalPos = (inPosition * light.radius) + light.position.xyz;
 
     vsOutput.worldPos = vec4(finalPos, 1.0);
     gl_Position = proj * view * vsOutput.worldPos;

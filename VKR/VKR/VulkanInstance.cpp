@@ -71,9 +71,11 @@ namespace PB
 	{
 		m_instanceExtensionManager.PrintAvailableLayers();
 
+#if PARABLIT_ENABLE_API_VALIDATION
 		// Enable Khronos validation if available, otherwise use LunarG validation.
 		if (!m_instanceExtensionManager.EnableLayer(VK_LAYER_KHRONOS_VALIDATION_NAME))
 			PB_ASSERT_MSG(m_instanceExtensionManager.EnableLayer(VK_LAYER_LUNARG_VALIDATION_NAME), "Could not enable a suitable validation layer.");
+#endif
 	}
 
 	void VulkanInstance::Create(const char** requiredExtensions, uint32_t extCount)

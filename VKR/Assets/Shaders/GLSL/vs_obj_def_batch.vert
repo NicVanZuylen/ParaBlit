@@ -1,5 +1,6 @@
 #version 450
 #include "Common/pb_common.h"
+#include "Common/vertex_common.h"
 
 #extension GL_ARB_separate_shader_objects : enable
 
@@ -19,16 +20,7 @@ layout(set = 1, binding = 0) uniform MVP
     vec4 cameraPosition;
 } mvp[];
 
-struct VS_IN
-{
-    vec4 position;
-    vec4 normal;
-    vec4 tangent;
-    vec2 texCoord;
-    vec2 pad0;
-};
-
-layout(set = 0, binding = 2) buffer VertexBuffer
+layout(std430, set = 0, binding = 2) readonly buffer VertexBuffer
 {
     VS_IN vertices[];
 } vertexBuffers[];
@@ -43,7 +35,7 @@ struct VS_INSTANCE
     uint samplerIndex;
 };
 
-layout(set = 0, binding = 2) buffer InstanceBuffer
+layout(set = 0, binding = 2) readonly buffer InstanceBuffer
 {
     VS_INSTANCE instances[];
 } instanceBuffers[];
@@ -66,24 +58,29 @@ void main()
     uint vertexIndex = uint(gl_VertexIndex) & 0xFFFFFF; // Mask out final 8 bits for vertex index.
     uint instanceIndex = uint(gl_VertexIndex) >> 24; // Shift 24 bits right for instance index.
 
-    //VS_IN vsInput = vertexBuffers[nonuniformEXT(bindings.vertexBufferIndex)].vertices[nonuniformEXT(vertexIndex)];
     VS_INSTANCE vsInstance = instanceBuffers[nonuniformEXT(bindings.instanceBufferIndex)].instances[nonuniformEXT(instanceIndex)];
     VS_IN vsInput = vertexBuffers[nonuniformEXT(vsInstance.vertexIndex)].vertices[nonuniformEXT(vertexIndex)];
 
+    vec4 position;
+    vec2 texCoord;
+    vec3 normal;
+    vec3 tangent;
+    UnpackVertexAttibutes(vsInput, position, texCoord, normal, tangent);
+
     mat3 modelCpy = mat3(vsInstance.model);
-    vec3 biTangent = cross(vsInput.normal.xyz, vsInput.tangent.xyz);
+    vec3 biTangent = -cross(normal, tangent);
 
     vsOutput.tbnMatrix = mat3
     (
-        modelCpy * vsInput.tangent.xyz,  // t
-        modelCpy * biTangent,            // b
-        modelCpy * vsInput.normal.xyz    // n
+        modelCpy * tangent,     // t
+        modelCpy * biTangent,   // b
+        modelCpy * normal       // n
     );
 
-    gl_Position = mvp[nonuniformEXT(bindings.mvpIndex)].proj * mvp[nonuniformEXT(bindings.mvpIndex)].view * vsInstance.model * vsInput.position;
-    vsOutput.position = vsInstance.model * vsInput.position;
+    gl_Position = mvp[nonuniformEXT(bindings.mvpIndex)].proj * mvp[nonuniformEXT(bindings.mvpIndex)].view * vsInstance.model * position;
+    vsOutput.position = vsInstance.model * position;
     vsOutput.position.w = 1.0;
-    vsOutput.texCoord = vsInput.texCoord;
+    vsOutput.texCoord = texCoord;
 
     vsOutput.samplerIdx = vsInstance.samplerIndex;
     for(uint i = 0; i < INSTANCE_TEXTURE_COUNT; ++i)

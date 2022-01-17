@@ -30,20 +30,23 @@ AmbientOcclusionPass::AmbientOcclusionPass(PB::IRenderer* renderer, CLib::Alloca
 	m_aoConstantsBuffer = m_renderer->AllocateBuffer(aoSampleBufferDesc);
 	m_aoConstantsView = m_aoConstantsBuffer->GetViewAsUniformBuffer();
 
+	PB::TextureDataDesc randomRotationDataDesc{};
+	randomRotationDataDesc.m_data = m_allocator->Alloc(sizeof(PB::Float2) * (RandomRotationTextureResolution * RandomRotationTextureResolution));
+	randomRotationDataDesc.m_size = sizeof(PB::Float2) * RandomRotationTextureResolution * RandomRotationTextureResolution;
+
 	PB::TextureDesc randomRotationTexDesc{};
 	randomRotationTexDesc.m_width = RandomRotationTextureResolution;
 	randomRotationTexDesc.m_height = RandomRotationTextureResolution;
 	randomRotationTexDesc.m_usageStates = PB::ETextureState::SAMPLED;
 	randomRotationTexDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
-	randomRotationTexDesc.m_data.m_format = PB::ETextureFormat::R32G32_FLOAT;
-	randomRotationTexDesc.m_data.m_size = sizeof(PB::Float2) * RandomRotationTextureResolution * RandomRotationTextureResolution;
-	randomRotationTexDesc.m_data.m_data = m_allocator->Alloc(sizeof(PB::Float2) * (RandomRotationTextureResolution * RandomRotationTextureResolution));
+	randomRotationTexDesc.m_format = PB::ETextureFormat::R32G32_FLOAT;
+	randomRotationTexDesc.m_data = &randomRotationDataDesc;
 
-	GenerateRandomRotationTexture(reinterpret_cast<PB::Float2*>(randomRotationTexDesc.m_data.m_data));
+	GenerateRandomRotationTexture(reinterpret_cast<PB::Float2*>(randomRotationDataDesc.m_data));
 
 	m_randomRotationTexture = m_renderer->AllocateTexture(randomRotationTexDesc);
 	m_randomRotationTexView = m_randomRotationTexture->GetDefaultSRV();
-	m_allocator->Free(randomRotationTexDesc.m_data.m_data);
+	m_allocator->Free(randomRotationDataDesc.m_data);
 
 	PB::SamplerDesc randomRotationSamplerDesc{};
 	randomRotationSamplerDesc.m_filter = PB::ESamplerFilter::NEAREST;
@@ -79,7 +82,7 @@ void AmbientOcclusionPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		auto renderHeight = info.m_renderer->GetSwapchain()->GetHeight() / halfResDenom;
 		
 		AOConstants* aoConstants = reinterpret_cast<AOConstants*>(m_aoConstantsBuffer->BeginPopulate());
-		aoConstants->m_sampleRadius = 0.1f;
+		aoConstants->m_sampleRadius = 0.05f;
 		aoConstants->m_depthBias = 0.001f;
 		aoConstants->m_depthSlopeBias = 0.005f;
 		aoConstants->m_depthSlopeThreshold = 0.05f;

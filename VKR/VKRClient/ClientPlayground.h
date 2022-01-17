@@ -106,6 +106,9 @@ private:
 	PBClient::Texture* m_detailsTextures[5]{};
 	PBClient::Texture* m_glassTextures[5]{};
 	PBClient::Texture* m_metalTextures[2]{};
+	PBClient::Texture* m_debugTextures[3]{};
+
+	PBClient::Texture* m_skyboxTexture = nullptr;
 
 	PB::ITexture* m_solidWhiteTexture = nullptr;
 	PB::ITexture* m_solidBlackTexture = nullptr;
@@ -116,6 +119,7 @@ private:
 	PB::ResourceView m_paintViews[5]{};
 	PB::ResourceView m_detailsViews[5]{};
 	PB::ResourceView m_glassViews[5]{};
+	PB::ResourceView m_debugViews[3]{};
 	PB::ResourceView m_colorSampler = 0;
 
 	PBClient::Shader* m_shadowVertShader = nullptr;

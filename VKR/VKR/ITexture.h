@@ -7,13 +7,23 @@ namespace PB
 	class ITexture;
 	class IRenderer;
 
-	enum class ETextureInitOptions : u32
+	enum class ETextureDimension : u16
+	{
+		DIMENSION_NONE,
+		DIMENSION_1D,
+		DIMENSION_2D,
+		DIMENSION_3D,
+		DIMENSION_CUBE
+	};
+
+	enum class ETextureInitOptions : u16
 	{
 		PB_TEXTURE_INIT_NONE = 0,				// Simply don't initialize the contents of the texture. 
 		PB_TEXTURE_INIT_ZERO_INITIALIZE = 1,	// Initialize with empty data, ideal for render targets and other textures not read before they are written to. This is Probably the fastest initialization option.
 		PB_TEXTURE_INIT_USE_DATA = 1 << 1,		// Use user-provided data to fill the texture.
+		PB_TEXTURE_INIT_GEN_MIPMAPS = 1 << 2,	// Use the graphics API to automatically generate mipmap contents for this texture.
 	};
-	PB_DEFINE_ENUM_FIELD(TextureInitOptionFlags, ETextureInitOptions, u32)
+	PB_DEFINE_ENUM_FIELD(TextureInitOptionFlags, ETextureInitOptions, u16)
 
 	inline ETextureInitOptions operator | (ETextureInitOptions a, ETextureInitOptions b)
 	{
@@ -22,25 +32,34 @@ namespace PB
 
 	struct TextureDataDesc
 	{
-		// Not required unless using the intialization option: PB_TEXTURE_INIT_USE_DATA.
-		void* m_data = nullptr; 
+		void* m_data = nullptr;
 		u32 m_size = 0;
-
-		// Always required.
-		ETextureFormat m_format = ETextureFormat::UNKNOWN;
-		bool m_aliasOther = false;
-		u8 m_pad0 = 0;
+		u16 m_mipLevel = 0;
+		u16 m_arrayLayer = 0;
+		TextureDataDesc* m_next = nullptr;
 	};
 
 	struct TextureDesc
 	{
-		TextureDataDesc m_data;
+		TextureDataDesc* m_data = nullptr; // Not required unless created with init option: PB_TEXTURE_INIT_USE_DATA.
 		ETextureState m_initialState = ETextureState::NONE;
 		TextureStateFlags m_usageStates = ETextureState::NONE;
+		ETextureDimension m_dimension = ETextureDimension::DIMENSION_2D;
 		TextureInitOptionFlags m_initOptions = ETextureInitOptions::PB_TEXTURE_INIT_NONE;
+		ETextureFormat m_format = ETextureFormat::UNKNOWN;
+		bool m_aliasOther = false;
 		u32 m_width = 0;
 		u32 m_height = 0;
+		u32 m_depth = 1;
 		u32 m_mipCount = 1;
+	};
+
+	enum class ETextureViewType : u32
+	{
+		VIEW_TYPE_1D,
+		VIEW_TYPE_2D,
+		VIEW_TYPE_3D,
+		VIEW_TYPE_CUBE
 	};
 
 	struct TextureViewDesc
@@ -49,7 +68,8 @@ namespace PB
 		SubresourceRange m_subresources = {};					// Specifies which subresources of the image to include in the view.
 		ETextureFormat m_format = ETextureFormat::UNKNOWN;
 		ETextureState m_expectedState = ETextureState::NONE;
-		u64 m_pad0 = 0;
+		ETextureViewType m_type = ETextureViewType::VIEW_TYPE_2D;
+		u32 m_pad0 = 0;
 		// TODO: ONGOING: Add additional view parameters as needed.
 
 		bool operator == (const TextureViewDesc& other) const;

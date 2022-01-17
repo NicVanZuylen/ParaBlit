@@ -66,14 +66,15 @@ namespace PB
 	enum class ETextureState : u16
 	{
 		NONE			=	0,
-		STORAGE				=	1,
+		STORAGE			=	1,
 		COLORTARGET		=	1 << 1,
 		DEPTHTARGET		=	1 << 2,
-		SAMPLED			=	1 << 3,
-		COPY_SRC		=	1 << 4,
-		COPY_DST		=	1 << 5,
-		PRESENT			=	1 << 6,
-		MAX				=	1 << 7
+		READ_ONLY_DEPTH_STENCIL =	1 << 3,
+		SAMPLED			=	1 << 4,
+		COPY_SRC		=	1 << 5,
+		COPY_DST		=	1 << 6,
+		PRESENT			=	1 << 7,
+		MAX				=	1 << 8
 	};
 	PB_DEFINE_ENUM_FIELD(TextureStateFlags, ETextureState, u16)
 
@@ -85,6 +86,11 @@ namespace PB
 		R8G8B8_UNORM,
 		R8G8B8A8_UNORM,
 		B8G8R8A8_UNORM,
+		R8_SRGB,
+		R8G8_SRGB,
+		R8G8B8_SRGB,
+		R8G8B8A8_SRGB,
+		B8G8R8A8_SRGB,
 		R16_FLOAT,
 		R16G16_FLOAT,
 		R16G16B16_FLOAT,
@@ -102,11 +108,12 @@ namespace PB
 
 	enum class EAttachmentUsage : u8
 	{
-		NONE			=	0,
-		COLOR			=	1,
-		DEPTHSTENCIL	=	1 << 1,
-		READ			=	1 << 2,
-		STORAGE			=	1 << 3,
+		NONE					=	0,
+		COLOR					=	1,
+		DEPTHSTENCIL			=	1 << 1,
+		READ_ONLY_DEPTHSTENCIL	=	1 << 2,
+		READ					=	1 << 3,
+		STORAGE					=	1 << 4,
 	};
 	PB_DEFINE_ENUM_FIELD(AttachmentUsageFlags, EAttachmentUsage, u8)
 

@@ -30,7 +30,15 @@ void GBufferPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView*
 
 void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
+	if(m_outputTexture)
+	{
+		info.m_commandContext->CmdTransitionTexture(transientTextures[0], PB::ETextureState::COLORTARGET, PB::ETextureState::COPY_SRC);
+		info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::NONE, PB::ETextureState::COPY_DST);
 
+		info.m_commandContext->CmdCopyTextureToTexture(transientTextures[0], m_outputTexture);
+
+		info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST, PB::ETextureState::PRESENT);
+	}
 }
 
 void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
@@ -42,7 +50,7 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	PB::ISwapChain* swapchain = m_renderer->GetSwapchain();
 
 	AttachmentDesc& colorDesc = nodeDesc.m_attachments.PushBackInit();
-	colorDesc.m_format = swapchain->GetImageFormat();
+	colorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 	colorDesc.m_width = swapchain->GetWidth();
 	colorDesc.m_height = swapchain->GetHeight();
 	colorDesc.m_name = "G_Color";
@@ -74,6 +82,24 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
 	depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	depthDesc.m_flags = EAttachmentFlags::CLEAR;
+
+	/*TransientTextureDesc& specAndRoughReadDesc = nodeDesc.m_transientTextures.PushBackInit();
+	specAndRoughReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+	specAndRoughReadDesc.m_width = swapchain->GetWidth();
+	specAndRoughReadDesc.m_height = swapchain->GetHeight();
+	specAndRoughReadDesc.m_name = "G_Color";
+	specAndRoughReadDesc.m_initialUsage = PB::ETextureState::COLORTARGET;
+	specAndRoughReadDesc.m_finalUsage = PB::ETextureState::COPY_SRC;
+	specAndRoughReadDesc.m_usageFlags = PB::ETextureState::COLORTARGET | PB::ETextureState::COPY_SRC;*/
+
+	//TransientTextureDesc& specAndRoughReadDesc = nodeDesc.m_transientTextures.PushBackInit();
+	//specAndRoughReadDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
+	//specAndRoughReadDesc.m_width = swapchain->GetWidth();
+	//specAndRoughReadDesc.m_height = swapchain->GetHeight();
+	//specAndRoughReadDesc.m_name = "G_Normal";
+	//specAndRoughReadDesc.m_initialUsage = PB::ETextureState::COLORTARGET;
+	//specAndRoughReadDesc.m_finalUsage = PB::ETextureState::COPY_SRC;
+	//specAndRoughReadDesc.m_usageFlags = PB::ETextureState::COLORTARGET | PB::ETextureState::COPY_SRC;
 
 	nodeDesc.m_renderWidth = colorDesc.m_width;
 	nodeDesc.m_renderHeight = colorDesc.m_height;

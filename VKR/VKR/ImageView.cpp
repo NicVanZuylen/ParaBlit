@@ -84,7 +84,10 @@ namespace PB
 
 	RenderTargetView ViewCache::GetRenderTargetView(const TextureViewDesc& desc)
 	{
-		PB_ASSERT_MSG(desc.m_expectedState == ETextureState::COLORTARGET || desc.m_expectedState == ETextureState::DEPTHTARGET, "Cannot use GetRenderTargetView to get a non-render target view. Use GetTextureView instead.");
+		PB_ASSERT_MSG(desc.m_expectedState == ETextureState::COLORTARGET 
+			|| desc.m_expectedState == ETextureState::DEPTHTARGET 
+			|| desc.m_expectedState == ETextureState::READ_ONLY_DEPTH_STENCIL, 
+			"Cannot use GetRenderTargetView to get a non-render target view. Use GetTextureView instead.");
 
 		auto it = m_texViewCache.find(desc);
 		if (it == m_texViewCache.end())
@@ -208,11 +211,11 @@ namespace PB
 		//if(hasStencilPlane)
 		//	imageViewInfo.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
-		imageViewInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewInfo.subresourceRange.layerCount = 1;
+		imageViewInfo.subresourceRange.baseArrayLayer = desc.m_subresources.m_firstArrayElement;
+		imageViewInfo.subresourceRange.layerCount = desc.m_type == PB::ETextureViewType::VIEW_TYPE_CUBE ? 6 : desc.m_subresources.m_arrayCount;
 		imageViewInfo.subresourceRange.baseMipLevel = desc.m_subresources.m_baseMip;
 		imageViewInfo.subresourceRange.levelCount = desc.m_subresources.m_mipCount;
-		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; // TODO: Allow for array views and in the future possibly 3D image views.
+		imageViewInfo.viewType = PBTextureViewTypeToVkImageViewType(desc.m_type);
 
 		VkImageView newView = VK_NULL_HANDLE;
 		PB_ERROR_CHECK(vkCreateImageView(m_device->GetHandle(), &imageViewInfo, nullptr, &newView));

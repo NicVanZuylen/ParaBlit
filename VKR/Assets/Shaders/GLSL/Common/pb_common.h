@@ -10,11 +10,14 @@
 // Names of resource array declarations.
 
 #define PB_TEXTURE_BINDINGS_NAME pb_textures
+#define PB_TEXTURE_CUBE_BINDINGS_NAME pb_textures_cube
 #define PB_SAMPLER_BINDINGS_NAME pb_samplers
 #define PB_STORAGE_IMAGE_BINDINGS_NAME pb_storageImages
 
 // Define texture binding array.
 #define PB_DEFINE_TEXTURE_BINDINGS layout(set = 0, binding = 0) uniform texture2D PB_TEXTURE_BINDINGS_NAME[]
+#define PB_DEFINE_TEXTURE_CUBE_BINDINGS layout(set = 0, binding = 0) uniform textureCube PB_TEXTURE_CUBE_BINDINGS_NAME[]
+
 // Define sampler binding array.
 #define PB_DEFINE_SAMPLER_BINDINGS layout(set = 0, binding = 1) uniform sampler PB_SAMPLER_BINDINGS_NAME[]
 // Define storage image binding array with the provided qualifiers.
@@ -22,6 +25,7 @@
 
 // Shorthand for accessing a texture using its binding index.
 #define PB_TEXTURE(index) PB_TEXTURE_BINDINGS_NAME[nonuniformEXT(PB_BINDINGS_NAME.index)]
+#define PB_TEXTURE_CUBE(index) PB_TEXTURE_CUBE_BINDINGS_NAME[nonuniformEXT(PB_BINDINGS_NAME.index)]
 // Shorthand for accessing a sampler using its binding index.
 #define PB_SAMPLER(index) PB_SAMPLER_BINDINGS_NAME[nonuniformEXT(PB_BINDINGS_NAME.index)]
 // Shorthand for accessing a storage image using its binding index.
@@ -31,6 +35,7 @@
 
 // Shorthand for building a combined image sampler using the binding indices of a texture and sampler.
 #define PB_BUILD_SAMPLER(t, s) sampler2D(PB_TEXTURE(t), PB_SAMPLER(s))
+#define PB_BUILD_SAMPLER_CUBE(t, s) samplerCube(PB_TEXTURE_CUBE(t), PB_SAMPLER(s))
 
 // --------------------------------------------------------------------------------------------------------
 // Helper Functions

@@ -1,5 +1,6 @@
 #include "DeferredLightingPass.h"
 #include "RenderGraph.h"
+#include "Texture.h"
 
 #include <random>
 
@@ -23,15 +24,14 @@ DeferredLightingPass::DeferredLightingPass(PB::IRenderer* renderer, CLib::Alloca
 	m_dirLightingView = m_lightingBuffer->GetViewAsUniformBuffer(lightViewDesc);
 
 	PB::SamplerDesc gBufferSamplerDesc;
-	gBufferSamplerDesc.m_anisotropyLevels = 1.0f;
 	gBufferSamplerDesc.m_filter = PB::ESamplerFilter::NEAREST;
 	gBufferSamplerDesc.m_mipFilter = PB::ESamplerFilter::NEAREST;
 	gBufferSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
 	m_gBufferSampler = renderer->GetSampler(gBufferSamplerDesc);
 
-	m_pointLightVolumeMesh.Init(m_renderer, "Meshes/Primitives/sphere", true);
+	m_pointLightVolumeMesh.Init(m_renderer, "Meshes/Primitives/sphere");
 
-	m_screenQuadShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/vs_screenQuad", m_allocator, true);
+	m_screenQuadShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/vs_screenQuad_maxdepth", m_allocator, true);
 	m_defDirLightShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/fs_def_directional_light_shadow", m_allocator, true);
 	m_pointLightVTXShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/vs_obj_point_light", m_allocator, true);
 	m_pointLightShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/fs_def_point_light", m_allocator, true);
@@ -95,6 +95,63 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		auto renderWidth = info.m_renderer->GetSwapchain()->GetWidth();
 		auto renderHeight = info.m_renderer->GetSwapchain()->GetHeight();
 
+		PB::TextureViewDesc skyboxViewDesc{};
+		skyboxViewDesc.m_texture = m_skyboxTexture->GetTexture();
+		skyboxViewDesc.m_expectedState = PB::ETextureState::SAMPLED;
+		skyboxViewDesc.m_format = PB::ETextureFormat::R8G8B8A8_SRGB;
+		skyboxViewDesc.m_type = PB::ETextureViewType::VIEW_TYPE_CUBE;
+		skyboxViewDesc.m_subresources.m_arrayCount = 1;
+		skyboxViewDesc.m_subresources.m_mipCount = m_skyboxMipCount;
+
+		PB::ResourceView skyboxView = m_skyboxTexture->GetTexture()->GetView(skyboxViewDesc);
+
+		PB::SamplerDesc iblSamplerDesc;
+		iblSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
+		iblSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
+		iblSamplerDesc.m_mipFilter = PB::ESamplerFilter::BILINEAR;
+		iblSamplerDesc.maxLod = float(m_skyboxMipCount);
+		PB::ResourceView iblSampler = m_renderer->GetSampler(iblSamplerDesc);
+
+		// Sky
+		if (m_skyboxTexture != nullptr)
+		{
+			PB::GraphicsPipelineDesc skyboxPipelineDesc{};
+			skyboxPipelineDesc.m_attachmentCount = 1;
+			skyboxPipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL; // This ensures the skybox will only rasterize where depth is max.
+			skyboxPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
+			skyboxPipelineDesc.m_stencilTestEnable = false;
+			skyboxPipelineDesc.m_depthWriteEnable = false;
+			skyboxPipelineDesc.m_cullMode = PB::EFaceCullMode::BACK;
+			skyboxPipelineDesc.m_subpass = 0;
+			skyboxPipelineDesc.m_renderPass = info.m_renderPass;
+			skyboxPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = PBClient::Shader(m_renderer, "Shaders/GLSL/vs_skybox", m_allocator, true).GetModule();
+			skyboxPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = PBClient::Shader(m_renderer, "Shaders/GLSL/fs_skybox", m_allocator, true).GetModule();
+			skyboxPipelineDesc.m_colorBlendStates[0].m_enableBlending = false;
+
+			PB::Pipeline skyboxPipeline = m_renderer->GetPipelineCache()->GetPipeline(skyboxPipelineDesc);
+
+			PB::UniformBufferView skyBufferViews[] = { m_mvpBuffer->GetViewAsUniformBuffer() };
+			PB::ResourceView skyResourceViews[]
+			{
+				skyboxView,
+				iblSampler
+			};
+
+			PB::BindingLayout skyBindingLayout{};
+			skyBindingLayout.m_uniformBufferCount = _countof(skyBufferViews);
+			skyBindingLayout.m_uniformBuffers = skyBufferViews;
+			skyBindingLayout.m_resourceCount = _countof(skyResourceViews);
+			skyBindingLayout.m_resourceViews = skyResourceViews;
+
+			scopedContext->CmdBindPipeline(skyboxPipeline);
+			scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+			scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+			scopedContext->CmdBindResources(skyBindingLayout);
+			scopedContext->CmdDraw(36, 1);
+		}
+
+		// Directional lighting
+
 		PB::UniformBufferView dirBufferViews[] = { m_mvpBuffer->GetViewAsUniformBuffer(), m_dirLightingView };
 		PB::ResourceView dirResourceViews[]
 		{
@@ -104,7 +161,9 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 			transientTextures[3]->GetDefaultSRV(),
 			transientTextures[4]->GetDefaultSRV(),
 			transientTextures[5]->GetDefaultSRV(),
+			skyboxView,
 			m_gBufferSampler,
+			iblSampler,
 		};
 
 		PB::BindingLayout dirBindingLayout{};
@@ -117,19 +176,20 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		{
 			PB::GraphicsPipelineDesc lightingPipelineDesc{};
 			lightingPipelineDesc.m_attachmentCount = 1;
-			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
+			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::GREATER; // The screen quad will be positioned at max depth, so directional lighting will only rasterize where world geo is rendered (as it lowers depth).
 			lightingPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 			lightingPipelineDesc.m_stencilTestEnable = false;
+			lightingPipelineDesc.m_depthWriteEnable = false;
 			lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 			lightingPipelineDesc.m_subpass = 0;
 			lightingPipelineDesc.m_renderPass = info.m_renderPass;
 			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_screenQuadShader->GetModule();
 			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_defDirLightShader->GetModule();
+			lightingPipelineDesc.m_colorBlendStates[0].m_enableBlending = false;
 
 			m_dirLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
 		}
 
-		// Directional lighting
 		{
 			scopedContext->CmdBindPipeline(m_dirLightingPipeline);
 			scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
@@ -145,13 +205,14 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 			lightingPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
 			lightingPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 			lightingPipelineDesc.m_stencilTestEnable = false;
+			lightingPipelineDesc.m_depthWriteEnable = false;
 			lightingPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 			lightingPipelineDesc.m_subpass = 0;
 			lightingPipelineDesc.m_renderPass = info.m_renderPass;
 			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_pointLightVTXShader->GetModule();
 			lightingPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_pointLightShader->GetModule();
 			lightingPipelineDesc.m_vertexBuffers[0] = { sizeof(Vertex), PB::EVertexBufferType::VERTEX };
-			lightingPipelineDesc.m_vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT4 };
+			lightingPipelineDesc.m_vertexDesc.vertexAttributes[0] = { 0, PB::EVertexAttributeType::FLOAT3 };
 			lightingPipelineDesc.m_colorBlendStates[0] = PB::GraphicsPipelineDesc::DefaultBlendState();
 
 			m_pointLightingPipeline = m_renderer->GetPipelineCache()->GetPipeline(lightingPipelineDesc);
@@ -240,8 +301,8 @@ void DeferredLightingPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	depthReadDesc.m_width = swapchain->GetWidth();
 	depthReadDesc.m_height = swapchain->GetHeight();
 	depthReadDesc.m_name = "G_Depth";
-	depthReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
-	depthReadDesc.m_usageFlags = PB::ETextureState::SAMPLED;
+	depthReadDesc.m_initialUsage = PB::ETextureState::READ_ONLY_DEPTH_STENCIL;
+	depthReadDesc.m_usageFlags = PB::ETextureState::READ_ONLY_DEPTH_STENCIL | PB::ETextureState::SAMPLED;
 
 	TransientTextureDesc& shadowMaskReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 	shadowMaskReadDesc.m_format = PB::ETextureFormat::R8_UNORM;
@@ -266,6 +327,13 @@ void DeferredLightingPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	colorDesc.m_height = swapchain->GetHeight();
 	colorDesc.m_name = "LightingColorOutput";
 	colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
+
+	AttachmentDesc& depthDesc = nodeDesc.m_attachments.PushBackInit();
+	depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+	depthDesc.m_width = swapchain->GetWidth();
+	depthDesc.m_height = swapchain->GetHeight();
+	depthDesc.m_name = "G_Depth";
+	depthDesc.m_usage = PB::EAttachmentUsage::READ_ONLY_DEPTHSTENCIL;
 
 	nodeDesc.m_renderWidth = colorDesc.m_width;
 	nodeDesc.m_renderHeight = colorDesc.m_height;
@@ -306,4 +374,10 @@ void DeferredLightingPass::SetPointLight(uint32_t index, PB::Float4 position, PB
 
 	if (m_pointLightCount <= index)
 		m_pointLightCount = index + 1;
+}
+
+void DeferredLightingPass::SetSkyboxTexture(PBClient::Texture* skyboxTexture, uint32_t mipCount)
+{
+	m_skyboxTexture = skyboxTexture;
+	m_skyboxMipCount = mipCount;
 }

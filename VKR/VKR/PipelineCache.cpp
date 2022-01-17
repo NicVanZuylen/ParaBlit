@@ -250,7 +250,7 @@ namespace PB
 		depthStencilState.depthCompareOp = PBCompareOPtoVKCompareOP(desc.m_depthCompareOP);
 		depthStencilState.depthTestEnable = desc.m_depthCompareOP != ECompareOP::ALWAYS;
 		depthStencilState.depthBoundsTestEnable = depthStencilState.depthTestEnable;
-		depthStencilState.depthWriteEnable = depthStencilState.depthTestEnable; // TODO: This should be a separate toggle from depth test.
+		depthStencilState.depthWriteEnable = desc.m_depthWriteEnable;
 		depthStencilState.stencilTestEnable = desc.m_stencilTestEnable;
 		depthStencilState.flags = 0;
 

@@ -27,8 +27,6 @@ Camera::Camera(glm::vec3 v3Position, glm::vec3 v3EulerAngles, float fSensitivity
 	m_fLastMouseX = 0.0f;
 	m_fLastMouseY = 0.0f;
 
-	glm::mat4 noice = glm::mat4();
-
 	// Create translation and rotation matricies.
 	glm::mat4 posMat = glm::translate(glm::mat4(), v3Position);
 	glm::mat4 rotMat = glm::rotate(glm::mat4(), m_v3EulerAngles.z, glm::vec3(0.0f, 0.0f, 1.0f));

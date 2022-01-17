@@ -11,18 +11,21 @@ struct FS_IN
 
 layout(push_constant) uniform Bindings
 {
-    int mvpUBOIndex;
-    int lightingUBOIndex;
-    int colorRTVIdx;
-    int normalRTVIdx;
-    int specAndRoughRTVIdx;
-    int depthRTVIdx;
-    int shadowmaskIdx;
-    int aoIndex;
-    int samplerIdx;
+    uint mvpUBOIndex;
+    uint lightingUBOIndex;
+    uint colorRTVIdx;
+    uint normalRTVIdx;
+    uint specAndRoughRTVIdx;
+    uint depthRTVIdx;
+    uint shadowmaskIdx;
+    uint aoIndex;
+    uint skyboxIndex;
+    uint samplerIdx;
+    uint iblSamplerIdx;
 } bindings;
 
 layout(set = 0, binding = 0) uniform texture2D textures[];
+layout(set = 0, binding = 0) uniform textureCube cubeTextures[];
 layout(set = 0, binding = 1) uniform sampler samplers[];
 
 layout(set = 1, binding = 0) uniform MVP
@@ -78,7 +81,8 @@ float OrenNayarDiff(vec3 normal, vec3 lightDir, vec3 surfToCam, float roughness)
 
 #define PI 3.14159265359f
 
-float CookTorrenceSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float lambert, float roughness, float reflectionCoefficient) 
+//float CookTorrenceSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float lambert, float roughness, float reflectionCoefficient) 
+vec3 CookTorrenceSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float lambert, float roughness, vec3 reflectivity) 
 {
     float roughSqr = roughness * roughness;
 
@@ -94,7 +98,8 @@ float CookTorrenceSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float lambert, 
 	float D = exp(exponent) / (roughSqr * normalDotHalfSqr * normalDotHalfSqr);
 
 	// Fresnel Term using Sclick's approximation.
-	float F = reflectionCoefficient + (1.0f - reflectionCoefficient) * pow(1.0f - normalDotView, 5);
+	//float F = reflectionCoefficient + (1.0f - reflectionCoefficient) * pow(1.0f - normalDotView, 5);
+    vec3 F = reflectivity + (1.0f - reflectivity) * pow(1.0f - normalDotView, 5);
 
 	// Geometric Attenuation Factor
 	float halfFrac = 2.0f * normalDotHalf / dot(viewDir, halfVec);
@@ -126,11 +131,23 @@ vec3 ScreenPosFromWorld(vec3 worldPosition, inout mat4 view, inout mat4 proj)
     return screenPosRaw.xyz / screenPosRaw.w;
 }
 
+vec3 FresnelShlick(float cosTheta, vec3 spec)
+{
+    return spec + (1.0 - spec) * pow(1.0 - cosTheta, 5.0);
+}
+
+vec3 FresnelShlickRoughness(float cosTheta, vec3 spec, float roughness)
+{
+    return spec + (max(vec3(1.0 - roughness), spec) - spec) * pow(1.0 - cosTheta, 5.0);
+}
+
 void main() 
 {
     mat4 invView = mvp[nonuniformEXT(bindings.mvpUBOIndex)].invView;
     mat4 invProj = mvp[nonuniformEXT(bindings.mvpUBOIndex)].invProj;
     vec4 camPos  = mvp[nonuniformEXT(bindings.mvpUBOIndex)].cameraPosition;
+
+    vec3 gamma = vec3(1.0 / 2.2);
 
     vec4 colorTexel = texture
     (
@@ -161,6 +178,9 @@ void main()
     ).r;
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, invView, invProj);
 
+    vec3 dirToCam = -normalize(position - camPos.xyz);
+    float normalDotCam = max(dot(normal, dirToCam), 0.0);
+
     float shadow = texture
     (
         sampler2D(textures[nonuniformEXT(bindings.shadowmaskIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
@@ -173,10 +193,31 @@ void main()
         fsInput.texCoord
     ).r;
 
-    vec4 lightingColor = vec4(color * ao * 0.15, 1.0);
+    float mipCount = float(textureQueryLevels(samplerCube(cubeTextures[nonuniformEXT(bindings.skyboxIndex)], samplers[nonuniformEXT(bindings.iblSamplerIdx)])));
+    vec3 indirectDiffuse = textureLod
+    (
+        samplerCube(cubeTextures[nonuniformEXT(bindings.skyboxIndex)], samplers[nonuniformEXT(bindings.iblSamplerIdx)]), 
+        normal,
+        mipCount - 1.0
+    ).rgb;
+    indirectDiffuse = pow(indirectDiffuse, gamma);
 
-    vec3 dirToCam = normalize(position - camPos.xyz);
+    vec3 ambientSpecPortion = FresnelShlickRoughness(normalDotCam, specular, roughness);
+    vec3 ambientDiffusePortion = (1.0 - ambientSpecPortion) * (1.0 - specular);
+    vec3 ambientDiffuse = indirectDiffuse * color * ambientDiffusePortion;
 
+    vec3 reflectionVec = reflect(-dirToCam, normal);
+    vec3 indirectSpecular = textureLod
+    (
+        samplerCube(cubeTextures[nonuniformEXT(bindings.skyboxIndex)], samplers[nonuniformEXT(bindings.iblSamplerIdx)]), 
+        reflectionVec,
+        roughness * mipCount
+    ).rgb;
+    indirectSpecular = pow(indirectSpecular, gamma);
+    vec3 ambientSpecular = indirectSpecular * specular * ambientSpecPortion;
+
+    vec4 lightingColor = vec4((ambientDiffuse + ambientSpecular) * ao, 1.0);
+    
     int count = lightingData[nonuniformEXT(bindings.lightingUBOIndex)].count;
     for(int i = 0; i < count; ++i)
     {
@@ -184,20 +225,18 @@ void main()
         vec3 normLightDir = normalize(light.direction.xyz);
 
         float normalDotLight = max(dot(normal, normLightDir), 0.0);
-        float normalDotCam = max(dot(normal, dirToCam), 0.0);
 
-        float orenNayar = OrenNayarDiff(normal, normLightDir, -dirToCam, roughness);
-        float cookTorrence = CookTorrenceSpec(normal, normLightDir, -dirToCam, normalDotLight, roughness, 1.0);
+        float orenNayar = OrenNayarDiff(normal, normLightDir, dirToCam, roughness);
+        vec3 cookTorrence = CookTorrenceSpec(normal, normLightDir, dirToCam, normalDotLight, roughness, specular);
 
         vec3 diffuse = orenNayar * light.color.rgb;
-        vec3 spec = cookTorrence * (specular + (1.0 - roughness)) * light.color.rgb;
+        vec3 spec = cookTorrence * light.color.rgb;
 
-        lightingColor += vec4((diffuse + spec) * color * shadow, 0.0);
+        lightingColor += vec4(((diffuse * color) + spec) * shadow, 0.0);
     }
 
     float emissionIntensityScale = lightingData[nonuniformEXT(bindings.lightingUBOIndex)].emissionIntensityScale;
     vec4 emissionOutput = vec4(color.rgb * emissionIntensityScale, 1.0);
 
-    //float emissionTotal = emission.r + emission.g + emission.b;
     outColor = emissionMask == 0.0 ? lightingColor : emissionOutput;
 }

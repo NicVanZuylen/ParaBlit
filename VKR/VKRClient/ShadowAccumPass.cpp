@@ -11,17 +11,20 @@ using namespace PBClient;
 
 ShadowAccumPass::ShadowAccumPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : RenderGraphBehaviour(renderer, allocator)
 {
+	PB::TextureDataDesc randomRotationDataDesc{};
+	randomRotationDataDesc.m_size = sizeof(float) * 2 * PCFRandomRotationTextureSize * PCFRandomRotationTextureSize;
+	randomRotationDataDesc.m_data = m_allocator->Alloc(randomRotationDataDesc.m_size);
+
 	PB::TextureDesc randomRotationTexDesc{};
 	randomRotationTexDesc.m_width = PCFRandomRotationTextureSize;
 	randomRotationTexDesc.m_height = PCFRandomRotationTextureSize;
 	randomRotationTexDesc.m_usageStates = PB::ETextureState::SAMPLED;
 	randomRotationTexDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
-	randomRotationTexDesc.m_data.m_format = PB::ETextureFormat::R32G32_FLOAT;
-	randomRotationTexDesc.m_data.m_size = sizeof(float) * 2 * PCFRandomRotationTextureSize * PCFRandomRotationTextureSize;
-	randomRotationTexDesc.m_data.m_data = m_allocator->Alloc(randomRotationTexDesc.m_data.m_size);
-	GenerateRandomRotationTexture(reinterpret_cast<PB::Float2*>(randomRotationTexDesc.m_data.m_data));
+	randomRotationTexDesc.m_format = PB::ETextureFormat::R32G32_FLOAT;
+	randomRotationTexDesc.m_data = &randomRotationDataDesc;
+	GenerateRandomRotationTexture(reinterpret_cast<PB::Float2*>(randomRotationDataDesc.m_data));
 	m_randomRotationTexture = m_renderer->AllocateTexture(randomRotationTexDesc);
-	m_allocator->Free(randomRotationTexDesc.m_data.m_data);
+	m_allocator->Free(randomRotationDataDesc.m_data);
 
 	// Initial transition of texture to correct state.
 	{

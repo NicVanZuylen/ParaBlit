@@ -97,7 +97,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;PARABLIT_ENABLE_API_VALIDATION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -132,8 +132,8 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.148.1\Include;D:\VulkanSDK\1.1.106.0\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;D:\VulkanSDK\1.1.106.0\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3;PARABLIT_ENABLE_API_VALIDATION=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -141,7 +141,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>vulkan-1.lib;ContainerLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)External/CLib/ContainerLib/lib/$(Platform)/$(Configuration);$(SolutionDir)VulkanSDK\1.2.148.1\Lib;$(SolutionDir)External\glfw\glfw-build\src\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)External/CLib/ContainerLib/lib/$(Platform)/$(Configuration);$(SolutionDir)VulkanSDK\1.2.198.1\Lib;$(SolutionDir)External\glfw\glfw-build\src\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

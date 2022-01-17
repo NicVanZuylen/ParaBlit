@@ -10,23 +10,16 @@
 
 namespace PBClient
 {
-	/*struct Vertex
-	{
-		glm::vec4 m_position;
-		glm::vec4 m_normal;
-		glm::vec4 m_tangent;
-		glm::vec2 m_texCoords;
-		glm::vec2 m_pad0;
-	};*/
-
 	struct Vertex
 	{
-		PB::Float4 m_position;
-		PB::Float4 m_normal;
-		PB::Float4 m_tangent;
-		PB::Float2 m_texCoords;
-		PB::Float2 m_pad0;
+		PB::Float3 m_position;
+		uint32_t m_texCoordsPacked;
+		uint32_t m_normalPackedA;
+		uint32_t m_normalPackedB;
+		uint32_t m_tangentPackedA;
+		uint32_t m_tangentPackedB;
 	};
+	static_assert(sizeof(Vertex) == 32);
 
 	struct MeshCacheData
 	{
@@ -44,14 +37,14 @@ namespace PBClient
 
 		Mesh() = default;
 
-		Mesh(PB::IRenderer* renderer, const char* filePath, bool loadFromDatabase = false, VertexPool* vertexPool = nullptr);
+		Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
 
 		~Mesh();
 
 		/*
 		Description: Constructor logic.
 		*/
-		void Init(PB::IRenderer* renderer, const char* filePath, bool loadFromDatabase = false, VertexPool* vertexPool = nullptr);
+		void Init(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
 
 		/*
 		Description: Load the mesh from a file, and any included materials.
@@ -59,7 +52,7 @@ namespace PBClient
 			const char* filePath: The path to the .obj mesh file.
 			bool loadFromDatabase: Whether or not to load the mesh from an asset database (.adb) file, and treat filePath as a database-local path.
 		*/
-		void Load(const char* filePath, bool loadFromDatabase = false);
+		void Load(const char* filePath);
 
 		/*
 		Description: Get the amount of vertices in the entire mesh.
@@ -116,20 +109,6 @@ namespace PBClient
 		const VertexPool* GetVertexPool() const;
 
 	private:
-
-		/*
-		Description: Calculate mesh tangents.
-		*/
-		void CalculateTangents(CLib::Vector<Vertex>& vertices, CLib::Vector<MeshIndex>& indices);
-
-		/*
-		Description: Load and convert mesh from an OBJ file.
-		Param:
-			CLib::Vector<Vertex>& vertices: The array of output vertices.
-			CLib::Vector<MeshIndex>& indices: The array of output indices.
-			const char* path: The file path of the .obj file to load.
-		*/
-		void LoadOBJ(CLib::Vector<Vertex>& vertices, CLib::Vector<MeshIndex>& indices, const char* path);
 
 		static AssetEncoder::AssetBinaryDatabaseReader s_meshDatabaseLoader;
 

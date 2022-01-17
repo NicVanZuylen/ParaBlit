@@ -84,6 +84,8 @@ namespace AssetPipeline
 
 	inline void SpirvShaderEncoder::BuildShader(const AssetStatus& asset)
 	{
+		static constexpr bool GetAssembly = false;
+
 		std::ifstream glslFile(asset.m_fullPath.c_str(), std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::_Noreplace);
 		auto fileExceptions = glslFile.exceptions();
 		assert(glslFile.good() && !fileExceptions);
@@ -130,6 +132,15 @@ namespace AssetPipeline
 		size_t binarySize = shaderc_result_get_length(result);
 		void* dstStorage = m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), binarySize, asset.m_info.m_dateModified);
 		memcpy(dstStorage, shaderc_result_get_bytes(result), binarySize);
+
+		if constexpr(GetAssembly)
+		{
+			shaderc_compilation_result_t disassemblyResult = shaderc_compile_into_spv_assembly(compiler, buf.Data(), fileSize, stage, asset.m_fullPath.c_str(), "main", options);
+			const char* assembly = shaderc_result_get_bytes(disassemblyResult);
+			(void)assembly;
+
+			shaderc_result_release(disassemblyResult);
+		}
 
 		printf("%s: Stored compiled shader %s in database: %s at location: %s\n", m_name.c_str(), asset.m_fullPath.c_str(), m_dbName.c_str(), asset.m_dbPath.c_str());
 

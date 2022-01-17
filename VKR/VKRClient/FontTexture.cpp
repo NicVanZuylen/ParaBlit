@@ -58,10 +58,13 @@ namespace PBClient
 			stbtt_BakeFontBitmap(reinterpret_cast<unsigned char*>(data), 0, static_cast<float>(fontHeight), fontTextureData, textureWidth, textureHeight, 0, 256, bakedChars);
 			delete[] data;
 
+			PB::TextureDataDesc dataDesc{};
+			dataDesc.m_data = fontTextureData;
+			dataDesc.m_size = textureDataSize;
+
 			PB::TextureDesc texDesc{};
-			texDesc.m_data.m_format = PB::ETextureFormat::R8_UNORM;
-			texDesc.m_data.m_data = fontTextureData;
-			texDesc.m_data.m_size = textureDataSize;
+			texDesc.m_format = PB::ETextureFormat::R8_UNORM;
+			texDesc.m_data = &dataDesc;
 			texDesc.m_width = textureWidth;
 			texDesc.m_height = textureHeight;
 			texDesc.m_usageStates = PB::ETextureState::COPY_DST | PB::ETextureState::SAMPLED;

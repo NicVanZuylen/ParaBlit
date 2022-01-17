@@ -112,7 +112,9 @@ namespace PB
 		bool m_stencilTestEnable = false;
 		EFaceCullMode m_cullMode = EFaceCullMode::BACK;
 		u8 m_subpass = 0;
-		u32 m_attachmentCount = 0;
+		u8 m_attachmentCount = 0;
+		bool m_depthWriteEnable = true;
+		u8 m_pad[2]{ 0, 0 };
 
 		bool operator == (const GraphicsPipelineDesc& other) const;
 	};

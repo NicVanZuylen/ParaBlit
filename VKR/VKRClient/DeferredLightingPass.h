@@ -3,6 +3,11 @@
 #include "Shader.h"
 #include "Mesh.h"
 
+namespace PBClient
+{
+	class Texture;
+}
+
 class RenderGraphBuilder;
 
 class DeferredLightingPass : public RenderGraphBehaviour
@@ -21,13 +26,13 @@ public:
 
 	void AddToRenderGraph(RenderGraphBuilder* builder);
 
-	void SetOutputTexture(PB::ITexture* tex);
-
 	void SetMVPBuffer(PB::IBufferObject* buf);
 
 	void SetDirectionalLight(uint32_t index, PB::Float4 direction, PB::Float4 color);
 
 	void SetPointLight(uint32_t index, PB::Float4 position, PB::Float3 color, float radius);
+
+	void SetSkyboxTexture(PBClient::Texture* skyboxTexture, uint32_t mipCount = 1);
 
 private:
 
@@ -60,6 +65,8 @@ private:
 	PB::u32 m_directionalLightCount = 0;
 	PB::IBufferObject* m_mvpBuffer = nullptr;
 	PB::IBufferObject* m_lightingBuffer = nullptr;
+	PBClient::Texture* m_skyboxTexture = nullptr;
+	uint32_t m_skyboxMipCount = 1;
 
 	PB::UniformBufferView m_pointLightingView = nullptr;
 	PB::UniformBufferView m_dirLightingView = nullptr;

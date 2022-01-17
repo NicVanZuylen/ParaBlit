@@ -24,6 +24,8 @@ inline PB::TextureStateFlags TextureStateFromAttachmentUsage(PB::AttachmentUsage
 		stateFlags |= PB::ETextureState::COLORTARGET;
 	if (usage & PB::EAttachmentUsage::DEPTHSTENCIL)
 		stateFlags |= PB::ETextureState::DEPTHTARGET;
+	if (usage & PB::EAttachmentUsage::READ_ONLY_DEPTHSTENCIL)
+		stateFlags |= PB::ETextureState::READ_ONLY_DEPTH_STENCIL;
 	if (usage & PB::EAttachmentUsage::READ)
 		stateFlags |= PB::ETextureState::SAMPLED;
 	if (usage & PB::EAttachmentUsage::STORAGE)
@@ -169,6 +171,9 @@ RenderGraph* RenderGraphBuilder::Build()
 				case PB::EAttachmentUsage::DEPTHSTENCIL:
 					rtTransition.m_newState = PB::ETextureState::DEPTHTARGET;
 					break;
+				case PB::EAttachmentUsage::READ_ONLY_DEPTHSTENCIL:
+					rtTransition.m_newState = PB::ETextureState::READ_ONLY_DEPTH_STENCIL;
+					break;
 				case PB::EAttachmentUsage::STORAGE:
 					rtTransition.m_newState = PB::ETextureState::STORAGE;
 					break;
@@ -281,7 +286,7 @@ RenderGraph* RenderGraphBuilder::Build()
 
 void RenderGraphBuilder::TextureDescFromTransientMeta(const TransientTextureMeta& meta, PB::TextureDesc& outDesc)
 {
-	outDesc.m_data.m_format = meta.m_format;
+	outDesc.m_format = meta.m_format;
 	outDesc.m_width = meta.m_width;
 	outDesc.m_height = meta.m_height;
 	outDesc.m_mipCount = meta.m_mipCount;
@@ -375,6 +380,16 @@ inline uint32_t GetFormatBytesPerPixel(PB::ETextureFormat format)
 		return 4;
 	case PB::ETextureFormat::B8G8R8A8_UNORM:
 		return 4;
+	case PB::ETextureFormat::R8_SRGB:
+		return 1;
+	case PB::ETextureFormat::R8G8_SRGB:
+		return 2;
+	case PB::ETextureFormat::R8G8B8_SRGB:
+		return 4;
+	case PB::ETextureFormat::R8G8B8A8_SRGB:
+		return 4;
+	case PB::ETextureFormat::B8G8R8A8_SRGB:
+		return 4;
 	case PB::ETextureFormat::R16_FLOAT:
 		return 2;
 	case PB::ETextureFormat::R16G16_FLOAT:
@@ -423,7 +438,7 @@ PB::ITexture* RenderGraphBuilder::FindTexture(const TransientTextureMeta& meta, 
 	{
 		PB::TextureDesc aliasDesc{};
 		TextureDescFromTransientMeta(meta, aliasDesc);
-		aliasDesc.m_data.m_aliasOther = true;
+		aliasDesc.m_aliasOther = true;
 		PB::ITexture* newAlias = m_renderer->AllocateTexture(aliasDesc);
 
 		// Find the smallest free texture large enough for the desired size.

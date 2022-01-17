@@ -389,6 +389,10 @@ healthchecksdb
 # Vulkan SDK
 [Vv]ulkanSDK/
 
+# Assets Directory (Except shaders)
+**/[Aa]ssets/*
+!**/[Aa]ssets/Shaders/
+
 # Mesh cache files
 *.mcache
 
