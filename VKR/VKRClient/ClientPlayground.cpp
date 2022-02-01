@@ -15,6 +15,7 @@
 #include "AOBlurPass.h"
 #include "BloomExtractionPass.h"
 #include "BloomBlurPass.h"
+#include "TextRenderPass.h"
 
 #include "Input.h"
 
@@ -58,8 +59,6 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 
 	initCmdContext->End();
 	initCmdContext->Return();
-
-	m_fontTexture = m_allocator->Alloc<PBClient::FontTexture>(m_renderer, "../Assets/Fonts/arial.ttf");
 }
 
 ClientPlayground::~ClientPlayground()
@@ -74,6 +73,7 @@ ClientPlayground::~ClientPlayground()
 	m_allocator->Free(m_renderGraph);
 
 	// Free rendergraph nodes.
+	m_allocator->Free(m_textPass);
 	m_allocator->Free(m_bloomBlurPass);
 	m_allocator->Free(m_bloomExtractionPass);
 	m_allocator->Free(m_aoBlurPass);
@@ -141,8 +141,9 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 		auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
 		//m_gBufferPass->SetOutputTexture(swapChainTex);
-		m_bloomBlurPass->SetOutputTexture(swapChainTex);
+		//m_bloomBlurPass->SetOutputTexture(swapChainTex);
 		//m_ambientOcclusionPass->SetOutputTexture(swapChainTex);
+		m_textPass->SetOutputTexture(swapChainTex);
 	}
 	// ---------------------------------------------------------------------------------------------------------------
 
@@ -270,6 +271,8 @@ void ClientPlayground::InitResources()
 		true,
 		10
 	);
+
+	m_fontTexture = m_allocator->Alloc<PBClient::FontTexture>(m_renderer, "../Assets/Fonts/arial.ttf");
 
 	PB::SamplerDesc colorSamplerDesc;
 	colorSamplerDesc.m_anisotropyLevels = 1.0f;
@@ -407,8 +410,17 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 			m_bloomBlurPass->AddToRenderGraph(&rgBuilder);
 		}
 
+		// Text Pass
+		{
+			if (!m_textPass)
+				m_textPass = m_allocator->Alloc<TextRenderPass>(m_renderer, m_allocator);
+			m_textPass->AddToRenderGraph(&rgBuilder);
+		}
+
 		output = rgBuilder.Build();
 	}
+
+	m_textPass->AddText("Noice", m_fontTexture, PB::Float2(0.0f, 0.0f));
 
 	m_shadowmapPass->SetDispatchList(m_geoShadowDispatchList, true);
 	m_gBufferPass->SetDispatchList(m_geoDispatchList, true);

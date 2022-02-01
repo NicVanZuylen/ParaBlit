@@ -22,7 +22,7 @@ BloomExtractionPass::BloomExtractionPass(PB::IRenderer* renderer, CLib::Allocato
 
 	BloomConstants* bloomConstantsData = reinterpret_cast<BloomConstants*>(m_bloomConstantsBuffer->BeginPopulate());
 	bloomConstantsData->m_rgbChannelWeights = { 0.2126f, 0.7152f, 0.0722f };
-	bloomConstantsData->m_minBrightnessThreshold = 1.35f;
+	bloomConstantsData->m_minBrightnessThreshold = 1.5f;
 	m_bloomConstantsBuffer->EndPopulate();
 
 	PB::SamplerDesc colorSamplerDesc{};

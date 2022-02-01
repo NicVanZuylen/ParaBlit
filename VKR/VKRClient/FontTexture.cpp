@@ -23,7 +23,7 @@ namespace PBClient
 		if (m_fontTexture)
 			m_renderer->FreeTexture(m_fontTexture);
 
-		delete[] m_glyphRectData;
+		delete[] m_glyphData;
 	}
 
 	void FontTexture::GenerateFontData(const char* ttfPath)
@@ -77,7 +77,7 @@ namespace PBClient
 			// ---------------------------------------------------------------------
 			// Generate character data.
 
-			m_glyphRectData = new PB::Float4[256];
+			m_glyphData = new GlyphData[256];
 
 			PB::BufferObjectDesc bufferDesc{};
 			bufferDesc.m_bufferSize = sizeof(PB::Float4) * 256;
@@ -86,6 +86,9 @@ namespace PBClient
 
 			PB::Float4* charBufferData = reinterpret_cast<PB::Float4*>(m_charDataBuffer->BeginPopulate());
 
+			float texWidthF = static_cast<float>(textureWidth);
+			float texHeightF = static_cast<float>(textureHeight);
+
 			for (uint32_t i = 0; i < 256;)
 			{
 				const stbtt_bakedchar& bakedChar = bakedChars[i];
@@ -93,12 +96,17 @@ namespace PBClient
 
 				charRect =
 				{
-					(float)bakedChar.x0 / (float)textureWidth,
-					(float)bakedChar.y0 / (float)textureHeight,
-					(float)bakedChar.x1 / (float)textureWidth,
-					(float)bakedChar.y1 / (float)textureHeight
+					float(bakedChar.x0) / texWidthF,
+					float(bakedChar.y0) / texHeightF,
+					float(bakedChar.x1 - bakedChar.x0) / texWidthF,
+					float(bakedChar.y1 - bakedChar.y0) / texHeightF
 				};
-				m_glyphRectData[i] = charRect;
+				m_glyphData[i].m_rect = charRect;
+				m_glyphData[i].m_advancePix = bakedChar.xadvance;
+				m_glyphData[i].m_offsetXPix = float(bakedChar.xoff);
+				m_glyphData[i].m_offsetYPix = float(bakedChar.yoff);
+				m_glyphData[i].m_widthPix = float(bakedChar.x1 - bakedChar.x0);
+				m_glyphData[i].m_heightPix = float(bakedChar.y1 - bakedChar.y0);
 				++i;
 			}
 

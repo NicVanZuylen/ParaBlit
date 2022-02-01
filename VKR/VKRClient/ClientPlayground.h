@@ -91,6 +91,7 @@ private:
 	class AOBlurPass* m_aoBlurPass = nullptr;
 	class BloomExtractionPass* m_bloomExtractionPass = nullptr;
 	class BloomBlurPass* m_bloomBlurPass = nullptr;
+	class TextRenderPass* m_textPass = nullptr;
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------

@@ -17,16 +17,37 @@ TextRenderPass::TextRenderPass(PB::IRenderer* renderer, CLib::Allocator* allocat
 	charInstanceBufferDesc.m_usage = PB::EBufferUsage::COPY_SRC;
 	charInstanceBufferDesc.m_options = PB::EBufferOptions::CPU_ACCESSIBLE;
 	m_localCharInstanceBuffer = m_renderer->AllocateBuffer(charInstanceBufferDesc);
-	m_localCharInstanceData = reinterpret_cast<CharInstance*>(m_localCharInstanceBuffer->BeginPopulate());
+	m_localCharInstanceData = reinterpret_cast<CharInstance*>(m_localCharInstanceBuffer->Map(0, charInstanceBufferDesc.m_bufferSize));
 
 	PB::BufferObjectDesc fontDataBufferDesc{};
 	fontDataBufferDesc.m_bufferSize = sizeof(FontData) * 256;
 	fontDataBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
 	m_fontDataBuffer = m_renderer->AllocateBuffer(fontDataBufferDesc);
+
+	fontDataBufferDesc.m_usage = PB::EBufferUsage::COPY_SRC;
+	fontDataBufferDesc.m_options = PB::EBufferOptions::CPU_ACCESSIBLE;
+	m_localFontDataBuffer = m_renderer->AllocateBuffer(fontDataBufferDesc);
+	m_localFontData = reinterpret_cast<FontData*>(m_localFontDataBuffer->Map(0, fontDataBufferDesc.m_bufferSize));
+
+	PB::BufferObjectDesc constantsDesc{};
+	constantsDesc.m_bufferSize = sizeof(TextRenderConstants);
+	constantsDesc.m_usage = PB::EBufferUsage::UNIFORM | PB::EBufferUsage::COPY_DST;
+	constantsDesc.m_options = 0;
+	m_textRenderConstants = m_renderer->AllocateBuffer(constantsDesc);
+
+	PB::SamplerDesc fontSamplerDesc{};
+	fontSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
+	fontSamplerDesc.m_mipFilter = PB::ESamplerFilter::BILINEAR;
+	fontSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
+	m_fontSampler = m_renderer->GetSampler(fontSamplerDesc);
 }
 
 TextRenderPass::~TextRenderPass()
 {
+	for (auto& text : m_textAllocations)
+		m_allocator->Free(text);
+	m_textAllocations.Clear();
+
 	if (m_charInstanceBuffer)
 	{
 		m_renderer->FreeBuffer(m_charInstanceBuffer);
@@ -35,6 +56,7 @@ TextRenderPass::~TextRenderPass()
 
 	if (m_localCharInstanceBuffer)
 	{
+		m_localCharInstanceBuffer->Unmap();
 		m_renderer->FreeBuffer(m_localCharInstanceBuffer);
 		m_localCharInstanceBuffer = nullptr;
 	}
@@ -44,11 +66,32 @@ TextRenderPass::~TextRenderPass()
 		m_renderer->FreeBuffer(m_fontDataBuffer);
 		m_fontDataBuffer = nullptr;
 	}
+
+	if (m_localFontDataBuffer)
+	{
+		m_localFontDataBuffer->Unmap();
+		m_renderer->FreeBuffer(m_localFontDataBuffer);
+		m_localFontDataBuffer = nullptr;
+	}
+
+	if (m_textRenderConstants)
+	{
+		m_renderer->FreeBuffer(m_textRenderConstants);
+		m_textRenderConstants = nullptr;
+	}
 }
 
 void TextRenderPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
+	if (m_pendingInstanceCopies.Count() > 0)
+	{
+		info.m_commandContext->CmdCopyBufferToBuffer(m_localCharInstanceBuffer, m_charInstanceBuffer, m_pendingInstanceCopies.Data(), m_pendingInstanceCopies.Count());
+	}
 
+	if (m_pendingFontDataCopies.Count() > 0)
+	{
+		info.m_commandContext->CmdCopyBufferToBuffer(m_localFontDataBuffer, m_fontDataBuffer, m_pendingFontDataCopies.Data(), m_pendingFontDataCopies.Count());
+	}
 }
 
 void TextRenderPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -57,14 +100,20 @@ void TextRenderPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetVi
 	auto renderHeight = m_renderer->GetSwapchain()->GetHeight();
 
 	PB::GraphicsPipelineDesc textPipelineDesc{};
+	textPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = PBClient::Shader(m_renderer, "Shaders/GLSL/vs_char", m_allocator, true).GetModule();
+	textPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = PBClient::Shader(m_renderer, "Shaders/GLSL/fs_char", m_allocator, true).GetModule();
 	textPipelineDesc.m_attachmentCount = 1;
-	textPipelineDesc.m_colorBlendStates[0].m_enableBlending = false;
-	textPipelineDesc.m_cullMode = PB::EFaceCullMode::NONE;
+	textPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 	textPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS;
 	textPipelineDesc.m_depthWriteEnable = false;
 	textPipelineDesc.m_stencilTestEnable = false;
 	textPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 	textPipelineDesc.m_renderPass = info.m_renderPass;
+
+	auto& blendState = textPipelineDesc.m_colorBlendStates[0];
+	blendState = PB::GraphicsPipelineDesc::DefaultBlendState();
+	blendState.m_srcColor = PB::EBlendFactor::SRC_ALPHA;
+	blendState.m_dstColor = PB::EBlendFactor::ONE_MINUS_SRC_ALPHA;
 
 	PB::Pipeline textPipeline = m_renderer->GetPipelineCache()->GetPipeline(textPipelineDesc);
 
@@ -73,29 +122,44 @@ void TextRenderPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetVi
 	PB::ResourceView textResources[]
 	{
 		m_charInstanceBuffer->GetViewAsStorageBuffer(),
-		m_fontDataBuffer->GetViewAsStorageBuffer()
+		m_fontDataBuffer->GetViewAsStorageBuffer(),
+		m_fontSampler
 	};
 
+	PB::UniformBufferView constantsView = m_textRenderConstants->GetViewAsUniformBuffer();
+
 	PB::BindingLayout bindings{};
-	bindings.m_uniformBufferCount = 0;
-	bindings.m_uniformBuffers = nullptr;
+	bindings.m_uniformBufferCount = 1;
+	bindings.m_uniformBuffers = &constantsView;
 	bindings.m_resourceCount = _countof(textResources);
 	bindings.m_resourceViews = textResources;
 
 	info.m_commandContext->CmdBindResources(bindings);
 	info.m_commandContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
 	info.m_commandContext->SetScissor({ 0, 0, renderWidth, renderHeight });
-	info.m_commandContext->CmdDraw(6, 1);
+	info.m_commandContext->CmdDraw(6, m_charBufEnd);
 }
 
 void TextRenderPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
+	if (!m_outputTexture)
+		return;
 
+	// Transition color and output to correct layouts...
+	info.m_commandContext->CmdTransitionTexture(transientTextures[0], PB::ETextureState::COLORTARGET, PB::ETextureState::COPY_SRC);
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::PRESENT, PB::ETextureState::COPY_DST);
+
+	// Copy color to output.
+	info.m_commandContext->CmdCopyTextureToTexture(transientTextures[0], m_outputTexture);
+
+	// Transition output texture to present.
+	info.m_commandContext->CmdTransitionTexture(m_outputTexture, PB::ETextureState::COPY_DST, PB::ETextureState::PRESENT);
 }
 
 void TextRenderPass::AddToRenderGraph(RenderGraphBuilder* builder)
 {
 	NodeDesc nodeDesc{};
+	nodeDesc.m_behaviour = this;
 	nodeDesc.m_useReusableCommandLists = false;
 	nodeDesc.m_computeOnlyPass = false;
 	nodeDesc.m_renderWidth = m_renderer->GetSwapchain()->GetWidth();
@@ -107,16 +171,54 @@ void TextRenderPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	targetDesc.m_height = nodeDesc.m_renderHeight;
 	targetDesc.m_name = "MergedOutput";
 	targetDesc.m_usage = PB::EAttachmentUsage::COLOR;
+	targetDesc.m_flags = EAttachmentFlags::COPY_SRC;
+
+	// Declaring this should allow the texture to be used as a copy source after rendering.
+	TransientTextureDesc& targetReadDesc = nodeDesc.m_transientTextures.PushBackInit();
+	targetReadDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+	targetReadDesc.m_width = nodeDesc.m_renderWidth;
+	targetReadDesc.m_height = nodeDesc.m_renderHeight;
+	targetReadDesc.m_name = "MergedOutput";
+	targetReadDesc.m_mipCount = 1;
+	targetReadDesc.m_initialUsage = PB::ETextureState::COLORTARGET;
+	targetReadDesc.m_finalUsage = PB::ETextureState::COPY_SRC;
+	targetReadDesc.m_usageFlags = PB::ETextureState::COLORTARGET | PB::ETextureState::COPY_SRC;
 
 	builder->AddNode(nodeDesc);
+
+	TextRenderConstants* constantsData = reinterpret_cast<TextRenderConstants*>(m_textRenderConstants->BeginPopulate());
+	constantsData->m_renderDimensions = PB::Float2(float(nodeDesc.m_renderWidth), float(nodeDesc.m_renderHeight));
+	m_textRenderConstants->EndPopulate();
 }
 
 TextRenderPass::TextHandle TextRenderPass::AddText(const char* string, PBClient::FontTexture* font, PB::Float2 linePosition)
 {
 	uint32_t charCount = uint32_t(strlen(string));
 
+	// Set up font data...
+	uint32_t fontIdx;
+	auto fontIt = m_fonts.find(font);
+	if (fontIt == m_fonts.end())
+	{
+		fontIdx = m_fontBufEnd++;
+
+		FontData& fontData = m_localFontData[fontIdx];
+		fontData.m_fontColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+		fontData.m_fontTextureView = font->GetFontTexture()->GetDefaultSRV();
+		fontData.m_glyphBufferView = font->GetGlyphBuffer()->GetViewAsStorageBuffer();
+
+		PB::CopyRegion& copyRegion = m_pendingFontDataCopies.PushBack();
+		copyRegion.m_srcOffset = fontIdx * sizeof(FontData);
+		copyRegion.m_dstOffset = copyRegion.m_srcOffset;
+		copyRegion.m_size = sizeof(FontData);
+	}
+	else
+	{
+		fontIdx = fontIt->second;
+	}
+
 	// Make local & device allocations for text...
-	Text* newText = m_allocator->Alloc<Text>();
+	Text* newText = m_textAllocations.PushBack() = m_allocator->Alloc<Text>();
 	uint64_t offset = m_charBufEnd;
 	m_charBufEnd += charCount;
 
@@ -124,21 +226,28 @@ TextRenderPass::TextHandle TextRenderPass::AddText(const char* string, PBClient:
 	newRegion.m_start = offset;
 	newRegion.m_end = newRegion.m_start + charCount;
 
+
 	// Generate char data locally and schedule a copy to the device.
-	float curXPos = linePosition.x;
+	glm::vec2 curCharPos(0.0f);
 	for (uint32_t i = 0; i < charCount; ++i)
 	{
-		PB::Float4 charRect = font->GetCharRect(string[i]);
+		PBClient::FontTexture::GlyphData charGlyphData = font->GetGlyphData(string[i]);
+
+		glm::vec2 halfDim(charGlyphData.m_widthPix * 0.5f, charGlyphData.m_heightPix * 0.5f);
+		//glm::vec2 localCharPos(charGlyphData.m_widthPix + charGlyphData.m_offsetXPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
+		glm::vec2 localCharPos(charGlyphData.m_offsetXPix * 0.5f, charGlyphData.m_offsetYPix + charGlyphData.m_heightPix);
+		localCharPos += halfDim;
+		localCharPos *= glm::vec2(1.0f, -1.0f);
 
 		CharInstance& instance = m_localCharInstanceData[newRegion.m_start + i];
 		instance.m_char = string[i];
-		instance.m_font = 0;
-		instance.m_packedPosition = glm::packHalf2x16(glm::vec2(curXPos, linePosition.y + charRect.y));
+		instance.m_font = fontIdx;
+		instance.m_packedPosition = glm::packHalf2x16(curCharPos + localCharPos);
 
-		curXPos += charRect.x;
+		curCharPos.x += charGlyphData.m_advancePix;
 	}
 
-	PB::CopyRegion& copyRegion = m_pendingCopies.PushBack();
+	PB::CopyRegion& copyRegion = m_pendingInstanceCopies.PushBack();
 	copyRegion.m_srcOffset = offset * sizeof(CharInstance);
 	copyRegion.m_dstOffset = copyRegion.m_srcOffset;
 	copyRegion.m_size = sizeof(CharInstance) * charCount;

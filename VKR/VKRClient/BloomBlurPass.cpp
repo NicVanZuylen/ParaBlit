@@ -189,8 +189,8 @@ void BloomBlurPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	mergedOutputDesc.m_height = swapchain->GetHeight();
 	mergedOutputDesc.m_name = "MergedOutput";
 	mergedOutputDesc.m_initialUsage = PB::ETextureState::STORAGE;
-	mergedOutputDesc.m_finalUsage = PB::ETextureState::COPY_SRC;
-	mergedOutputDesc.m_usageFlags = PB::ETextureState::COPY_SRC | PB::ETextureState::STORAGE;
+	mergedOutputDesc.m_finalUsage = PB::ETextureState::STORAGE;
+	mergedOutputDesc.m_usageFlags = PB::ETextureState::STORAGE;
 
 	nodeDesc.m_renderWidth = outColorDesc.m_width;
 	nodeDesc.m_renderHeight = outColorDesc.m_height;

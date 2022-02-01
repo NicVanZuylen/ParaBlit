@@ -7,6 +7,16 @@ namespace PBClient
 	{
 	public:
 
+		struct GlyphData
+		{
+			PB::Float4 m_rect; // Position and size of tex coordinate region of character.
+			float m_advancePix; // Advance of X position in pixels before the next character in a line.
+			float m_offsetXPix;
+			float m_offsetYPix;
+			float m_widthPix;
+			float m_heightPix;
+		};
+
 		FontTexture(PB::IRenderer* renderer, const char* ttfPath);
 
 		~FontTexture();
@@ -21,9 +31,9 @@ namespace PBClient
 			return m_charDataBuffer;
 		}
 
-		PB::Float4 GetCharRect(char c)
+		GlyphData GetGlyphData(char c)
 		{
-			return m_glyphRectData[c];
+			return m_glyphData[c];
 		}
 
 	private:
@@ -32,7 +42,7 @@ namespace PBClient
 
 		PB::IRenderer* m_renderer;
 		PB::ITexture* m_fontTexture = nullptr;
-		PB::Float4* m_glyphRectData = nullptr;
+		GlyphData* m_glyphData = nullptr;
 		PB::IBufferObject* m_charDataBuffer = nullptr;
 	};
 }

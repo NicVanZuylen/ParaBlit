@@ -197,7 +197,7 @@ RenderGraph* RenderGraphBuilder::Build()
 				attachmentDesc.m_expectedState = TextureStateFromAttachmentUsage(attachment.m_usage);
 				attachmentDesc.m_finalState = attachmentDesc.m_expectedState;
 				attachmentDesc.m_format = usageMeta.m_meta.m_format;
-				attachmentDesc.m_keepContents = passIdx != usageMeta.m_mostRecentPassIndex;
+				attachmentDesc.m_keepContents = true;
 				
 				if (attachment.m_clear == true)
 				{
