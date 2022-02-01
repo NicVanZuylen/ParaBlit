@@ -24,6 +24,13 @@ namespace PB
 		CommandContextFlags m_flags = ECommandContextFlags::NONE;
 	};
 
+	struct CopyRegion
+	{
+		u64 m_srcOffset;
+		u64 m_dstOffset;
+		u64 m_size;
+	};
+
 	enum class EIndexType
 	{
 		PB_INDEX_TYPE_UINT16,
@@ -113,6 +120,8 @@ namespace PB
 		PARABLIT_INTERFACE void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) = 0;
 
 		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) = 0;
+
+		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) = 0;
 
 		PARABLIT_INTERFACE void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) = 0;
 

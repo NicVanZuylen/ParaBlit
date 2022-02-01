@@ -72,6 +72,7 @@ namespace PB
 		void CmdDrawIndexedIndirect(IBufferObject* paramsBuffer, u32 offset) override;
 		void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) override;
 		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) override;
+		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) override;
 		void CmdBindResources(const BindingLayout& layout) override;
 		void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) override;
 		void CmdExecuteList(const ICommandList* list) override;

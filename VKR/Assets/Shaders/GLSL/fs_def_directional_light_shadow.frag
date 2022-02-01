@@ -169,7 +169,7 @@ void main()
         fsInput.texCoord
     );
     vec3 specular = specAndRough.rgb;
-    float roughness = specAndRough.a;
+    float roughness = pow(specAndRough.a, gamma.r);
 
     float depth = texture
     (
@@ -214,7 +214,7 @@ void main()
         roughness * mipCount
     ).rgb;
     indirectSpecular = pow(indirectSpecular, gamma);
-    vec3 ambientSpecular = indirectSpecular * specular * ambientSpecPortion;
+    vec3 ambientSpecular = indirectSpecular * ambientSpecPortion;
 
     vec4 lightingColor = vec4((ambientDiffuse + ambientSpecular) * ao, 1.0);
     

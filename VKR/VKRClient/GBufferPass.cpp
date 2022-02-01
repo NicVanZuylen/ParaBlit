@@ -83,24 +83,6 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	depthDesc.m_flags = EAttachmentFlags::CLEAR;
 
-	/*TransientTextureDesc& specAndRoughReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-	specAndRoughReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
-	specAndRoughReadDesc.m_width = swapchain->GetWidth();
-	specAndRoughReadDesc.m_height = swapchain->GetHeight();
-	specAndRoughReadDesc.m_name = "G_Color";
-	specAndRoughReadDesc.m_initialUsage = PB::ETextureState::COLORTARGET;
-	specAndRoughReadDesc.m_finalUsage = PB::ETextureState::COPY_SRC;
-	specAndRoughReadDesc.m_usageFlags = PB::ETextureState::COLORTARGET | PB::ETextureState::COPY_SRC;*/
-
-	//TransientTextureDesc& specAndRoughReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-	//specAndRoughReadDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
-	//specAndRoughReadDesc.m_width = swapchain->GetWidth();
-	//specAndRoughReadDesc.m_height = swapchain->GetHeight();
-	//specAndRoughReadDesc.m_name = "G_Normal";
-	//specAndRoughReadDesc.m_initialUsage = PB::ETextureState::COLORTARGET;
-	//specAndRoughReadDesc.m_finalUsage = PB::ETextureState::COPY_SRC;
-	//specAndRoughReadDesc.m_usageFlags = PB::ETextureState::COLORTARGET | PB::ETextureState::COPY_SRC;
-
 	nodeDesc.m_renderWidth = colorDesc.m_width;
 	nodeDesc.m_renderHeight = colorDesc.m_height;
 

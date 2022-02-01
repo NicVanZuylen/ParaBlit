@@ -11,3 +11,5 @@ if %%~nxf==pb_genbuild.bat (
 )
 
 cd %HOME_PATH%
+
+pause

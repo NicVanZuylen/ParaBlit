@@ -66,7 +66,7 @@ void main()
         fsInput.texCoord
     ).rgb;
 
-    const vec3 gamma = 1.0 / vec3(2.2);
+    const vec3 gamma = vec3(1.0 / 2.2);
 
     outColor = (emission.r + emission.g + emission.b == 0.0) ? vec4(color.rgb, 0.0) : vec4(emission.rgb, 1.0); // Alpha is used as emission mask.
     outColor.rgb = pow(outColor.rgb, gamma);

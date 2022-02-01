@@ -22,6 +22,8 @@ namespace PBClient
 
 		if (m_fontTexture)
 			m_renderer->FreeTexture(m_fontTexture);
+
+		delete[] m_glyphRectData;
 	}
 
 	void FontTexture::GenerateFontData(const char* ttfPath)
@@ -75,6 +77,8 @@ namespace PBClient
 			// ---------------------------------------------------------------------
 			// Generate character data.
 
+			m_glyphRectData = new PB::Float4[256];
+
 			PB::BufferObjectDesc bufferDesc{};
 			bufferDesc.m_bufferSize = sizeof(PB::Float4) * 256;
 			bufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::STORAGE;
@@ -94,6 +98,7 @@ namespace PBClient
 					(float)bakedChar.x1 / (float)textureWidth,
 					(float)bakedChar.y1 / (float)textureHeight
 				};
+				m_glyphRectData[i] = charRect;
 				++i;
 			}
 

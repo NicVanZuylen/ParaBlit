@@ -90,26 +90,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -163,13 +163,13 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>glfw3.lib;ParaBlit.lib;AssetEncoder.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)x64\debug;$(SolutionDir)External\glfw\glfw-build\src\$(Configuration);%(AdditionalLibraryDirectories);$(SolutionDir)AssetEncoder/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;ParaBlit.lib;AssetEncoder.lib;ContainerLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)x64\debug;$(SolutionDir)External\glfw\glfw-build\src\$(Configuration);%(AdditionalLibraryDirectories);$(SolutionDir)External/CLib/ContainerLib/lib/$(Platform)/$(Configuration);$(SolutionDir)AssetEncoder/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>
       </EntryPointSymbol>
@@ -210,15 +210,15 @@ $(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -VKR/Assets/</
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>glfw3.lib;ParaBlit.lib;AssetEncoder.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)x64\release;$(SolutionDir)External\glfw\glfw-build\src\$(Configuration);%(AdditionalLibraryDirectories);$(SolutionDir)AssetEncoder/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;ParaBlit.lib;AssetEncoder.lib;ContainerLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)External/CLib/ContainerLib/lib/$(Platform)/$(Configuration);$(SolutionDir)x64\release;$(SolutionDir)External\glfw\glfw-build\src\$(Configuration);%(AdditionalLibraryDirectories);$(SolutionDir)AssetEncoder/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>
       </EntryPointSymbol>

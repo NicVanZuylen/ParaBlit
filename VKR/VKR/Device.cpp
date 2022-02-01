@@ -319,7 +319,8 @@ namespace PB
 		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), "Could not enable descriptor indexing extension.");
 
 		// Can be used to create dynamic render passes which do not include subpasses and the caveats of tile-based rendering approaches.
-		PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME), "Could not enable dynamic rendering extension.");
+		// Currently disabled while VK_KHR_DYNAMIC_RENDERING is still in development.
+		//PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME), "Could not enable dynamic rendering extension.");
 	}
 
 	void Device::EnableLayers(ExtensionManager& extManager)

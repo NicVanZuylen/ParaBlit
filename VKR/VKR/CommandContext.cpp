@@ -544,6 +544,18 @@ namespace PB
 		vkCmdCopyBuffer(m_cmdBuffer, srcInternal->GetHandle(), dstInternal->GetHandle(), 1, &copyRegion);
 	}
 
+	void CommandContext::CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount)
+	{
+		PB_ASSERT_MSG(m_activeRenderpass == false, "Copy commands cannot be issued during a render pass.");
+		ValidateRecordingState();
+
+		BufferObject* srcInternal = reinterpret_cast<BufferObject*>(src);
+		BufferObject* dstInternal = reinterpret_cast<BufferObject*>(dst);
+
+		static_assert(sizeof(CopyRegion) == sizeof(VkBufferCopy));
+		vkCmdCopyBuffer(m_cmdBuffer, srcInternal->GetHandle(), dstInternal->GetHandle(), regionCount, reinterpret_cast<const VkBufferCopy*>(copyRegions));
+	}
+
 	void CommandContext::CmdBindResources(const BindingLayout& layout)
 	{
 		ValidateRecordingState();

@@ -93,7 +93,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 
 	// Update Camera -------------------------------------------------------------------------------------------------
 	{
-		constexpr float fov = 75.0f;
+		constexpr float fov = 45.0f;
 		constexpr float fovRadians = glm::radians(fov);
 
 		MVPBuffer* bufferMatrices = (MVPBuffer*)m_mvpBuffer->BeginPopulate();
@@ -247,6 +247,8 @@ void ClientPlayground::InitResources()
 
 	for (int i = 0; i < _countof(m_glassTextures); ++i)
 		m_glassViews[i] = m_glassTextures[i]->GetTexture()->GetDefaultSRV();
+	//m_glassViews[3] = m_solidWhiteTexture->GetDefaultSRV();
+	//m_glassViews[2] = m_solidWhiteTexture->GetDefaultSRV();
 
 	for (int i = 0; i < _countof(m_debugTextures); ++i)
 		m_debugViews[i] = m_debugTextures[i]->GetTexture()->GetDefaultSRV();
@@ -461,8 +463,8 @@ void ClientPlayground::SetupDrawBatch()
 	PB::ResourceView plainViews[]
 	{
 		m_solidWhiteTexture->GetDefaultSRV(),
-		m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
-		//m_flatNormalTexture->GetDefaultSRV(),
+		//m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
+		m_flatNormalTexture->GetDefaultSRV(),
 		m_solidBlackTexture->GetDefaultSRV(),
 		m_solidWhiteTexture->GetDefaultSRV(),
 		m_solidBlackTexture->GetDefaultSRV()
