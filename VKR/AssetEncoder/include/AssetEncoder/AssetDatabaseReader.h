@@ -21,7 +21,10 @@ namespace AssetEncoder
 		size_t m_location;
 		size_t m_assetSize;
 		size_t m_binarySize;
-		uint64_t m_dateModified;	 // Date modifed on OS. Used to check if a file has changed to skip redundant builds.
+		uint64_t m_dateModified;	 // Date modifed in OS time. Used to check if a file has changed to skip redundant builds.
+		uint64_t m_dateBuilt;		 // Date asset was built in OS time. Used to check if a file has changed to skip redundant builds.
+		size_t m_userDataSize;
+		size_t m_userDataLocation;
 	};
 
 	struct DatabaseStringHeader
@@ -46,6 +49,8 @@ namespace AssetEncoder
 		ASSET_ENCODER_API bool HasOpenFile();
 
 		ASSET_ENCODER_API AssetMeta GetAssetInfo(const char* name);
+
+		ASSET_ENCODER_API void GetAssetUserData(const AssetMeta& asset, void* outData);
 
 		ASSET_ENCODER_API void GetAssetBinary(const char* assetName, void* storage);
 

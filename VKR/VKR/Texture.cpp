@@ -329,33 +329,6 @@ namespace PB
 		}
 		else if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA)
 		{
-
-			//// TODO: Alignment needs to be the size of a texel. Right now we're assuming the worst-case scenario rather than checking the format texel size.
-			//auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(desc.m_data.m_size, m_renderer->GetCurrentSwapchainImageIndex(), PB::EMemoryType::HOST_VISIBLE, 16);
-			//memcpy(stagingBuffer.Start(), desc.m_data.m_data, desc.m_data.m_size);
-
-			//PB::CommandContext internalContext;
-			//MakeInternalContext(internalContext, m_renderer);
-			//internalContext.Begin();
-
-			//PB::SubresourceRange subresources{};
-			//internalContext.CmdTransitionTexture(this, ETextureState::NONE, ETextureState::COPY_DST, subresources);
-
-			//VkBufferImageCopy region;
-			//region.bufferOffset = stagingBuffer.m_offset;
-			//region.bufferRowLength = desc.m_width;
-			//region.bufferImageHeight = desc.m_height;
-			//region.imageExtent = { desc.m_width, desc.m_height, 1 };
-			//region.imageOffset = { 0, 0, 0 };
-			//region.imageSubresource.layerCount = 1;
-			//region.imageSubresource.baseArrayLayer = 0;
-			//region.imageSubresource.mipLevel = 0;
-			//region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			//vkCmdCopyBufferToImage(internalContext.GetCmdBuffer(), stagingBuffer.m_buffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-			//internalContext.End();
-			//internalContext.Return();
-
 			PB_ASSERT_MSG(desc.m_data != nullptr, "Texture is initialized using data, but no data is provided.");
 
 			u32 totalDataSizeBytes = 0;

@@ -98,7 +98,7 @@ void RenderGraphBuilder::AddNode(const NodeDesc& desc)
 	}
 }
 
-RenderGraph* RenderGraphBuilder::Build()
+RenderGraph* RenderGraphBuilder::Build(bool useDynamicRenderPasses)
 {
 	RenderGraph* graph = m_allocator->Alloc<RenderGraph>();
 	RenderGraphRuntimeNode** currentNode = &graph->m_start;
@@ -129,7 +129,7 @@ RenderGraph* RenderGraphBuilder::Build()
 			PB::RenderPassDesc rpDesc{};
 			rpDesc.m_attachmentCount = uint32_t(buildNode.m_attachments.size());
 			rpDesc.m_subpassCount = 1;
-			rpDesc.m_isDynamic = false; // TODO: When Vk_KHR_dynamic_rendering extension is complete, try enabling the dynamic rendering path.
+			rpDesc.m_isDynamic = useDynamicRenderPasses;
 
 			PB::SubpassDesc& subpass = rpDesc.m_subpasses[0];
 

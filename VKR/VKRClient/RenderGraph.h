@@ -102,7 +102,7 @@ public:
 
 	void AddNode(const NodeDesc& desc);
 
-	RenderGraph* Build();
+	RenderGraph* Build(bool useDynamicRenderPasses);
 
 private:
 

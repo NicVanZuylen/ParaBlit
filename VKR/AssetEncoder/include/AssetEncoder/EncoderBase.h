@@ -30,7 +30,8 @@ namespace AssetEncoder
 			std::string m_fullPath;
 			std::string m_dbPath;
 			std::string m_extension;
-			bool m_buildRequired = false;
+			size_t m_lastModifiedTime;
+			bool m_outdated = false;
 		};
 
 		ASSET_ENCODER_API static std::string ConvertPathToDBFormat(const char* databaseName, std::string path);
@@ -38,6 +39,10 @@ namespace AssetEncoder
 		ASSET_ENCODER_API static void RecursiveSearchDirectoryForExtension(const std::string& localDir, std::vector<FileInfo>& outFilenames, const std::string& desiredExtension);
 
 		ASSET_ENCODER_API void GetAssetStatus(const char* rootFolderName, const std::vector<FileInfo>& fileInfos, std::vector<AssetStatus>& outStatus);
+
+		ASSET_ENCODER_API void WriteUnmodifiedAsset(const AssetStatus& status);
+
+		ASSET_ENCODER_API void FlagAsModified();
 
 		std::string m_name;
 		std::string m_dbName;

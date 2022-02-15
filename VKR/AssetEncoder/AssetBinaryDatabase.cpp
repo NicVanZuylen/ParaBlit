@@ -12,13 +12,19 @@ namespace AssetEncoder
 		m_databasePath = databasePath;
 	}
 
-	void* AssetBinaryDatabaseWriter::AllocateAsset(const char* assetName, size_t binarySize, size_t date)
+	void* AssetBinaryDatabaseWriter::AllocateAsset(const char* assetName, size_t userDataSize, size_t binarySize, size_t date, char** outUserData, AssetMeta* outMeta)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 
+		// User data is expected to be small, and can reside in string memory.
+		size_t stringOffset = sizeof(DatabaseStringHeader) + userDataSize;
+		size_t userDataOffset = sizeof(DatabaseStringHeader);
+
 		size_t stringLength = strlen(assetName) + 1; // Include null terminator.
-		char* strMem = reinterpret_cast<char*>(m_stringAllocator.Alloc(uint32_t(stringLength) + sizeof(DatabaseStringHeader), 16));
-		memcpy(&strMem[sizeof(DatabaseStringHeader)], assetName, stringLength);
+		char* strMem = reinterpret_cast<char*>(m_stringAllocator.Alloc(uint32_t(stringLength + stringOffset), 16));
+		if(outUserData != nullptr)
+			*outUserData = &strMem[userDataOffset];
+		memcpy(&strMem[stringOffset], assetName, stringLength); // Copy string
 		++m_stringCount;
 
 		void* assetPtr = m_assetAllocator.Alloc(uint32_t(binarySize), 128);
@@ -34,6 +40,12 @@ namespace AssetEncoder
 		stringHeader->m_asset.m_location = ((m_assetPageHandles.Count() - 1) * AssetCachePageSize) + assetOffset;
 		stringHeader->m_asset.m_assetSize = binarySize;
 		stringHeader->m_asset.m_dateModified = date;
+		stringHeader->m_asset.m_dateBuilt = std::chrono::duration_cast<std::chrono::seconds>(std::filesystem::_File_time_clock::now().time_since_epoch()).count();;
+		stringHeader->m_asset.m_userDataSize = userDataSize;
+		stringHeader->m_asset.m_userDataLocation = stringHeaderLocation + userDataOffset;
+
+		if (outMeta != nullptr)
+			*outMeta = stringHeader->m_asset;
 
 		if (m_lastStringHeaderStride)
 		{

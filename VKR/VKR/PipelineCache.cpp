@@ -329,7 +329,7 @@ namespace PB
 		pipelineInfo.stageCount = shaderStages.Count();
 
 		VkPipelineRenderingCreateInfoKHR dynamicRenderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR, nullptr };
-		if (desc.m_renderPass && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
+		if (desc.m_renderPass && desc.m_attachmentCount > 0 && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
 		{
 			pipelineInfo.renderPass = nullptr;
 			pipelineInfo.pNext = &dynamicRenderingInfo;

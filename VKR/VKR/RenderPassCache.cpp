@@ -9,10 +9,15 @@ namespace PB
 {
 	bool RenderPassDesc::operator==(const RenderPassDesc& desc) const
 	{
-		return !(m_attachmentCount != desc.m_attachmentCount || m_subpassCount != desc.m_subpassCount
+		/*return !(m_attachmentCount != desc.m_attachmentCount || m_subpassCount != desc.m_subpassCount
 			|| memcmp(m_attachments, desc.m_attachments, sizeof(m_attachments)) != 0
 			|| memcmp(m_subpasses, desc.m_subpasses, sizeof(m_subpasses)) != 0)
-			|| m_isDynamic != desc.m_isDynamic;
+			|| m_isDynamic != desc.m_isDynamic;*/
+		return m_attachmentCount == desc.m_attachmentCount 
+			&& m_subpassCount == desc.m_subpassCount
+			&& m_isDynamic == desc.m_isDynamic 
+			&& memcmp(m_attachments, desc.m_attachments, m_attachmentCount * sizeof(AttachmentDesc)) == 0
+			&& memcmp(m_subpasses, desc.m_subpasses, m_subpassCount * sizeof(SubpassDesc)) == 0;
 	}
 
 	size_t RenderPassHasher::operator()(const RenderPassDesc& desc) const

@@ -118,7 +118,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>ASSET_ENCODER_EXPORT=;ASSET_ENCODER_VERSION=1;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ASSET_ENCODER_EXPORT=;ASSET_ENCODER_VERSION=2;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)External\CLib\ContainerLib\include;$(SolutionDir)External\shaderc\libshaderc\include;$(ProjectDir)include</AdditionalIncludeDirectories>

@@ -70,7 +70,7 @@ namespace AssetEncoder
 		}
 	}
 
-	void EncoderBase::GetAssetStatus(const char* rootFolderName, const std::vector<FileInfo>& fileInfos,std::vector<AssetStatus>& outStatus)
+	void EncoderBase::GetAssetStatus(const char* rootFolderName, const std::vector<FileInfo>& fileInfos, std::vector<AssetStatus>& outStatus)
 	{
 		for (auto it = fileInfos.begin(); it != fileInfos.end(); ++it)
 		{
@@ -80,19 +80,21 @@ namespace AssetEncoder
 			status.m_dbPath = ConvertPathToDBFormat(rootFolderName, it->m_fileName);
 			status.m_extension = it->m_fileName.substr(it->m_fileName.find_last_of('.'));
 			status.m_info = m_dbReader->GetAssetInfo(status.m_dbPath.c_str());
-			status.m_buildRequired = status.m_info.m_binarySize == 0 || status.m_info.m_dateModified < it->m_lastModifiedTime;
-
-			// Copy up-to-date assets to new DB.
-			if (status.m_buildRequired == false)
-			{
-				void* storage = m_dbWriter->AllocateAsset(status.m_dbPath.c_str(), status.m_info.m_binarySize, status.m_info.m_dateModified);
-				m_dbReader->GetAssetBinary(status.m_dbPath.c_str(), storage);
-			}
-			else
-			{
-				m_changesDetected = true;
-				status.m_info.m_dateModified = it->m_lastModifiedTime;
-			}
+			status.m_outdated = status.m_info.m_binarySize == 0 || status.m_info.m_dateModified < it->m_lastModifiedTime;
+			status.m_lastModifiedTime = it->m_lastModifiedTime;
 		}
+	}
+
+	void EncoderBase::WriteUnmodifiedAsset(const AssetStatus& status)
+	{
+		char* userData = nullptr;
+		void* storage = m_dbWriter->AllocateAsset(status.m_dbPath.c_str(), status.m_info.m_userDataSize, status.m_info.m_binarySize, status.m_info.m_dateModified, &userData);
+		m_dbReader->GetAssetUserData(status.m_info, userData);
+		m_dbReader->GetAssetBinary(status.m_dbPath.c_str(), storage);
+	}
+
+	void EncoderBase::FlagAsModified()
+	{
+		m_changesDetected = true;
 	}
 }

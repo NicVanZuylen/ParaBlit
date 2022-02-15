@@ -42,7 +42,9 @@ namespace AssetEncoder
 			for (size_t currentString = 0; currentString < m_index.m_stringCount; ++currentString)
 			{
 				DatabaseStringHeader* header = reinterpret_cast<DatabaseStringHeader*>(&m_stringCache[currentPos]);
-				const char* str = &m_stringCache[currentPos + sizeof(DatabaseStringHeader)];
+				size_t stringOffset = currentPos + sizeof(DatabaseStringHeader) + header->m_asset.m_userDataSize;
+
+				const char* str = &m_stringCache[stringOffset];
 				m_stringMap.insert({ str, *header });
 
 				currentPos += header->m_stride;
@@ -62,6 +64,11 @@ namespace AssetEncoder
 			return {};
 
 		return it->second.m_asset;
+	}
+
+	void AssetBinaryDatabaseReader::GetAssetUserData(const AssetMeta& asset, void* outData)
+	{
+		memcpy(outData, &m_stringCache[asset.m_userDataLocation], asset.m_userDataSize);
 	}
 
 	void AssetBinaryDatabaseReader::GetAssetBinary(const char* assetName, void* storage)

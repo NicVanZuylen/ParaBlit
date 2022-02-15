@@ -9,20 +9,22 @@ namespace AssetPipeline
 	SpirvShaderEncoder::SpirvShaderEncoder(const char* name, const char* dbName, const char* assetDirectory)
 		: EncoderBase(name, dbName, assetDirectory)
 	{
-		std::vector<AssetEncoder::FileInfo> fileInfos;
-		RecursiveSearchDirectoryForExtension(assetDirectory, fileInfos, ".vert");
-		RecursiveSearchDirectoryForExtension(assetDirectory, fileInfos, ".frag");
-		RecursiveSearchDirectoryForExtension(assetDirectory, fileInfos, ".comp");
-		
-		std::vector<AssetStatus> assetStatus;
-		GetAssetStatus("Shaders", fileInfos, assetStatus);
+		// Header files
+		std::vector<AssetEncoder::FileInfo> headerFileInfos;
+		RecursiveSearchDirectoryForExtension(assetDirectory, headerFileInfos, ".h");
 
-		for (auto& asset : assetStatus)
+		// Shader files
+		std::vector<AssetEncoder::FileInfo> shaderFileInfos;
+		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".vert");
+		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".frag");
+		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".comp");
+		
+		std::vector<AssetStatus> shaderAssetStatus;
+		GetAssetStatus("Shaders", shaderFileInfos, shaderAssetStatus);
+
+		for (auto& asset : shaderAssetStatus)
 		{
-			if (asset.m_buildRequired)
-			{
-				BuildShader(asset);
-			}
+			BuildShader(asset);
 		}
 	}
 
@@ -43,6 +45,8 @@ namespace AssetPipeline
 		includePath.remove_filename();
 		includePath += requested_source;
 		std::string pathString = includePath.string();
+		char* pathCString = reinterpret_cast<char*>(data->m_allocator->Alloc(static_cast<uint32_t>(pathString.size()) + 1));
+		memcpy(pathCString, pathString.data(), pathString.size() + 1);
 
 		CLib::Vector<char>* content = nullptr;
 		auto& headerMap = data->m_includeData->m_headerMap;
@@ -68,7 +72,7 @@ namespace AssetPipeline
 		shaderc_include_result* res = data->m_allocator->Alloc<shaderc_include_result>();
 		data->m_includeResult = res;
 
-		res->source_name = pathString.c_str();
+		res->source_name = pathCString;
 		res->source_name_length = pathString.size();
 		res->content = content->Data();
 		res->content_length = content->Count();
@@ -77,24 +81,103 @@ namespace AssetPipeline
 		return res;
 	}
 
-	void SpirvShaderEncoder::IncludeResultCallback(void* user_data, shaderc_include_result* include_result)
+	void SpirvShaderEncoder::IncludeResultReleaseCallback(void* user_data, shaderc_include_result* include_result)
 	{
-
+		auto* data = reinterpret_cast<SpirvShaderEncoder::IncludeUserData*>(user_data);
+		data->m_allocator->Free(const_cast<char*>(include_result->source_name));
+		data->m_allocator->Free(include_result);
 	}
 
-	inline void SpirvShaderEncoder::BuildShader(const AssetStatus& asset)
+	bool SpirvShaderEncoder::CheckShaderIncludes(const CLib::Vector<char>& glsl, std::filesystem::path filePath, uint64_t lastBuildTime)
+	{
+		filePath.remove_filename();
+		std::string glslStr = glsl.Data();
+
+		size_t pos = 0;
+		while (pos != std::string::npos)
+		{
+			pos = glslStr.find("#include", pos);
+			if (pos != std::string::npos)
+			{
+				size_t leftQuote = glslStr.find_first_of("\"", pos);
+				size_t rightQuote = glslStr.find_first_of("\"", leftQuote + 1);
+
+				std::filesystem::path includePath = filePath;
+				includePath.append(glslStr.substr(leftQuote + 1, rightQuote - leftQuote - 1));
+				
+				std::filesystem::directory_entry entry(includePath);
+				uint64_t lastModifiedTime = std::chrono::duration_cast<std::chrono::seconds>(entry.last_write_time().time_since_epoch()).count();
+
+				// Early exit if this file is out-dated.
+				if (lastModifiedTime > lastBuildTime)
+				{
+					return false;
+				}
+
+				// Check include files included by this header.
+				std::ifstream glslFile(includePath, std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::_Noreplace | std::ios::in);
+				auto fileExceptions = glslFile.exceptions();
+				assert(glslFile.good() && !fileExceptions);
+
+				size_t fileSize = glslFile.tellg();
+				CLib::Vector<char> buf;
+				buf.SetCount(uint32_t(fileSize));
+				buf.PushBack('\0');
+
+				glslFile.seekg(0);
+				glslFile.read(buf.Data(), fileSize);
+				glslFile.close();
+
+				if (!CheckShaderIncludes(buf, includePath, lastBuildTime))
+				{
+					return false;
+				}
+
+				pos = rightQuote;
+			}
+		}
+
+		return true;
+	}
+
+	void SpirvShaderEncoder::BuildShader(const AssetStatus& asset)
 	{
 		static constexpr bool GetAssembly = false;
 
-		std::ifstream glslFile(asset.m_fullPath.c_str(), std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::_Noreplace);
+		std::ifstream glslFile(asset.m_fullPath.c_str(), std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::_Noreplace | std::ios::in);
 		auto fileExceptions = glslFile.exceptions();
 		assert(glslFile.good() && !fileExceptions);
 
-		// Determine shader stage from file extension, much like glslangvalidator.exe does.
+		// Read GLSL...
+		size_t fileSize = glslFile.tellg();
+		CLib::Vector<char> buf;
+		buf.SetCount(uint32_t(fileSize));
+		buf.PushBack('\0');
+
+		glslFile.seekg(0);
+		glslFile.read(buf.Data(), fileSize);
+		glslFile.close();
+
+		if (!asset.m_outdated && CheckShaderIncludes(buf, asset.m_fullPath, asset.m_info.m_dateBuilt))
+		{
+			WriteUnmodifiedAsset(asset);
+			return;
+		}
+		else
+		{
+			if (!asset.m_outdated)
+			{
+				printf("%s: Included header changes detected for asset: %s Recompiling...\n", m_name.c_str(), asset.m_fullPath.c_str());
+			}
+
+			FlagAsModified();
+		}
+
+		// Determine shader stage from file extension, much like glslangvalidator does.
 		shaderc_shader_kind stage = shaderc_shader_kind::shaderc_vertex_shader;
 		if (asset.m_extension == ".frag")
 			stage = shaderc_shader_kind::shaderc_fragment_shader;
-		else if(asset.m_extension == ".comp")
+		else if (asset.m_extension == ".comp")
 			stage = shaderc_shader_kind::shaderc_compute_shader;
 
 		IncludeUserData includeUserData{};
@@ -105,16 +188,7 @@ namespace AssetPipeline
 		// Generate options and set optimization level.
 		shaderc_compile_options_t options = shaderc_compile_options_initialize();
 		shaderc_compile_options_set_optimization_level(options, shaderc_optimization_level_performance);
-		shaderc_compile_options_set_include_callbacks(options, IncludeResolveCallback, IncludeResultCallback, &includeUserData);
-
-		// Read GLSL...
-		size_t fileSize = glslFile.tellg();
-		CLib::Vector<char> buf;
-		buf.SetCount(uint32_t(fileSize));
-		buf.PushBack('\0');
-
-		glslFile.seekg(0);
-		glslFile.read(buf.Data(), fileSize);
+		shaderc_compile_options_set_include_callbacks(options, IncludeResolveCallback, IncludeResultReleaseCallback, &includeUserData);
 
 		shaderc_compiler_t compiler = shaderc_compiler_initialize();
 		shaderc_compilation_result_t result = shaderc_compile_into_spv(compiler, buf.Data(), fileSize, stage, asset.m_fullPath.c_str(), "main", options);
@@ -130,7 +204,7 @@ namespace AssetPipeline
 
 		assert(errorCount == 0);
 		size_t binarySize = shaderc_result_get_length(result);
-		void* dstStorage = m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), binarySize, asset.m_info.m_dateModified);
+		void* dstStorage = m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), 0, binarySize, asset.m_lastModifiedTime);
 		memcpy(dstStorage, shaderc_result_get_bytes(result), binarySize);
 
 		if constexpr(GetAssembly)

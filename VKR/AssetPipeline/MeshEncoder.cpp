@@ -19,9 +19,14 @@ namespace AssetPipeline
 
 		for (auto& asset : assetStatus)
 		{
-			if (asset.m_buildRequired)
+			if (asset.m_outdated)
 			{
 				BuildMesh(asset);
+				FlagAsModified();
+			}
+			else
+			{
+				WriteUnmodifiedAsset(asset);
 			}
 		}
 	}
@@ -204,7 +209,7 @@ namespace AssetPipeline
 		outCacheData.m_indexOffset = outCacheData.m_vertexDataOffset + vertexBufferSize;
 
 		size_t totalSize = sizeof(MeshCacheData) + vertexBufferSize + indexBufferSize;
-		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), totalSize, asset.m_info.m_dateModified));
+		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), 0, totalSize, asset.m_lastModifiedTime));
 
 		memcpy(data, &outCacheData, sizeof(MeshCacheData));
 		memcpy(&data[outCacheData.m_vertexDataOffset], wholeMeshVertices.Data(), vertexBufferSize);

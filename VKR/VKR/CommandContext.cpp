@@ -105,7 +105,7 @@ namespace PB
 		inheritInfo.framebuffer = reinterpret_cast<VkFramebuffer>(frameBuffer);
 		inheritInfo.occlusionQueryEnable = VK_FALSE;
 
-		if (renderPass != nullptr && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
+		if (renderPass != nullptr && frameBuffer == nullptr && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
 		{
 			RenderPassCache::DynamicRenderPass* dynamicPass = reinterpret_cast<RenderPassCache::DynamicRenderPass*>(inheritInfo.renderPass);
 			inheritInfo.renderPass = nullptr;

@@ -16,7 +16,7 @@ namespace AssetEncoder
 
 		ASSET_ENCODER_API AssetBinaryDatabaseWriter(const char* databasePath);
 
-		ASSET_ENCODER_API void* AllocateAsset(const char* assetName, size_t binarySize, size_t date);
+		ASSET_ENCODER_API void* AllocateAsset(const char* assetName, size_t userDataSize, size_t binarySize, size_t date, char** outUserData = nullptr, AssetMeta* outMeta = nullptr);
 
 		ASSET_ENCODER_API void WriteDatabase();
 

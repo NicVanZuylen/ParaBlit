@@ -33,10 +33,22 @@ namespace AssetPipeline
 			void* m_includeResult = nullptr;
 		};
 
+		struct ShaderAssetIncludeInfo
+		{
+			struct FixedData
+			{
+				size_t m_headerLastModifiedTime = 0;
+			} m_fixedData;
+			std::string m_headerName;
+		};
+
 		static inline shaderc_include_result* IncludeResolveCallback(void* user_data, const char* requested_source, int type,
 			const char* requesting_source, size_t include_depth);
 
-		static inline void IncludeResultCallback(void* user_data, shaderc_include_result* include_result);
+		static inline void IncludeResultReleaseCallback(void* user_data, shaderc_include_result* include_result);
+
+		// Recursively checks if any included shader files have been modified. Return false if a included file is out-dated.
+		inline bool CheckShaderIncludes(const CLib::Vector<char>& glsl, std::filesystem::path filePath, uint64_t lastBuildTime);
 
 		inline void BuildShader(const AssetStatus& asset);
 

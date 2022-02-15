@@ -160,7 +160,7 @@ void ClientPlayground::UpdateResolution(uint32_t width, uint32_t height)
 
 	PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 	auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
-	m_bloomBlurPass->SetOutputTexture(swapChainTex);
+	m_textPass->SetOutputTexture(swapChainTex);
 }
 
 void ClientPlayground::InitResources()
@@ -417,10 +417,10 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 			m_textPass->AddToRenderGraph(&rgBuilder);
 		}
 
-		output = rgBuilder.Build();
+		output = rgBuilder.Build(false);
 	}
 
-	m_textPass->AddText("Noice", m_fontTexture, PB::Float2(0.0f, 0.0f));
+	//m_textPass->AddText("Noice", m_fontTexture, PB::Float2(0.0f, 0.0f));
 
 	m_shadowmapPass->SetDispatchList(m_geoShadowDispatchList, true);
 	m_gBufferPass->SetDispatchList(m_geoDispatchList, true);
@@ -443,7 +443,8 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		m_shadowAccumPass->SetMVPBuffer(m_mvpBuffer);
 		m_shadowAccumPass->SetSVBBuffer(m_shadowmapPass->GetSVBView());
 
-		glm::vec3 sunColor = glm::normalize(glm::vec3(1.0));
+		//glm::vec3 sunColor = glm::normalize(glm::vec3(1.0));
+		glm::vec3 sunColor = glm::vec3(0.8f);
 
 		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { sunColor.r, sunColor.g, sunColor.b, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
