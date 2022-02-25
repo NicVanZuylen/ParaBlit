@@ -95,6 +95,7 @@ void Application::Run()
 {
 	ClientPlayground playground(m_renderer, &m_allocator);
 
+	bool updateDebugMetrics = false;
 	while (!glfwWindowShouldClose(m_window))
 	{
 		// Time
@@ -124,7 +125,8 @@ void Application::Run()
 				m_updateRendererResolution = false;
 			}
 
-			playground.Update(m_window, m_input, m_deltaTime, m_elapsedTime);
+			playground.Update(m_window, m_input, m_deltaTime, m_elapsedTime, updateDebugMetrics);
+			updateDebugMetrics = false;
 		}
 
 		// ------------------------------------------------------------------------------------
@@ -206,14 +208,18 @@ void Application::Run()
 		m_debugDisplayTime -= m_deltaTime;
 
 		// Display frametime and FPS.
-		if(m_displayPerfStats && m_debugDisplayTime <= 0.0f) 
+		if (m_debugDisplayTime <= 0.0f)
 		{
-			float frameTime = m_deltaTime * 1000.0f;
-			PB_LOG_FORMAT("Frametime %f ms", frameTime);
-			PB_LOG_FORMAT("Elapsed Time: %f", m_elapsedTime);
-			PB_LOG_FORMAT("FPS: %i", (int)ceilf((1.0f / m_deltaTime)));
+			if (m_displayPerfMetrics)
+			{
+				float frameTime = m_deltaTime * 1000.0f;
+				PB_LOG_FORMAT("Frametime %f ms", frameTime);
+				PB_LOG_FORMAT("Elapsed Time: %f", m_elapsedTime);
+				PB_LOG_FORMAT("FPS: %i", (int)ceilf((1.0f / m_deltaTime)));
+			}
 
 			m_debugDisplayTime = m_debugDisplayInterval;
+			updateDebugMetrics = true;
 		}
 	}
 

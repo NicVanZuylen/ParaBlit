@@ -31,9 +31,13 @@ public:
 
 	TextHandle AddText(const char* string, PBClient::FontTexture* font, PB::Float2 linePosition);
 
+	void TextReplace(TextHandle textHandle, const char* string, PB::Float2 linePosition);
+
 	void SetOutputTexture(PB::ITexture* tex);
 
 private:
+
+	static constexpr const uint32_t MaxCharCount = 16384;
 
 	struct CharInstance
 	{
@@ -47,7 +51,7 @@ private:
 		PB::Float4 m_fontColor{ 1.0f, 1.0f, 1.0f, 1.0f };
 		PB::ResourceView m_fontTextureView = 0;
 		PB::ResourceView m_glyphBufferView = 0;
-		PB::u32 m_pad[2];
+		PB::Float2 m_invTextureResolution{};
 	};
 
 	struct Text
@@ -59,10 +63,13 @@ private:
 		};
 
 		CLib::Vector<CharRegion> m_instanceRegions; // Regions of instance data used by this text. Text may occupy multiple regions to avoid fragmentation in instance data.
+		PBClient::FontTexture* m_fontTexture = nullptr;
+		uint32_t m_totalRegionSize = 0;
 	};
 
 	struct TextRenderConstants
 	{
+		PB::Float4 m_proj[4];
 		PB::Float2 m_renderDimensions;
 	};
 

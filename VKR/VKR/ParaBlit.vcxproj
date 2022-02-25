@@ -135,6 +135,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;D:\VulkanSDK\1.1.106.0\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3;PARABLIT_ENABLE_API_VALIDATION=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

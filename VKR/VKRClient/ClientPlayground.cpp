@@ -27,6 +27,8 @@
 
 #include "glm/gtc/type_ptr.hpp"
 
+#include <sstream>
+
 ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* allocator)
 {
 	m_renderer = renderer;
@@ -87,9 +89,33 @@ ClientPlayground::~ClientPlayground()
 	m_allocator->Free(m_fontTexture);
 }
 
-void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime)
+void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, bool updateMetrics)
 {
 	m_camera.Update(deltaTime, input, window);
+
+	// Update Text ---------------------------------------------------------------------------------------------------
+	{
+		if (m_cpuTimeText && updateMetrics)
+		{
+			PB::Float2 anchorPos(20.0f, 20.0f);
+
+			float swapchainWidthf = static_cast<float>(m_swapchain->GetWidth());
+			float swapchainHeightf = static_cast<float>(m_swapchain->GetHeight());
+			float fontHeightf = static_cast<float>(m_fontTexture->GetFontHeight());
+			float anchorHeight = swapchainHeightf - fontHeightf - anchorPos.y;
+
+			std::ostringstream str;
+			str.precision(3);
+			str << "CPU Time: " << (deltaTime * 1000.0f) << "ms";
+
+			m_textPass->TextReplace(m_cpuTimeText, str.str().c_str(), PB::Float2(anchorPos.x, anchorHeight));
+
+			str = std::ostringstream();
+			str << "FPS: " << (1.0f / deltaTime);
+
+			m_textPass->TextReplace(m_fpsText, str.str().c_str(), PB::Float2(anchorPos.x, anchorHeight - fontHeightf));
+		}
+	}
 
 	// Update Camera -------------------------------------------------------------------------------------------------
 	{
@@ -213,31 +239,31 @@ void ClientPlayground::InitResources()
 	m_glassMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_glass", m_vertexPool);
 	m_planeMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Primitives/plane", m_vertexPool);
 
-	m_paintTextures[0] = m_allocator->Alloc<PBClient::Texture> (m_renderer, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_diffuse.tga");
-	m_detailsTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/details2048/m_spinner_details_diffuse.tga");
-	m_glassTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_diffuse.tga");
+	m_paintTextures[0] = m_allocator->Alloc<PBClient::Texture> (m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_diffuse.tga");
+	m_detailsTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_diffuse.tga");
+	m_glassTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_diffuse.tga");
 
-	m_paintTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_normal.tga", false);
-	m_detailsTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/details2048/m_spinner_details_normal.tga", false);
-	m_glassTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_normal.tga", false);
+	m_paintTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_normal.tga", false);
+	m_detailsTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_normal.tga", false);
+	m_glassTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_normal.tga", false);
 
-	m_paintTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_specular_v2.tga");
-	m_detailsTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/details2048/m_spinner_details_specular.tga");
-	m_glassTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_specular.tga");
+	m_paintTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_specular_v2.tga");
+	m_detailsTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_specular.tga");
+	m_glassTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_specular.tga");
 
-	m_paintTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_roughness.tga", false);
-	m_detailsTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/details2048/m_spinner_details_roughness.tga", false);
-	m_glassTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_roughness.tga", false);
+	m_paintTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_roughness.tga", false);
+	m_detailsTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_roughness.tga", false);
+	m_glassTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_roughness.tga", false);
 
-	m_detailsTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/details2048/m_spinner_details_emissive.tga");
-	m_glassTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_emissive.tga");
+	m_detailsTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_emissive.tga");
+	m_glassTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_emissive.tga");
 
-	m_metalTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Metal/diffuse.tga");
-	m_metalTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Metal/normal.tga", false);
+	m_metalTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Metal/diffuse.tga");
+	m_metalTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Metal/normal.tga", false);
 
-	m_debugTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Debug/debug_albedo.tga");
-	m_debugTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Debug/debug_roughness.tga", false);
-	m_debugTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, "../Assets/Textures/Debug/debug_specular.tga");
+	m_debugTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Debug/debug_albedo.tga");
+	m_debugTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Debug/debug_roughness.tga", false);
+	m_debugTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Debug/debug_specular.tga");
 
 	for (int i = 0; i < _countof(m_paintTextures); ++i)
 		m_paintViews[i] = m_paintTextures[i]->GetTexture()->GetDefaultSRV();
@@ -254,6 +280,10 @@ void ClientPlayground::InitResources()
 	for (int i = 0; i < _countof(m_debugTextures); ++i)
 		m_debugViews[i] = m_debugTextures[i]->GetTexture()->GetDefaultSRV();
 
+	//m_paintViews[0] = m_solidWhiteTexture->GetDefaultSRV();
+	//m_detailsViews[0] = m_solidWhiteTexture->GetDefaultSRV();
+	//m_glassViews[0] = m_solidWhiteTexture->GetDefaultSRV();
+
 	const char* skyboxFilenames[6]
 	{
 		"../Assets/Textures/Skybox/right.jpg",
@@ -267,12 +297,15 @@ void ClientPlayground::InitResources()
 	m_skyboxTexture = m_allocator->Alloc<PBClient::Texture>
 	(
 		m_renderer,
+		m_allocator,
 		skyboxFilenames,
 		true,
 		10
 	);
 
-	m_fontTexture = m_allocator->Alloc<PBClient::FontTexture>(m_renderer, "../Assets/Fonts/arial.ttf");
+	m_hdrSkyTexture = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Sky/Arches_E_PineTree_3k.hdr", true, true);
+
+	m_fontTexture = m_allocator->Alloc<PBClient::FontTexture>(m_renderer, "../Assets/Fonts/arial.ttf", 32);
 
 	PB::SamplerDesc colorSamplerDesc;
 	colorSamplerDesc.m_anisotropyLevels = 1.0f;
@@ -314,6 +347,7 @@ void ClientPlayground::DestroyResources()
 	}
 
 	m_allocator->Free(m_skyboxTexture);
+	m_allocator->Free(m_hdrSkyTexture);
 
 	m_allocator->Free(m_paintMesh);
 	m_allocator->Free(m_detailsMesh);
@@ -420,7 +454,13 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		output = rgBuilder.Build(false);
 	}
 
-	//m_textPass->AddText("Noice", m_fontTexture, PB::Float2(0.0f, 0.0f));
+	float fontHeight = static_cast<float>(m_fontTexture->GetFontHeight());
+
+	if(!m_cpuTimeText)
+	{
+		m_cpuTimeText = m_textPass->AddText("CPU Time: 000000ms", m_fontTexture, PB::Float2(0.0f, 0.0f));
+		m_fpsText = m_textPass->AddText("FPS: 000000", m_fontTexture, PB::Float2(0.0f, float(m_fontTexture->GetFontHeight())));
+	}
 
 	m_shadowmapPass->SetDispatchList(m_geoShadowDispatchList, true);
 	m_gBufferPass->SetDispatchList(m_geoDispatchList, true);
@@ -443,18 +483,17 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		m_shadowAccumPass->SetMVPBuffer(m_mvpBuffer);
 		m_shadowAccumPass->SetSVBBuffer(m_shadowmapPass->GetSVBView());
 
-		//glm::vec3 sunColor = glm::normalize(glm::vec3(1.0));
-		glm::vec3 sunColor = glm::vec3(0.8f);
+		glm::vec3 sunColor = glm::vec3(2.4f);
 
 		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { sunColor.r, sunColor.g, sunColor.b, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 5.0f, 5.0f, 5.0f, 1.0f });
 		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
-		//m_deferredLightingPass->SetPointLight(0, { -1.0f, 1.0f, -4.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 5.0f);
-		//m_deferredLightingPass->SetPointLight(1, { 1.0f, 1.0f, -4.0f, 1.0f }, { 1.0f, 0.0f, 1.0f }, 5.0f);
+		//m_deferredLightingPass->SetPointLight(0, { -1.0f, 1.0f, -4.0f, 1.0f }, { 0.0f, 3.0f, 3.0f }, 5.0f);
+		//m_deferredLightingPass->SetPointLight(1, { 1.0f, 1.0f, -4.0f, 1.0f }, { 3.0f, 0.0f, 3.0f }, 5.0f);
 
-		m_deferredLightingPass->SetSkyboxTexture(m_skyboxTexture, 10);
+		m_deferredLightingPass->SetSkyboxTexture(m_hdrSkyTexture, true, 1);
 	}
 
 	return output;
@@ -476,7 +515,6 @@ void ClientPlayground::SetupDrawBatch()
 	PB::ResourceView plainViews[]
 	{
 		m_solidWhiteTexture->GetDefaultSRV(),
-		//m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
 		m_flatNormalTexture->GetDefaultSRV(),
 		m_solidBlackTexture->GetDefaultSRV(),
 		m_solidWhiteTexture->GetDefaultSRV(),
@@ -519,7 +557,7 @@ void ClientPlayground::SetupDrawBatch()
 
 	modelMat = glm::identity<glm::mat4>();
 	modelMat = glm::translate(modelMat, glm::vec3(-2.4f, 1.0f, -4.0f));
-	modelMat = glm::rotate(modelMat, glm::radians(-90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
 	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), plainViews, _countof(plainViews), m_colorSampler);
 }

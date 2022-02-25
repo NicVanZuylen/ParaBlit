@@ -2,7 +2,13 @@
 #include "RenderGraph.h"
 #include "FontTexture.h"
 
-#include <glm/packing.hpp>
+#pragma warning(push, 0)
+#define GLM_FORCE_CTOR_INIT // Required to ensure glm constructors actually initialize vectors/matrices etc.
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/packing.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#pragma warning(pop)
 
 TextRenderPass::TextRenderPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : RenderGraphBehaviour(renderer, allocator)
 {
@@ -10,7 +16,7 @@ TextRenderPass::TextRenderPass(PB::IRenderer* renderer, CLib::Allocator* allocat
 	m_allocator = allocator;
 
 	PB::BufferObjectDesc charInstanceBufferDesc{};
-	charInstanceBufferDesc.m_bufferSize = sizeof(CharInstance) * 16384;
+	charInstanceBufferDesc.m_bufferSize = sizeof(CharInstance) * MaxCharCount;
 	charInstanceBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
 	m_charInstanceBuffer = m_renderer->AllocateBuffer(charInstanceBufferDesc);
 
@@ -187,6 +193,13 @@ void TextRenderPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	builder->AddNode(nodeDesc);
 
 	TextRenderConstants* constantsData = reinterpret_cast<TextRenderConstants*>(m_textRenderConstants->BeginPopulate());
+
+	float w = static_cast<float>(nodeDesc.m_renderWidth);
+	float h = static_cast<float>(nodeDesc.m_renderHeight);
+
+	glm::mat4 projMat = glm::ortho(0.0f, w, 0.0f, h);
+	memcpy(constantsData->m_proj, glm::value_ptr(projMat), sizeof(PB::Float4) * 4);
+
 	constantsData->m_renderDimensions = PB::Float2(float(nodeDesc.m_renderWidth), float(nodeDesc.m_renderHeight));
 	m_textRenderConstants->EndPopulate();
 }
@@ -206,11 +219,14 @@ TextRenderPass::TextHandle TextRenderPass::AddText(const char* string, PBClient:
 		fontData.m_fontColor = { 1.0f, 0.0f, 0.0f, 1.0f };
 		fontData.m_fontTextureView = font->GetFontTexture()->GetDefaultSRV();
 		fontData.m_glyphBufferView = font->GetGlyphBuffer()->GetViewAsStorageBuffer();
+		fontData.m_invTextureResolution = PB::Float2(1.0f / float(font->GetWidth()), 1.0f / float(font->GetHeight()));
 
 		PB::CopyRegion& copyRegion = m_pendingFontDataCopies.PushBack();
 		copyRegion.m_srcOffset = fontIdx * sizeof(FontData);
 		copyRegion.m_dstOffset = copyRegion.m_srcOffset;
 		copyRegion.m_size = sizeof(FontData);
+
+		m_fonts.insert({ font, fontIdx });
 	}
 	else
 	{
@@ -219,25 +235,24 @@ TextRenderPass::TextHandle TextRenderPass::AddText(const char* string, PBClient:
 
 	// Make local & device allocations for text...
 	Text* newText = m_textAllocations.PushBack() = m_allocator->Alloc<Text>();
-	uint64_t offset = m_charBufEnd;
+	newText->m_fontTexture = font;
+	newText->m_totalRegionSize = charCount;
+	uint32_t offset = m_charBufEnd;
 	m_charBufEnd += charCount;
 
 	Text::CharRegion& newRegion = newText->m_instanceRegions.PushBack();
 	newRegion.m_start = offset;
 	newRegion.m_end = newRegion.m_start + charCount;
 
-
 	// Generate char data locally and schedule a copy to the device.
-	glm::vec2 curCharPos(0.0f);
+	glm::vec2 curCharPos(linePosition.x, -linePosition.y);
 	for (uint32_t i = 0; i < charCount; ++i)
 	{
 		PBClient::FontTexture::GlyphData charGlyphData = font->GetGlyphData(string[i]);
 
 		glm::vec2 halfDim(charGlyphData.m_widthPix * 0.5f, charGlyphData.m_heightPix * 0.5f);
-		//glm::vec2 localCharPos(charGlyphData.m_widthPix + charGlyphData.m_offsetXPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
-		glm::vec2 localCharPos(charGlyphData.m_offsetXPix * 0.5f, charGlyphData.m_offsetYPix + charGlyphData.m_heightPix);
-		localCharPos += halfDim;
-		localCharPos *= glm::vec2(1.0f, -1.0f);
+		glm::vec2 localCharPos(charGlyphData.m_offsetXPix + charGlyphData.m_widthPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
+		localCharPos -= halfDim;
 
 		CharInstance& instance = m_localCharInstanceData[newRegion.m_start + i];
 		instance.m_char = string[i];
@@ -253,6 +268,66 @@ TextRenderPass::TextHandle TextRenderPass::AddText(const char* string, PBClient:
 	copyRegion.m_size = sizeof(CharInstance) * charCount;
 
 	return newText;
+}
+
+void TextRenderPass::TextReplace(TextHandle textHandle, const char* string, PB::Float2 linePosition)
+{
+	uint32_t newCharCount = uint32_t(strlen(string));
+	Text& text = *reinterpret_cast<Text*>(textHandle);
+
+	auto it = m_fonts.find(text.m_fontTexture);
+	assert(it != m_fonts.end());
+	uint32_t fontIdx = it->second;
+
+	if (text.m_totalRegionSize < newCharCount)
+	{
+		uint32_t newRegionSize = newCharCount - text.m_totalRegionSize;
+		Text::CharRegion& newRegion = text.m_instanceRegions.PushBack();
+		newRegion.m_start = m_charBufEnd;
+		newRegion.m_end = newRegion.m_start + newRegionSize;
+
+		assert(newRegion.m_start + newCharCount < MaxCharCount);
+		m_charBufEnd += newRegionSize;
+	}
+
+	uint32_t totalCharCount = 0;
+	glm::vec2 curCharPos(linePosition.x, -linePosition.y);
+	for (auto& region : text.m_instanceRegions)
+	{
+		auto regionSize = region.m_end - region.m_start;
+
+		for (uint32_t i = 0; i < regionSize; ++i, ++totalCharCount)
+		{
+			char c;
+			if (totalCharCount >= newCharCount)
+			{
+				c = ' ';
+			}
+			else
+			{
+				c = string[totalCharCount];
+			}
+
+			PBClient::FontTexture::GlyphData charGlyphData = text.m_fontTexture->GetGlyphData(c);
+
+			glm::vec2 halfDim(charGlyphData.m_widthPix * 0.5f, charGlyphData.m_heightPix * 0.5f);
+			glm::vec2 localCharPos(charGlyphData.m_offsetXPix + charGlyphData.m_widthPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
+			localCharPos -= halfDim;
+
+			CharInstance& instance = m_localCharInstanceData[region.m_start + i];
+			instance.m_char = c;
+			instance.m_font = fontIdx;
+			instance.m_packedPosition = glm::packHalf2x16(curCharPos + localCharPos);
+
+			curCharPos.x += charGlyphData.m_advancePix;
+		}
+
+		PB::CopyRegion& copyRegion = m_pendingInstanceCopies.PushBack();
+		copyRegion.m_srcOffset = region.m_start * sizeof(CharInstance);
+		copyRegion.m_dstOffset = copyRegion.m_srcOffset;
+		copyRegion.m_size = sizeof(CharInstance) * regionSize;
+	}
+	text.m_totalRegionSize = totalCharCount;
 }
 
 void TextRenderPass::SetOutputTexture(PB::ITexture* tex)

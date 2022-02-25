@@ -9,9 +9,10 @@
 
 namespace PBClient
 {
-	FontTexture::FontTexture(PB::IRenderer* renderer, const char* ttfPath)
+	FontTexture::FontTexture(PB::IRenderer* renderer, const char* ttfPath, uint32_t fontHeight)
 	{
 		m_renderer = renderer;
+		m_fontHeight = fontHeight;
 		GenerateFontData(ttfPath);
 	}
 
@@ -45,11 +46,12 @@ namespace PBClient
 			// ---------------------------------------------------------------------
 			// Generate font texture.
 
-			uint32_t fontHeight = 256;
-			int fontScale = (int)fontHeight / 16;
+			int fontScale = static_cast<int>(m_fontHeight) / 16;
 
 			int textureWidth = glm::clamp<uint32_t>(fontScale * 256, 256, 2048);
 			int textureHeight = glm::clamp<uint32_t>(fontScale * 256, 256, 2048);
+			m_fontTexWidth = textureWidth;
+			m_fontTexHeight = textureHeight;
 
 			stbtt_bakedchar* bakedChars = new stbtt_bakedchar[256];
 
@@ -57,7 +59,7 @@ namespace PBClient
 			uint32_t textureDataSize = textureWidth * textureHeight;
 			uint8_t* fontTextureData = new uint8_t[textureDataSize];
 
-			stbtt_BakeFontBitmap(reinterpret_cast<unsigned char*>(data), 0, static_cast<float>(fontHeight), fontTextureData, textureWidth, textureHeight, 0, 256, bakedChars);
+			stbtt_BakeFontBitmap(reinterpret_cast<unsigned char*>(data), 0, static_cast<float>(m_fontHeight), fontTextureData, textureWidth, textureHeight, 0, 256, bakedChars);
 			delete[] data;
 
 			PB::TextureDataDesc dataDesc{};
@@ -98,8 +100,8 @@ namespace PBClient
 				{
 					float(bakedChar.x0) / texWidthF,
 					float(bakedChar.y0) / texHeightF,
-					float(bakedChar.x1 - bakedChar.x0) / texWidthF,
-					float(bakedChar.y1 - bakedChar.y0) / texHeightF
+					float(bakedChar.x1 - bakedChar.x0),
+					float(bakedChar.y1 - bakedChar.y0)
 				};
 				m_glyphData[i].m_rect = charRect;
 				m_glyphData[i].m_advancePix = bakedChar.xadvance;

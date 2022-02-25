@@ -33,11 +33,11 @@ int main(int argc, char** argv)
 	printf("Commence Encoding...\n\n");
 
 	{
-		AssetPipeline::SpirvShaderEncoder encoder("SPIR-V Encoder", "shaders.adb", dbDir.c_str());
+		AssetPipeline::SpirvShaderEncoder encoder("[SPIR-V Encoder]", "shaders.adb", dbDir.c_str());
 	}
 
 	{
-		AssetPipeline::MeshEncoder encoder("Mesh Encoder", "meshes.adb", dbDir.c_str());
+		AssetPipeline::MeshEncoder encoder("[Mesh Encoder]", "meshes.adb", dbDir.c_str());
 	}
 
 	printf("\nBuild Complete.\n");

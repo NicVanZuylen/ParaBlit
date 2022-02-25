@@ -22,6 +22,7 @@ layout(push_constant) uniform Bindings
 
 layout(set = 1, binding = 0) uniform TextConstants
 {
+    mat4 proj;
     vec2 renderDimensions;
 } textConstants[];
 #define CONSTANTS PB_UBO(textConstants, textConstantsIndex)
@@ -42,7 +43,7 @@ struct FontData
     vec4 fontColor;
     uint fontTextureIdx;
     uint fontGlyphBufferIdx;
-    vec2 pad;
+    vec2 invTexResolution;
 };
 
 layout(set = 0, binding = 2) buffer FontDataBuffer
@@ -68,17 +69,19 @@ void main()
     CharInstance instance = charInstanceBuffers[PB_BINDINGS_NAME.charInstanceIndex].instances[gl_InstanceIndex];
     uint charIdx = instance.packedIndices & 0xFFFF;
     uint fontDataIdx = instance.packedIndices >> 16;
-    vec2 offset = unpackHalf2x16(instance.packedPosition) / CONSTANTS.renderDimensions;
+    vec2 offset = unpackHalf2x16(instance.packedPosition) - CONSTANTS.renderDimensions * vec2(0.5, -0.5);
 
     FontData fontData = fontDataBuffers[PB_BINDINGS_NAME.fontDataIndex].data[fontDataIdx];
 
     // Behaves as a rectangle in texture coordinate space.
     vec4 glyph = glyphDataBuffers[fontData.fontGlyphBufferIdx].data[charIdx];
+    vec2 scaledPosition = mat2(CONSTANTS.proj) * ((positions[gl_VertexIndex] * glyph.zw * 0.5) + offset);
 
-    vec2 scaledPosition = positions[gl_VertexIndex] * glyph.zw;
+    vec2 texCoordScale = glyph.zw * fontData.invTexResolution;
 
-    gl_Position = vec4(scaledPosition + offset, 0.01, 1.0);
+    gl_Position = vec4(scaledPosition, 0.01, 1.0);
+    //gl_Position = vec4(positions[gl_VertexIndex] * glyph.zw, 0.01, 1.0);
     vsOutput.fontColor = fontData.fontColor;
-    vsOutput.texCoord = glyph.xy + (((positions[gl_VertexIndex] + 1.0) * 0.5) * glyph.zw);
+    vsOutput.texCoord = glyph.xy + (((positions[gl_VertexIndex] + 1.0) * 0.5) * texCoordScale);
     vsOutput.fontTexIdx = fontData.fontTextureIdx;
 }

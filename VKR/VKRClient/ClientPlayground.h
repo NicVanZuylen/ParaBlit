@@ -33,7 +33,7 @@ public:
 	ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* allocator);
 	~ClientPlayground();
 
-	void Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime);
+	void Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, bool updateMetrics);
 
 	void UpdateResolution(uint32_t width, uint32_t height);
 
@@ -110,12 +110,15 @@ private:
 	PBClient::Texture* m_debugTextures[3]{};
 
 	PBClient::Texture* m_skyboxTexture = nullptr;
+	PBClient::Texture* m_hdrSkyTexture = nullptr;
 
 	PB::ITexture* m_solidWhiteTexture = nullptr;
 	PB::ITexture* m_solidBlackTexture = nullptr;
 	PB::ITexture* m_flatNormalTexture = nullptr;
 
 	PBClient::FontTexture* m_fontTexture = nullptr;
+	void* m_cpuTimeText = nullptr;
+	void* m_fpsText = nullptr;
 
 	PB::ResourceView m_paintViews[5]{};
 	PB::ResourceView m_detailsViews[5]{};

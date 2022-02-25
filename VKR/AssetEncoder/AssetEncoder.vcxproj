@@ -157,6 +157,7 @@ copy $(SolutionDir)AssetEncoder\$(Platform)\$(Configuration)\$(ProjectName).dll 
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)External\CLib\ContainerLib\include;$(SolutionDir)External\shaderc\libshaderc\include;$(ProjectDir)include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

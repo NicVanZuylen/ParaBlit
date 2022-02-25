@@ -213,6 +213,7 @@ $(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -VKR/Assets/</
       <AdditionalIncludeDirectories>$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
