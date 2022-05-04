@@ -84,6 +84,15 @@ namespace PB
 		FRONT
 	};
 
+	enum class EPrimitiveTopologyType : u8
+	{
+		TRIANGLE_LIST,
+		TRIANGLE_STRIP,
+		LINE_LIST,
+		LINE_STRIP,
+		POINT_LIST
+	};
+
 	struct GraphicsPipelineDesc
 	{
 		static constexpr const u32 MaxVertexBuffers = 8;
@@ -114,7 +123,10 @@ namespace PB
 		u8 m_subpass = 0;
 		u8 m_attachmentCount = 0;
 		bool m_depthWriteEnable = true;
-		u8 m_pad[2]{ 0, 0 };
+		EPrimitiveTopologyType m_topology = EPrimitiveTopologyType::TRIANGLE_LIST;
+		u8 m_pad0 = 0;
+		float m_lineThickness = 1.0f;
+		u32 m_pad1[3];
 
 		bool operator == (const GraphicsPipelineDesc& other) const;
 	};

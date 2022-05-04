@@ -15,6 +15,7 @@
 #include "AOBlurPass.h"
 #include "BloomExtractionPass.h"
 #include "BloomBlurPass.h"
+#include "DebugLinePass.h"
 #include "TextRenderPass.h"
 
 #include "Input.h"
@@ -25,9 +26,13 @@
 #include "ObjectDispatcher.h"
 #include "DrawBatch.h"
 
+#include "RenderBoundingVolumeHierarchy.h"
+
 #include "glm/gtc/type_ptr.hpp"
 
 #include <sstream>
+#include <iostream>
+#include <random>
 
 ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* allocator)
 {
@@ -37,7 +42,24 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 
 	glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
 	//m_camera = Camera(glm::vec3(-2.0f, 0.5f, -6.0f), glm::vec3(glm::radians(-45.0f), glm::radians(-45.0f) , 0.0f), 0.5f, 5.0f);
-	m_camera = Camera(sunDir * 5.0f, glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)), 0.5f, 5.0f);
+
+	Camera::CreateDesc cameraDesc;
+	cameraDesc.m_position = sunDir * 5.0f;
+	cameraDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f));
+	cameraDesc.m_sensitivity = 0.5f;
+	cameraDesc.m_moveSpeed = 20.0f;
+	cameraDesc.m_width = m_swapchain->GetWidth();
+	cameraDesc.m_height = m_swapchain->GetHeight();
+	cameraDesc.m_fovY = glm::radians(45.0f);
+	cameraDesc.m_zFar = 100.0f;
+	m_camera = Camera(cameraDesc);
+
+	//cameraDesc.m_position = glm::vec3(-5.0f, 5.0f, -5.0f);
+	//cameraDesc.m_position = glm::vec3(-35.0f, 7.5f, -35.0f);
+	cameraDesc.m_position = glm::vec3(-21.0f, 7.5f, -21.0f);
+	cameraDesc.m_eulerAngles = glm::vec3(0.0f);
+	m_frustrumTestCamera = Camera(cameraDesc);
+
 	InitResources();
 
 	m_geoShadowDispatchList = m_allocator->Alloc<ObjectDispatchList>();
@@ -61,10 +83,247 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 
 	initCmdContext->End();
 	initCmdContext->Return();
+
+	RenderBoundingVolumeHierarchy::CreateDesc rbvhDesc{};
+	rbvhDesc.m_desiredMaxDepth = 50;
+
+	rbvhDesc.m_toleranceDistanceX = 0.05f;
+	rbvhDesc.m_toleranceDistanceY = 0.05f;
+
+	rbvhDesc.m_toleranceStepX = 0.05f;
+	rbvhDesc.m_toleranceStepZ = 0.05f;
+
+	rbvhDesc.m_toleranceDistanceY = 0.2f;
+	rbvhDesc.m_toleranceStepY = 0.2f;
+
+	//rbvhDesc.m_camera = &m_camera;
+	rbvhDesc.m_camera = &m_frustrumTestCamera;
+
+	m_renderHierarchy = m_allocator->Alloc<RenderBoundingVolumeHierarchy>(rbvhDesc);
+
+	// --------------------------------------------------------------------------------------
+	// Cluster Test
+	/*{
+		CLib::Vector<std::pair<glm::vec3, glm::vec3>> nodes;
+
+		nodes.PushBack
+		({
+			glm::vec3(5.0f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(5.0f, 5.0f, 6.5f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(5.0f, 7.0f, 5.0f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(5.0f, 7.0f, 6.5f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(7.0f, 5.0f, 5.0f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(7.0f, 5.0f, 6.5f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.5f, 5.0f, 5.0f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.5f, 5.0f, 6.5f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.0f, 5.0f, 1.0f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(5.0f, 5.0f, 1.0f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.5f, 6.5f, 5.5f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.5f, 5.0f, 9.4f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.5f, 6.5f, 9.4f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.5f, 5.0f, 10.6f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(10.5f, 6.5f, 10.6f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(5.5f, 5.0f, 10.6f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(5.5f, 6.5f, 10.6f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(7.5f, 5.0f, 8.5f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(7.5f, 6.5f, 8.5f),
+			glm::vec3(1.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(4.0f, 5.0f, 4.0f),
+			glm::vec3(10.0f)
+		});
+
+		nodes.PushBack
+		({
+			glm::vec3(0.0f),
+			glm::vec3(50.0f)
+		});
+
+		m_renderHierarchy->BuildBottomUp(nodes);
+	}*/
+	// --------------------------------------------------------------------------------------
+
+	// --------------------------------------------------------------------------------------
+	// Merge test
+
+	/*m_renderHierarchy->InsertNode(glm::vec3(-3.0f, 0.0f, -3.0f), glm::vec3(3.0f));
+	m_renderHierarchy->InsertNode(glm::vec3(-5.0f, 1.0f, -4.0f), glm::vec3(3.0f));
+
+	m_renderHierarchy->InsertNode(glm::vec3(3.0f, 1.0f, 6.0f), glm::vec3(3.0f));
+	m_renderHierarchy->InsertNode(glm::vec3(4.5f, 2.5f, 7.5f), glm::vec3(3.0f));
+	m_renderHierarchy->InsertNode(glm::vec3(5.0f, 3.0f, 8.0f), glm::vec3(1.0f));
+	m_renderHierarchy->InsertNode(glm::vec3(7.0f, 5.0f, 9.0f), glm::vec3(1.0f));
+	m_renderHierarchy->InsertNode(glm::vec3(3.0f, 1.0f, 6.0f), glm::vec3(1.0f));
+
+	m_renderHierarchy->InsertNode(glm::vec3(5.5f, 3.5f, 8.5f), glm::vec3(1.0f, 15.0f, 1.0f));
+	m_renderHierarchy->InsertNode(glm::vec3(6.5f, 3.5f, 8.5f), glm::vec3(1.0f));
+
+	m_renderHierarchy->InsertNode(glm::vec3(7.5f, 5.0f, 8.5f), glm::vec3(0.1f));
+	m_renderHierarchy->InsertNode(glm::vec3(7.5f, 6.0f, 9.0f), glm::vec3(0.1f));
+	m_renderHierarchy->InsertNode(glm::vec3(8.5f, 5.0f, 6.0f), glm::vec3(0.1f));*/
+
+	// --------------------------------------------------------------------------------------
+	// Force Merge Test
+
+	//m_renderHierarchy->InsertNode(glm::vec3(-2.0f, 0.0f, -5.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-5.0f, 0.0f, -5.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-2.0f, 0.0f, -2.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -4.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -2.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -0.0f), glm::vec3(1.0f));
+	//
+	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -10.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-8.0f, 0.0f, -10.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-6.0f, 0.0f, -10.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-4.0f, 0.0f, -10.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-2.0f, 0.0f, -10.0f), glm::vec3(1.0f));
+	//m_renderHierarchy->InsertNode(glm::vec3(-0.0f, 0.0f, -10.0f), glm::vec3(1.0f));
+
+
+	// --------------------------------------------------------------------------------------
+	// Random node layout
+
+	const uint32_t nodeCount = 20;
+
+	const glm::vec3 minExtents(1.0f);
+	const glm::vec3 maxExtents = glm::vec3(2.0f) - minExtents;
+
+	const glm::vec3 minOrigin(-20.0f, 0.0f, -20.0f);
+	const glm::vec3 maxOrigin(20.0f, 0.0f, 20.0f);
+
+	std::default_random_engine rand{};
+	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+	CLib::Vector<std::pair<glm::vec3, glm::vec3>> nodes;
+	nodes.PushBack({ glm::vec3(-30.0f), glm::vec3(60.0f) });
+	for (uint32_t level = 0; level < 5; ++level)
+	{
+		for (uint32_t i = 0; i < nodeCount; ++i)
+		{
+			glm::vec3 nodeExtents
+			{
+				minExtents.x + (dist(rand) * maxExtents.x),
+				minExtents.y + (dist(rand) * maxExtents.y),
+				minExtents.z + (dist(rand) * maxExtents.z)
+			};
+
+			glm::vec3 nodeOrigin
+			{
+				minOrigin.x + ((maxOrigin.x - minOrigin.x) * dist(rand)),
+				//minOrigin.y + ((maxOrigin.y - minOrigin.y) * dist(rand)),
+				level * 3.0f,
+				minOrigin.z + ((maxOrigin.z - minOrigin.z) * dist(rand))
+			};
+
+			nodes.PushBack({ nodeOrigin, nodeExtents });
+		}
+	}
+
+	//nodes.PushBack({ glm::vec3(-2.5f), glm::vec3(2.5f) });
+	//nodes.PushBack({ glm::vec3(-7.5f, -2.5f, -7.5f), glm::vec3(2.5f) });
+
+	m_renderHierarchy->BuildBottomUp(nodes);
+
+	// --------------------------------------------------------------------------------------
 }
 
 ClientPlayground::~ClientPlayground()
 {
+	m_allocator->Free(m_renderHierarchy);
+
 	m_allocator->Free(m_drawBatch);
 
 	m_allocator->Free(m_geoDispatchList);
@@ -76,6 +335,7 @@ ClientPlayground::~ClientPlayground()
 
 	// Free rendergraph nodes.
 	m_allocator->Free(m_textPass);
+	m_allocator->Free(m_debugLinePass);
 	m_allocator->Free(m_bloomBlurPass);
 	m_allocator->Free(m_bloomExtractionPass);
 	m_allocator->Free(m_aoBlurPass);
@@ -89,9 +349,11 @@ ClientPlayground::~ClientPlayground()
 	m_allocator->Free(m_fontTexture);
 }
 
-void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, bool updateMetrics)
+void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, float stallTime, bool updateMetrics)
 {
-	m_camera.Update(deltaTime, input, window);
+	m_camera.UpdateFreeCam(deltaTime, input, window);
+	m_frustrumTestCamera.Rotate(glm::vec3(0.0f, glm::radians(15.0f * deltaTime), 0.0f));
+	m_frustrumTestCamera.Update();
 
 	// Update Text ---------------------------------------------------------------------------------------------------
 	{
@@ -106,7 +368,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 
 			std::ostringstream str;
 			str.precision(3);
-			str << "CPU Time: " << (deltaTime * 1000.0f) << "ms";
+			str << "CPU Time: " << ((deltaTime * 1000.0f) - stallTime) << "ms";
 
 			m_textPass->TextReplace(m_cpuTimeText, str.str().c_str(), PB::Float2(anchorPos.x, anchorHeight));
 
@@ -116,6 +378,58 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 			m_textPass->TextReplace(m_fpsText, str.str().c_str(), PB::Float2(anchorPos.x, anchorHeight - fontHeightf));
 		}
 	}
+
+	m_debugLinePass->DrawLine(PB::Float4(0.0f, 0.0f, 0.0f, 1.0f), PB::Float4(1.0f, 0.0f, 0.0f, 1.0f), PB::Float4(1.0f, 0.0f, 0.0f, 1.0f));
+	m_debugLinePass->DrawLine(PB::Float4(0.0f, 0.0f, 0.0f, 1.0f), PB::Float4(0.0f, 1.0f, 0.0f, 1.0f), PB::Float4(0.0f, 1.0f, 0.0f, 1.0f));
+	m_debugLinePass->DrawLine(PB::Float4(0.0f, 0.0f, 0.0f, 1.0f), PB::Float4(0.0f, 0.0f, 1.0f, 1.0f), PB::Float4(0.0f, 0.0f, 1.0f, 1.0f));
+
+	if (!input->GetKey(GLFW_KEY_PAGE_UP, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_PAGE_UP, INPUTSTATE_PREVIOUS) && m_renderHierarchyDrawDebugDepth < 50)
+	{
+		++m_renderHierarchyDrawDebugDepth;
+		std::cout << "BVH: Drawing at depth: " << m_renderHierarchyDrawDebugDepth << "\n";
+	}
+
+	if (!input->GetKey(GLFW_KEY_PAGE_DOWN, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_PAGE_DOWN, INPUTSTATE_PREVIOUS) && m_renderHierarchyDrawDebugDepth > 0)
+	{
+		--m_renderHierarchyDrawDebugDepth;
+		std::cout << "BVH: Drawing at depth: " << m_renderHierarchyDrawDebugDepth << "\n";
+	}
+
+	if (!input->GetKey(GLFW_KEY_HOME, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_HOME, INPUTSTATE_PREVIOUS))
+	{
+		m_drawEntireRenderHierarchy = !m_drawEntireRenderHierarchy;
+		std::cout << "BVH: Drawing whole tree: " << (m_drawEntireRenderHierarchy ? "true" : "false") << "\n";
+	}
+
+	//if (!input->GetKey(GLFW_KEY_I, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_I, INPUTSTATE_PREVIOUS))
+	//{
+	//	const glm::vec3 minExtents(0.1f);
+	//	const glm::vec3 maxExtents = glm::vec3(1.0f) - minExtents;
+
+	//	const glm::vec3 minOrigin(-5.0f);
+	//	const glm::vec3 maxOrigin(5.0f);
+
+	//	std::default_random_engine rand(uint64_t(elapsedTime * 1000.0f));
+	//	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+	//	glm::vec3 nodeExtents
+	//	{
+	//		minExtents.x + (dist(rand) * maxExtents.x),
+	//		minExtents.y + (dist(rand) * maxExtents.y),
+	//		minExtents.z + (dist(rand) * maxExtents.z)
+	//	};
+
+	//	glm::vec3 nodeOrigin
+	//	{
+	//		minOrigin.x + ((maxOrigin.x - minOrigin.x) * dist(rand)),
+	//		minOrigin.y + ((maxOrigin.y - minOrigin.y) * dist(rand)),
+	//		minOrigin.z + ((maxOrigin.z - minOrigin.z) * dist(rand))
+	//	};
+
+	//	m_renderHierarchy->InsertNode(nodeOrigin, nodeExtents);
+	//}
+
+	m_renderHierarchy->DebugDraw(m_debugLinePass, m_drawEntireRenderHierarchy ? ~uint32_t(0) : m_renderHierarchyDrawDebugDepth, true);
 
 	// Update Camera -------------------------------------------------------------------------------------------------
 	{
@@ -135,16 +449,11 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		bufferMatrices->m_invView = glm::inverse(bufferMatrices->m_view);
 
 		// Projection
-		glm::mat4 axisCorrection; // Inverts the Y axis to match the OpenGL coordinate system.
-		axisCorrection[1][1] = -1.0f;
-		axisCorrection[2][2] = 1.0f;
-		axisCorrection[3][3] = 1.0f;
-
-		bufferMatrices->m_proj = axisCorrection * glm::perspectiveFov<float>(fovRadians, (float)m_swapchain->GetWidth(), (float)m_swapchain->GetHeight(), 0.1f, 1000.0f);
+		bufferMatrices->m_proj = m_camera.GetProjectionMatrix();
 		bufferMatrices->m_invProj = glm::inverse(bufferMatrices->m_proj);
 
 		// Position
-		bufferMatrices->m_camPos = glm::vec4(m_camera.GetPosition(), 1.0f);
+		bufferMatrices->m_camPos = glm::vec4(m_camera.Position(), 1.0f);
 
 		// Depth Reconstruction Constants
 		bufferMatrices->m_aspectRatio = float(m_swapchain->GetWidth()) / m_swapchain->GetHeight();
@@ -154,11 +463,11 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 
 		m_mvpBuffer->EndPopulate();
 
-		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[0], glm::value_ptr(modelCpy));
-		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[1], glm::value_ptr(modelCpy));
-		m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[2], glm::value_ptr(modelCpy));
+		//m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[0], glm::value_ptr(modelCpy));
+		//m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[1], glm::value_ptr(modelCpy));
+		//m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[2], glm::value_ptr(modelCpy));
 
-		m_drawBatch->FinalizeUpdates();
+		//m_drawBatch->FinalizeUpdates();
 	}
 	// ---------------------------------------------------------------------------------------------------------------
 
@@ -187,6 +496,12 @@ void ClientPlayground::UpdateResolution(uint32_t width, uint32_t height)
 	PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 	auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
 	m_textPass->SetOutputTexture(swapChainTex);
+
+	m_camera.SetWidth(width);
+	m_camera.SetHeight(height);
+
+	m_frustrumTestCamera.SetWidth(width);
+	m_frustrumTestCamera.SetHeight(height);
 }
 
 void ClientPlayground::InitResources()
@@ -294,15 +609,6 @@ void ClientPlayground::InitResources()
 		"../Assets/Textures/Skybox/back.jpg"
 	};
 
-	m_skyboxTexture = m_allocator->Alloc<PBClient::Texture>
-	(
-		m_renderer,
-		m_allocator,
-		skyboxFilenames,
-		true,
-		10
-	);
-
 	m_hdrSkyTexture = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Sky/Arches_E_PineTree_3k.hdr", true, true);
 
 	m_fontTexture = m_allocator->Alloc<PBClient::FontTexture>(m_renderer, "../Assets/Fonts/arial.ttf", 32);
@@ -346,7 +652,6 @@ void ClientPlayground::DestroyResources()
 		tex = nullptr;
 	}
 
-	m_allocator->Free(m_skyboxTexture);
 	m_allocator->Free(m_hdrSkyTexture);
 
 	m_allocator->Free(m_paintMesh);
@@ -444,6 +749,13 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 			m_bloomBlurPass->AddToRenderGraph(&rgBuilder);
 		}
 
+		// Debug Line Pass
+		{
+			if (!m_debugLinePass)
+				m_debugLinePass = m_allocator->Alloc<DebugLinePass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer());
+			m_debugLinePass->AddToRenderGraph(&rgBuilder);
+		}
+
 		// Text Pass
 		{
 			if (!m_textPass)
@@ -469,7 +781,11 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	{
 		glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
 
-		Camera shadowCam(glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50.0f), glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)));
+		//Camera shadowCam(glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50.0f), glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)));
+		Camera::CreateDesc shadowCamDesc;
+		shadowCamDesc.m_position = glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50.0f);
+		shadowCamDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f));
+		Camera shadowCam(shadowCamDesc);
 
 		glm::mat4 shadowView = shadowCam.GetViewMatrix();
 
@@ -529,37 +845,38 @@ void ClientPlayground::SetupDrawBatch()
 		m_solidBlackTexture->GetDefaultSRV()
 	};*/
 
-	for (uint32_t i = 0; i < 2; ++i)
-	{
-		modelMat = glm::translate(glm::mat4(), glm::vec3(4.0f * (i / 10), -0.2f, -7.0f * (i % 10)));
-		modelMat = glm::rotate(modelMat, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
+	//const uint32_t spinnerCount = 1;
+	//for (uint32_t i = 0; i < spinnerCount; ++i)
+	//{
+	//	modelMat = glm::translate(glm::mat4(), glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10)));
+	//	modelMat = glm::rotate(modelMat, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	//	spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
-		if (i == 0)
-		{
-			m_firstInstanceHandles[0] = m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), m_paintViews, _countof(m_paintViews), m_colorSampler);
-			m_firstInstanceHandles[1] = m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-			m_firstInstanceHandles[2] = m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), m_glassViews, _countof(m_glassViews), m_colorSampler);
-			continue;
-		}
+	//	if (i == 0)
+	//	{
+	//		m_firstInstanceHandles[0] = m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), m_paintViews, _countof(m_paintViews), m_colorSampler);
+	//		m_firstInstanceHandles[1] = m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), m_detailsViews, _countof(m_detailsViews), m_colorSampler);
+	//		m_firstInstanceHandles[2] = m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), m_glassViews, _countof(m_glassViews), m_colorSampler);
+	//		continue;
+	//	}
 
-		m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), m_paintViews, _countof(m_paintViews), m_colorSampler);
-		m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-		m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), m_glassViews, _countof(m_glassViews), m_colorSampler);
-	}
+	//	m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), m_paintViews, _countof(m_paintViews), m_colorSampler);
+	//	m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), m_detailsViews, _countof(m_detailsViews), m_colorSampler);
+	//	m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), m_glassViews, _countof(m_glassViews), m_colorSampler);
+	//}
 
-	modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, -0.2f, -4.0f));
-	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), plainViews, _countof(plainViews), m_colorSampler);
+	//modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, -0.2f, -4.0f));
+	//m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), plainViews, _countof(plainViews), m_colorSampler);
 
-	plainViews[0] = m_debugViews[0];
-	plainViews[2] = m_debugViews[2];
-	plainViews[3] = m_debugViews[1];
+	//plainViews[0] = m_debugViews[0];
+	//plainViews[2] = m_debugViews[2];
+	//plainViews[3] = m_debugViews[1];
 
-	modelMat = glm::identity<glm::mat4>();
-	modelMat = glm::translate(modelMat, glm::vec3(-2.4f, 1.0f, -4.0f));
-	modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
-	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), plainViews, _countof(plainViews), m_colorSampler);
+	//modelMat = glm::identity<glm::mat4>();
+	//modelMat = glm::translate(modelMat, glm::vec3(-2.4f, 1.0f, -4.0f));
+	//modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	//modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
+	//m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), plainViews, _countof(plainViews), m_colorSampler);
 }
 
 PB::Pipeline ClientPlayground::GetGBufferDrawBatchPipeline()

@@ -96,6 +96,7 @@ void Application::Run()
 	ClientPlayground playground(m_renderer, &m_allocator);
 
 	bool updateDebugMetrics = false;
+	float endFrameStallTime = 0.0f;
 	while (!glfwWindowShouldClose(m_window))
 	{
 		// Time
@@ -125,7 +126,7 @@ void Application::Run()
 				m_updateRendererResolution = false;
 			}
 
-			playground.Update(m_window, m_input, m_deltaTime, m_elapsedTime, updateDebugMetrics);
+			playground.Update(m_window, m_input, m_deltaTime, m_elapsedTime, endFrameStallTime, updateDebugMetrics);
 			updateDebugMetrics = false;
 		}
 
@@ -181,26 +182,26 @@ void Application::Run()
 		// ------------------------------------------------------------------------------------
 		// Render End Frame
 		if(!m_isMinimized)
-			m_renderer->EndFrame();
+			m_renderer->EndFrame(endFrameStallTime);
 		// ------------------------------------------------------------------------------------
 
 		m_input->EndFrame();
 
 		// End time...
 		std::chrono::steady_clock::time_point endTime;
-		long long timeDuration;
 
 		// Reset deltatime.
 		m_deltaTime = 0.0f;
 
 		// Framerate limitation...
 		// Wait for deltatime to reach value based upon frame cap.
-		float fpsCap = m_isMinimized ? 10.0f : m_fpsCap;
+		uint64_t timeDuration;
+		float fpsCap = m_isMinimized ? std::fminf(10.0f, m_fpsCap) : m_fpsCap;
 		while(m_deltaTime < (1000.0f / fpsCap) / 1000.0f)
 		{
 			endTime = std::chrono::high_resolution_clock::now();
 			timeDuration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count();
-			m_deltaTime = static_cast<float>(timeDuration) * 9.99999997e-07f;
+			m_deltaTime = static_cast<float>(static_cast<double>(timeDuration) * 9.99999997e-07f);
 		}
 
 		// Get deltatime and add to elapsed time.
@@ -212,7 +213,7 @@ void Application::Run()
 		{
 			if (m_displayPerfMetrics)
 			{
-				float frameTime = m_deltaTime * 1000.0f;
+				double frameTime = m_deltaTime * 1000.0f;
 				PB_LOG_FORMAT("Frametime %f ms", frameTime);
 				PB_LOG_FORMAT("Elapsed Time: %f", m_elapsedTime);
 				PB_LOG_FORMAT("FPS: %i", (int)ceilf((1.0f / m_deltaTime)));

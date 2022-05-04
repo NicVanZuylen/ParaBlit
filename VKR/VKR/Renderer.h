@@ -76,7 +76,7 @@ namespace PB
 
 		PARABLIT_API void ReturnOpenBuffer(CommandContext& context);
 
-		PARABLIT_API void EndFrame() override;
+		PARABLIT_API void EndFrame(float& outStallTimeMs) override;
 
 		PARABLIT_API void WaitIdle() override;
 

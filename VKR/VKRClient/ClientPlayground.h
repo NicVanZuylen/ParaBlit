@@ -33,7 +33,7 @@ public:
 	ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* allocator);
 	~ClientPlayground();
 
-	void Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, bool updateMetrics);
+	void Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, float stallTime, bool updateMetrics);
 
 	void UpdateResolution(uint32_t width, uint32_t height);
 
@@ -78,6 +78,7 @@ private:
 	CLib::Allocator* m_allocator = nullptr;
 	RenderGraph* m_renderGraph = nullptr;
 	Camera m_camera;
+	Camera m_frustrumTestCamera;
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------
@@ -91,8 +92,11 @@ private:
 	class AOBlurPass* m_aoBlurPass = nullptr;
 	class BloomExtractionPass* m_bloomExtractionPass = nullptr;
 	class BloomBlurPass* m_bloomBlurPass = nullptr;
+	class DebugLinePass* m_debugLinePass = nullptr;
 	class TextRenderPass* m_textPass = nullptr;
 	// -------------------------------------------------------------------------
+
+	class RenderBoundingVolumeHierarchy* m_renderHierarchy = nullptr;
 
 	// -------------------------------------------------------------------------
 	// Resources
@@ -109,7 +113,6 @@ private:
 	PBClient::Texture* m_metalTextures[2]{};
 	PBClient::Texture* m_debugTextures[3]{};
 
-	PBClient::Texture* m_skyboxTexture = nullptr;
 	PBClient::Texture* m_hdrSkyTexture = nullptr;
 
 	PB::ITexture* m_solidWhiteTexture = nullptr;
@@ -136,6 +139,8 @@ private:
 	DrawBatch* m_drawBatch = nullptr;
 
 	PB::u32 m_firstInstanceHandles[3]{};
+	uint32_t m_renderHierarchyDrawDebugDepth = 0;
+	bool m_drawEntireRenderHierarchy = true;
 
 	// -------------------------------------------------------------------------
 };

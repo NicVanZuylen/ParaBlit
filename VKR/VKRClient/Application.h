@@ -47,7 +47,7 @@ private:
 	uint32_t m_defaultWindowWidth = 1280;
 	uint32_t m_defaultWindowHeight = 720;
 	float m_fpsCap = 10000.0f;
-	float m_debugDisplayInterval = 1.0f;
+	float m_debugDisplayInterval = 0.5f;
 	float m_deltaTime = 0.0f;
 	float m_elapsedTime = 0.0f;
 	float m_debugDisplayTime = 0.0f;

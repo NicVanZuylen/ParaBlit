@@ -108,6 +108,12 @@
     <ClCompile Include="BloomBlurPass.cpp">
       <Filter>RenderGraphBehaviours</Filter>
     </ClCompile>
+    <ClCompile Include="DebugLinePass.cpp">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderBoundingVolumeHierarchy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -196,6 +202,12 @@
     </ClInclude>
     <ClInclude Include="BloomBlurPass.h">
       <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugLinePass.h">
+      <Filter>RenderGraphBehaviours</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderBoundingVolumeHierarchy.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

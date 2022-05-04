@@ -112,7 +112,7 @@ namespace PB
 		inline PARABLIT_API void EnableLayers(ExtensionManager& extManager);
 
 		// Enable necessary device features.
-		inline PARABLIT_API void DisableUnecessaryFeatures();
+		inline PARABLIT_API void SetFeatureEnables();
 
 		// Create logical device.
 		inline PARABLIT_API void CreateLogicalDevice();
@@ -120,7 +120,7 @@ namespace PB
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 		VkPhysicalDeviceFeatures2 m_physDeviceFeatures = {};
-		VkPhysicalDeviceDescriptorIndexingFeatures m_physDeviceDescIndexingFeatures = {};
+		VkPhysicalDeviceVulkan12Features m_physDeviceVulkan12Features = {};
 		VkPhysicalDeviceDynamicRenderingFeaturesKHR m_physDeviceDynamicRenderingFeatures = {};
 		VkPhysicalDeviceProperties2 m_physDeviceProperties = {};
 		VkPhysicalDeviceDescriptorIndexingProperties m_physDeviceDescIndexingProps = {};

@@ -6,43 +6,39 @@
 
 Camera::Camera()
 {
-	m_fSensitivity = 0.1f;
-	m_fMovespeed = 5.0f;
-	m_v3Position = { 0.0f, 0.0f, 0.0f };
-	m_v3EulerAngles = { 0.0f, 0.0f, 0.0f };
-	m_bLooking = false;
-
-	m_fLastMouseX = 0.0f;
-	m_fLastMouseY = 0.0f;
 }
 
-Camera::Camera(glm::vec3 v3Position, glm::vec3 v3EulerAngles, float fSensitivity, float fMovespeed) 
+Camera::Camera(const CreateDesc& desc) 
 {
-	m_fSensitivity = fSensitivity;
-	m_fMovespeed = fMovespeed;
+	m_sensitivity = desc.m_sensitivity;
+	m_moveSpeed = desc.m_moveSpeed;
 	m_bLooking = false;
-	m_v3Position = v3Position;
-	m_v3EulerAngles = v3EulerAngles;
+	m_position = desc.m_position;
+	m_eulerAngles = desc.m_eulerAngles;
+	m_aspect = float(desc.m_width) / float(desc.m_height);
+	m_zFar = desc.m_zNear;
+	m_zFar = desc.m_zFar;
+	m_fovY = desc.m_fovY;
 
-	m_fLastMouseX = 0.0f;
-	m_fLastMouseY = 0.0f;
+	m_lastMouseX = 0.0f;
+	m_lastMouseY = 0.0f;
 
-	// Create translation and rotation matricies.
-	glm::mat4 posMat = glm::translate(glm::mat4(), v3Position);
-	glm::mat4 rotMat = glm::rotate(glm::mat4(), m_v3EulerAngles.z, glm::vec3(0.0f, 0.0f, 1.0f));
-	rotMat *= glm::rotate(rotMat, m_v3EulerAngles.y, glm::vec3(0.0f, 1.0f, 0.0f));
-	rotMat *= glm::rotate(rotMat, m_v3EulerAngles.x, glm::vec3(1.0f, 0.0f, 0.0f));
-	
+	Update();
+}
+
+void Camera::Update()
+{
+	// Construct translation and rotation matrices...
+	glm::mat4 posMat = glm::translate(glm::mat4(), m_position);
+	glm::mat4 rotMat = glm::rotate(glm::mat4(), -m_eulerAngles.z, glm::vec3(0.0f, 0.0f, 1.0f));
+	rotMat *= glm::rotate(rotMat, m_eulerAngles.y, glm::vec3(0.0f, 1.0f, 0.0f));
+	rotMat *= glm::rotate(rotMat, m_eulerAngles.x, glm::vec3(1.0f, 0.0f, 0.0f));
+
 	// The camera will rotate around a pivot at it's centre, so concatenate translation first and rotation second.
 	m_matrix = posMat * rotMat;
 }
 
-Camera::~Camera()
-{
-
-}
-
-void Camera::Update(float fDeltaTime, Input* input, GLFWwindow* window) 
+void Camera::UpdateFreeCam(float fDeltaTime, Input* input, GLFWwindow* window) 
 {
 	float fNewMouseX = input->GetCursorX();
 	float fNewMouseY = input->GetCursorY();
@@ -50,8 +46,8 @@ void Camera::Update(float fDeltaTime, Input* input, GLFWwindow* window)
 	// Look
 	if (input->GetMouseButton(MOUSEBUTTON_RIGHT))
 	{
-		float fXDiff = fNewMouseX - m_fLastMouseX;
-		float fYDiff = fNewMouseY - m_fLastMouseY;
+		float fXDiff = fNewMouseX - m_lastMouseX;
+		float fYDiff = fNewMouseY - m_lastMouseY;
 
 		if(!m_bLooking) 
 		{
@@ -59,8 +55,8 @@ void Camera::Update(float fDeltaTime, Input* input, GLFWwindow* window)
 			m_bLooking = true;
 		}
 
-		m_v3EulerAngles.y -= fXDiff * m_fSensitivity * 0.001f;
-		m_v3EulerAngles.x -= fYDiff * m_fSensitivity * 0.001f;
+		m_eulerAngles.y -= fXDiff * m_sensitivity * 0.001f;
+		m_eulerAngles.x -= fYDiff * m_sensitivity * 0.001f;
 	}
 	else if(m_bLooking)
 	{
@@ -68,68 +64,70 @@ void Camera::Update(float fDeltaTime, Input* input, GLFWwindow* window)
 		m_bLooking = false;
 	}
 
-	m_fLastMouseX = fNewMouseX;
-	m_fLastMouseY = fNewMouseY;
+	m_lastMouseX = fNewMouseX;
+	m_lastMouseY = fNewMouseY;
 
 	// Strafe
 	if (input->GetKey(GLFW_KEY_W))
 	{
 		glm::vec3 forwardVec = -m_matrix[2];
 
-		m_v3Position += forwardVec * m_fMovespeed * fDeltaTime;
+		m_position += forwardVec * m_moveSpeed * fDeltaTime;
 	}
 	if (input->GetKey(GLFW_KEY_A))
 	{
 		glm::vec3 leftVec = -m_matrix[0];
 
-		m_v3Position += leftVec * m_fMovespeed * fDeltaTime;
+		m_position += leftVec * m_moveSpeed * fDeltaTime;
 	}
 	if (input->GetKey(GLFW_KEY_S))
 	{
 		glm::vec3 backVec = m_matrix[2];
 
-		m_v3Position += backVec * m_fMovespeed * fDeltaTime;
+		m_position += backVec * m_moveSpeed * fDeltaTime;
 	}
 	if (input->GetKey(GLFW_KEY_D))
 	{
 		glm::vec3 rightVec = m_matrix[0];
 
-		m_v3Position += rightVec * m_fMovespeed * fDeltaTime;
+		m_position += rightVec * m_moveSpeed * fDeltaTime;
 	}
 	if (input->GetKey(GLFW_KEY_SPACE))
 	{
 		glm::vec3 upVec = m_matrix[1];
 
-		m_v3Position += upVec * m_fMovespeed * fDeltaTime;
+		m_position += upVec * m_moveSpeed * fDeltaTime;
 	}
 	if (input->GetKey(GLFW_KEY_LEFT_CONTROL))
 	{
 		glm::vec3 downVec = -m_matrix[1];
 
-		m_v3Position += downVec * m_fMovespeed * fDeltaTime;
+		m_position += downVec * m_moveSpeed * fDeltaTime;
 	}
 
-	// Construct translation and rotation matrices...
-	glm::mat4 posMat = glm::translate(glm::mat4(), m_v3Position);
-	glm::mat4 rotMat = glm::rotate(glm::mat4(), -m_v3EulerAngles.z, glm::vec3(0.0f, 0.0f, 1.0f));
-	rotMat *= glm::rotate(rotMat, m_v3EulerAngles.y, glm::vec3(0.0f, 1.0f, 0.0f));
-	rotMat *= glm::rotate(rotMat, m_v3EulerAngles.x, glm::vec3(1.0f, 0.0f, 0.0f));
-
-	// The camera will rotate around a pivot at it's centre, so concatenate translation first and rotation second.
-	m_matrix = posMat * rotMat;
+	Update();
 }
 
-glm::vec3 Camera::GetPosition() 
+glm::mat4 Camera::GetProjectionMatrix() const
 {
-	return m_matrix[3];
+	glm::mat4 axisCorrection; // Inverts the Y axis to match the OpenGL coordinate system.
+	axisCorrection[1][1] = -1.0f;
+	axisCorrection[2][2] = 1.0f;
+	axisCorrection[3][3] = 1.0f;
+
+	return axisCorrection * glm::perspectiveFov<float>(m_fovY, float(m_width), float(m_height), 0.1f, 1000.0f);
 }
 
-glm::mat4 Camera::GetWorldMatrix() 
+void Camera::SetWidth(uint32_t width)
 {
-	return m_matrix;
+	m_width = width;
+
+	m_aspect = float(m_width) / float(m_height);
 }
 
-glm::mat4 Camera::GetViewMatrix() 
+void Camera::SetHeight(uint32_t height)
 {
-	return glm::inverse(m_matrix);
+	m_height = height;
+
+	m_aspect = float(m_width) / float(m_height);
 }

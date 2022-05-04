@@ -13,7 +13,19 @@ namespace PB
 		bool stageModulesEqual = true;
 		for (u32 i = 0; i < static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT); ++i)
 			stageModulesEqual &= (m_shaderModules[i] == other.m_shaderModules[i]);
-		return m_renderPass == other.m_renderPass && m_subpass == other.m_subpass && stageModulesEqual;
+		return m_renderPass == other.m_renderPass
+			&& memcmp(&m_renderArea, &other.m_renderArea, sizeof(PB::Rect)) == 0
+			&& memcmp(m_vertexBuffers, other.m_vertexBuffers, sizeof(m_vertexBuffers)) == 0
+			&& memcmp(&m_vertexDesc, &other.m_vertexDesc, sizeof(VertexAttributeDesc)) == 0
+			&& memcmp(m_colorBlendStates, other.m_colorBlendStates, sizeof(m_colorBlendStates)) == 0
+			&& m_depthCompareOP == other.m_depthCompareOP
+			&& m_stencilTestEnable == other.m_stencilTestEnable
+			&& m_cullMode == other.m_cullMode
+			&& m_subpass == other.m_subpass
+			&& m_attachmentCount == other.m_attachmentCount
+			&& m_topology == other.m_topology
+			&& m_depthWriteEnable == other.m_depthWriteEnable
+			&& stageModulesEqual;
 	}
 
 	bool ComputePipelineDesc::operator == (const ComputePipelineDesc& other) const
@@ -205,10 +217,33 @@ namespace PB
 		vertexInputState.vertexBindingDescriptionCount = bindingDescs.Count();
 		vertexInputState.pVertexBindingDescriptions = bindingDescs.Data();
 
+		VkPrimitiveTopology topology;
+		switch (desc.m_topology)
+		{
+		case EPrimitiveTopologyType::TRIANGLE_LIST:
+			topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			break;
+		case EPrimitiveTopologyType::TRIANGLE_STRIP:
+			topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+			break;
+		case EPrimitiveTopologyType::LINE_LIST:
+			topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+			break;
+		case EPrimitiveTopologyType::LINE_STRIP:
+			topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+			break;
+		case EPrimitiveTopologyType::POINT_LIST:
+			topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+			break;
+		default:
+			topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			break;
+		}
+
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState{ VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, nullptr };
 		inputAssemblyState.flags = 0;
 		inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-		inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		inputAssemblyState.topology = topology;
 
 		VkPipelineMultisampleStateCreateInfo multisampleState{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO, nullptr };
 		multisampleState.flags = 0;
@@ -224,7 +259,7 @@ namespace PB
 		rasterState.depthBiasEnable = VK_FALSE;
 		rasterState.depthClampEnable = VK_FALSE;
 		rasterState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rasterState.lineWidth = 1.0f;
+		rasterState.lineWidth = desc.m_lineThickness;
 		rasterState.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterState.rasterizerDiscardEnable = VK_FALSE;
 

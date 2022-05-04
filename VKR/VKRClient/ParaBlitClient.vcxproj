@@ -28,6 +28,7 @@
     <ClCompile Include="BloomExtractionPass.cpp" />
     <ClCompile Include="BlurHelper.cpp" />
     <ClCompile Include="ClientPlayground.cpp" />
+    <ClCompile Include="DebugLinePass.cpp" />
     <ClCompile Include="DrawBatch.cpp" />
     <ClCompile Include="FontTexture.cpp" />
     <ClCompile Include="GBufferPass.cpp" />
@@ -38,6 +39,7 @@
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="ObjectDispatcher.cpp" />
     <ClCompile Include="QuickIO.cpp" />
+    <ClCompile Include="RenderBoundingVolumeHierarchy.cpp" />
     <ClCompile Include="RenderGraph.cpp" />
     <ClCompile Include="RenderGraphNode.cpp" />
     <ClCompile Include="Shader.cpp" />
@@ -58,6 +60,7 @@
     <ClInclude Include="BloomExtractionPass.h" />
     <ClInclude Include="BlurHelper.h" />
     <ClInclude Include="ClientPlayground.h" />
+    <ClInclude Include="DebugLinePass.h" />
     <ClInclude Include="DrawBatch.h" />
     <ClInclude Include="FontTexture.h" />
     <ClInclude Include="GBufferPass.h" />
@@ -68,6 +71,7 @@
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="ObjectDispatcher.h" />
     <ClInclude Include="QuickIO.h" />
+    <ClInclude Include="RenderBoundingVolumeHierarchy.h" />
     <ClInclude Include="RenderGraph.h" />
     <ClInclude Include="RenderGraphNode.h" />
     <ClInclude Include="Shader.h" />
@@ -166,6 +170,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <AdditionalDependencies>glfw3.lib;ParaBlit.lib;AssetEncoder.lib;ContainerLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -214,6 +219,7 @@ $(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -VKR/Assets/</
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

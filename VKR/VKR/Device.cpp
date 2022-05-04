@@ -190,11 +190,11 @@ namespace PB
 
 			// Get device features & properties, used to calculate a suitablility score.
 			VkPhysicalDeviceFeatures2 deviceFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-			m_physDeviceDescIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-			deviceFeatures.pNext = &m_physDeviceDescIndexingFeatures;
-
 			m_physDeviceDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
-			m_physDeviceDescIndexingFeatures.pNext = &m_physDeviceDynamicRenderingFeatures;
+			m_physDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+
+			deviceFeatures.pNext = &m_physDeviceDynamicRenderingFeatures;
+			m_physDeviceDynamicRenderingFeatures.pNext = &m_physDeviceVulkan12Features;
 
 			vkGetPhysicalDeviceFeatures(device, &deviceFeatures.features);
 			vkGetPhysicalDeviceFeatures2(device, &deviceFeatures);
@@ -217,7 +217,6 @@ namespace PB
 				highestScore = score;
 				m_physDeviceFeatures = deviceFeatures;
 				m_physDeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-				m_physDeviceDescIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
 				m_physDeviceProperties = deviceProperties;
 				m_memoryProperties = memoryProperties;
 			}
@@ -328,23 +327,23 @@ namespace PB
 		extManager.PrintAvailableLayers();
 	}
 
-	void Device::DisableUnecessaryFeatures()
+	void Device::SetFeatureEnables()
 	{
-		// Disable uneccesary features.
-		m_physDeviceFeatures.features.wideLines = false;
-		m_physDeviceFeatures.features.largePoints = false;
-		m_physDeviceFeatures.features.multiViewport = false;
-		m_physDeviceFeatures.features.pipelineStatisticsQuery = false;
+		m_physDeviceFeatures.features.wideLines = VK_TRUE;
+		m_physDeviceFeatures.features.largePoints = VK_FALSE;
+		m_physDeviceFeatures.features.multiViewport = VK_FALSE;
+		m_physDeviceFeatures.features.pipelineStatisticsQuery = VK_FALSE;
 
-		m_physDeviceDescIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind = VK_FALSE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
-		m_physDeviceDescIndexingFeatures.descriptorBindingUpdateUnusedWhilePending = VK_FALSE;
+		m_physDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+		m_physDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+		m_physDeviceVulkan12Features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+		m_physDeviceVulkan12Features.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_FALSE;
+		m_physDeviceVulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = VK_FALSE;
+		m_physDeviceVulkan12Features.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
+		m_physDeviceVulkan12Features.descriptorBindingUpdateUnusedWhilePending = VK_FALSE;
 
 		m_physDeviceDynamicRenderingFeatures.dynamicRendering = VK_FALSE; // TODO: Try this out when Vk_KHR_dynamic_rendering extension is complete.
+
 	}
 
 	void Device::CreateLogicalDevice()
@@ -353,7 +352,7 @@ namespace PB
 		createInfo.flags = 0;
 
 		CreateQueues();
-		DisableUnecessaryFeatures();
+		SetFeatureEnables();
 
 		VkDeviceQueueCreateInfo queueInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, nullptr };
 		queueInfo.flags = 0;

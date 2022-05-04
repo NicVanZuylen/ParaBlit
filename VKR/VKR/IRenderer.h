@@ -53,7 +53,13 @@ namespace PB
 		*/
 		PARABLIT_INTERFACE ISwapChain* CreateSwapChain(const SwapChainDesc& desc) = 0;
 		PARABLIT_INTERFACE void RecreateSwapchain(const SwapChainDesc& desc, WindowDesc* windowDesc) = 0;
-		PARABLIT_INTERFACE void EndFrame() = 0;
+
+		/*
+		Description: Submit encoding for this frame and prepare the next frame.
+		Param:
+			float& outStallTimeMs: Amount of time in ms spent waiting for the corresponding frame-in-flight to complete.
+		*/
+		PARABLIT_INTERFACE void EndFrame(float& outStallTimeMs) = 0;
 		PARABLIT_INTERFACE void WaitIdle() = 0;
 
 		PARABLIT_INTERFACE u32 GetCurrentSwapchainImageIndex() = 0;

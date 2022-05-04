@@ -183,13 +183,18 @@ namespace PB
 		context.Invalidate();
 	}
 
-	void Renderer::EndFrame()
+	void Renderer::EndFrame(float& outStallTimeMs)
 	{
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
 
 		// Wait for frame to finish if it's still in-flight.
+		std::chrono::time_point beforeWait = std::chrono::high_resolution_clock::now();
 		vkWaitForFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence, VK_TRUE, ~(0ULL));
+		std::chrono::time_point afterWait = std::chrono::high_resolution_clock::now();
 		vkResetFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence);
+		
+		auto waitTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(afterWait - beforeWait).count();
+		outStallTimeMs = float(double(waitTimeUs) / 1000.0f);
 
 		m_freeContextCmdBuffers[0] += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
 		curFrameInfo.m_state = PB_FRAME_STATE_OPEN;

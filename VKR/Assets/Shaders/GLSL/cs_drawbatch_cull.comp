@@ -1,0 +1,187 @@
+#version 450
+#include "Common/pb_common.h"
+#include "Common/view_constants.h"
+
+#define WORKGROUP_SIZE_X 256
+#define WORKGROUP_SIZE_Y 1
+layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
+
+#define MAX_DRAW_COUNT 8
+
+layout(push_constant) uniform Bindings
+{
+    uint viewConstantsIndex; 
+    uint frustrumConstantsIndex; 
+    uint batchConstantsIndex;
+    uint drawParamsBufferIndex;
+    uint drawCountBufferIndex;
+} PB_BINDINGS_NAME;
+
+DEFINE_VIEW_CONSTANTS(viewConstants)
+#define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
+
+layout (set = 1, binding = 0) uniform FrustrumConstants
+{
+    // (x,y,z) = normal, w = distance
+    vec4 mainFrustrumPlanes[6];
+} frustrumConstants[];
+#define FRUST_CONST PB_UBO(frustrumConstants, frustrumConstantsIndex)
+
+struct ObjectData
+{
+    vec3 origin;
+    uint partition;
+    vec3 extents;
+    uvec2 drawRange;
+    uvec3 pad;
+}
+
+layout(set = 1, binding = 0) uniform BatchConstants
+{
+    ObjectData objects[256];
+    uvec2 partitionRanges[MAX_DRAW_COUNT];
+    uint validObjectCount;
+} batchConstants[];
+#define BATCH_CONST PB_UBO(batchConstants, batchConstantsIndex)
+
+struct IndirectDrawParams
+{
+    uint firstIndex;
+    uint indexCount;
+}
+
+layout(set = 0, binding = 2) buffer DrawParamsBuffer
+{
+    IndirectDrawParams drawParams[MAX_DRAW_COUNT];
+} drawParamsBuffer[];
+#define DRAW_PARAMS drawParamsBuffer[PB_BINDINGS_NAME.drawParamsBufferIndex].drawParams
+
+layout(set = 0, binding = 2) buffer DrawCountBuffer
+{
+    uint drawCount;
+} drawCounts[];
+#define DRAW_COUNT drawCounts[PB_BINDINGS_NAME.drawCountBufferIndex].drawCount
+
+shared uvec2 drawRanges[WORKGROUP_SIZE_X];
+shared int partitionRangeCounts[MAX_DRAW_COUNT];
+shared int totalPartitionRangeCount;
+
+bool IsInFrontOfPlane(vec4 plane, in vec3 origin, in vec3 extents)
+{
+	vec3 centre = origin + (extents * 0.5);
+	vec3 halfExtents = extents * 0.5;
+
+	float r = halfExtents.x * abs(plane.x) +
+		halfExtents.y * abs(plane.y) + halfExtents.z * abs(plane.z);
+
+	float signedDist = dot(plane.xyz, centre) - plane.z;
+
+	return -r <= signedDist;
+}
+
+void main()
+{
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Shared Memory Initialization
+
+    if(gl_LocalInvocationID.x < MAX_DRAW_COUNT)
+    {
+        partitionRangeCounts[gl_LocalInvocationID.x] = 0;
+        totalPartitionRangeCount = 0;
+    }
+    drawRanges[gl_LocalInvocationID.x] = uvec2(1, 0);
+
+    if(gl_LocalInvocationID.x >= BATCH_CONST.validObjectCount)
+        return;
+
+    memoryBarrierShared();
+    barrier();
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Frustrum Test
+
+    vec3 origin = BATCH_CONST.objects[gl_LocalInvocationID.x].origin;
+    uint objectPartition = BATCH_CONST.objects[gl_LocalInvocationID.x].partition;
+    vec3 extents = BATCH_CONST.objects[gl_LocalInvocationID.x].extents;
+    uvec2 objectRange = BATCH_CONST.objects[gl_LocalInvocationID.x].drawRange;
+
+    bool pass = IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[0], origin, extents)    // Near
+		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[1], origin, extents)     // Left
+		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[2], origin, extents)     // Right
+		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[3], origin, extents)     // Top
+		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[4], origin, extents)     // Bottom
+            && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[5], origin, extents);    // Far
+
+    if(pass)
+    {
+        drawRanges[gl_LocalInvocationID.x] = objectRange;
+
+        atomicAdd(partitionRangeCounts[objectPartition], 1);
+        atomicAdd(totalPartitionRangeCount, 1);
+    }
+
+    memoryBarrierShared();
+    barrier();
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Compaction Phase
+
+    uint partitionRangeOffset = BATCH_CONST.partitionRanges[objectPartition][0];
+    uint iter = 1;
+    while(totalPartitionRangeCount > MAX_DRAW_COUNT)
+    {
+        vec2 range = drawRanges[gl_LocalInvocationID.x * iter];
+        vec2 nextRange = drawRanges[(gl_LocalInvocationID.x + 1) * iter];
+
+        if(range[1] > range[0] && nextRange[1] > nextRange[0])
+        {
+            atomicAdd(partitionRangeCounts[objectPartition], -1);
+            atomicAdd(totalPartitionRangeCount, -1);
+        }
+
+        range[0] = min(range[0], nextRange[0]);
+        range[1] = max(range[1], nextRange[1]);
+
+        memoryBarrierShared();
+        barrier();
+        ++iter;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Draw Call Setup
+
+    if(gl_LocalInvocationID.x > 0)
+        return;
+
+    int currentDrawCall = -1;
+    uvec2 lastRange = uvec2(1, 0);
+    for(uint i = 0; i < MAX_DRAW_COUNT; ++i)
+    {
+        partitionRangeOffset = BATCH_CONST.partitionRanges[i][0];
+        uint partitionRangeCount = partitionRangeCounts[i];
+
+        for(uint j = 0; j < partitionRangeCount; ++j)
+        {
+            uvec2 range = drawRanges[partitionRangeOffset + (j * iter)];
+            if(range[1] < range[0])
+            {
+                lastRange = range;
+                continue;
+            }
+
+            if(range[0] > lastRange[1] + 1 || lastRange[1] < lastRange[0])
+            {
+                ++currentDrawCall;
+                DRAW_PARAMS[currentDrawCall].firstIndex = range[0];
+            }
+
+            DRAW_PARAMS[currentDrawCall].indexCount += range[1] - range[0];
+
+            lastRange = range;
+        }
+
+    }
+    
+    DRAW_COUNT = (currentDrawCall + 1);
+    // -----------------------------------------------------------------------------------------------------------------------------------
+}
