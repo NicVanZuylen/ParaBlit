@@ -400,8 +400,29 @@ namespace PB
 
 	void CommandContext::CmdComputeBarrier()
 	{
-		vkDeviceWaitIdle(m_device->GetHandle());
 		vkCmdPipelineBarrier(m_cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+	}
+
+	void CommandContext::CmdDrawIndirectBarrier(PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount)
+	{
+		CLib::Vector<VkBufferMemoryBarrier, 8> bufferMemBarriers(drawParamBufferCount);
+		for (u32 i = 0; i < drawParamBufferCount; ++i)
+		{
+			VkBufferMemoryBarrier& barrier = bufferMemBarriers.PushBack();
+			BufferObject* buf = reinterpret_cast<BufferObject*>(drawParamBuffers[i]);
+
+			barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+			barrier.pNext = nullptr;
+			barrier.buffer = buf->GetHandle();
+			barrier.offset = 0;
+			barrier.size = buf->GetSize();
+			barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		}
+
+		vkCmdPipelineBarrier(m_cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, bufferMemBarriers.Count(), bufferMemBarriers.Data(), 0, nullptr);
 	}
 
 	void CommandContext::CmdBindPipeline(Pipeline pipeline)
@@ -519,6 +540,15 @@ namespace PB
 		ValidateRecordingState();
 		ValidatePipelineState(false);
 		vkCmdDrawIndexedIndirect(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), offset, 1, sizeof(VkDrawIndexedIndirectCommand));
+	}
+
+	void CommandContext::CmdDrawIndexedIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride)
+	{
+		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
+		PB_ASSERT(m_device->GetVulkan12Features()->drawIndirectCount == VK_TRUE);
+		ValidateRecordingState();
+		ValidatePipelineState(false);
+		vkCmdDrawIndexedIndirectCount(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), paramsOffset, reinterpret_cast<BufferObject*>(drawCountBuffer)->GetHandle(), drawCountOffset, maxDrawCount, paramStride);
 	}
 
 	void CommandContext::CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ)

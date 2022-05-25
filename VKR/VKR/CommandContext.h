@@ -62,6 +62,7 @@ namespace PB
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange) override;
 		void CmdGraphicsBarrier() override;
 		void CmdComputeBarrier() override;
+		void CmdDrawIndirectBarrier(PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount) override;
 		PARABLIT_API void CmdBindPipeline(Pipeline pipeline) override;
 		void SetViewport(PB::Rect viewRect, float minDepth, float maxDepth) override;
 		void SetScissor(PB::Rect scissorRect) override;
@@ -70,6 +71,7 @@ namespace PB
 		PARABLIT_API void CmdDraw(u32 vertexCount, u32 instanceCount) override;
 		void CmdDrawIndexed(u32 indexCount, u32 instanceCount) override;
 		void CmdDrawIndexedIndirect(IBufferObject* paramsBuffer, u32 offset) override;
+		void CmdDrawIndexedIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride) override;
 		void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) override;
 		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) override;
 		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) override;

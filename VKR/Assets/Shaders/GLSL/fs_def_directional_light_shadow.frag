@@ -1,5 +1,7 @@
 #version 450
 #include "Common/pbr.h"
+#include "Common/pb_common.h"
+#include "Common/view_constants.h"
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_samplerless_texture_functions : require
@@ -12,7 +14,7 @@ struct FS_IN
 
 layout(push_constant) uniform Bindings
 {
-    uint mvpUBOIndex;
+    uint viewConstantsIndex;
     uint lightingUBOIndex;
     uint colorRTVIdx;
     uint normalRTVIdx;
@@ -25,21 +27,14 @@ layout(push_constant) uniform Bindings
     uint specBDRFLutIdx;
     uint samplerIdx;
     uint iblSamplerIdx;
-} bindings;
+} PB_BINDINGS_NAME;
 
 layout(set = 0, binding = 0) uniform texture2D textures[];
 layout(set = 0, binding = 0) uniform textureCube cubeTextures[];
 layout(set = 0, binding = 1) uniform sampler samplers[];
 
-layout(set = 1, binding = 0) uniform MVP
-{
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-    mat4 invView;
-    mat4 invProj;
-    vec4 cameraPosition;
-} mvp[];
+DEFINE_VIEW_CONSTANTS(viewConstants)
+#define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
 
 struct DirectionalLight
 {
@@ -113,21 +108,6 @@ vec3 CookTorrenceSpec(vec3 normal, vec3 lightDir, vec3 viewDir, float lambert, f
 	return max((D * F * G) / bottomHalf, 0.0f);
 }
 
-vec3 WorldPosFromDepth(float depth, vec2 texCoords, inout mat4 invView, inout mat4 invProj)
-{
-	// Convert x & y to clip space and include z.
-	vec4 clipSpacePos = vec4(texCoords * 2.0f - 1.0f, depth, 1.0f);
-	vec4 viewSpacepos = invProj * clipSpacePos; // Transform clip space position to view space.
-
-	// Do perspective divide
-	viewSpacepos /= viewSpacepos.w;
-
-	// Transform to worldspace from viewspace.
-	vec4 worldPos = invView * viewSpacepos;
-
-	return worldPos.xyz;
-}
-
 vec3 ScreenPosFromWorld(vec3 worldPosition, inout mat4 view, inout mat4 proj)
 {
     vec4 screenPosRaw = proj * view * vec4(worldPosition, 1.0);
@@ -146,15 +126,15 @@ vec3 FresnelShlickRoughness(float cosTheta, vec3 spec, float roughness)
 
 void main() 
 {
-    mat4 invView = mvp[nonuniformEXT(bindings.mvpUBOIndex)].invView;
-    mat4 invProj = mvp[nonuniformEXT(bindings.mvpUBOIndex)].invProj;
-    vec4 camPos  = mvp[nonuniformEXT(bindings.mvpUBOIndex)].cameraPosition;
+    mat4 invView = VIEW_CONST.invView;
+    mat4 invProj = VIEW_CONST.invProj;
+    vec4 camPos  = VIEW_CONST.cameraPosition;
 
     vec3 gamma = vec3(1.0 / 2.2);
 
     vec4 colorTexel = texture
     (
-        sampler2D(textures[nonuniformEXT(bindings.colorRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.colorRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
         fsInput.texCoord
     );
     vec3 color = colorTexel.rgb;
@@ -162,13 +142,13 @@ void main()
 
     vec3 normal = texture
     (
-        sampler2D(textures[nonuniformEXT(bindings.normalRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.normalRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
         fsInput.texCoord
     ).xyz;
 
     vec4 specAndRough = texture
     (
-        sampler2D(textures[nonuniformEXT(bindings.specAndRoughRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.specAndRoughRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
         fsInput.texCoord
     );
     vec3 specular = specAndRough.rgb;
@@ -176,7 +156,7 @@ void main()
 
     float depth = texture
     (
-        sampler2D(textures[nonuniformEXT(bindings.depthRTVIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.depthRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
         fsInput.texCoord
     ).r;
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, invView, invProj);
@@ -186,19 +166,19 @@ void main()
 
     float shadow = texture
     (
-        sampler2D(textures[nonuniformEXT(bindings.shadowmaskIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.shadowmaskIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
         fsInput.texCoord
     ).r;
 
     float ao = texture
     (
-        sampler2D(textures[nonuniformEXT(bindings.aoIndex)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.aoIndex)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
         fsInput.texCoord
     ).r;
 
     vec3 envIrradiance = texture
     (
-        samplerCube(cubeTextures[nonuniformEXT(bindings.irradianceIdx)], samplers[nonuniformEXT(bindings.iblSamplerIdx)]), 
+        samplerCube(cubeTextures[nonuniformEXT(PB_BINDINGS_NAME.irradianceIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.iblSamplerIdx)]), 
         normal
     ).rgb;
     envIrradiance = pow(envIrradiance, gamma);
@@ -208,16 +188,16 @@ void main()
     vec3 ambientDiffuse = envIrradiance * color * kD;
 
     vec3 reflectionVec = reflect(-dirToCam, normal);
-    float prefilterMipCount = float(textureQueryLevels(samplerCube(cubeTextures[nonuniformEXT(bindings.prefilteredEnvMapIdx)], samplers[nonuniformEXT(bindings.iblSamplerIdx)])));
+    float prefilterMipCount = float(textureQueryLevels(samplerCube(cubeTextures[nonuniformEXT(PB_BINDINGS_NAME.prefilteredEnvMapIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.iblSamplerIdx)])));
     vec3 indirectSpecular = textureLod
     (
-        samplerCube(cubeTextures[nonuniformEXT(bindings.prefilteredEnvMapIdx)], samplers[nonuniformEXT(bindings.iblSamplerIdx)]), 
+        samplerCube(cubeTextures[nonuniformEXT(PB_BINDINGS_NAME.prefilteredEnvMapIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.iblSamplerIdx)]), 
         reflectionVec,
         roughness * prefilterMipCount
     ).rgb;
     vec2 specBDRF = texture
     (
-        sampler2D(textures[nonuniformEXT(bindings.specBDRFLutIdx)], samplers[nonuniformEXT(bindings.samplerIdx)]), 
+        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.specBDRFLutIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
         vec2(normalDotCam, roughness)
     ).rg;
     indirectSpecular = pow(indirectSpecular, gamma);
@@ -225,10 +205,10 @@ void main()
 
     vec4 Lo = vec4((ambientDiffuse + ambientSpecular) * ao, 1.0);
     
-    int count = lightingData[nonuniformEXT(bindings.lightingUBOIndex)].count;
+    int count = lightingData[nonuniformEXT(PB_BINDINGS_NAME.lightingUBOIndex)].count;
     for(int i = 0; i < count; ++i)
     {
-        DirectionalLight light = lightingData[nonuniformEXT(bindings.lightingUBOIndex)].lights[i];
+        DirectionalLight light = lightingData[nonuniformEXT(PB_BINDINGS_NAME.lightingUBOIndex)].lights[i];
         vec3 normLightDir = normalize(light.direction.xyz);
 
         float normalDotLight = max(dot(normal, normLightDir), 0.0);
@@ -249,7 +229,7 @@ void main()
         Lo.rgb += Reflectance(color, bdrfSpecular, radiance, kD, normalDotLight) * shadow;
     }
 
-    float emissionIntensityScale = lightingData[nonuniformEXT(bindings.lightingUBOIndex)].emissionIntensityScale;
+    float emissionIntensityScale = lightingData[nonuniformEXT(PB_BINDINGS_NAME.lightingUBOIndex)].emissionIntensityScale;
     vec4 emissionOutput = vec4(color.rgb * emissionIntensityScale, 1.0);
 
     outColor = emissionMask == 0.0 ? Lo : emissionOutput;

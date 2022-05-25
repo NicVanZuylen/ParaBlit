@@ -27,6 +27,28 @@ public:
 		float m_fovY = 45.0f;
 	};
 
+	struct CameraFrustrum
+	{
+		using Plane = glm::vec4;
+
+		Plane m_left;
+		Plane m_right;
+		Plane m_top;
+		Plane m_bottom;
+		Plane m_near;
+		Plane m_far;
+
+		glm::vec3 m_nearTopLeft;
+		glm::vec3 m_nearTopRight;
+		glm::vec3 m_nearBottomLeft;
+		glm::vec3 m_nearBottomRight;
+
+		glm::vec3 m_farTopLeft;
+		glm::vec3 m_farTopRight;
+		glm::vec3 m_farBottomLeft;
+		glm::vec3 m_farBottomRight;
+	};
+
 	Camera();
 
 	Camera(const CreateDesc& desc);
@@ -64,6 +86,8 @@ public:
 
 	glm::mat4 GetTransformMatrix() const { return m_matrix; }
 
+	const CameraFrustrum& GetFrustrum() const { return m_frustrum; }
+
 	glm::vec3 Position() const { return m_matrix[3]; }
 	glm::vec3 EulerAngles() const { return m_eulerAngles; }
 	glm::vec3 Right() const { return m_matrix[0]; }
@@ -83,6 +107,7 @@ public:
 
 private:
 
+	CameraFrustrum m_frustrum;
 	glm::mat4 m_matrix;
 	glm::vec3 m_position;
 	glm::vec3 m_eulerAngles;

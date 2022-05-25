@@ -53,6 +53,18 @@ DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, Vertex
 
     m_instanceBuffer.Init(m_renderer, PB::EBufferUsage::STORAGE);
 
+    PB::BufferObjectDesc cullConstantsBufferDesc;
+    cullConstantsBufferDesc.m_bufferSize = sizeof(BatchCullConstants);
+    cullConstantsBufferDesc.m_options = 0;
+    cullConstantsBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
+    m_cullConstantsBuffer = m_renderer->AllocateBuffer(cullConstantsBufferDesc);
+
+    PB::BufferObjectDesc drawParamsBufferDesc;
+    drawParamsBufferDesc.m_bufferSize = sizeof(DrawParamsBuffer);
+    drawParamsBufferDesc.m_options = 0;
+    drawParamsBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::INDIRECT_PARAMS;
+    m_drawParamsBuffer = m_renderer->AllocateBuffer(drawParamsBufferDesc);
+
     PB::ComputePipelineDesc updatePipelineDesc;
     updatePipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "Shaders/GLSL/cs_populate_indices", allocator, true);
     m_batchUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
@@ -65,6 +77,9 @@ DrawBatch::~DrawBatch()
 
     m_renderer->FreeBuffer(m_dynamicIndexBuffer);
     m_renderer->FreeBuffer(m_dynamicIndexUpdateBuffer);
+
+    m_renderer->FreeBuffer(m_cullConstantsBuffer);
+    m_renderer->FreeBuffer(m_drawParamsBuffer);
 }
 
 void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings)
@@ -98,7 +113,73 @@ void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBat
     m_allocator->Free(finalBindingLayout.m_resourceViews);
 }
 
-DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float* modelMatrix, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
+void DrawBatch::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView)
+{
+    PB::ComputePipelineDesc cullPipelineDesc{};
+    cullPipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull", m_allocator, true).GetModule();
+
+    PB::Pipeline cullPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
+
+    cmdContext->CmdBindPipeline(cullPipeline);
+
+    PB::UniformBufferView constants[]
+    {
+        viewConstantsView,
+    };
+
+    PB::ResourceView drawParamsView;
+    PB::ResourceView drawCountView;
+
+    PB::BufferViewDesc drawViewDesc{};
+    drawViewDesc.m_buffer = m_drawParamsBuffer;
+    drawViewDesc.m_offset = 0;
+    drawViewDesc.m_size = sizeof(DrawParamsBuffer::m_drawIndexedParams);
+    drawParamsView = m_drawParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
+
+    drawViewDesc.m_offset = drawViewDesc.m_size;
+    drawViewDesc.m_size = sizeof(DrawParamsBuffer::m_drawCount);
+    drawCountView = m_drawParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
+
+    PB::ResourceView resources[]
+    {
+        m_cullConstantsBuffer->GetViewAsStorageBuffer(),
+        drawParamsView,
+        drawCountView
+    };
+
+    PB::BindingLayout bindings;
+    bindings.m_uniformBufferCount = _countof(constants);
+    bindings.m_uniformBuffers = constants;
+    bindings.m_resourceCount = _countof(resources);
+    bindings.m_resourceViews = resources;
+    cmdContext->CmdBindResources(bindings);
+
+    cmdContext->CmdDispatch(1, 1, 1);
+
+    cmdContext->CmdDrawIndirectBarrier(&m_drawParamsBuffer, 1);
+}
+
+void DrawBatch::DrawCulledGeometry(PB::ICommandContext* cmdContext, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings)
+{
+    //cmdContext->CmdBindPipeline(drawBatchPipeline);
+
+    PB::BindingLayout finalBindingLayout{};
+    finalBindingLayout.m_uniformBuffers = bindings.m_uniformBuffers;
+    finalBindingLayout.m_uniformBufferCount = bindings.m_uniformBufferCount;
+
+    PB::ResourceView batchResources[] =
+    {
+        m_instanceBuffer.GetBuffer()->GetViewAsStorageBuffer()
+    };
+    finalBindingLayout.m_resourceCount = _countof(batchResources);
+    finalBindingLayout.m_resourceViews = batchResources;
+
+    cmdContext->CmdBindResources(finalBindingLayout);
+    cmdContext->CmdBindVertexBuffers(nullptr, 0, m_dynamicIndexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
+    cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, sizeof(DrawParamsBuffer::m_drawIndexedParams), MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
+}
+
+DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float* modelMatrix, glm::vec3 boundOrigin, glm::vec3 boundExtents, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
 {
     assert(mesh);
     assert(mesh->GetVertexPool() == m_vertexPool && "Mesh must be allocated from the same vertex pool assigned to this draw batch.");
@@ -112,7 +193,10 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     if (m_dynamicUpdateQueueFreeList.Count() > 0)
         freeIndex = m_dynamicUpdateQueueFreeList.Back();
     else
+    {
         m_dynamicUpdateQueue.PushBack();
+        m_instanceCullData.PushBack();
+    }
     DynamicIndexUpdate& entry = m_dynamicUpdateQueue[freeIndex];
 
     entry.m_inputIndexBufferIndex = mesh->GetIndexBuffer()->GetViewAsStorageBuffer();
@@ -132,6 +216,10 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     instanceData.m_vertexBuffer = mesh->GetVertexBuffer()->GetViewAsStorageBuffer();
     instanceData.m_sampler = sampler;
 
+    LocalObjectCullData& cullData = m_instanceCullData[freeIndex];
+    cullData.m_boundOrigin = boundOrigin;
+    cullData.m_boundExtents = boundExtents;
+
     return freeIndex;
 }
 
@@ -149,7 +237,11 @@ void DrawBatch::RemoveInstance(DrawBatchInstance instance)
     entryToRemove.m_workGroupCount = WorkGroupCountInvalid; // Invalidate instance.
     
     if (instance == m_dynamicUpdateQueue.Count() - 1)
+    {
         --m_instanceCount;
+        m_dynamicUpdateQueue.PopBack();
+        m_instanceCullData.PopBack();
+    }
     else
         m_dynamicUpdateQueueFreeList.PushBack(instance);
 }
@@ -213,4 +305,46 @@ void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
     cmdContext->CmdBindResources(updateBindingLayout);
 
     cmdContext->CmdDispatch(totalWorkGroupIndex * MinWorkGroupsPerObject, 1, 1);
+}
+
+void DrawBatch::UpdateCullParams()
+{
+    BatchCullConstants* cullData = reinterpret_cast<BatchCullConstants*>(m_cullConstantsBuffer->BeginPopulate());
+    cullData->m_validObjectCount = m_instanceCount;
+
+    uint32_t partitionSize = uint32_t(glm::ceil(glm::max(float(m_instanceCount) / MaxDrawCount, 1.0f)));
+    uint32_t currentPartition = 0;
+    uint32_t localPartitionIndex = 0;
+    uint32_t partitionOffset = 0;
+    uint32_t totalIndexCount = 0;
+
+    cullData->m_partitionRanges[currentPartition][0] = 0;
+    for (uint32_t i = 0; i < m_dynamicUpdateQueue.Count(); ++i)
+    {
+        auto& indexData = m_dynamicUpdateQueue[i];
+        auto& localCullData = m_instanceCullData[i];
+        auto& objectCullData = cullData->m_objects[i];
+
+        objectCullData.m_boundOrigin = localCullData.m_boundOrigin;
+        objectCullData.m_boundExtents = localCullData.m_boundExtents;
+        objectCullData.m_drawRange[0] = totalIndexCount;
+        objectCullData.m_drawRange[1] = totalIndexCount + indexData.m_indexCount;
+
+        totalIndexCount += indexData.m_indexCount;
+
+        if (localPartitionIndex == partitionSize)
+        {
+            cullData->m_partitionRanges[currentPartition][1] = partitionOffset + localPartitionIndex;
+            ++currentPartition;
+            cullData->m_partitionRanges[currentPartition][0] = partitionOffset + localPartitionIndex;
+            partitionOffset += localPartitionIndex;
+            localPartitionIndex = 0;
+        }
+        objectCullData.m_partition = currentPartition;
+
+        ++localPartitionIndex;
+    }
+    cullData->m_partitionRanges[currentPartition][1] = partitionOffset + localPartitionIndex;
+
+    m_cullConstantsBuffer->EndPopulate();
 }

@@ -10,8 +10,7 @@ layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_
 
 layout(push_constant) uniform Bindings
 {
-    uint viewConstantsIndex; 
-    uint frustrumConstantsIndex; 
+    uint viewConstantsIndex;
     uint batchConstantsIndex;
     uint drawParamsBufferIndex;
     uint drawCountBufferIndex;
@@ -20,23 +19,17 @@ layout(push_constant) uniform Bindings
 DEFINE_VIEW_CONSTANTS(viewConstants)
 #define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
 
-layout (set = 1, binding = 0) uniform FrustrumConstants
-{
-    // (x,y,z) = normal, w = distance
-    vec4 mainFrustrumPlanes[6];
-} frustrumConstants[];
-#define FRUST_CONST PB_UBO(frustrumConstants, frustrumConstantsIndex)
-
 struct ObjectData
 {
     vec3 origin;
-    uint partition;
+    uint rangePartition;
     vec3 extents;
+    uint pad0;
     uvec2 drawRange;
-    uvec3 pad;
-}
+    uvec2 pad1;
+};
 
-layout(set = 1, binding = 0) uniform BatchConstants
+layout(set = 0, binding = 2, std430) readonly buffer BatchConstants
 {
     ObjectData objects[256];
     uvec2 partitionRanges[MAX_DRAW_COUNT];
@@ -46,9 +39,12 @@ layout(set = 1, binding = 0) uniform BatchConstants
 
 struct IndirectDrawParams
 {
-    uint firstIndex;
-    uint indexCount;
-}
+	uint indexCount;
+	uint instanceCount;
+	uint firstIndex;
+	uint vertexOffset;
+	uint firstInstance;
+};
 
 layout(set = 0, binding = 2) buffer DrawParamsBuffer
 {
@@ -62,9 +58,18 @@ layout(set = 0, binding = 2) buffer DrawCountBuffer
 } drawCounts[];
 #define DRAW_COUNT drawCounts[PB_BINDINGS_NAME.drawCountBufferIndex].drawCount
 
+layout(set = 0, binding = 2) buffer DebugOutputRangeBuffer
+{
+    uvec2 outputRanges[WORKGROUP_SIZE_X];
+} debugOutputRangeBuffer[];
+
+#define RANGE_STRIDE 2
+#define PARTITION_RANGE_COUNT (WORKGROUP_SIZE_X / MAX_DRAW_COUNT) / RANGE_STRIDE
+
 shared uvec2 drawRanges[WORKGROUP_SIZE_X];
-shared int partitionRangeCounts[MAX_DRAW_COUNT];
-shared int totalPartitionRangeCount;
+shared uvec2 finalDrawRanges[WORKGROUP_SIZE_X / RANGE_STRIDE];
+shared uvec2 contigousRanges[PARTITION_RANGE_COUNT][MAX_DRAW_COUNT];
+shared uint partitionContigousRangeCount[MAX_DRAW_COUNT];
 
 bool IsInFrontOfPlane(vec4 plane, in vec3 origin, in vec3 extents)
 {
@@ -74,78 +79,88 @@ bool IsInFrontOfPlane(vec4 plane, in vec3 origin, in vec3 extents)
 	float r = halfExtents.x * abs(plane.x) +
 		halfExtents.y * abs(plane.y) + halfExtents.z * abs(plane.z);
 
-	float signedDist = dot(plane.xyz, centre) - plane.z;
+	float signedDist = dot(plane.xyz, centre) - plane.w;
 
-	return -r <= signedDist;
+	return (-r <= signedDist);
 }
+
+bool RangeIsValid(in vec2 range)
+{
+    return range[1] > range[0];
+}
+
+uvec2 CombineRanges(uvec2 a, uvec2 b)
+{
+    return uvec2(min(a.x, b.x), max(a.y, b.y));
+}
+
+#define INVALID_RANGE uvec2(~uint(0), 0)
 
 void main()
 {
     // -----------------------------------------------------------------------------------------------------------------------------------
     // Shared Memory Initialization
 
-    if(gl_LocalInvocationID.x < MAX_DRAW_COUNT)
-    {
-        partitionRangeCounts[gl_LocalInvocationID.x] = 0;
-        totalPartitionRangeCount = 0;
-    }
-    drawRanges[gl_LocalInvocationID.x] = uvec2(1, 0);
-
-    if(gl_LocalInvocationID.x >= BATCH_CONST.validObjectCount)
-        return;
-
-    memoryBarrierShared();
-    barrier();
+    finalDrawRanges[gl_LocalInvocationID.x] = INVALID_RANGE;
+    contigousRanges[gl_LocalInvocationID.x / MAX_DRAW_COUNT][gl_LocalInvocationID.x / (WORKGROUP_SIZE_X / MAX_DRAW_COUNT)] = INVALID_RANGE;
 
     // -----------------------------------------------------------------------------------------------------------------------------------
     // Frustrum Test
 
     vec3 origin = BATCH_CONST.objects[gl_LocalInvocationID.x].origin;
-    uint objectPartition = BATCH_CONST.objects[gl_LocalInvocationID.x].partition;
+    uint objectPartition = BATCH_CONST.objects[gl_LocalInvocationID.x].rangePartition;
     vec3 extents = BATCH_CONST.objects[gl_LocalInvocationID.x].extents;
     uvec2 objectRange = BATCH_CONST.objects[gl_LocalInvocationID.x].drawRange;
 
-    bool pass = IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[0], origin, extents)    // Near
-		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[1], origin, extents)     // Left
-		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[2], origin, extents)     // Right
-		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[3], origin, extents)     // Top
-		    && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[4], origin, extents)     // Bottom
-            && IsInFrontOfPlane(FRUST_CONST.mainFrustrumPlanes[5], origin, extents);    // Far
+    bool pass = IsInFrontOfPlane(VIEW_CONST.mainFrustrumPlanes[0], origin, extents)    // Near
+		    && IsInFrontOfPlane(VIEW_CONST.mainFrustrumPlanes[1], origin, extents)     // Left
+		    && IsInFrontOfPlane(VIEW_CONST.mainFrustrumPlanes[2], origin, extents)     // Right
+		    && IsInFrontOfPlane(VIEW_CONST.mainFrustrumPlanes[3], origin, extents)     // Top
+		    && IsInFrontOfPlane(VIEW_CONST.mainFrustrumPlanes[4], origin, extents);    // Bottom
+    drawRanges[gl_LocalInvocationID.x] = pass ? objectRange : INVALID_RANGE;
 
-    if(pass)
+    memoryBarrierShared();
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Pair Combination
+
+    if(gl_LocalInvocationID.x < WORKGROUP_SIZE_X / RANGE_STRIDE)
     {
-        drawRanges[gl_LocalInvocationID.x] = objectRange;
-
-        atomicAdd(partitionRangeCounts[objectPartition], 1);
-        atomicAdd(totalPartitionRangeCount, 1);
+        uint pair = gl_LocalInvocationID.x * RANGE_STRIDE;
+        finalDrawRanges[gl_LocalInvocationID.x] = CombineRanges(drawRanges[pair], drawRanges[pair + 1]);
     }
 
     memoryBarrierShared();
-    barrier();
 
     // -----------------------------------------------------------------------------------------------------------------------------------
-    // Compaction Phase
-
-    uint partitionRangeOffset = BATCH_CONST.partitionRanges[objectPartition][0];
-    uint iter = 1;
-    while(totalPartitionRangeCount > MAX_DRAW_COUNT)
+    // Contigous Range Detection
+    if(gl_LocalInvocationID.x < MAX_DRAW_COUNT)
     {
-        vec2 range = drawRanges[gl_LocalInvocationID.x * iter];
-        vec2 nextRange = drawRanges[(gl_LocalInvocationID.x + 1) * iter];
+        uint off = gl_LocalInvocationID.x * PARTITION_RANGE_COUNT;
 
-        if(range[1] > range[0] && nextRange[1] > nextRange[0])
+        uint curContigRange = 0;
+        contigousRanges[0][gl_LocalInvocationID.x] = INVALID_RANGE;
+        for(uint i = 0; i < PARTITION_RANGE_COUNT; ++i)
         {
-            atomicAdd(partitionRangeCounts[objectPartition], -1);
-            atomicAdd(totalPartitionRangeCount, -1);
+            uvec2 range = finalDrawRanges[off + i];
+            if(!RangeIsValid(contigousRanges[curContigRange][gl_LocalInvocationID.x]))
+            {
+                contigousRanges[curContigRange][gl_LocalInvocationID.x] = range;
+            }
+            else if(range.x == contigousRanges[curContigRange][gl_LocalInvocationID.x].y)
+            {
+                contigousRanges[curContigRange][gl_LocalInvocationID.x].y = range.y;
+            }
+            else
+            {
+                contigousRanges[++curContigRange][gl_LocalInvocationID.x] = range;
+            }
         }
 
-        range[0] = min(range[0], nextRange[0]);
-        range[1] = max(range[1], nextRange[1]);
-
-        memoryBarrierShared();
-        barrier();
-        ++iter;
+        partitionContigousRangeCount[gl_LocalInvocationID.x] = curContigRange + uint(RangeIsValid(contigousRanges[curContigRange][gl_LocalInvocationID.x]));
     }
+
+    memoryBarrierShared();
 
     // -----------------------------------------------------------------------------------------------------------------------------------
     // Draw Call Setup
@@ -154,34 +169,41 @@ void main()
         return;
 
     int currentDrawCall = -1;
-    uvec2 lastRange = uvec2(1, 0);
+    uvec2 lastValidRange = INVALID_RANGE;
     for(uint i = 0; i < MAX_DRAW_COUNT; ++i)
     {
-        partitionRangeOffset = BATCH_CONST.partitionRanges[i][0];
-        uint partitionRangeCount = partitionRangeCounts[i];
-
-        for(uint j = 0; j < partitionRangeCount; ++j)
+        for(uint j = 0; j < partitionContigousRangeCount[i]; ++j)
         {
-            uvec2 range = drawRanges[partitionRangeOffset + (j * iter)];
-            if(range[1] < range[0])
+            uvec2 range = contigousRanges[j][i];
+            if(RangeIsValid(range) == false)
             {
-                lastRange = range;
-                continue;
+               continue;
             }
 
-            if(range[0] > lastRange[1] + 1 || lastRange[1] < lastRange[0])
+            if(currentDrawCall == -1 || range[0] > lastValidRange[1] + 1)
             {
                 ++currentDrawCall;
+
                 DRAW_PARAMS[currentDrawCall].firstIndex = range[0];
+                DRAW_PARAMS[currentDrawCall].instanceCount = 1;
+                DRAW_PARAMS[currentDrawCall].indexCount = 0;
             }
 
-            DRAW_PARAMS[currentDrawCall].indexCount += range[1] - range[0];
-
-            lastRange = range;
+            uint drawIndex = min(currentDrawCall, MAX_DRAW_COUNT - 1);
+            if(currentDrawCall >= MAX_DRAW_COUNT)
+            {
+                DRAW_PARAMS[drawIndex].indexCount += range[1] - lastValidRange[1];
+            }
+            else
+            {
+                DRAW_PARAMS[drawIndex].indexCount += range[1] - range[0];
+            }
+        
+            lastValidRange = range;
         }
-
     }
-    
-    DRAW_COUNT = (currentDrawCall + 1);
+
+    DRAW_COUNT = (min(currentDrawCall, MAX_DRAW_COUNT - 1) + 1);
+
     // -----------------------------------------------------------------------------------------------------------------------------------
 }

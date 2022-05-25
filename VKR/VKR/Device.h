@@ -95,6 +95,12 @@ namespace PB
 		*/
 		const VkPhysicalDeviceDynamicRenderingFeaturesKHR* GetDynamicRenderingFeatures();
 
+		/*
+		Description: Gets the feature toggles for Vulkan 1.2 core features.
+		Return Type const VkPhysicalDeviceDynamicRenderingFeaturesKHR*
+		*/
+		const VkPhysicalDeviceVulkan12Features* GetVulkan12Features();
+
 	private:
 
 		// Enumerate physical devices and use the most suitable one.

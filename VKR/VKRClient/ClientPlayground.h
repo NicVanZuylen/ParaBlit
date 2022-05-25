@@ -57,13 +57,14 @@ private:
 
 	// -------------------------------------------------------------------------
 	// Buffer Structures
-	struct MVPBuffer
+	struct ViewConstantsBuffer
 	{
 		glm::mat4 m_model;
 		glm::mat4 m_view;
 		glm::mat4 m_proj;
 		glm::mat4 m_invView;
 		glm::mat4 m_invProj;
+		glm::vec4 m_mainFrustrumPlanes[6];
 		glm::vec4 m_camPos;
 		float m_aspectRatio;
 		float m_tanHalfFOV;

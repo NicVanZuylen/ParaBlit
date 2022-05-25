@@ -174,6 +174,11 @@ namespace PB
 		return &m_physDeviceDynamicRenderingFeatures;
 	}
 
+	const VkPhysicalDeviceVulkan12Features* Device::GetVulkan12Features()
+	{
+		return &m_physDeviceVulkan12Features;
+	}
+
 	void Device::EnumDevice()
 	{
 		u32 deviceCount = 0;
@@ -341,6 +346,8 @@ namespace PB
 		m_physDeviceVulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceVulkan12Features.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceVulkan12Features.descriptorBindingUpdateUnusedWhilePending = VK_FALSE;
+
+		m_physDeviceVulkan12Features.drawIndirectCount = VK_TRUE; // For experimental GPU-driven frustrum culling.
 
 		m_physDeviceDynamicRenderingFeatures.dynamicRendering = VK_FALSE; // TODO: Try this out when Vk_KHR_dynamic_rendering extension is complete.
 

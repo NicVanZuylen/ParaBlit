@@ -13,7 +13,7 @@ class GBufferPass : public RenderGraphBehaviour
 {
 public:
 
-	GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator);
+	GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::UniformBufferView viewConstView, DrawBatch* testBatch);
 
 	~GBufferPass();
 
@@ -37,5 +37,10 @@ private:
 	PB::ITexture* m_outputTexture = nullptr;
 	ObjectDispatchList* m_geoDispatchList = nullptr;
 	bool m_listRequiresUpdate = false;
+
+	PB::UniformBufferView m_viewConstView = nullptr;
+	PB::Pipeline m_drawbatchPipeline = 0;
+	DrawBatch* m_experimentalDB = nullptr;
+	PB::ICommandList* m_expCmdList = nullptr;
 };
 

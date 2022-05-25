@@ -7,6 +7,7 @@ layout(set = 1, binding = 0) uniform ViewConstants  \
     mat4 proj;                                      \
     mat4 invView;                                   \
     mat4 invProj;                                   \
+    vec4 mainFrustrumPlanes[6];                     \
     vec4 cameraPosition;                            \
     float aspectRatio;                              \
     float tanHalfFOV;                               \

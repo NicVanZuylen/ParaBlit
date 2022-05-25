@@ -68,6 +68,8 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	m_geoDispatchList = m_allocator->Alloc<ObjectDispatchList>();
 	m_geoDispatchList->Init(m_renderer, m_allocator, { 0, 0, m_swapchain->GetWidth(), m_swapchain->GetHeight() });
 
+	uint32_t indexCount = ((m_paintMesh->IndexCount() + m_detailsMesh->IndexCount() + m_glassMesh->IndexCount()) * (255 / 3)) + m_planeMesh->IndexCount();
+	m_drawBatch = m_allocator->Alloc<DrawBatch>(m_renderer, m_allocator, m_vertexPool, indexCount);
 	m_renderGraph = CreateRenderGraph();
 	SetupDrawBatch();
 
@@ -288,29 +290,32 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
 	CLib::Vector<std::pair<glm::vec3, glm::vec3>> nodes;
-	nodes.PushBack({ glm::vec3(-30.0f), glm::vec3(60.0f) });
-	for (uint32_t level = 0; level < 5; ++level)
-	{
-		for (uint32_t i = 0; i < nodeCount; ++i)
-		{
-			glm::vec3 nodeExtents
-			{
-				minExtents.x + (dist(rand) * maxExtents.x),
-				minExtents.y + (dist(rand) * maxExtents.y),
-				minExtents.z + (dist(rand) * maxExtents.z)
-			};
+	//nodes.PushBack({ glm::vec3(-30.0f), glm::vec3(60.0f) });
+	//for (uint32_t level = 0; level < 5; ++level)
+	//{
+	//	for (uint32_t i = 0; i < nodeCount; ++i)
+	//	{
+	//		glm::vec3 nodeExtents
+	//		{
+	//			minExtents.x + (dist(rand) * maxExtents.x),
+	//			minExtents.y + (dist(rand) * maxExtents.y),
+	//			minExtents.z + (dist(rand) * maxExtents.z)
+	//		};
 
-			glm::vec3 nodeOrigin
-			{
-				minOrigin.x + ((maxOrigin.x - minOrigin.x) * dist(rand)),
-				//minOrigin.y + ((maxOrigin.y - minOrigin.y) * dist(rand)),
-				level * 3.0f,
-				minOrigin.z + ((maxOrigin.z - minOrigin.z) * dist(rand))
-			};
+	//		glm::vec3 nodeOrigin
+	//		{
+	//			minOrigin.x + ((maxOrigin.x - minOrigin.x) * dist(rand)),
+	//			//minOrigin.y + ((maxOrigin.y - minOrigin.y) * dist(rand)),
+	//			level * 3.0f,
+	//			minOrigin.z + ((maxOrigin.z - minOrigin.z) * dist(rand))
+	//		};
 
-			nodes.PushBack({ nodeOrigin, nodeExtents });
-		}
-	}
+	//		nodes.PushBack({ nodeOrigin, nodeExtents });
+	//	}
+	//}
+
+	//nodes.PushBack({ glm::vec3(-1.2f, 0.0f, -2.5f), glm::vec3(2.4f, 1.5f, 5.0f) });
+	nodes.PushBack({ glm::vec3(-0.6f, 0.0f, -1.25f), glm::vec3(1.2f, 0.75f, 2.5f) });
 
 	//nodes.PushBack({ glm::vec3(-2.5f), glm::vec3(2.5f) });
 	//nodes.PushBack({ glm::vec3(-7.5f, -2.5f, -7.5f), glm::vec3(2.5f) });
@@ -353,6 +358,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 {
 	m_camera.UpdateFreeCam(deltaTime, input, window);
 	m_frustrumTestCamera.Rotate(glm::vec3(0.0f, glm::radians(15.0f * deltaTime), 0.0f));
+	//m_frustrumTestCamera.SetRotation(glm::vec3(0.0f, glm::radians(120.0f), 0.0f));
 	m_frustrumTestCamera.Update();
 
 	// Update Text ---------------------------------------------------------------------------------------------------
@@ -436,7 +442,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		constexpr float fov = 45.0f;
 		constexpr float fovRadians = glm::radians(fov);
 
-		MVPBuffer* bufferMatrices = (MVPBuffer*)m_mvpBuffer->BeginPopulate();
+		ViewConstantsBuffer* bufferMatrices = (ViewConstantsBuffer*)m_mvpBuffer->BeginPopulate();
 
 		// Model
 		glm::mat4& model = bufferMatrices->m_model;
@@ -458,6 +464,16 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		// Depth Reconstruction Constants
 		bufferMatrices->m_aspectRatio = float(m_swapchain->GetWidth()) / m_swapchain->GetHeight();
 		bufferMatrices->m_tanHalfFOV = glm::tan(fovRadians / 2);
+
+		// Frustrum
+		const Camera::CameraFrustrum& frustrum = m_frustrumTestCamera.GetFrustrum();
+
+		bufferMatrices->m_mainFrustrumPlanes[0] = frustrum.m_near;
+		bufferMatrices->m_mainFrustrumPlanes[1] = frustrum.m_left;
+		bufferMatrices->m_mainFrustrumPlanes[2] = frustrum.m_right;
+		bufferMatrices->m_mainFrustrumPlanes[3] = frustrum.m_top;
+		bufferMatrices->m_mainFrustrumPlanes[4] = frustrum.m_bottom;
+		bufferMatrices->m_mainFrustrumPlanes[5] = frustrum.m_far;
 
 		glm::mat4 modelCpy = model;
 
@@ -507,7 +523,7 @@ void ClientPlayground::UpdateResolution(uint32_t width, uint32_t height)
 void ClientPlayground::InitResources()
 {
 	PB::BufferObjectDesc mvpBufferDesc;
-	mvpBufferDesc.m_bufferSize = sizeof(MVPBuffer);
+	mvpBufferDesc.m_bufferSize = sizeof(ViewConstantsBuffer);
 	mvpBufferDesc.m_options = PB::EBufferOptions::ZERO_INITIALIZE;
 	mvpBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::UNIFORM;
 	m_mvpBuffer = m_renderer->AllocateBuffer(mvpBufferDesc);
@@ -685,7 +701,7 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		// GBuffer pass
 		{
 			if(!m_gBufferPass)
-				m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator);
+				m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), m_drawBatch);
 			m_gBufferPass->AddToRenderGraph(&rgBuilder);
 		}
 		
@@ -782,9 +798,9 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
 
 		//Camera shadowCam(glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50.0f), glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)));
-		Camera::CreateDesc shadowCamDesc;
-		shadowCamDesc.m_position = glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50.0f);
-		shadowCamDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f));
+		Camera::CreateDesc shadowCamDesc{};
+		shadowCamDesc.m_position = glm::vec3(0.0f, 0.0f, 0.0f);
+		shadowCamDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, 0.0f, 0.0f));
 		Camera shadowCam(shadowCamDesc);
 
 		glm::mat4 shadowView = shadowCam.GetViewMatrix();
@@ -819,11 +835,8 @@ void ClientPlayground::SetupDrawBatch()
 {
 	PB::UniformBufferView mvpView = m_mvpBuffer->GetViewAsUniformBuffer();
 
-	uint32_t indexCount = ((m_paintMesh->IndexCount() + m_detailsMesh->IndexCount() + m_glassMesh->IndexCount()) * (255 / 3)) + m_planeMesh->IndexCount();
-
-	m_drawBatch = m_allocator->Alloc<DrawBatch>(m_renderer, m_allocator, m_vertexPool, indexCount);
-	m_drawBatch->AddToDispatchList(m_geoShadowDispatchList, GetShadowDrawBatchPipeline(), m_shadowmapPass->GetDrawBatchBindings());
-	m_drawBatch->AddToDispatchList(m_geoDispatchList, GetGBufferDrawBatchPipeline(), GetGBufferDrawBatchBindings(mvpView));
+	//m_drawBatch->AddToDispatchList(m_geoShadowDispatchList, GetShadowDrawBatchPipeline(), m_shadowmapPass->GetDrawBatchBindings());
+	//m_drawBatch->AddToDispatchList(m_geoDispatchList, GetGBufferDrawBatchPipeline(), GetGBufferDrawBatchBindings(mvpView));
 
 	glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
 	glm::mat4 spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
@@ -837,46 +850,64 @@ void ClientPlayground::SetupDrawBatch()
 		m_solidBlackTexture->GetDefaultSRV()
 	};
 
-	/*PB::ResourceView plainViews[]
-	{
-		m_metalTextures[0]->GetTexture()->GetDefaultSRV(),
-		m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
-		m_solidBlackTexture->GetDefaultSRV(),
-		m_solidBlackTexture->GetDefaultSRV()
-	};*/
-
-	//const uint32_t spinnerCount = 1;
-	//for (uint32_t i = 0; i < spinnerCount; ++i)
+	//PB::ResourceView plainViews[]
 	//{
-	//	modelMat = glm::translate(glm::mat4(), glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10)));
-	//	modelMat = glm::rotate(modelMat, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	//	spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
+	//	m_metalTextures[0]->GetTexture()->GetDefaultSRV(),
+	//	m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
+	//	m_solidBlackTexture->GetDefaultSRV(),
+	//	m_solidBlackTexture->GetDefaultSRV()
+	//};
 
-	//	if (i == 0)
-	//	{
-	//		m_firstInstanceHandles[0] = m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), m_paintViews, _countof(m_paintViews), m_colorSampler);
-	//		m_firstInstanceHandles[1] = m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-	//		m_firstInstanceHandles[2] = m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), m_glassViews, _countof(m_glassViews), m_colorSampler);
-	//		continue;
-	//	}
+	glm::vec3 boundOrigin0 = glm::vec3(-1.2f, 0.0f, -2.5f);
+	glm::vec3 boundExtent0 = glm::vec3(2.4f, 1.5f, 5.0f);
 
-	//	m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), m_paintViews, _countof(m_paintViews), m_colorSampler);
-	//	m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-	//	m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), m_glassViews, _countof(m_glassViews), m_colorSampler);
-	//}
+	glm::vec3 boundOrigin1 = glm::vec3(-0.6f, 0.0f, -1.25f);
+	glm::vec3 boundExtent1 = glm::vec3(1.2f, 0.75f, 2.5f);
 
-	//modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, -0.2f, -4.0f));
-	//m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), plainViews, _countof(plainViews), m_colorSampler);
+	const uint32_t spinnerCount = 85;
+	for (uint32_t i = 0; i < spinnerCount; ++i)
+	{
+		glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+		//glm::vec3 pos = glm::vec3(4.0f * i, 0.0f, 0.0f);
+		modelMat = glm::translate(glm::mat4(), pos);
+		modelMat = glm::rotate(modelMat, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
-	//plainViews[0] = m_debugViews[0];
-	//plainViews[2] = m_debugViews[2];
-	//plainViews[3] = m_debugViews[1];
+		if (i == 0)
+		{
+			m_firstInstanceHandles[0] = m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), boundOrigin0, boundExtent0, m_paintViews, _countof(m_paintViews), m_colorSampler);
+			m_firstInstanceHandles[1] = m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), boundOrigin0, boundExtent0, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
+			m_firstInstanceHandles[2] = m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), boundOrigin0, boundExtent0, m_glassViews, _countof(m_glassViews), m_colorSampler);
+			continue;
+		}
 
-	//modelMat = glm::identity<glm::mat4>();
-	//modelMat = glm::translate(modelMat, glm::vec3(-2.4f, 1.0f, -4.0f));
-	//modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	//modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
-	//m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), plainViews, _countof(plainViews), m_colorSampler);
+		m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), pos + boundOrigin0, boundExtent0, m_paintViews, _countof(m_paintViews), m_colorSampler);
+		m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), pos + boundOrigin0, boundExtent0, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
+		m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), pos + boundOrigin0, boundExtent0, m_glassViews, _countof(m_glassViews), m_colorSampler);
+	}
+
+	/*modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, -0.2f, -4.0f));
+	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, plainViews, _countof(plainViews), m_colorSampler);
+
+	plainViews[0] = m_debugViews[0];
+	plainViews[2] = m_debugViews[2];
+	plainViews[3] = m_debugViews[1];
+
+	modelMat = glm::identity<glm::mat4>();
+	modelMat = glm::translate(modelMat, glm::vec3(-2.4f, 1.0f, -4.0f));
+	modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
+	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, plainViews, _countof(plainViews), m_colorSampler);*/
+
+
+	/*
+	modelMat = glm::identity<glm::mat4>();
+	modelMat = glm::scale(modelMat, glm::vec3(0.01f));
+	m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, m_paintViews, _countof(m_paintViews), m_colorSampler);
+	m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
+	m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, m_glassViews, _countof(m_glassViews), m_colorSampler);*/
+
+	m_drawBatch->UpdateCullParams();
 }
 
 PB::Pipeline ClientPlayground::GetGBufferDrawBatchPipeline()

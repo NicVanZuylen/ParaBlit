@@ -29,13 +29,91 @@ Camera::Camera(const CreateDesc& desc)
 void Camera::Update()
 {
 	// Construct translation and rotation matrices...
-	glm::mat4 posMat = glm::translate(glm::mat4(), m_position);
-	glm::mat4 rotMat = glm::rotate(glm::mat4(), -m_eulerAngles.z, glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 posMat = glm::translate(glm::identity<glm::mat4>(), m_position);
+	glm::mat4 rotMat = glm::rotate(glm::identity<glm::mat4>(), -m_eulerAngles.z, glm::vec3(0.0f, 0.0f, 1.0f));
 	rotMat *= glm::rotate(rotMat, m_eulerAngles.y, glm::vec3(0.0f, 1.0f, 0.0f));
 	rotMat *= glm::rotate(rotMat, m_eulerAngles.x, glm::vec3(1.0f, 0.0f, 0.0f));
 
 	// The camera will rotate around a pivot at it's centre, so concatenate translation first and rotation second.
 	m_matrix = posMat * rotMat;
+
+	// Calculate frustrum
+	const glm::vec3 nearCentre = Position() + (Forward() * ZNear());
+	const glm::vec3 farCentre = Position() + (Forward() * ZFar());
+
+	const float nearFarHeight = ZNear() * glm::tan(FovY() * 0.5f);
+	const float nearFarWidth = nearFarHeight * Aspect();
+
+	const float halfFarHeight = ZFar() * glm::tan(FovY() * 0.5f);
+	const float halfFarWidth = halfFarHeight * Aspect();
+
+	m_frustrum.m_nearTopLeft = nearCentre + (Up() * nearFarHeight) - (Right() * nearFarWidth);
+	m_frustrum.m_nearTopRight = nearCentre + (Up() * nearFarHeight) + (Right() * nearFarWidth);
+	m_frustrum.m_nearBottomLeft = nearCentre - (Up() * nearFarHeight) - (Right() * nearFarWidth);
+	m_frustrum.m_nearBottomRight = nearCentre - (Up() * nearFarHeight) + (Right() * nearFarWidth);
+
+	m_frustrum.m_farTopLeft = farCentre + (Up() * halfFarHeight) - (Right() * halfFarWidth);
+	m_frustrum.m_farTopRight = farCentre + (Up() * halfFarHeight) + (Right() * halfFarWidth);
+	m_frustrum.m_farBottomLeft = farCentre - (Up() * halfFarHeight) - (Right() * halfFarWidth);
+	m_frustrum.m_farBottomRight = farCentre - (Up() * halfFarHeight) + (Right() * halfFarWidth);
+
+	const glm::vec3 leftNormal = glm::normalize
+	(
+		glm::cross
+		(
+			m_frustrum.m_farBottomLeft - m_frustrum.m_nearBottomLeft,
+			m_frustrum.m_farTopLeft - m_frustrum.m_farBottomLeft
+		)
+	);
+	const glm::vec3 rightNormal = glm::normalize
+	(
+		glm::cross
+		(
+			m_frustrum.m_farTopRight - m_frustrum.m_nearTopRight,
+			m_frustrum.m_farBottomRight - m_frustrum.m_farTopRight
+		)
+	);
+	const glm::vec3 topNormal = glm::normalize
+	(
+		glm::cross
+		(
+			m_frustrum.m_farTopLeft - m_frustrum.m_nearTopLeft,
+			m_frustrum.m_farTopRight - m_frustrum.m_farTopLeft
+		)
+	);
+	const glm::vec3 bottomNormal = glm::normalize
+	(
+		glm::cross
+		(
+			m_frustrum.m_farBottomRight - m_frustrum.m_nearBottomRight,
+			m_frustrum.m_farBottomLeft - m_frustrum.m_farBottomRight
+		)
+	);
+
+	m_frustrum.m_left = { leftNormal, glm::dot(m_frustrum.m_farTopLeft, leftNormal) };
+	m_frustrum.m_right = { rightNormal, glm::dot(m_frustrum.m_farBottomRight, rightNormal) };
+
+	m_frustrum.m_top = { topNormal, glm::dot(m_frustrum.m_farTopLeft, topNormal) };
+	m_frustrum.m_bottom = { bottomNormal, glm::dot(m_frustrum.m_farBottomLeft, bottomNormal) };
+
+	const float projectedNear = glm::dot(Position() + (Forward() * ZNear()), -Forward());
+	const float projectedFar = glm::dot(Position() + (Forward() * ZFar()), Forward());
+
+	m_frustrum.m_near = glm::vec4(- Forward(), projectedNear);
+	m_frustrum.m_far = { Forward(), projectedFar };
+
+	glm::mat4 noTranslate = glm::translate(glm::mat4(), Position() * glm::vec3(2.0f, 0.0f, 2.0f));
+	glm::mat4 trans = glm::rotate(noTranslate, glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	m_frustrum.m_nearTopLeft = trans * glm::vec4(m_frustrum.m_nearTopLeft, 1.0f);
+	m_frustrum.m_nearTopRight = trans * glm::vec4(m_frustrum.m_nearTopRight, 1.0f);
+	m_frustrum.m_nearBottomLeft = trans * glm::vec4(m_frustrum.m_nearBottomLeft, 1.0f);
+	m_frustrum.m_nearBottomRight = trans * glm::vec4(m_frustrum.m_nearBottomRight, 1.0f);
+
+	m_frustrum.m_farTopLeft = trans * glm::vec4(m_frustrum.m_farTopLeft, 1.0f);
+	m_frustrum.m_farTopRight = trans * glm::vec4(m_frustrum.m_farTopRight, 1.0f);
+	m_frustrum.m_farBottomLeft = trans * glm::vec4(m_frustrum.m_farBottomLeft, 1.0f);
+	m_frustrum.m_farBottomRight = trans * glm::vec4(m_frustrum.m_farBottomRight, 1.0f);
 }
 
 void Camera::UpdateFreeCam(float fDeltaTime, Input* input, GLFWwindow* window) 

@@ -99,6 +99,8 @@ namespace PB
 		*/
 		PARABLIT_INTERFACE void CmdComputeBarrier() = 0;
 
+		PARABLIT_INTERFACE void CmdDrawIndirectBarrier(PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount) = 0;
+
 		PARABLIT_INTERFACE void CmdBindPipeline(Pipeline pipeline) = 0;
 
 		PARABLIT_INTERFACE void SetViewport(PB::Rect viewRect, float minDepth, float maxDepth) = 0;
@@ -116,6 +118,8 @@ namespace PB
 		PARABLIT_INTERFACE void CmdDrawIndexed(u32 indexCount, u32 instanceCount) = 0;
 
 		PARABLIT_INTERFACE void CmdDrawIndexedIndirect(IBufferObject* paramsBuffer, u32 offset) = 0;
+
+		PARABLIT_INTERFACE void CmdDrawIndexedIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride) = 0;
 
 		PARABLIT_INTERFACE void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) = 0;
 

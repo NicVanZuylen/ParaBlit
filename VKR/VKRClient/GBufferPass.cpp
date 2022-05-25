@@ -1,16 +1,22 @@
 #include "GBufferPass.h"
 #include "RenderGraph.h"
 
+#include "DrawBatch.h"
+
 using namespace PBClient;
 
-GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : RenderGraphBehaviour(renderer, allocator)
+GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::UniformBufferView viewConstView, DrawBatch* testBatch) : RenderGraphBehaviour(renderer, allocator)
 {
 	m_renderer = renderer;
 	m_allocator = allocator;
+
+	m_viewConstView = viewConstView;
+	m_experimentalDB = testBatch;
 }
 
 GBufferPass::~GBufferPass()
 {
+	m_renderer->FreeCommandList(m_expCmdList);
 }
 
 void GBufferPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -20,12 +26,50 @@ void GBufferPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* r
 		m_geoDispatchList->Update(info.m_commandContext);
 		m_listRequiresUpdate = false;
 	}
+
+	if(m_drawbatchPipeline == 0)
+	{
+		PB::GraphicsPipelineDesc pipelineDesc = GetBasePipelineDesc();
+		pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = PBClient::Shader(m_renderer, "Shaders/GLSL/vs_obj_def_batch", m_allocator, true).GetModule();
+		pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = PBClient::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_batch", m_allocator, true).GetModule();
+
+		m_drawbatchPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
+	}
+
+	m_experimentalDB->DispatchFrustrumCull(info.m_commandContext, m_viewConstView);
 }
 
 void GBufferPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
 	if (m_geoDispatchList)
 		m_geoDispatchList->Dispatch(info.m_commandContext, info.m_renderPass, info.m_frameBuffer);
+
+	if (!m_expCmdList)
+	{
+		PB::CommandContextDesc expContextDesc;
+		expContextDesc.m_flags = PB::ECommandContextFlags::REUSABLE;
+		expContextDesc.m_usage = PB::ECommandContextUsage::GRAPHICS;
+		expContextDesc.m_renderer = m_renderer;
+		PB::SCommandContext scopedContext(m_renderer);
+		scopedContext->Init(expContextDesc);
+		scopedContext->Begin(info.m_renderPass, info.m_frameBuffer);
+
+		auto renderWidth = m_renderer->GetSwapchain()->GetWidth();
+		auto renderHeight = m_renderer->GetSwapchain()->GetHeight();
+
+		scopedContext->CmdBindPipeline(m_drawbatchPipeline);
+		scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+		scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+
+		PB::BindingLayout dbBindings{};
+		dbBindings.m_uniformBufferCount = 1;
+		dbBindings.m_uniformBuffers = &m_viewConstView;
+		m_experimentalDB->DrawCulledGeometry(scopedContext.GetContext(), m_drawbatchPipeline, dbBindings);
+
+		scopedContext->End();
+		m_expCmdList = scopedContext->Return();
+	}
+	info.m_commandContext->CmdExecuteList(m_expCmdList);
 }
 
 void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -43,6 +87,12 @@ void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* 
 
 void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 {
+	if (m_expCmdList)
+	{
+		m_renderer->FreeCommandList(m_expCmdList);
+		m_expCmdList = nullptr;
+	}
+
 	NodeDesc nodeDesc{};
 	nodeDesc.m_behaviour = this;
 	nodeDesc.m_useReusableCommandLists = true;
