@@ -40,7 +40,7 @@ shared vec3 sharedSamples[WORKGROUP_AREA];
 
 float GetDepthScale(float depth)
 {
-    return (CONST.depthScaleFactor * 0.98) - (CONST.depthScaleFactor * depth);
+    return (CONST.depthScaleFactor * 0.995) - (CONST.depthScaleFactor * depth);
 }
 
 void StoreSample(uvec2 location, vec3 storeSample)

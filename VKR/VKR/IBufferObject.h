@@ -46,7 +46,7 @@ namespace PB
 		Description: Get the size of the buffer (this may not always be the size provided in the descriptor.
 		Return Type: u32
 		*/
-		PARABLIT_INTERFACE u32 GetSize() = 0;
+		PARABLIT_INTERFACE u32 GetSize() const = 0;
 
 		/*
 		Description: Map the internal contents of the buffer to a user-accessible pointer.

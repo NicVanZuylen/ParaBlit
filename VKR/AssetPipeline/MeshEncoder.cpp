@@ -78,7 +78,7 @@ namespace AssetPipeline
 		}
 	}
 
-	void MeshEncoder::LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, const char* path)
+	void MeshEncoder::LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, glm::vec3& outOrigin, glm::vec3& outExtents, const char* path)
 	{
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -113,6 +113,9 @@ namespace AssetPipeline
 
 		vertices.Reserve(static_cast<uint32_t>(totalVertexCount));
 		indices.Reserve(static_cast<uint32_t>(totalIndexCount));
+
+		outOrigin = glm::vec3(INFINITY);
+		outExtents = glm::vec3(0.05f);
 
 		SinglePrecisionTexCoords texCoords{};
 
@@ -159,6 +162,14 @@ namespace AssetPipeline
 				else
 					chunkVertices[j].m_position = glm::vec3(0.0f, 0.0f, 0.0f);
 
+				outOrigin.x = glm::min(outOrigin.x, chunkVertices[j].m_position.x);
+				outOrigin.y = glm::min(outOrigin.y, chunkVertices[j].m_position.y);
+				outOrigin.z = glm::min(outOrigin.z, chunkVertices[j].m_position.z);
+
+				outExtents.x = glm::max(outExtents.x, chunkVertices[j].m_position.x);
+				outExtents.y = glm::max(outExtents.y, chunkVertices[j].m_position.y);
+				outExtents.z = glm::max(outExtents.z, chunkVertices[j].m_position.z);
+
 				if (shape.mesh.normals.size())
 					chunkVertices[j].m_normal = Vec4PackedHalfFloat(shape.mesh.normals[nIndex], shape.mesh.normals[nIndex + 1], shape.mesh.normals[nIndex + 2], 1.0f);
 				else
@@ -186,6 +197,8 @@ namespace AssetPipeline
 
 		// Calculate tangents for whole mesh...
 		CalculateTangents(vertices, indices, texCoords);
+
+		outExtents = outExtents - outOrigin;
 	}
 
 	inline void MeshEncoder::BuildMesh(const AssetStatus& asset)
@@ -194,7 +207,9 @@ namespace AssetPipeline
 		VertexBuffer wholeMeshVertices;
 		IndexBuffer wholeMeshIndices;
 
-		LoadOBJ(wholeMeshVertices, wholeMeshIndices, asset.m_fullPath.c_str());
+		glm::vec3 meshBoundOrigin;
+		glm::vec3 meshBoundExtents;
+		LoadOBJ(wholeMeshVertices, wholeMeshIndices, meshBoundOrigin, meshBoundExtents, asset.m_fullPath.c_str());
 
 		uint64_t vertexBufferSize = wholeMeshVertices.Count() * sizeof(Vertex);
 		uint64_t indexBufferSize = wholeMeshIndices.Count() * sizeof(MeshIndex);
@@ -207,6 +222,8 @@ namespace AssetPipeline
 		outCacheData.m_indexCount = wholeMeshIndices.Count();
 		outCacheData.m_vertexDataOffset = sizeof(MeshCacheData);
 		outCacheData.m_indexOffset = outCacheData.m_vertexDataOffset + vertexBufferSize;
+		outCacheData.m_boundOrigin = glm::vec4(meshBoundOrigin, 0.0f);
+		outCacheData.m_boundExtents = glm::vec4(meshBoundExtents, 0.0f);
 
 		size_t totalSize = sizeof(MeshCacheData) + vertexBufferSize + indexBufferSize;
 		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), 0, totalSize, asset.m_lastModifiedTime));

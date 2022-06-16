@@ -115,8 +115,8 @@ void AmbientOcclusionPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		PB::Pipeline ssaoPipeline = m_renderer->GetPipelineCache()->GetPipeline(ssaoPipelineDesc);
 
 		scopedContext->CmdBindPipeline(ssaoPipeline);
-		scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
-		scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+		scopedContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+		scopedContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 
 		PB::UniformBufferView uboBindings[] = { m_mvpUBOView, m_aoConstantsView };
 		PB::ResourceView resourceViews[] =

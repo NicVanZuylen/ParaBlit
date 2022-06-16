@@ -27,6 +27,8 @@ namespace PBClient
 		uint64_t m_indexCount;
 		size_t m_vertexDataOffset;
 		size_t m_indexOffset;
+		glm::vec4 m_boundOrigin;
+		glm::vec4 m_boundExtents;
 	};
 
 	typedef uint32_t MeshIndex;
@@ -103,6 +105,12 @@ namespace PBClient
 		const PB::IBufferObject* GetIndexBuffer() const;
 
 		/*
+		Description: Get the axis-aligned bounding box which fully encapsulates the mesh at identity transform.
+		Return Type: Bounds
+		*/
+		Bounds GetBounds() const { return m_bounds; }
+
+		/*
 		Description: Get the vertex pool this mesh was allocated from.
 		Return Type: const VertexPool*
 		*/
@@ -117,6 +125,7 @@ namespace PBClient
 		PB::IBufferObject* m_indexBuffer = nullptr;
 		uint64_t m_totalVertexCount = 0;
 		uint64_t m_totalIndexCount = 0;
+		Bounds m_bounds;
 		const char* m_filePath = nullptr;
 		VertexPool* m_vertexPool = nullptr;
 		uint64_t m_firstVertexInPool = 0;

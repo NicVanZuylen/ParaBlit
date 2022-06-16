@@ -1,32 +1,37 @@
 #include "GBufferPass.h"
 #include "RenderGraph.h"
+#include "BatchDispatcher.h"
+#include "RenderBoundingVolumeHierarchy.h"
+#include "Camera.h"
 
 #include "DrawBatch.h"
 
 using namespace PBClient;
 
-GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::UniformBufferView viewConstView, DrawBatch* testBatch) : RenderGraphBehaviour(renderer, allocator)
+GBufferPass::GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::UniformBufferView viewConstView, PB::UniformBufferView viewPlanesView, const Camera* camera, RenderBoundingVolumeHierarchy* hierarchy) : RenderGraphBehaviour(renderer, allocator)
 {
 	m_renderer = renderer;
 	m_allocator = allocator;
 
 	m_viewConstView = viewConstView;
-	m_experimentalDB = testBatch;
+	m_viewPlanesView = viewPlanesView;
+	m_camera = camera;
+	m_rbvh = hierarchy;
+
+	m_batchDispatcher = m_allocator->Alloc<BatchDispatcher>(m_renderer, m_allocator);
+	m_batchBindings.m_uniformBufferCount = 1;
+	m_batchBindings.m_uniformBuffers = &m_viewConstView;
+	m_batchBindings.m_resourceCount = 0;
+	m_batchBindings.m_resourceViews = nullptr;
 }
 
 GBufferPass::~GBufferPass()
 {
-	m_renderer->FreeCommandList(m_expCmdList);
+	m_allocator->Free(m_batchDispatcher);
 }
 
 void GBufferPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
-	if (m_listRequiresUpdate)
-	{
-		m_geoDispatchList->Update(info.m_commandContext);
-		m_listRequiresUpdate = false;
-	}
-
 	if(m_drawbatchPipeline == 0)
 	{
 		PB::GraphicsPipelineDesc pipelineDesc = GetBasePipelineDesc();
@@ -36,40 +41,19 @@ void GBufferPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* r
 		m_drawbatchPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 	}
 
-	m_experimentalDB->DispatchFrustrumCull(info.m_commandContext, m_viewConstView);
+	m_rbvh->CullBatches(m_camera, m_batchDispatcher, m_batchBindings);
+	m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView);
 }
 
 void GBufferPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 {
-	if (m_geoDispatchList)
-		m_geoDispatchList->Dispatch(info.m_commandContext, info.m_renderPass, info.m_frameBuffer);
+	auto renderWidth = m_renderer->GetSwapchain()->GetWidth();
+	auto renderHeight = m_renderer->GetSwapchain()->GetHeight();
 
-	if (!m_expCmdList)
-	{
-		PB::CommandContextDesc expContextDesc;
-		expContextDesc.m_flags = PB::ECommandContextFlags::REUSABLE;
-		expContextDesc.m_usage = PB::ECommandContextUsage::GRAPHICS;
-		expContextDesc.m_renderer = m_renderer;
-		PB::SCommandContext scopedContext(m_renderer);
-		scopedContext->Init(expContextDesc);
-		scopedContext->Begin(info.m_renderPass, info.m_frameBuffer);
+	info.m_commandContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+	info.m_commandContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 
-		auto renderWidth = m_renderer->GetSwapchain()->GetWidth();
-		auto renderHeight = m_renderer->GetSwapchain()->GetHeight();
-
-		scopedContext->CmdBindPipeline(m_drawbatchPipeline);
-		scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
-		scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
-
-		PB::BindingLayout dbBindings{};
-		dbBindings.m_uniformBufferCount = 1;
-		dbBindings.m_uniformBuffers = &m_viewConstView;
-		m_experimentalDB->DrawCulledGeometry(scopedContext.GetContext(), m_drawbatchPipeline, dbBindings);
-
-		scopedContext->End();
-		m_expCmdList = scopedContext->Return();
-	}
-	info.m_commandContext->CmdExecuteList(m_expCmdList);
+	m_batchDispatcher->DrawBatches(info.m_commandContext, m_drawbatchPipeline);
 }
 
 void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -87,15 +71,9 @@ void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* 
 
 void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 {
-	if (m_expCmdList)
-	{
-		m_renderer->FreeCommandList(m_expCmdList);
-		m_expCmdList = nullptr;
-	}
-
 	NodeDesc nodeDesc{};
 	nodeDesc.m_behaviour = this;
-	nodeDesc.m_useReusableCommandLists = true;
+	nodeDesc.m_useReusableCommandLists = false;
 
 	PB::ISwapChain* swapchain = m_renderer->GetSwapchain();
 
@@ -137,12 +115,6 @@ void GBufferPass::AddToRenderGraph(RenderGraphBuilder* builder)
 	nodeDesc.m_renderHeight = colorDesc.m_height;
 
 	builder->AddNode(nodeDesc);
-}
-
-void GBufferPass::SetDispatchList(ObjectDispatchList* list, bool updateList)
-{
-	m_geoDispatchList = list;
-	m_listRequiresUpdate |= updateList;
 }
 
 void GBufferPass::SetOutputTexture(PB::ITexture* tex)

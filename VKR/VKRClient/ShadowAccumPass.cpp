@@ -105,8 +105,8 @@ void ShadowAccumPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetV
 
 		PB::Pipeline accumPipeline = m_renderer->GetPipelineCache()->GetPipeline(accumPipelineDesc);
 		scopedContext->CmdBindPipeline(accumPipeline);
-		scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
-		scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+		scopedContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+		scopedContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 
 		assert(m_mvpBuffer && m_svbView);
 		PB::UniformBufferView uboViews[] { m_mvpBuffer->GetViewAsUniformBuffer(), m_svbView };

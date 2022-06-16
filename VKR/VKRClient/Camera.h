@@ -14,10 +14,17 @@ class Camera
 {
 public:
 
+	enum class EProjectionType
+	{
+		PERSPECTIVE,
+		ORTHOGRAPHIC
+	};
+
 	struct CreateDesc
 	{
 		glm::vec3 m_position;
 		glm::vec3 m_eulerAngles;
+		EProjectionType m_projectionType = EProjectionType::PERSPECTIVE;
 		float m_sensitivity = 0.1f;
 		float m_moveSpeed = 5.0f;
 		uint32_t m_width = 1920;
@@ -111,6 +118,7 @@ private:
 	glm::mat4 m_matrix;
 	glm::vec3 m_position;
 	glm::vec3 m_eulerAngles;
+	EProjectionType m_projectionType = EProjectionType::PERSPECTIVE;
 	float m_sensitivity = 0.1f;
 	float m_moveSpeed = 5.0f;
 	float m_lastMouseX = 0.0f;

@@ -80,8 +80,8 @@ void DebugLinePass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetVie
 		uint32_t renderHeight = swapchain->GetHeight();
 
 		info.m_commandContext->CmdBindPipeline(m_linePipeline);
-		info.m_commandContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
-		info.m_commandContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+		info.m_commandContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+		info.m_commandContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 
 		PB::BindingLayout bindings{};
 		bindings.m_uniformBufferCount = 1;

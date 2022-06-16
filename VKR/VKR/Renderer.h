@@ -96,6 +96,10 @@ namespace PB
 
 		ResourceView GetSampler(const SamplerDesc& samplerDesc);
 
+		IBindingCache* AllocateBindingCache() override;
+
+		void FreeBindingCache(IBindingCache* cache) override;
+
 		void FreeCommandList(ICommandList* list) override;
 
 		PARABLIT_API CmdContextPool& GetContextPool();

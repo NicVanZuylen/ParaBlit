@@ -46,6 +46,8 @@ namespace PB
 		PARABLIT_API ~ICommandList() = default;
 	};
 
+	class IBindingCache;
+
 	class ICommandContext
 	{
 	public:
@@ -99,15 +101,17 @@ namespace PB
 		*/
 		PARABLIT_INTERFACE void CmdComputeBarrier() = 0;
 
-		PARABLIT_INTERFACE void CmdDrawIndirectBarrier(PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount) = 0;
+		PARABLIT_INTERFACE void CmdDrawIndirectBarrier(const PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount) = 0;
 
 		PARABLIT_INTERFACE void CmdBindPipeline(Pipeline pipeline) = 0;
 
-		PARABLIT_INTERFACE void SetViewport(PB::Rect viewRect, float minDepth, float maxDepth) = 0;
+		PARABLIT_INTERFACE void CmdSetViewport(PB::Rect viewRect, float minDepth, float maxDepth) = 0;
 
-		PARABLIT_INTERFACE void SetScissor(PB::Rect scissorRect) = 0;
+		PARABLIT_INTERFACE void CmdSetScissor(PB::Rect scissorRect) = 0;
 
 		PARABLIT_INTERFACE void CmdBindResources(const BindingLayout& layout) = 0;
+
+		PARABLIT_INTERFACE void CmdBindResources(const IBindingCache* layout) = 0;
 
 		PARABLIT_INTERFACE void CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType) = 0;
 

@@ -207,8 +207,8 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 			skyBindingLayout.m_resourceViews = skyResourceViews;
 
 			scopedContext->CmdBindPipeline(skyboxPipeline);
-			scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
-			scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+			scopedContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+			scopedContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 			scopedContext->CmdBindResources(skyBindingLayout);
 			scopedContext->CmdDraw(36, 1);
 		}
@@ -257,8 +257,8 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 
 		{
 			scopedContext->CmdBindPipeline(m_dirLightingPipeline);
-			scopedContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
-			scopedContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+			scopedContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+			scopedContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 			scopedContext->CmdBindResources(dirBindingLayout);
 			scopedContext->CmdDraw(6, 1);
 		}
@@ -650,8 +650,8 @@ void DeferredLightingPass::ConvoluteSkybox(PB::ICommandContext* cmdContext, ECon
 				cmdContext->CmdBeginRenderPass(convolutionRp, mipWidth, mipHeight, framebuffers[fbIndex], nullptr, 0, false);
 
 				cmdContext->CmdBindPipeline(convolutionPipeline);
-				cmdContext->SetViewport({ 0, 0, mipWidth, mipHeight }, 0.0f, 1.0f);
-				cmdContext->SetScissor({ 0, 0, mipWidth, mipHeight });
+				cmdContext->CmdSetViewport({ 0, 0, mipWidth, mipHeight }, 0.0f, 1.0f);
+				cmdContext->CmdSetScissor({ 0, 0, mipWidth, mipHeight });
 
 				PB::UniformBufferView uniformViews[]
 				{
@@ -747,8 +747,8 @@ void DeferredLightingPass::GenSpecBDRFLut(PB::ICommandContext* cmdContext)
 	cmdContext->CmdBeginRenderPass(genBDRFRp, bdrfLutDesc.m_width, bdrfLutDesc.m_height, framebuffer, nullptr, 0);
 
 	cmdContext->CmdBindPipeline(genBDRFPipeline);
-	cmdContext->SetViewport({ 0, 0, bdrfLutDesc.m_width, bdrfLutDesc.m_height }, 0.0f, 1.0f);
-	cmdContext->SetScissor({ 0, 0, bdrfLutDesc.m_width, bdrfLutDesc.m_height });
+	cmdContext->CmdSetViewport({ 0, 0, bdrfLutDesc.m_width, bdrfLutDesc.m_height }, 0.0f, 1.0f);
+	cmdContext->CmdSetScissor({ 0, 0, bdrfLutDesc.m_width, bdrfLutDesc.m_height });
 
 	cmdContext->CmdDraw(6, 1);
 

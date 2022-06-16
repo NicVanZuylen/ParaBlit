@@ -3,6 +3,7 @@
 #include "ParaBlitApi.h"
 #include "ParaBlitDebug.h"
 #include "PBUtil.h"
+#include "BindingCache.h"
 
 namespace PB 
 {
@@ -294,6 +295,16 @@ namespace PB
 	ResourceView Renderer::GetSampler(const SamplerDesc& samplerDesc)
 	{
 		return m_viewCache.GetSampler(samplerDesc);
+	}
+
+	IBindingCache* Renderer::AllocateBindingCache()
+	{
+		return m_allocator.Alloc<BindingCache>(&m_allocator);
+	}
+
+	void Renderer::FreeBindingCache(IBindingCache* cache)
+	{
+		m_allocator.Free(cache);
 	}
 
 	void Renderer::FreeCommandList(ICommandList* list)

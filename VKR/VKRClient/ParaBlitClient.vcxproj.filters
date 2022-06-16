@@ -114,6 +114,12 @@
     <ClCompile Include="RenderBoundingVolumeHierarchy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="BatchDispatcher.cpp">
+      <Filter>RenderGraph</Filter>
+    </ClCompile>
+    <ClCompile Include="Material.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -207,6 +213,15 @@
       <Filter>RenderGraphBehaviours</Filter>
     </ClInclude>
     <ClInclude Include="RenderBoundingVolumeHierarchy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BatchDispatcher.h">
+      <Filter>RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="Bounds.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Material.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

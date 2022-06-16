@@ -357,8 +357,8 @@ namespace PBClient
 				scopedContext->CmdBeginRenderPass(cubeGenRp, uCubeDim, uCubeDim, framebuffers[face], nullptr, 0, false);
 
 				scopedContext->CmdBindPipeline(cubeGenPipeline);
-				scopedContext->SetViewport({ 0, 0, uCubeDim, uCubeDim }, 0.0f, 1.0f);
-				scopedContext->SetScissor({ 0, 0, uCubeDim, uCubeDim });
+				scopedContext->CmdSetViewport({ 0, 0, uCubeDim, uCubeDim }, 0.0f, 1.0f);
+				scopedContext->CmdSetScissor({ 0, 0, uCubeDim, uCubeDim });
 
 				PB::BindingLayout bindings{};
 				bindings.m_uniformBufferCount = 1;

@@ -39,6 +39,7 @@ namespace PB
 	};
 
 	class ICommandList;
+	class IBindingCache;
 
 	class IRenderer
 	{
@@ -72,6 +73,8 @@ namespace PB
 		PARABLIT_INTERFACE IResourcePool* AllocateResourcePool(const ResourcePoolDesc& poolDesc) = 0;
 		PARABLIT_INTERFACE void FreeResourcePool(IResourcePool* pool) = 0;
 		PARABLIT_INTERFACE ResourceView GetSampler(const SamplerDesc& samplerDesc) = 0;
+		PARABLIT_INTERFACE IBindingCache* AllocateBindingCache() = 0;
+		PARABLIT_INTERFACE void FreeBindingCache(IBindingCache* cache) = 0;
 		PARABLIT_INTERFACE void FreeCommandList(ICommandList* list) = 0;
 
 		PARABLIT_INTERFACE ISwapChain* GetSwapchain() = 0;

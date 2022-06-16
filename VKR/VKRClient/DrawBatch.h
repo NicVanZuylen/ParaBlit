@@ -3,10 +3,7 @@
 #include "IResourcePool.h"
 #include "ObjectDispatcher.h"
 #include "ManagedInstanceBuffer.h"
-
-#pragma warning(push, 0)
-#include "glm/glm.hpp"
-#pragma warning(pop)
+#include "Bounds.h"
 
 namespace PBClient
 {
@@ -36,22 +33,32 @@ class DrawBatch
 {
 public:
 
+	static constexpr const PB::u32 MaxObjects = 256;
+
 	using DrawBatchInstance = PB::u32;
 
-	DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, VertexPool* vertexPool, PB::u32 maxIndexCount = ((~PB::u32(0) << 8) >> 8));
+	struct CreateDesc
+	{
+		PB::IRenderer* m_renderer;
+		CLib::Allocator* m_allocator;
+	};
+
+	DrawBatch(const CreateDesc& desc);
 	~DrawBatch();
 
 	void AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings);
 	void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView);
-	void DrawCulledGeometry(PB::ICommandContext* cmdContext, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings);
+	void DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
 
-	DrawBatchInstance AddInstance(PBClient::Mesh* mesh, float* modelMatrix, glm::vec3 boundOrigin, glm::vec3 boundExtents, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler);
+	DrawBatchInstance AddInstance(PBClient::Mesh* mesh, float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler);
 	void UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix);
-	void RemoveInstance(DrawBatchInstance instance);
 
 	void FinalizeUpdates();
 	void UpdateIndices(PB::ICommandContext* cmdContext);
 	void UpdateCullParams();
+
+	Bounds GetBounds() { return m_bounds; }
+	const PB::IBufferObject* GetDrawParametersBuffer() { return m_drawParamsBuffer; }
 
 private:
 
@@ -62,7 +69,6 @@ private:
 	static constexpr const PB::u32 IndexUpdatesPerInvocation = 16; // The amount of indices updating by a single compute shader invocation.
 	static constexpr const PB::u32 MinWorkGroupsPerObject = 16; // Minimum workgroups assigned to updating a single object/mesh's indices.
 	static constexpr const PB::u32 MaxUpdateWorkGroupsPerBatch = 4096 * 2; // Maximum workgroups allowed in a single update dispatch.
-	static constexpr const PB::u32 MaxObjects = 256;
 	static constexpr const PB::u32 MaxDrawCount = 8;
 
 	// Contains the formatted update information for a single drawbatch instance.
@@ -102,17 +108,9 @@ private:
 		glm::uvec2 m_pad1;
 	};
 
-	struct LocalObjectCullData
-	{
-		glm::vec3 m_boundOrigin;
-		glm::vec3 m_boundExtents;
-	};
-
 	struct BatchCullConstants
 	{
 		CullObjectData m_objects[256];
-		glm::uvec2 m_partitionRanges[MaxDrawCount];
-		uint32_t m_validObjectCount;
 	};
 
 	struct DrawParamsBuffer
@@ -121,7 +119,6 @@ private:
 		uint32_t m_drawCount;
 	};
 
-	VertexPool* m_vertexPool = nullptr;
 	struct DispatchInfo
 	{
 		ObjectDispatchList* m_dispatchList = nullptr;
@@ -137,7 +134,8 @@ private:
 	PB::IBufferObject* m_drawParamsBuffer = nullptr;
 	ManagedInstanceBuffer<DrawBatchInstanceData, MaxObjects, MaxObjects> m_instanceBuffer;
 	uint32_t m_instanceCount = 0;
-	CLib::Vector<LocalObjectCullData> m_instanceCullData;
-	CLib::Vector<uint32_t> m_dynamicUpdateQueueFreeList;
+	uint32_t m_totalIndexCount = 0;
+	Bounds m_bounds;
+	CLib::Vector<Bounds> m_instanceBoundData;
 	CLib::Vector<DynamicIndexUpdate> m_dynamicUpdateQueue;
 };

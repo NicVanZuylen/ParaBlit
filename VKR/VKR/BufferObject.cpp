@@ -55,7 +55,7 @@ namespace PB
 		return m_poolAllocation.m_offset;
 	}
 
-	u32 BufferObject::GetSize()
+	u32 BufferObject::GetSize() const
 	{
 		return m_size;
 	}

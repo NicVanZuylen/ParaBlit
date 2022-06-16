@@ -40,7 +40,7 @@ shared vec3 sharedSamples[WORKGROUP_AREA];
 
 float GetDepthScale(float depth)
 {
-    return (CONST.depthScaleFactor * 0.98) - (CONST.depthScaleFactor * depth);
+    return (CONST.depthScaleFactor * 0.995) - (CONST.depthScaleFactor * depth);
 }
 
 void StoreSample(uvec2 location, vec3 storeSample)
@@ -110,7 +110,7 @@ void main()
     float depthScale = GetDepthScale(srcDepth);
     float kernelScale = float(GAUSSIAN_KERNEL_SIZE) * (MinScale + (ScaleRange * depthScale));
 
-    if(gl_LocalInvocationID.x >= WORKGROUP_SIZE_X - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
+    if(gl_LocalInvocationID.x >= WORKGROUP_SIZE_X - GAUSSIAN_KERNEL_SIZE_MINUS_ONE - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
         return;
 
     for(int i = 1; i < GAUSSIAN_KERNEL_SIZE; ++i)

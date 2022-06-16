@@ -177,8 +177,8 @@ void ObjectDispatchList::RecordDispatchSubListCommands(BakedCommandList& list, P
 	scopedContext->CmdBindPipeline(list.m_pipeline);
 	if (m_renderArea.w * m_renderArea.h > 0)
 	{
-		scopedContext->SetViewport(m_renderArea, 0.0f, 1.0f);
-		scopedContext->SetScissor(m_renderArea);
+		scopedContext->CmdSetViewport(m_renderArea, 0.0f, 1.0f);
+		scopedContext->CmdSetScissor(m_renderArea);
 	}
 
 	ObjectDrawInstruction* ir = dispatchSubList.m_instructionList;

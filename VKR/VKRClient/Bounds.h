@@ -1,0 +1,111 @@
+#pragma once
+#pragma warning(push, 0)
+#define GLM_FORCE_CTOR_INIT
+#include "glm/glm.hpp"
+#pragma warning(pop)
+
+struct Bounds
+{
+	glm::vec3 m_origin;
+	glm::vec3 m_extents;
+
+	Bounds() = default;
+
+	Bounds(const glm::vec3& origin, const glm::vec3& extents)
+	{
+		m_origin = origin;
+		m_extents = extents;
+	}
+
+	inline float MaxX() const { return m_origin.x + m_extents.x; }
+	inline float MaxY() const { return m_origin.y + m_extents.y; }
+	inline float MaxZ() const { return m_origin.z + m_extents.z; }
+
+	glm::vec3 Centre() const
+	{
+		return m_origin + (m_extents * 0.5f);
+	}
+
+	float Volume() const
+	{
+		return m_extents.x * m_extents.y * m_extents.z;
+	}
+
+	bool IntersectsWith(const Bounds& other) const
+	{
+		return	(m_origin.x <= other.MaxX() && MaxX() >= other.m_origin.x) &&
+			(m_origin.y <= other.MaxY() && MaxY() >= other.m_origin.y) &&
+			(m_origin.z <= other.MaxZ() && MaxZ() >= other.m_origin.z);
+	}
+
+	bool Encapsulates(const Bounds& other) const
+	{
+		return (m_origin.x <= other.m_origin.x && m_origin.y <= other.m_origin.y && m_origin.z <= other.m_origin.z)
+			&& (MaxX() >= other.MaxX() && MaxY() >= other.MaxY() && MaxZ() >= other.MaxZ());
+	}
+
+	void Encapsulate(const Bounds& other)
+	{
+		m_extents.x = glm::max(MaxX(), other.MaxX());
+		m_extents.y = glm::max(MaxY(), other.MaxY());
+		m_extents.z = glm::max(MaxZ(), other.MaxZ());
+
+		m_origin.x = glm::min(m_origin.x, other.m_origin.x);
+		m_origin.y = glm::min(m_origin.y, other.m_origin.y);
+		m_origin.z = glm::min(m_origin.z, other.m_origin.z);
+
+		m_extents -= m_origin;
+	}
+
+	void Transform(const glm::mat4& matrix)
+	{
+		struct Vertices
+		{
+			union
+			{
+				struct
+				{
+					glm::vec4 botLeft;
+					glm::vec4 botRight;
+					glm::vec4 botBackLeft;
+					glm::vec4 botBackRight;
+					glm::vec4 topLeft;
+					glm::vec4 topRight;
+					glm::vec4 topBackLeft;
+					glm::vec4 topBackRight;
+				};
+				glm::vec4 vertices[8];
+			};
+		};
+
+		Vertices v
+		{
+			glm::vec4(m_origin, 1.0f),
+			glm::vec4(m_origin + glm::vec3(m_extents.x, 0.0f, 0.0f), 1.0f),
+			glm::vec4(m_origin + glm::vec3(0.0f, 0.0f, m_extents.z), 1.0f),
+			glm::vec4(m_origin + glm::vec3(m_extents.x, 0.0f, m_extents.z), 1.0f)
+		};
+
+		v.topLeft = v.botLeft;
+		v.topLeft.y += m_extents.y;
+		v.topRight = v.botRight;
+		v.topRight.y += m_extents.y;
+		v.topBackLeft = v.botBackLeft;
+		v.topBackLeft.y += m_extents.y;
+		v.topBackRight = v.botBackRight;
+		v.topBackRight.y += m_extents.y;
+
+		glm::vec4 newOrigin(INFINITY);
+		glm::vec4 newExtents(-INFINITY);
+		for (glm::vec4& vert : v.vertices)
+		{
+			vert = matrix * vert;
+			newOrigin = glm::vec4(glm::min(newOrigin.x, vert.x), glm::min(newOrigin.y, vert.y), glm::min(newOrigin.z, vert.z), 0.0f);
+			newExtents = glm::vec4(glm::max(newExtents.x, vert.x), glm::max(newExtents.y, vert.y), glm::max(newExtents.z, vert.z), 0.0f);
+		}
+
+		m_origin = newOrigin;
+		m_extents = newExtents;
+		m_extents -= m_origin;
+	}
+};

@@ -6,6 +6,7 @@
 #include "CLib/Vector.h"
 #include "Texture.h"
 #include "BufferObject.h"
+#include "IBindingCache.h"
 
 namespace PB 
 {
@@ -403,13 +404,14 @@ namespace PB
 		vkCmdPipelineBarrier(m_cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
 	}
 
-	void CommandContext::CmdDrawIndirectBarrier(PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount)
+	void CommandContext::CmdDrawIndirectBarrier(const PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount)
 	{
 		CLib::Vector<VkBufferMemoryBarrier, 8> bufferMemBarriers(drawParamBufferCount);
+		bufferMemBarriers.Reserve(drawParamBufferCount);
 		for (u32 i = 0; i < drawParamBufferCount; ++i)
 		{
 			VkBufferMemoryBarrier& barrier = bufferMemBarriers.PushBack();
-			BufferObject* buf = reinterpret_cast<BufferObject*>(drawParamBuffers[i]);
+			const BufferObject* buf = reinterpret_cast<const BufferObject*>(drawParamBuffers[i]);
 
 			barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 			barrier.pNext = nullptr;
@@ -445,7 +447,7 @@ namespace PB
 		m_bindingState->Clear();
 	}
 
-	void CommandContext::SetViewport(PB::Rect viewRect, float minDepth, float maxDepth)
+	void CommandContext::CmdSetViewport(PB::Rect viewRect, float minDepth, float maxDepth)
 	{
 		VkViewport viewport;
 		viewport.x = static_cast<float>(viewRect.x);
@@ -458,7 +460,7 @@ namespace PB
 		vkCmdSetViewport(m_cmdBuffer, 0, 1, &viewport);
 	}
 
-	void CommandContext::SetScissor(PB::Rect scissorRect)
+	void CommandContext::CmdSetScissor(PB::Rect scissorRect)
 	{
 		vkCmdSetScissor(m_cmdBuffer, 0, 1, reinterpret_cast<VkRect2D*>(&scissorRect));
 	}
@@ -663,6 +665,11 @@ namespace PB
 
 		// Dynamic indices are assigned, so they can be pushed.
 		vkCmdPushConstants(m_cmdBuffer, m_curPipelineLayout, m_activePipelineIsCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), 0, offset * sizeof(u32), dynamicIndices);
+	}
+
+	void CommandContext::CmdBindResources(const IBindingCache* layout)
+	{
+		CmdBindResources(layout->GetLayout());
 	}
 
 	void CommandContext::CmdCopyTextureToTexture(PB::ITexture* src, PB::ITexture* dst)

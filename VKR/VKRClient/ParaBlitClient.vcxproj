@@ -24,6 +24,7 @@
     <ClCompile Include="AmbientOcclusionPass.cpp" />
     <ClCompile Include="AOBlurPass.cpp" />
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="BatchDispatcher.cpp" />
     <ClCompile Include="BloomBlurPass.cpp" />
     <ClCompile Include="BloomExtractionPass.cpp" />
     <ClCompile Include="BlurHelper.cpp" />
@@ -36,6 +37,7 @@
     <ClCompile Include="DeferredLightingPass.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Material.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="ObjectDispatcher.cpp" />
     <ClCompile Include="QuickIO.cpp" />
@@ -56,9 +58,11 @@
     <ClInclude Include="AmbientOcclusionPass.h" />
     <ClInclude Include="AOBlurPass.h" />
     <ClInclude Include="Application.h" />
+    <ClInclude Include="BatchDispatcher.h" />
     <ClInclude Include="BloomBlurPass.h" />
     <ClInclude Include="BloomExtractionPass.h" />
     <ClInclude Include="BlurHelper.h" />
+    <ClInclude Include="Bounds.h" />
     <ClInclude Include="ClientPlayground.h" />
     <ClInclude Include="DebugLinePass.h" />
     <ClInclude Include="DrawBatch.h" />
@@ -68,6 +72,7 @@
     <ClInclude Include="DeferredLightingPass.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="ManagedInstanceBuffer.h" />
+    <ClInclude Include="Material.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="ObjectDispatcher.h" />
     <ClInclude Include="QuickIO.h" />

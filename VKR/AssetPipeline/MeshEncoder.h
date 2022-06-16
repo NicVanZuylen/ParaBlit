@@ -73,15 +73,6 @@ namespace AssetPipeline
 		};
 		static_assert(sizeof(Vec3PackedUnorm) == sizeof(int32_t));
 
-		/*struct Vertex
-		{
-			glm::vec3 m_position;
-			Vec2PackedHalfFloat m_texCoords;
-			Vec3PackedUnorm m_normal;
-			Vec3PackedUnorm m_tangent;
-			uint32_t m_pad[2];
-		};*/
-
 		struct Vertex
 		{
 			glm::vec3 m_position;
@@ -97,6 +88,8 @@ namespace AssetPipeline
 			uint64_t m_indexCount;
 			size_t m_vertexDataOffset;
 			size_t m_indexOffset;
+			glm::vec4 m_boundOrigin;
+			glm::vec4 m_boundExtents;
 		};
 
 		typedef uint32_t MeshIndex;
@@ -106,7 +99,7 @@ namespace AssetPipeline
 
 		inline void CalculateTangents(VertexBuffer& vertices, IndexBuffer& indices, SinglePrecisionTexCoords& texCoords);
 
-		inline void LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, const char* path);
+		inline void LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, glm::vec3& outOrigin, glm::vec3& outExtents, const char* path);
 
 		inline void BuildMesh(const AssetStatus& asset);
 	};

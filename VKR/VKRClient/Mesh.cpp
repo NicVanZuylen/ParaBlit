@@ -85,6 +85,9 @@ namespace PBClient
 		size_t vertexBufferSize = cacheData.m_vertexCount * sizeof(Vertex);
 		size_t indexBufferSize = cacheData.m_indexCount * sizeof(MeshIndex);
 
+		m_bounds.m_origin = cacheData.m_boundOrigin;
+		m_bounds.m_extents = cacheData.m_boundExtents;
+
 		// Create vertex and index buffers...
 		PB::BufferObjectDesc vertexBufferDesc;
 		vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);

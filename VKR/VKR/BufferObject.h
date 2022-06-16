@@ -22,7 +22,7 @@ namespace PB
 
 		u32 GetStart() const;
 
-		u32 GetSize() override;
+		u32 GetSize() const override;
 
 		u8* Map(u32 offset, u32 size) override;
 

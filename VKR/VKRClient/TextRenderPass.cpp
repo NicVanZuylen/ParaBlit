@@ -141,8 +141,8 @@ void TextRenderPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetVi
 	bindings.m_resourceViews = textResources;
 
 	info.m_commandContext->CmdBindResources(bindings);
-	info.m_commandContext->SetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
-	info.m_commandContext->SetScissor({ 0, 0, renderWidth, renderHeight });
+	info.m_commandContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
+	info.m_commandContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 	info.m_commandContext->CmdDraw(6, m_charBufEnd);
 }
 

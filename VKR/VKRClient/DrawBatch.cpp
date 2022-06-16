@@ -33,23 +33,17 @@ PB::IResourcePool* VertexPool::GetPool()
     return m_pool;
 }
 
-DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, VertexPool* vertexPool, PB::u32 maxIndexCount)
+DrawBatch::DrawBatch(const CreateDesc& desc)
 {
-    m_renderer = renderer;
-    m_allocator = allocator;
-    m_vertexPool = vertexPool;
-
-    PB::BufferObjectDesc indexBufferDesc;
-    indexBufferDesc.m_bufferSize = sizeof(PB::u32) * maxIndexCount;
-    indexBufferDesc.m_options = 0;
-    indexBufferDesc.m_usage = PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
-    m_dynamicIndexBuffer = renderer->AllocateBuffer(indexBufferDesc);
+    m_renderer = desc.m_renderer;
+    m_allocator = desc.m_allocator;
+    m_bounds = Bounds();
 
     PB::BufferObjectDesc indexUpdateBufferDesc;
     indexUpdateBufferDesc.m_bufferSize = (sizeof(DynamicIndexUpdate) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch / IndexUpdatesPerInvocation) * sizeof(uint32_t));
     indexUpdateBufferDesc.m_options = 0;
     indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
-    m_dynamicIndexUpdateBuffer = renderer->AllocateBuffer(indexUpdateBufferDesc);
+    m_dynamicIndexUpdateBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
 
     m_instanceBuffer.Init(m_renderer, PB::EBufferUsage::STORAGE);
 
@@ -66,7 +60,7 @@ DrawBatch::DrawBatch(PB::IRenderer* renderer, CLib::Allocator* allocator, Vertex
     m_drawParamsBuffer = m_renderer->AllocateBuffer(drawParamsBufferDesc);
 
     PB::ComputePipelineDesc updatePipelineDesc;
-    updatePipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "Shaders/GLSL/cs_populate_indices", allocator, true);
+    updatePipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "Shaders/GLSL/cs_populate_indices", m_allocator, true);
     m_batchUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
 }
 
@@ -75,7 +69,11 @@ DrawBatch::~DrawBatch()
     for (auto& info : m_dispatchInfos)
         info.m_dispatchList->RemoveDispatchObject(info.m_dispatchHandle);
 
-    m_renderer->FreeBuffer(m_dynamicIndexBuffer);
+    if (m_dynamicIndexBuffer)
+    {
+        m_renderer->FreeBuffer(m_dynamicIndexBuffer);
+        m_dynamicIndexBuffer = nullptr;
+    }
     m_renderer->FreeBuffer(m_dynamicIndexUpdateBuffer);
 
     m_renderer->FreeBuffer(m_cullConstantsBuffer);
@@ -115,13 +113,6 @@ void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBat
 
 void DrawBatch::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView)
 {
-    PB::ComputePipelineDesc cullPipelineDesc{};
-    cullPipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull", m_allocator, true).GetModule();
-
-    PB::Pipeline cullPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
-
-    cmdContext->CmdBindPipeline(cullPipeline);
-
     PB::UniformBufferView constants[]
     {
         viewConstantsView,
@@ -153,16 +144,11 @@ void DrawBatch::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::Unifor
     bindings.m_resourceCount = _countof(resources);
     bindings.m_resourceViews = resources;
     cmdContext->CmdBindResources(bindings);
-
     cmdContext->CmdDispatch(1, 1, 1);
-
-    cmdContext->CmdDrawIndirectBarrier(&m_drawParamsBuffer, 1);
 }
 
-void DrawBatch::DrawCulledGeometry(PB::ICommandContext* cmdContext, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings)
+void DrawBatch::DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings)
 {
-    //cmdContext->CmdBindPipeline(drawBatchPipeline);
-
     PB::BindingLayout finalBindingLayout{};
     finalBindingLayout.m_uniformBuffers = bindings.m_uniformBuffers;
     finalBindingLayout.m_uniformBufferCount = bindings.m_uniformBufferCount;
@@ -179,29 +165,18 @@ void DrawBatch::DrawCulledGeometry(PB::ICommandContext* cmdContext, PB::Pipeline
     cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, sizeof(DrawParamsBuffer::m_drawIndexedParams), MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
 }
 
-DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float* modelMatrix, glm::vec3 boundOrigin, glm::vec3 boundExtents, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
+DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
 {
     assert(mesh);
-    assert(mesh->GetVertexPool() == m_vertexPool && "Mesh must be allocated from the same vertex pool assigned to this draw batch.");
     assert(modelMatrix);
     assert(textures || textureCount == 0);
     assert(textures || sampler == 0);
 
     constexpr const PB::u32 WorkGroupIndexCount = WorkGroupSizeW * WorkGroupSizeH * IndexUpdatesPerInvocation;
 
-    uint32_t freeIndex = m_dynamicUpdateQueue.Count();
-    if (m_dynamicUpdateQueueFreeList.Count() > 0)
-        freeIndex = m_dynamicUpdateQueueFreeList.Back();
-    else
-    {
-        m_dynamicUpdateQueue.PushBack();
-        m_instanceCullData.PushBack();
-    }
-    DynamicIndexUpdate& entry = m_dynamicUpdateQueue[freeIndex];
-
+    DynamicIndexUpdate& entry = m_dynamicUpdateQueue.PushBack();
     entry.m_inputIndexBufferIndex = mesh->GetIndexBuffer()->GetViewAsStorageBuffer();
-    if(freeIndex != m_dynamicUpdateQueue.Count())
-        entry.m_instanceIndex = m_instanceCount++;
+    entry.m_instanceIndex = m_instanceCount;
     entry.m_firstVertex = 0;
     entry.m_startIndex = 0;
     entry.m_indexCount = mesh->IndexCount();
@@ -216,11 +191,11 @@ DrawBatch::DrawBatchInstance DrawBatch::AddInstance(PBClient::Mesh* mesh, float*
     instanceData.m_vertexBuffer = mesh->GetVertexBuffer()->GetViewAsStorageBuffer();
     instanceData.m_sampler = sampler;
 
-    LocalObjectCullData& cullData = m_instanceCullData[freeIndex];
-    cullData.m_boundOrigin = boundOrigin;
-    cullData.m_boundExtents = boundExtents;
+    m_instanceBoundData.PushBack(bounds);
+    m_bounds.Encapsulate(bounds);
 
-    return freeIndex;
+    m_totalIndexCount += entry.m_indexCount;
+    return m_instanceCount++;
 }
 
 void DrawBatch::UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix)
@@ -231,21 +206,6 @@ void DrawBatch::UpdateInstanceModelMatrix(DrawBatchInstance instance, float* mod
     memcpy(data, modelMatrix, sizeof(float) * 16);
 }
 
-void DrawBatch::RemoveInstance(DrawBatchInstance instance)
-{
-    DynamicIndexUpdate& entryToRemove = m_dynamicUpdateQueue[instance];
-    entryToRemove.m_workGroupCount = WorkGroupCountInvalid; // Invalidate instance.
-    
-    if (instance == m_dynamicUpdateQueue.Count() - 1)
-    {
-        --m_instanceCount;
-        m_dynamicUpdateQueue.PopBack();
-        m_instanceCullData.PopBack();
-    }
-    else
-        m_dynamicUpdateQueueFreeList.PushBack(instance);
-}
-
 void DrawBatch::FinalizeUpdates()
 {
     m_instanceBuffer.FlushChanges();
@@ -254,6 +214,15 @@ void DrawBatch::FinalizeUpdates()
 void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
 {
     assert(cmdContext);
+
+    if (m_dynamicIndexBuffer == nullptr)
+    {
+        PB::BufferObjectDesc indexBufferDesc;
+        indexBufferDesc.m_bufferSize = sizeof(PB::u32) * m_totalIndexCount;
+        indexBufferDesc.m_options = 0;
+        indexBufferDesc.m_usage = PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
+        m_dynamicIndexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
+    }
 
     FinalizeUpdates();
 
@@ -310,41 +279,21 @@ void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
 void DrawBatch::UpdateCullParams()
 {
     BatchCullConstants* cullData = reinterpret_cast<BatchCullConstants*>(m_cullConstantsBuffer->BeginPopulate());
-    cullData->m_validObjectCount = m_instanceCount;
 
-    uint32_t partitionSize = uint32_t(glm::ceil(glm::max(float(m_instanceCount) / MaxDrawCount, 1.0f)));
-    uint32_t currentPartition = 0;
-    uint32_t localPartitionIndex = 0;
-    uint32_t partitionOffset = 0;
     uint32_t totalIndexCount = 0;
-
-    cullData->m_partitionRanges[currentPartition][0] = 0;
     for (uint32_t i = 0; i < m_dynamicUpdateQueue.Count(); ++i)
     {
         auto& indexData = m_dynamicUpdateQueue[i];
-        auto& localCullData = m_instanceCullData[i];
+        auto& bounds = m_instanceBoundData[i];
         auto& objectCullData = cullData->m_objects[i];
 
-        objectCullData.m_boundOrigin = localCullData.m_boundOrigin;
-        objectCullData.m_boundExtents = localCullData.m_boundExtents;
+        objectCullData.m_boundOrigin = bounds.m_origin;
+        objectCullData.m_boundExtents = bounds.m_extents;
         objectCullData.m_drawRange[0] = totalIndexCount;
         objectCullData.m_drawRange[1] = totalIndexCount + indexData.m_indexCount;
 
         totalIndexCount += indexData.m_indexCount;
-
-        if (localPartitionIndex == partitionSize)
-        {
-            cullData->m_partitionRanges[currentPartition][1] = partitionOffset + localPartitionIndex;
-            ++currentPartition;
-            cullData->m_partitionRanges[currentPartition][0] = partitionOffset + localPartitionIndex;
-            partitionOffset += localPartitionIndex;
-            localPartitionIndex = 0;
-        }
-        objectCullData.m_partition = currentPartition;
-
-        ++localPartitionIndex;
     }
-    cullData->m_partitionRanges[currentPartition][1] = partitionOffset + localPartitionIndex;
 
     m_cullConstantsBuffer->EndPopulate();
 }

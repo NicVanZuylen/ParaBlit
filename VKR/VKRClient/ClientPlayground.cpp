@@ -23,6 +23,7 @@
 #include "FontTexture.h"
 #include "Mesh.h"
 #include "Shader.h"
+#include "Material.h"
 #include "ObjectDispatcher.h"
 #include "DrawBatch.h"
 
@@ -41,7 +42,6 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	m_allocator = allocator;
 
 	glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
-	//m_camera = Camera(glm::vec3(-2.0f, 0.5f, -6.0f), glm::vec3(glm::radians(-45.0f), glm::radians(-45.0f) , 0.0f), 0.5f, 5.0f);
 
 	Camera::CreateDesc cameraDesc;
 	cameraDesc.m_position = sunDir * 5.0f;
@@ -56,8 +56,11 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 
 	//cameraDesc.m_position = glm::vec3(-5.0f, 5.0f, -5.0f);
 	//cameraDesc.m_position = glm::vec3(-35.0f, 7.5f, -35.0f);
-	cameraDesc.m_position = glm::vec3(-21.0f, 7.5f, -21.0f);
+	cameraDesc.m_position = glm::vec3(-21.0f, 0.0f, -21.0f);
 	cameraDesc.m_eulerAngles = glm::vec3(0.0f);
+	cameraDesc.m_width = 10;
+	cameraDesc.m_height = 10;
+	cameraDesc.m_projectionType = Camera::EProjectionType::ORTHOGRAPHIC;
 	m_frustrumTestCamera = Camera(cameraDesc);
 
 	InitResources();
@@ -65,11 +68,27 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	m_geoShadowDispatchList = m_allocator->Alloc<ObjectDispatchList>();
 	m_geoShadowDispatchList->Init(m_renderer, m_allocator, { 0, 0, 0, 0 });
 
-	m_geoDispatchList = m_allocator->Alloc<ObjectDispatchList>();
-	m_geoDispatchList->Init(m_renderer, m_allocator, { 0, 0, m_swapchain->GetWidth(), m_swapchain->GetHeight() });
+	DrawBatch::CreateDesc drawBatchDesc{};
+	drawBatchDesc.m_renderer = m_renderer;
+	drawBatchDesc.m_allocator = m_allocator;
 
-	uint32_t indexCount = ((m_paintMesh->IndexCount() + m_detailsMesh->IndexCount() + m_glassMesh->IndexCount()) * (255 / 3)) + m_planeMesh->IndexCount();
-	m_drawBatch = m_allocator->Alloc<DrawBatch>(m_renderer, m_allocator, m_vertexPool, indexCount);
+	RenderBoundingVolumeHierarchy::CreateDesc rbvhDesc{};
+	rbvhDesc.m_desiredMaxDepth = 50;
+
+	rbvhDesc.m_toleranceDistanceX = 0.05f;
+	rbvhDesc.m_toleranceDistanceY = 0.05f;
+
+	rbvhDesc.m_toleranceStepX = 0.05f;
+	rbvhDesc.m_toleranceStepZ = 0.05f;
+
+	rbvhDesc.m_toleranceDistanceY = 0.2f;
+	rbvhDesc.m_toleranceStepY = 0.2f;
+
+	rbvhDesc.m_camera = &m_frustrumTestCamera;
+
+	m_renderHierarchy = m_allocator->Alloc<RenderBoundingVolumeHierarchy>(m_renderer, m_allocator, rbvhDesc);
+
+	m_drawBatch = m_allocator->Alloc<DrawBatch>(drawBatchDesc);
 	m_renderGraph = CreateRenderGraph();
 	SetupDrawBatch();
 
@@ -85,23 +104,6 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 
 	initCmdContext->End();
 	initCmdContext->Return();
-
-	RenderBoundingVolumeHierarchy::CreateDesc rbvhDesc{};
-	rbvhDesc.m_desiredMaxDepth = 50;
-
-	rbvhDesc.m_toleranceDistanceX = 0.05f;
-	rbvhDesc.m_toleranceDistanceY = 0.05f;
-
-	rbvhDesc.m_toleranceStepX = 0.05f;
-	rbvhDesc.m_toleranceStepZ = 0.05f;
-
-	rbvhDesc.m_toleranceDistanceY = 0.2f;
-	rbvhDesc.m_toleranceStepY = 0.2f;
-
-	//rbvhDesc.m_camera = &m_camera;
-	rbvhDesc.m_camera = &m_frustrumTestCamera;
-
-	m_renderHierarchy = m_allocator->Alloc<RenderBoundingVolumeHierarchy>(rbvhDesc);
 
 	// --------------------------------------------------------------------------------------
 	// Cluster Test
@@ -278,18 +280,18 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	// --------------------------------------------------------------------------------------
 	// Random node layout
 
-	const uint32_t nodeCount = 20;
+	//const uint32_t nodeCount = 20;
 
-	const glm::vec3 minExtents(1.0f);
-	const glm::vec3 maxExtents = glm::vec3(2.0f) - minExtents;
+	//const glm::vec3 minExtents(1.0f);
+	//const glm::vec3 maxExtents = glm::vec3(2.0f) - minExtents;
 
-	const glm::vec3 minOrigin(-20.0f, 0.0f, -20.0f);
-	const glm::vec3 maxOrigin(20.0f, 0.0f, 20.0f);
+	//const glm::vec3 minOrigin(-20.0f, 0.0f, -20.0f);
+	//const glm::vec3 maxOrigin(20.0f, 0.0f, 20.0f);
 
-	std::default_random_engine rand{};
-	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+	//std::default_random_engine rand{};
+	//std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
-	CLib::Vector<std::pair<glm::vec3, glm::vec3>> nodes;
+	//CLib::Vector<std::pair<glm::vec3, glm::vec3>> nodes;
 	//nodes.PushBack({ glm::vec3(-30.0f), glm::vec3(60.0f) });
 	//for (uint32_t level = 0; level < 5; ++level)
 	//{
@@ -315,12 +317,12 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	//}
 
 	//nodes.PushBack({ glm::vec3(-1.2f, 0.0f, -2.5f), glm::vec3(2.4f, 1.5f, 5.0f) });
-	nodes.PushBack({ glm::vec3(-0.6f, 0.0f, -1.25f), glm::vec3(1.2f, 0.75f, 2.5f) });
+	//nodes.PushBack({ glm::vec3(-0.6f, 0.0f, -1.25f), glm::vec3(1.2f, 0.75f, 2.5f) });
 
 	//nodes.PushBack({ glm::vec3(-2.5f), glm::vec3(2.5f) });
 	//nodes.PushBack({ glm::vec3(-7.5f, -2.5f, -7.5f), glm::vec3(2.5f) });
 
-	m_renderHierarchy->BuildBottomUp(nodes);
+	//m_renderHierarchy->BuildBottomUp(nodes);
 
 	// --------------------------------------------------------------------------------------
 }
@@ -331,7 +333,6 @@ ClientPlayground::~ClientPlayground()
 
 	m_allocator->Free(m_drawBatch);
 
-	m_allocator->Free(m_geoDispatchList);
 	m_allocator->Free(m_geoShadowDispatchList);
 
 	DestroyResources();
@@ -357,7 +358,7 @@ ClientPlayground::~ClientPlayground()
 void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, float stallTime, bool updateMetrics)
 {
 	m_camera.UpdateFreeCam(deltaTime, input, window);
-	m_frustrumTestCamera.Rotate(glm::vec3(0.0f, glm::radians(15.0f * deltaTime), 0.0f));
+	m_frustrumTestCamera.Rotate(glm::vec3(0.0f, glm::radians(30.0f * deltaTime), 0.0f));
 	//m_frustrumTestCamera.SetRotation(glm::vec3(0.0f, glm::radians(120.0f), 0.0f));
 	m_frustrumTestCamera.Update();
 
@@ -435,7 +436,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 	//	m_renderHierarchy->InsertNode(nodeOrigin, nodeExtents);
 	//}
 
-	m_renderHierarchy->DebugDraw(m_debugLinePass, m_drawEntireRenderHierarchy ? ~uint32_t(0) : m_renderHierarchyDrawDebugDepth, true);
+	//m_renderHierarchy->DebugDraw(m_debugLinePass, m_drawEntireRenderHierarchy ? ~uint32_t(0) : m_renderHierarchyDrawDebugDepth, true);
 
 	// Update Camera -------------------------------------------------------------------------------------------------
 	{
@@ -466,7 +467,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		bufferMatrices->m_tanHalfFOV = glm::tan(fovRadians / 2);
 
 		// Frustrum
-		const Camera::CameraFrustrum& frustrum = m_frustrumTestCamera.GetFrustrum();
+		const Camera::CameraFrustrum& frustrum = m_camera.GetFrustrum();
 
 		bufferMatrices->m_mainFrustrumPlanes[0] = frustrum.m_near;
 		bufferMatrices->m_mainFrustrumPlanes[1] = frustrum.m_left;
@@ -507,7 +508,6 @@ void ClientPlayground::UpdateResolution(uint32_t width, uint32_t height)
 	m_renderGraph = CreateRenderGraph();
 
 	m_geoShadowDispatchList->FlushCommandLists(); // Force command lists to be re-recorded.
-	m_geoDispatchList->UpdateRenderArea({ 0, 0, width, height }); // Will also flush command lists.
 
 	PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 	auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
@@ -556,13 +556,11 @@ void ClientPlayground::InitResources()
 	texData[2] = 255;
 	m_flatNormalTexture = m_renderer->AllocateTexture(solidTextureDesc);
 
-	// Vertex pool
-	m_vertexPool = m_allocator->Alloc<VertexPool>(m_renderer, uint32_t(sizeof(PBClient::Vertex) * 1000000), uint32_t(sizeof(PBClient::Vertex)));
-
 	// Shaders
 	m_shadowVertShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "Shaders/GLSL/vs_obj_shad_batch", m_allocator, true);
-	m_vertShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "Shaders/GLSL/vs_obj_def_batch", m_allocator, true);
-	m_fragShader = m_allocator->Alloc<PBClient::Shader>(m_renderer, "Shaders/GLSL/fs_obj_def_batch", m_allocator, true);
+
+	// Vertex pool
+	m_vertexPool = m_allocator->Alloc<VertexPool>(m_renderer, uint32_t(sizeof(PBClient::Vertex) * 1000000), uint32_t(sizeof(PBClient::Vertex)));
 
 	// Meshes & Textures
 	m_paintMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_paint", m_vertexPool);
@@ -605,15 +603,9 @@ void ClientPlayground::InitResources()
 
 	for (int i = 0; i < _countof(m_glassTextures); ++i)
 		m_glassViews[i] = m_glassTextures[i]->GetTexture()->GetDefaultSRV();
-	//m_glassViews[3] = m_solidWhiteTexture->GetDefaultSRV();
-	//m_glassViews[2] = m_solidWhiteTexture->GetDefaultSRV();
 
 	for (int i = 0; i < _countof(m_debugTextures); ++i)
 		m_debugViews[i] = m_debugTextures[i]->GetTexture()->GetDefaultSRV();
-
-	//m_paintViews[0] = m_solidWhiteTexture->GetDefaultSRV();
-	//m_detailsViews[0] = m_solidWhiteTexture->GetDefaultSRV();
-	//m_glassViews[0] = m_solidWhiteTexture->GetDefaultSRV();
 
 	const char* skyboxFilenames[6]
 	{
@@ -634,10 +626,61 @@ void ClientPlayground::InitResources()
 	colorSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
 	colorSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::REPEAT;
 	m_colorSampler = m_renderer->GetSampler(colorSamplerDesc);
+
+	PB::ITexture* paintTextures[5]
+	{
+		m_paintTextures[0]->GetTexture(),
+		m_paintTextures[1]->GetTexture(),
+		m_paintTextures[2]->GetTexture(),
+		m_paintTextures[3]->GetTexture(),
+		m_solidBlackTexture
+	};
+	m_spinnerMaterials[0] = m_allocator->Alloc<Material>(0, paintTextures, _countof(paintTextures), m_colorSampler);
+
+	PB::ITexture* detailsTextures[5]
+	{
+		m_detailsTextures[0]->GetTexture(),
+		m_detailsTextures[1]->GetTexture(),
+		m_detailsTextures[2]->GetTexture(),
+		m_detailsTextures[3]->GetTexture(),
+		m_detailsTextures[4]->GetTexture()
+	};
+	m_spinnerMaterials[1] = m_allocator->Alloc<Material>(0, detailsTextures, _countof(detailsTextures), m_colorSampler);
+
+	PB::ITexture* glassTextures[5]
+	{
+		m_glassTextures[0]->GetTexture(),
+		m_glassTextures[1]->GetTexture(),
+		m_glassTextures[2]->GetTexture(),
+		m_glassTextures[3]->GetTexture(),
+		m_glassTextures[4]->GetTexture()
+	};
+	m_spinnerMaterials[2] = m_allocator->Alloc<Material>(0, glassTextures, _countof(glassTextures), m_colorSampler);
+
+	PB::ITexture* planeTextures[5]
+	{
+		m_solidWhiteTexture,
+		m_flatNormalTexture,
+		m_solidBlackTexture,
+		m_solidWhiteTexture,
+		m_solidBlackTexture
+	};
+	m_planeMaterial = m_allocator->Alloc<Material>(0, planeTextures, _countof(planeTextures), m_colorSampler);
+
+	planeTextures[0] = m_debugTextures[0]->GetTexture();
+	planeTextures[2] = m_debugTextures[2]->GetTexture();
+	planeTextures[3] = m_debugTextures[1]->GetTexture();
+	m_debugMaterial = m_allocator->Alloc<Material>(0, planeTextures, _countof(planeTextures), m_colorSampler);
 }
 
 void ClientPlayground::DestroyResources()
 {
+	for (Material* mat : m_spinnerMaterials)
+		m_allocator->Free(mat);
+
+	m_allocator->Free(m_planeMaterial);
+	m_allocator->Free(m_debugMaterial);
+
 	m_renderer->FreeTexture(m_solidWhiteTexture);
 	m_renderer->FreeTexture(m_solidBlackTexture);
 	m_renderer->FreeTexture(m_flatNormalTexture);
@@ -676,8 +719,6 @@ void ClientPlayground::DestroyResources()
 	m_allocator->Free(m_planeMesh);
 
 	m_allocator->Free(m_shadowVertShader);
-	m_allocator->Free(m_vertShader);
-	m_allocator->Free(m_fragShader);
 
 	m_allocator->Free(m_vertexPool);
 
@@ -687,6 +728,14 @@ void ClientPlayground::DestroyResources()
 
 inline RenderGraph* ClientPlayground::CreateRenderGraph()
 {
+	uint32_t frustrumPlanesOffset = offsetof(ViewConstantsBuffer, ViewConstantsBuffer::m_mainFrustrumPlanes);
+	uint32_t frustrumPlanesSize = sizeof(ViewConstantsBuffer::m_mainFrustrumPlanes);
+
+	PB::BufferViewDesc viewPlanesDesc;
+	viewPlanesDesc.m_buffer = m_mvpBuffer;
+	viewPlanesDesc.m_offset = frustrumPlanesOffset;
+	viewPlanesDesc.m_size = frustrumPlanesSize;
+
 	RenderGraph* output = nullptr;
 	{
 		RenderGraphBuilder rgBuilder(m_renderer, m_allocator);
@@ -700,8 +749,8 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 
 		// GBuffer pass
 		{
-			if(!m_gBufferPass)
-				m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), m_drawBatch);
+			if (!m_gBufferPass)
+				m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), m_mvpBuffer->GetViewAsUniformBuffer(viewPlanesDesc), &m_camera, m_renderHierarchy);
 			m_gBufferPass->AddToRenderGraph(&rgBuilder);
 		}
 		
@@ -791,24 +840,25 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	}
 
 	m_shadowmapPass->SetDispatchList(m_geoShadowDispatchList, true);
-	m_gBufferPass->SetDispatchList(m_geoDispatchList, true);
 
 	// Set up lighting
 	{
-		glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
+		glm::vec3 sunDir(0.0f, 1.0f, 1.0f);
 
-		//Camera shadowCam(glm::vec3(0.0f, 0.0f, -4.0f) + (sunDir * 50.0f), glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f)));
+		constexpr const float ShadowDistance = 10.0f;
 		Camera::CreateDesc shadowCamDesc{};
-		shadowCamDesc.m_position = glm::vec3(0.0f, 0.0f, 0.0f);
-		shadowCamDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, 0.0f, 0.0f));
-		Camera shadowCam(shadowCamDesc);
+		shadowCamDesc.m_position = glm::normalize(sunDir) * 100.0f;
+		shadowCamDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 0.0f, 0.0f));
+		shadowCamDesc.m_projectionType = Camera::EProjectionType::ORTHOGRAPHIC;
+		shadowCamDesc.m_zNear = 1.0f;
+		shadowCamDesc.m_zFar = 110.0f;
+		shadowCamDesc.m_width = uint32_t(ShadowDistance);
+		shadowCamDesc.m_height = uint32_t(ShadowDistance);
+		m_shadowCam = Camera(shadowCamDesc);
+		m_shadowCam.Update();
 
-		glm::mat4 shadowView = shadowCam.GetViewMatrix();
-
-		constexpr const float ShadowDistance = 8.0f;
-
-		m_shadowmapPass->SetViewMatrix(glm::value_ptr(shadowView));
-		m_shadowmapPass->SetShadowParameters(ShadowDistance, 0.5f, 0.2f, ShadowmapResolution);
+		m_shadowmapPass->SetCamera(&m_shadowCam, m_renderHierarchy);
+		m_shadowmapPass->SetShadowParameters(ShadowDistance, 0.5f, 0.02f, ShadowmapResolution);
 
 		m_deferredLightingPass->SetMVPBuffer(m_mvpBuffer);
 
@@ -835,10 +885,7 @@ void ClientPlayground::SetupDrawBatch()
 {
 	PB::UniformBufferView mvpView = m_mvpBuffer->GetViewAsUniformBuffer();
 
-	//m_drawBatch->AddToDispatchList(m_geoShadowDispatchList, GetShadowDrawBatchPipeline(), m_shadowmapPass->GetDrawBatchBindings());
-	//m_drawBatch->AddToDispatchList(m_geoDispatchList, GetGBufferDrawBatchPipeline(), GetGBufferDrawBatchBindings(mvpView));
-
-	glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -4.0f));
+	glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
 	glm::mat4 spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
 	PB::ResourceView plainViews[]
@@ -858,65 +905,107 @@ void ClientPlayground::SetupDrawBatch()
 	//	m_solidBlackTexture->GetDefaultSRV()
 	//};
 
-	glm::vec3 boundOrigin0 = glm::vec3(-1.2f, 0.0f, -2.5f);
-	glm::vec3 boundExtent0 = glm::vec3(2.4f, 1.5f, 5.0f);
+	CLib::Vector<RenderBoundingVolumeHierarchy::ObjectData> nodes;
 
-	glm::vec3 boundOrigin1 = glm::vec3(-0.6f, 0.0f, -1.25f);
-	glm::vec3 boundExtent1 = glm::vec3(1.2f, 0.75f, 2.5f);
+	//Bounds spinnerBounds(glm::vec3(-1.2f, 0.0f, -2.5f), glm::vec3(2.4f, 1.5f, 5.0f));
+	Bounds spinnerBounds = m_paintMesh->GetBounds();
+	spinnerBounds.Encapsulate(m_detailsMesh->GetBounds());
+	spinnerBounds.Encapsulate(m_glassMesh->GetBounds());
+	//spinnerBounds.m_origin *= 0.01f;
+	//spinnerBounds.m_extents *= 0.01f;
 
-	const uint32_t spinnerCount = 85;
+	const uint32_t spinnerCount = 2;
 	for (uint32_t i = 0; i < spinnerCount; ++i)
 	{
-		glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
-		//glm::vec3 pos = glm::vec3(4.0f * i, 0.0f, 0.0f);
-		modelMat = glm::translate(glm::mat4(), pos);
-		modelMat = glm::rotate(modelMat, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
+		//glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+		glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
 
-		if (i == 0)
+		if (i == 1)
 		{
-			m_firstInstanceHandles[0] = m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), boundOrigin0, boundExtent0, m_paintViews, _countof(m_paintViews), m_colorSampler);
-			m_firstInstanceHandles[1] = m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), boundOrigin0, boundExtent0, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-			m_firstInstanceHandles[2] = m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), boundOrigin0, boundExtent0, m_glassViews, _countof(m_glassViews), m_colorSampler);
-			continue;
+			pos.y = 5.0f;
+			pos.z += 2.5f;
 		}
 
-		m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), pos + boundOrigin0, boundExtent0, m_paintViews, _countof(m_paintViews), m_colorSampler);
-		m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), pos + boundOrigin0, boundExtent0, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-		m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), pos + boundOrigin0, boundExtent0, m_glassViews, _countof(m_glassViews), m_colorSampler);
+		modelMat = glm::translate(glm::mat4(), pos);
+		modelMat = glm::rotate(modelMat, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
+
+		Bounds translatedBounds = spinnerBounds;
+		translatedBounds.Transform(spinnerModelMat);
+		//translatedBounds.m_origin += pos;
+		m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), translatedBounds, m_paintViews, _countof(m_paintViews), m_colorSampler);
+		m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), translatedBounds, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
+		m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), translatedBounds, m_glassViews, _countof(m_glassViews), m_colorSampler);
+
+		RenderBoundingVolumeHierarchy::ObjectData& paintObj = nodes.PushBack();
+		paintObj.m_mesh = m_paintMesh;
+		paintObj.m_material = m_spinnerMaterials[0];
+		paintObj.m_transform = spinnerModelMat;
+
+		RenderBoundingVolumeHierarchy::ObjectData& detailsObj = nodes.PushBack();
+		detailsObj.m_mesh = m_detailsMesh;
+		detailsObj.m_material = m_spinnerMaterials[1];
+		detailsObj.m_transform = spinnerModelMat;
+
+		RenderBoundingVolumeHierarchy::ObjectData& glassObj = nodes.PushBack();
+		glassObj.m_mesh = m_glassMesh;
+		glassObj.m_material = m_spinnerMaterials[2];
+		glassObj.m_transform = spinnerModelMat;
 	}
 
-	/*modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, -0.2f, -4.0f));
-	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, plainViews, _countof(plainViews), m_colorSampler);
+	modelMat = glm::identity<glm::mat4>();
+
+	glm::vec3 planeOffset = glm::vec3(0.0f, -0.2f, 0.0f);
+	Bounds planeBounds = m_planeMesh->GetBounds();
+
+	modelMat = glm::translate(glm::mat4(), planeOffset);
+	planeBounds.Transform(modelMat);
+	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), planeBounds, plainViews, _countof(plainViews), m_colorSampler);
+
+	RenderBoundingVolumeHierarchy::ObjectData& planeObj = nodes.PushBack();
+	planeObj.m_mesh = m_planeMesh;
+	planeObj.m_material = m_planeMaterial;
+	planeObj.m_transform = modelMat;
 
 	plainViews[0] = m_debugViews[0];
 	plainViews[2] = m_debugViews[2];
 	plainViews[3] = m_debugViews[1];
 
+	glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
+	Bounds debugPlaneBounds = m_planeMesh->GetBounds();
+
 	modelMat = glm::identity<glm::mat4>();
-	modelMat = glm::translate(modelMat, glm::vec3(-2.4f, 1.0f, -4.0f));
+	modelMat = glm::translate(modelMat, debugPlaneOffset);
 	modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
-	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, plainViews, _countof(plainViews), m_colorSampler);*/
-
-
-	/*
-	modelMat = glm::identity<glm::mat4>();
-	modelMat = glm::scale(modelMat, glm::vec3(0.01f));
-	m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, m_paintViews, _countof(m_paintViews), m_colorSampler);
-	m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-	m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(modelMat), boundOrigin, boundExtent, m_glassViews, _countof(m_glassViews), m_colorSampler);*/
+	debugPlaneBounds.Transform(modelMat);
+	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), debugPlaneBounds, plainViews, _countof(plainViews), m_colorSampler);
+	
+	RenderBoundingVolumeHierarchy::ObjectData& debugPlaneObj = nodes.PushBack();
+	debugPlaneObj.m_mesh = m_planeMesh;
+	debugPlaneObj.m_material = m_debugMaterial;
+	debugPlaneObj.m_transform = modelMat;
 
 	m_drawBatch->UpdateCullParams();
-}
 
-PB::Pipeline ClientPlayground::GetGBufferDrawBatchPipeline()
-{
-	PB::GraphicsPipelineDesc pipelineDesc = m_gBufferPass->GetBasePipelineDesc();
-	pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_vertShader->GetModule();
-	pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_fragShader->GetModule();
+	m_renderHierarchy->BuildBottomUp(nodes);
 
-	return m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
+	PB::CommandContextDesc contextDesc{};
+	contextDesc.m_renderer = m_renderer;
+	contextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
+	contextDesc.m_flags = PB::ECommandContextFlags::PRIORITY;
+
+	PB::SCommandContext initCmdContext(m_renderer);
+	initCmdContext->Init(contextDesc);
+	initCmdContext->Begin();
+
+	m_drawBatch->UpdateIndices(initCmdContext.GetContext());
+	m_renderHierarchy->BakeHierarchies(initCmdContext.GetContext());
+
+	initCmdContext->End();
+	initCmdContext->Return();
+
+	m_drawBatch->AddToDispatchList(m_geoShadowDispatchList, GetShadowDrawBatchPipeline(), m_shadowmapPass->GetDrawBatchBindings());
 }
 
 PB::Pipeline ClientPlayground::GetShadowDrawBatchPipeline()

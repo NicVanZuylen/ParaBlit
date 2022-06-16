@@ -1,5 +1,6 @@
 #version 450
 #include "Common/pb_common.h"
+#include "Common/view_constants.h"
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_samplerless_texture_functions : require
 
@@ -18,26 +19,18 @@ layout(push_constant) uniform Bindings
     uint gBufferSamplerIdx;
     uint shadowmapIndex;
     uint shadowSamplerIdx;
-    //uint outputImageIndex;
     uint randomRotationTextureIndex;
     uint rotationSamplerIdx;
 } PB_BINDINGS_NAME;
 
-layout(set = 1, binding = 0) uniform MVP
-{
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-    mat4 invView;
-    mat4 invProj;
-    vec4 cameraPosition;
-} mvp[];
+DEFINE_VIEW_CONSTANTS(mvp)
 
 layout(set = 1, binding = 0) uniform ShadowConstants
 {
     mat4 view;
     mat4 proj;
-    vec3 shadowViewDirection;
+    vec4 shadowFrustrumPlanes[6];
+    vec4 shadowViewDirection;
     float shadowPenumbraDistance;
     float shadowBiasMultiplier;
 } shadowConstants[];
@@ -164,32 +157,20 @@ vec2 PCFDiskBlocker(vec3 shadowmapScreenPos, vec2 texelSize, vec2 diskRotation, 
     return vec2(blockerAccum, numValidBlockerSamples);
 }
 
-#define USE_VARIABLE_PCF_SAMPLE_COUNT 1
-
 float PCFDiskShadow(vec3 shadowmapScreenPos, vec2 texelSize, vec2 diskRotation, float shadowBias, float penumbraDistance, float refPenumbraDistance)
 {
     float shadowStrength = 0.0;
 
-#if USE_VARIABLE_PCF_SAMPLE_COUNT
-    float penumbraDistPercentage = min(penumbraDistance / refPenumbraDistance, 1.0);
-    int sampleCount = max(1, int(penumbraDistPercentage * DISK_PCF_SAMPLE_COUNT));
-    for(int i = 0; i < sampleCount; ++i)
-#else
     for(int i = 0; i < DISK_PCF_SAMPLE_COUNT; ++i)
-#endif
     {
-        vec2 diskSample = poissonSampleOffsets[i] * diskRotation * (texelSize * clamp(penumbraDistance, refPenumbraDistance * 0.03, refPenumbraDistance));
+        vec2 diskSample = poissonSampleOffsets[i] * diskRotation * texelSize * penumbraDistance;
         shadowStrength += BilinearShadow(shadowmapScreenPos + vec3(diskSample, 0.0), texelSize, shadowBias);
     }
 
-#if USE_VARIABLE_PCF_SAMPLE_COUNT
-    return shadowStrength / sampleCount;
-#else
     return shadowStrength * DISK_PCF_INV_SAMPLE_COUNT;
-#endif
 }
 
-float ShadowPCSS(vec3 shadowmapScreenPos, float shadowBias, float refPenumbraDistance)
+float ShadowPCSS(vec3 shadowmapScreenPos, float shadowBias, float refPenumbraDistance, out float penumbraDistance)
 {
     vec2 textureDimensions = textureSize(PB_TEXTURE(shadowmapIndex), 0);
     vec2 texelSize = 1.0 / textureDimensions;
@@ -205,7 +186,8 @@ float ShadowPCSS(vec3 shadowmapScreenPos, float shadowBias, float refPenumbraDis
         return 1.0;
 
     float blockerAverage = blockerResults.x / blockerResults.y;
-    float penumbraDistance = ((shadowmapScreenPos.z - blockerAverage) * 500) / max(blockerAverage, 1.0);
+    penumbraDistance = ((shadowmapScreenPos.z - blockerAverage) * 10 * refPenumbraDistance) / blockerAverage;
+
     return PCFDiskShadow(shadowmapScreenPos, texelSize, randomRotation, shadowBias, penumbraDistance, refPenumbraDistance);
 }
 
@@ -213,7 +195,7 @@ void main()
 {
     float depth = texture(PB_BUILD_SAMPLER(gDepthIndex, gBufferSamplerIdx), fsInput.texCoord).r;
     vec3 normal = texture(PB_BUILD_SAMPLER(gNormalIndex, gBufferSamplerIdx), fsInput.texCoord).rgb;
-    float normalDotLight = dot(normal, SHAD_CONST.shadowViewDirection);
+    float normalDotLight = dot(normal, SHAD_CONST.shadowViewDirection.xyz);
 
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, MVP_CONST.invView, MVP_CONST.invProj);
     vec3 shadowmapScreenPos = ScreenPosFromWorld(position, SHAD_CONST.view, SHAD_CONST.proj);
@@ -221,8 +203,9 @@ void main()
 
     float biasMult = SHAD_CONST.shadowBiasMultiplier;
     float shadowBias = max((0.003 * biasMult) * (1.0 - normalDotLight), (0.0015 * biasMult));
-    float shadowPenumbraDistance = SHAD_CONST.shadowPenumbraDistance;
-    float shadowMask = ShadowPCSS(shadowmapScreenPos, shadowBias, shadowPenumbraDistance);
+    float refShadowPenumbraDistance = SHAD_CONST.shadowPenumbraDistance;
+    float shadowPenumbraDistance = 0.01;
+    float shadowMask = ShadowPCSS(shadowmapScreenPos, shadowBias, refShadowPenumbraDistance, shadowPenumbraDistance);
 
-    outColor = vec4(shadowMask);
+    outColor = vec4(shadowMask, min(shadowPenumbraDistance / refShadowPenumbraDistance, 1.0), 0.0, 0.0);
 }

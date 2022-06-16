@@ -148,6 +148,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BindingCache.cpp" />
     <ClCompile Include="BufferObject.cpp" />
     <ClCompile Include="CLib\Allocator.cpp" />
     <ClCompile Include="CmdContextPool.cpp" />
@@ -177,6 +178,8 @@
     <ClCompile Include="VulkanInstance.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BindingCache.h" />
+    <ClInclude Include="IBindingCache.h" />
     <ClInclude Include="BufferObject.h" />
     <ClInclude Include="CLib\Allocator.h" />
     <ClInclude Include="CmdContextPool.h" />

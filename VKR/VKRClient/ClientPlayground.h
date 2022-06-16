@@ -25,6 +25,7 @@ class ObjectDispatchList;
 class VertexPool;
 class DrawBatch;
 class RenderGraph;
+class Material;
 
 class ClientPlayground
 {
@@ -50,7 +51,6 @@ private:
 
 	inline void SetupDrawBatch();
 
-	inline PB::Pipeline GetGBufferDrawBatchPipeline();
 	inline PB::BindingLayout GetGBufferDrawBatchBindings(PB::UniformBufferView& mvpView);
 	inline PB::Pipeline GetShadowDrawBatchPipeline();
 	// -------------------------------------------------------------------------
@@ -80,6 +80,7 @@ private:
 	RenderGraph* m_renderGraph = nullptr;
 	Camera m_camera;
 	Camera m_frustrumTestCamera;
+	Camera m_shadowCam;
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------
@@ -114,6 +115,10 @@ private:
 	PBClient::Texture* m_metalTextures[2]{};
 	PBClient::Texture* m_debugTextures[3]{};
 
+	Material* m_spinnerMaterials[3]{};
+	Material* m_planeMaterial = nullptr;
+	Material* m_debugMaterial = nullptr;
+
 	PBClient::Texture* m_hdrSkyTexture = nullptr;
 
 	PB::ITexture* m_solidWhiteTexture = nullptr;
@@ -131,15 +136,11 @@ private:
 	PB::ResourceView m_colorSampler = 0;
 
 	PBClient::Shader* m_shadowVertShader = nullptr;
-	PBClient::Shader* m_vertShader = nullptr;
-	PBClient::Shader* m_fragShader = nullptr;
 
 	ObjectDispatchList* m_geoShadowDispatchList = nullptr;
-	ObjectDispatchList* m_geoDispatchList = nullptr;
 	VertexPool* m_vertexPool = nullptr;
 	DrawBatch* m_drawBatch = nullptr;
 
-	PB::u32 m_firstInstanceHandles[3]{};
 	uint32_t m_renderHierarchyDrawDebugDepth = 0;
 	bool m_drawEntireRenderHierarchy = true;
 
