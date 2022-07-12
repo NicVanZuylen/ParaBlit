@@ -97,7 +97,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;PARABLIT_ENABLE_API_VALIDATION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;PARABLIT_ENABLE_API_VALIDATION=1;PB_USE_DEBUG_UTILS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -134,7 +134,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;D:\VulkanSDK\1.1.106.0\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;PARABLIT_ENABLE_API_VALIDATION=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;PARABLIT_ENABLE_API_VALIDATION=0;PB_USE_DEBUG_UTILS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>

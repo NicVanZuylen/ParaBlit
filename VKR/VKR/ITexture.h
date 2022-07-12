@@ -41,6 +41,7 @@ namespace PB
 
 	struct TextureDesc
 	{
+		const char* m_name = nullptr;
 		TextureDataDesc* m_data = nullptr; // Not required unless created with init option: PB_TEXTURE_INIT_USE_DATA.
 		ETextureState m_initialState = ETextureState::NONE;
 		TextureStateFlags m_usageStates = ETextureState::NONE;
@@ -51,13 +52,15 @@ namespace PB
 		u32 m_width = 0;
 		u32 m_height = 0;
 		u32 m_depth = 1;
-		u32 m_mipCount = 1;
+		u16 m_mipCount = 1;
+		u16 m_arraySize = 1;
 	};
 
 	enum class ETextureViewType : u32
 	{
 		VIEW_TYPE_1D,
 		VIEW_TYPE_2D,
+		VIEW_TYPE_2D_ARRAY,
 		VIEW_TYPE_3D,
 		VIEW_TYPE_CUBE
 	};

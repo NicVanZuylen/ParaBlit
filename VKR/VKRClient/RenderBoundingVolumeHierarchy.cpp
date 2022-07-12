@@ -80,21 +80,7 @@ void RenderBoundingVolumeHierarchy::DebugDraw(DebugLinePass* lines, uint32_t dep
 
 		// Draw frustrum
 		glm::vec3 frustrumColor(1.0f, 0.0f, 1.0f);
-
-		lines->DrawLine(frustrum.m_nearTopLeft, frustrum.m_nearTopRight, frustrumColor);
-		lines->DrawLine(frustrum.m_nearTopLeft, frustrum.m_nearBottomLeft, frustrumColor);
-		lines->DrawLine(frustrum.m_nearBottomLeft, frustrum.m_nearBottomRight, frustrumColor);
-		lines->DrawLine(frustrum.m_nearBottomRight, frustrum.m_nearTopRight, frustrumColor);
-
-		lines->DrawLine(frustrum.m_farTopLeft, frustrum.m_farTopRight, frustrumColor);
-		lines->DrawLine(frustrum.m_farTopLeft, frustrum.m_farBottomLeft, frustrumColor);
-		lines->DrawLine(frustrum.m_farBottomLeft, frustrum.m_farBottomRight, frustrumColor);
-		lines->DrawLine(frustrum.m_farBottomRight, frustrum.m_farTopRight, frustrumColor);
-
-		lines->DrawLine(frustrum.m_nearTopLeft, frustrum.m_farTopLeft, frustrumColor);
-		lines->DrawLine(frustrum.m_nearBottomLeft, frustrum.m_farBottomLeft, frustrumColor);
-		lines->DrawLine(frustrum.m_nearTopRight, frustrum.m_farTopRight, frustrumColor);
-		lines->DrawLine(frustrum.m_nearBottomRight, frustrum.m_farBottomRight, frustrumColor);
+		Camera::DrawFrustrum(lines, frustrum, frustrumColor);
 	}
 
 	RecursiveDebugDrawNode(lines, frustrum, m_root, depth, drawObjectBounds);
@@ -546,7 +532,8 @@ bool RenderBoundingVolumeHierarchy::FrustrumTest(const Camera::CameraFrustrum& f
 		&& IsInFrontOfPlane(frustrum.m_left, bounds)
 		&& IsInFrontOfPlane(frustrum.m_right, bounds)
 		&& IsInFrontOfPlane(frustrum.m_top, bounds)
-		&& IsInFrontOfPlane(frustrum.m_bottom, bounds);
+		&& IsInFrontOfPlane(frustrum.m_bottom, bounds)
+		&& IsInFrontOfPlane(frustrum.m_far, bounds);
 }
 
 void RenderBoundingVolumeHierarchy::RecursiveCullBatches(BatchDispatcher* dispatcher, PB::Pipeline pipeline, const PB::BindingLayout& globalBindings, const Camera::CameraFrustrum& frustrum, const BakedNode& node) const

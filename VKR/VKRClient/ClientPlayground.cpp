@@ -44,23 +44,20 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
 
 	Camera::CreateDesc cameraDesc;
-	cameraDesc.m_position = sunDir * 5.0f;
-	cameraDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 45.0f, 0.0f));
+	cameraDesc.m_position = glm::vec3(0.0f, 1.2f, 4.0f);
+	cameraDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 0.0f, 0.0f));
 	cameraDesc.m_sensitivity = 0.5f;
 	cameraDesc.m_moveSpeed = 20.0f;
-	cameraDesc.m_width = m_swapchain->GetWidth();
-	cameraDesc.m_height = m_swapchain->GetHeight();
+	cameraDesc.m_width = float(m_swapchain->GetWidth());
+	cameraDesc.m_height = float(m_swapchain->GetHeight());
 	cameraDesc.m_fovY = glm::radians(45.0f);
-	cameraDesc.m_zFar = 100.0f;
+	cameraDesc.m_zFar = 500.0f;
 	m_camera = Camera(cameraDesc);
+	m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
-	//cameraDesc.m_position = glm::vec3(-5.0f, 5.0f, -5.0f);
-	//cameraDesc.m_position = glm::vec3(-35.0f, 7.5f, -35.0f);
-	cameraDesc.m_position = glm::vec3(-21.0f, 0.0f, -21.0f);
-	cameraDesc.m_eulerAngles = glm::vec3(0.0f);
-	cameraDesc.m_width = 10;
-	cameraDesc.m_height = 10;
-	cameraDesc.m_projectionType = Camera::EProjectionType::ORTHOGRAPHIC;
+	cameraDesc.m_position = glm::vec3(-15.5f, 0.0f, -5.5f);
+	cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, -90.0f, 0.0f));
+	cameraDesc.m_zFar = 100.0f;
 	m_frustrumTestCamera = Camera(cameraDesc);
 
 	InitResources();
@@ -85,6 +82,7 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	rbvhDesc.m_toleranceStepY = 0.2f;
 
 	rbvhDesc.m_camera = &m_frustrumTestCamera;
+
 
 	m_renderHierarchy = m_allocator->Alloc<RenderBoundingVolumeHierarchy>(m_renderer, m_allocator, rbvhDesc);
 
@@ -350,7 +348,9 @@ ClientPlayground::~ClientPlayground()
 	m_allocator->Free(m_shadowBlurPass);
 	m_allocator->Free(m_shadowAccumPass);
 	m_allocator->Free(m_gBufferPass);
-	m_allocator->Free(m_shadowmapPass);
+
+	for(uint32_t i = 0; i < ShadowCascadeCount; ++i)
+		m_allocator->Free(m_shadowmapPass[i]);
 
 	m_allocator->Free(m_fontTexture);
 }
@@ -438,18 +438,27 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 
 	//m_renderHierarchy->DebugDraw(m_debugLinePass, m_drawEntireRenderHierarchy ? ~uint32_t(0) : m_renderHierarchyDrawDebugDepth, true);
 
+	for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
+	{
+		m_shadowmapPass[i]->Update();
+	}
+
+	Camera::DrawFrustrum(m_debugLinePass, m_frustrumTestCamera.GetFrustrum(), glm::vec3(1.0f, 0.0f, 1.0f));
+	for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
+	{
+		Camera::DrawFrustrum(m_debugLinePass, m_shadowmapPass[i]->GetCascadeCamera()->GetFrustrum(), glm::vec3(1.0f, 0.0f, 0.0f));
+
+		Camera::CameraFrustrum sect;
+		m_frustrumTestCamera.GetFrustrumSection(sect, m_shadowCascadeSectionRanges[i * 2], m_shadowCascadeSectionRanges[(i * 2) + 1]);
+		Camera::DrawFrustrum(m_debugLinePass, sect, glm::vec3(0.0f, 1.0f, 0.0f));
+	}
+
 	// Update Camera -------------------------------------------------------------------------------------------------
 	{
 		constexpr float fov = 45.0f;
 		constexpr float fovRadians = glm::radians(fov);
 
 		ViewConstantsBuffer* bufferMatrices = (ViewConstantsBuffer*)m_mvpBuffer->BeginPopulate();
-
-		// Model
-		glm::mat4& model = bufferMatrices->m_model;
-		model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.1f * elapsedTime, 0.0f));
-		model = glm::scale(model, glm::vec3(0.01f));
-		model = glm::rotate<float>(model, elapsedTime * 0.2f, glm::vec3(0.0f, 1.0f, 0.0f));
 
 		// View
 		bufferMatrices->m_view = m_camera.GetViewMatrix(); // View
@@ -458,6 +467,8 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		// Projection
 		bufferMatrices->m_proj = m_camera.GetProjectionMatrix();
 		bufferMatrices->m_invProj = glm::inverse(bufferMatrices->m_proj);
+
+		bufferMatrices->m_viewProj = bufferMatrices->m_proj * bufferMatrices->m_view;
 
 		// Position
 		bufferMatrices->m_camPos = glm::vec4(m_camera.Position(), 1.0f);
@@ -476,15 +487,7 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		bufferMatrices->m_mainFrustrumPlanes[4] = frustrum.m_bottom;
 		bufferMatrices->m_mainFrustrumPlanes[5] = frustrum.m_far;
 
-		glm::mat4 modelCpy = model;
-
 		m_mvpBuffer->EndPopulate();
-
-		//m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[0], glm::value_ptr(modelCpy));
-		//m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[1], glm::value_ptr(modelCpy));
-		//m_drawBatch->UpdateInstanceModelMatrix(m_firstInstanceHandles[2], glm::value_ptr(modelCpy));
-
-		//m_drawBatch->FinalizeUpdates();
 	}
 	// ---------------------------------------------------------------------------------------------------------------
 
@@ -736,15 +739,31 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	viewPlanesDesc.m_offset = frustrumPlanesOffset;
 	viewPlanesDesc.m_size = frustrumPlanesSize;
 
+	glm::vec3 sunDir(0.0f, 1.0f, 1.0f);
+
 	RenderGraph* output = nullptr;
 	{
 		RenderGraphBuilder rgBuilder(m_renderer, m_allocator);
 
 		// Shadowmap Pass
 		{
-			if(!m_shadowmapPass)
-				m_shadowmapPass = m_allocator->Alloc<ShadowMapPass>(m_renderer, m_allocator);
-			m_shadowmapPass->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
+			for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
+			{
+				if (!m_shadowmapPass[i])
+				{
+					ShadowMapPass::CreateDesc shadowMapPassDesc;
+					shadowMapPassDesc.m_frustrumSectionNear = m_shadowCascadeSectionRanges[i * 2];
+					shadowMapPassDesc.m_frustrumSectionFar = m_shadowCascadeSectionRanges[(i * 2) + 1];
+					shadowMapPassDesc.m_softShadowPenumbraDistance = 0.5f;
+					shadowMapPassDesc.m_shadowBiasMultiplier = 0.1f * (i + 1);
+					shadowMapPassDesc.m_shadowmapResolution = ShadowmapResolution;
+					shadowMapPassDesc.m_cascadeIndex = i;
+
+					m_shadowmapPass[i] = m_allocator->Alloc<ShadowMapPass>(m_renderer, m_allocator, shadowMapPassDesc);
+					m_shadowmapPass[i]->SetCamera(&m_frustrumTestCamera, m_renderHierarchy, sunDir);
+				}
+				m_shadowmapPass[i]->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
+			}
 		}
 
 		// GBuffer pass
@@ -839,31 +858,17 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		m_fpsText = m_textPass->AddText("FPS: 000000", m_fontTexture, PB::Float2(0.0f, float(m_fontTexture->GetFontHeight())));
 	}
 
-	m_shadowmapPass->SetDispatchList(m_geoShadowDispatchList, true);
-
 	// Set up lighting
 	{
-		glm::vec3 sunDir(0.0f, 1.0f, 1.0f);
-
-		constexpr const float ShadowDistance = 10.0f;
-		Camera::CreateDesc shadowCamDesc{};
-		shadowCamDesc.m_position = glm::normalize(sunDir) * 100.0f;
-		shadowCamDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 0.0f, 0.0f));
-		shadowCamDesc.m_projectionType = Camera::EProjectionType::ORTHOGRAPHIC;
-		shadowCamDesc.m_zNear = 1.0f;
-		shadowCamDesc.m_zFar = 110.0f;
-		shadowCamDesc.m_width = uint32_t(ShadowDistance);
-		shadowCamDesc.m_height = uint32_t(ShadowDistance);
-		m_shadowCam = Camera(shadowCamDesc);
-		m_shadowCam.Update();
-
-		m_shadowmapPass->SetCamera(&m_shadowCam, m_renderHierarchy);
-		m_shadowmapPass->SetShadowParameters(ShadowDistance, 0.5f, 0.02f, ShadowmapResolution);
-
 		m_deferredLightingPass->SetMVPBuffer(m_mvpBuffer);
 
 		m_shadowAccumPass->SetMVPBuffer(m_mvpBuffer);
-		m_shadowAccumPass->SetSVBBuffer(m_shadowmapPass->GetSVBView());
+		
+		CLib::Vector<PB::UniformBufferView, ShadowCascadeCount> cascadeViews(ShadowCascadeCount);
+		for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
+			cascadeViews.PushBack(m_shadowmapPass[i]->GetShadowConstantsView());
+
+		m_shadowAccumPass->SetCascadeViews(cascadeViews.Data(), ShadowCascadeCount);
 
 		glm::vec3 sunColor = glm::vec3(2.4f);
 
@@ -1005,12 +1010,12 @@ void ClientPlayground::SetupDrawBatch()
 	initCmdContext->End();
 	initCmdContext->Return();
 
-	m_drawBatch->AddToDispatchList(m_geoShadowDispatchList, GetShadowDrawBatchPipeline(), m_shadowmapPass->GetDrawBatchBindings());
+	m_drawBatch->AddToDispatchList(m_geoShadowDispatchList, GetShadowDrawBatchPipeline(), m_shadowmapPass[0]->GetDrawBatchBindings());
 }
 
 PB::Pipeline ClientPlayground::GetShadowDrawBatchPipeline()
 {
-	PB::GraphicsPipelineDesc pipelineDesc = m_shadowmapPass->GetBasePipelineDesc(ShadowmapResolution);
+	PB::GraphicsPipelineDesc pipelineDesc = m_shadowmapPass[0]->GetBasePipelineDesc(ShadowmapResolution);
 	pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_shadowVertShader->GetModule();
 
 	return m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);

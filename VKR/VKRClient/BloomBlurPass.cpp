@@ -72,7 +72,9 @@ void BloomBlurPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetVie
 			blurParams.m_buffer1 = transientTextures[2];
 			blurParams.m_buffer1Mip = i;
 			blurParams.m_imageFormat = info.m_renderer->GetSwapchain()->GetImageFormat();
-			m_blurHelper.Encode(scopedContext.GetContext(), PB::Uint2(renderWidth, renderHeight), blurParams);
+
+			PB::Uint2 mipDimensions(renderWidth >> i, renderHeight >> i);
+			m_blurHelper.Encode(scopedContext.GetContext(), mipDimensions, blurParams);
 
 			PB::SubresourceRange subresources{};
 			subresources.m_baseMip = i;

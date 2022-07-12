@@ -7,6 +7,7 @@
 #pragma warning(pop)
 
 class Input;
+class DebugLinePass;
 
 struct GLFWwindow;
 
@@ -27,8 +28,8 @@ public:
 		EProjectionType m_projectionType = EProjectionType::PERSPECTIVE;
 		float m_sensitivity = 0.1f;
 		float m_moveSpeed = 5.0f;
-		uint32_t m_width = 1920;
-		uint32_t m_height = 1080;
+		float m_width = 1920.0f;
+		float m_height = 1080.0f;
 		float m_zNear = 0.1f;
 		float m_zFar = 1000.0f;
 		float m_fovY = 45.0f;
@@ -95,6 +96,12 @@ public:
 
 	const CameraFrustrum& GetFrustrum() const { return m_frustrum; }
 
+	void GetFrustrumSection(CameraFrustrum& outFrustrum, float nearDistance, float farDistance) const;
+
+	static void GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, const glm::mat4& cameraTransformMatrix, float width, float height, float nearDistance, float farDistance);
+
+	static void DrawFrustrum(DebugLinePass* linePass, const CameraFrustrum& frustrum, glm::vec3 color);
+
 	glm::vec3 Position() const { return m_matrix[3]; }
 	glm::vec3 EulerAngles() const { return m_eulerAngles; }
 	glm::vec3 Right() const { return m_matrix[0]; }
@@ -109,8 +116,10 @@ public:
 	void Translate(glm::vec3 translation) { m_position += translation; }
 	void SetRotation(glm::vec3 eulerAngles) { m_eulerAngles = eulerAngles; }
 	void Rotate(glm::vec3 deltaEulerAngles) { m_eulerAngles += deltaEulerAngles; }
-	void SetWidth(uint32_t width);
-	void SetHeight(uint32_t height);
+	void SetZNearDistance(float distance) { m_zNear = distance; }
+	void SetZFarDistance(float distance) { m_zFar = distance; }
+	void SetWidth(float width);
+	void SetHeight(float height);
 
 private:
 
@@ -123,8 +132,8 @@ private:
 	float m_moveSpeed = 5.0f;
 	float m_lastMouseX = 0.0f;
 	float m_lastMouseY = 0.0f;
-	uint32_t m_width = 1920;
-	uint32_t m_height = 1080;
+	float m_width = 1920.0f;
+	float m_height = 1080.0f;
 	float m_aspect = 1920.0f / 1080.0f;
 	float m_zNear = 0.1f;
 	float m_zFar = 1000.0f;

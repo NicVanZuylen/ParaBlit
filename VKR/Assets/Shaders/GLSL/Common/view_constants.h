@@ -2,7 +2,7 @@
 #define DEFINE_VIEW_CONSTANTS(name)                 \
 layout(set = 1, binding = 0) uniform ViewConstants  \
 {                                                   \
-    mat4 model;                                     \
+    mat4 viewProj;                                  \
     mat4 view;                                      \
     mat4 proj;                                      \
     mat4 invView;                                   \
@@ -11,7 +11,7 @@ layout(set = 1, binding = 0) uniform ViewConstants  \
     vec4 cameraPosition;                            \
     float aspectRatio;                              \
     float tanHalfFOV;                               \
-} name[];                                           \
+} name[]                                            \
 
 float ReconstructViewZFromDepth(float depth, in mat4 proj)
 {

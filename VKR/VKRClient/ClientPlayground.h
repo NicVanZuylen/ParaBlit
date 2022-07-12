@@ -41,6 +41,7 @@ public:
 private:
 
 	static constexpr const uint32_t ShadowmapResolution = 2048;
+	static constexpr const uint32_t ShadowCascadeCount = 4;
 
 	// -------------------------------------------------------------------------
 	// Helper Functions
@@ -59,7 +60,7 @@ private:
 	// Buffer Structures
 	struct ViewConstantsBuffer
 	{
-		glm::mat4 m_model;
+		glm::mat4 m_viewProj;
 		glm::mat4 m_view;
 		glm::mat4 m_proj;
 		glm::mat4 m_invView;
@@ -80,12 +81,11 @@ private:
 	RenderGraph* m_renderGraph = nullptr;
 	Camera m_camera;
 	Camera m_frustrumTestCamera;
-	Camera m_shadowCam;
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------
 	// Render Graph
-	class ShadowMapPass* m_shadowmapPass = nullptr;
+	class ShadowMapPass* m_shadowmapPass[ShadowCascadeCount]{};
 	class GBufferPass* m_gBufferPass = nullptr;
 	class ShadowAccumPass* m_shadowAccumPass = nullptr;
 	class ShadowBlurPass* m_shadowBlurPass = nullptr;
@@ -140,6 +140,18 @@ private:
 	ObjectDispatchList* m_geoShadowDispatchList = nullptr;
 	VertexPool* m_vertexPool = nullptr;
 	DrawBatch* m_drawBatch = nullptr;
+
+	float m_shadowCascadeSectionRanges[ShadowCascadeCount * 2]
+	{
+		0.0f,
+		10.0f,
+		10.0f,
+		30.0f,
+		30.0f,
+		80.0f,
+		80.0f,
+		150.0f
+	};
 
 	uint32_t m_renderHierarchyDrawDebugDepth = 0;
 	bool m_drawEntireRenderHierarchy = true;

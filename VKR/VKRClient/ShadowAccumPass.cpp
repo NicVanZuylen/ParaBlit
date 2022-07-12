@@ -108,23 +108,30 @@ void ShadowAccumPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetV
 		scopedContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
 		scopedContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 
-		assert(m_mvpBuffer && m_svbView);
-		PB::UniformBufferView uboViews[] { m_mvpBuffer->GetViewAsUniformBuffer(), m_svbView };
+		PB::TextureViewDesc shadowViewDesc{};
+		shadowViewDesc.m_texture = transientTextures[2];
+		shadowViewDesc.m_type = PB::ETextureViewType::VIEW_TYPE_2D_ARRAY;
+		shadowViewDesc.m_expectedState = PB::ETextureState::SAMPLED;
+		shadowViewDesc.m_format = PB::ETextureFormat::D16_UNORM;
+		shadowViewDesc.m_subresources.m_arrayCount = m_accumUniformViews.Count() - 1;
+		PB::ResourceView shadowView = transientTextures[2]->GetView(shadowViewDesc);
 
 		PB::ResourceView resourceViews[]
 		{
 			transientTextures[0]->GetDefaultSRV(), // G Depth
 			transientTextures[1]->GetDefaultSRV(), // G Normal
 			m_gBufferSampler,
-			transientTextures[2]->GetDefaultSRV(), // Shadow map
+			shadowView, // Shadow map
 			m_shadowSampler,
 			m_randomRotationTexture->GetDefaultSRV(),
 			m_randomRotationSampler,
 		};
 
+		assert(m_accumUniformViews.Count() > 1);
+
 		PB::BindingLayout bindings;
-		bindings.m_uniformBufferCount = _countof(uboViews);
-		bindings.m_uniformBuffers = uboViews;
+		bindings.m_uniformBufferCount = m_accumUniformViews.Count();
+		bindings.m_uniformBuffers = m_accumUniformViews.Data();
 		bindings.m_resourceCount = _countof(resourceViews);
 		bindings.m_resourceViews = resourceViews;
 		scopedContext->CmdBindResources(bindings);
@@ -204,12 +211,21 @@ void ShadowAccumPass::SetOutputTexture(PB::ITexture* tex)
 
 void ShadowAccumPass::SetMVPBuffer(PB::IBufferObject* buf)
 {
-	m_mvpBuffer = buf;
+	m_viewConstantsBuffer = buf;
 }
 
-void ShadowAccumPass::SetSVBBuffer(PB::UniformBufferView view)
+void ShadowAccumPass::SetCascadeViews(PB::UniformBufferView* views, uint32_t viewCount)
 {
-	m_svbView = view;
+	m_accumUniformViews.Clear();
+	m_accumUniformViews.SetCount(viewCount + 1);
+	m_accumUniformViews[0] = m_viewConstantsBuffer->GetViewAsUniformBuffer();
+	memcpy(&m_accumUniformViews[1], views, viewCount * sizeof(PB::UniformBufferView));
+
+	if(m_reusableCmdList)
+	{
+		m_renderer->FreeCommandList(m_reusableCmdList);
+		m_reusableCmdList = nullptr;
+	}
 }
 
 void ShadowAccumPass::GenerateRandomRotationTexture(PB::Float2* pixelValues)

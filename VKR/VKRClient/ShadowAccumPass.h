@@ -24,11 +24,10 @@ public:
 
 	void SetMVPBuffer(PB::IBufferObject* buf);
 
-	void SetSVBBuffer(PB::UniformBufferView view);
+	void SetCascadeViews(PB::UniformBufferView* views, uint32_t viewCount);
 
 private:
 
-	//static constexpr const uint32_t PCFDiskSampleCount = 16;
 	static constexpr const uint32_t PCFRandomRotationTextureSize = 64;
 
 	static constexpr const uint32_t GaussianKernelSize = 16;
@@ -44,8 +43,8 @@ private:
 	void GenerateRandomRotationTexture(PB::Float2* pixelValues);
 
 	PB::ITexture* m_outputTexture = nullptr;
-	PB::IBufferObject* m_mvpBuffer = nullptr;
-	PB::UniformBufferView m_svbView = nullptr;
+	PB::IBufferObject* m_viewConstantsBuffer = nullptr;
+	CLib::Vector<PB::UniformBufferView> m_accumUniformViews;
 
 	PB::ITexture* m_randomRotationTexture = nullptr;
 	PB::ResourceView m_gBufferSampler = 0;
