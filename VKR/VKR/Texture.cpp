@@ -24,12 +24,6 @@ namespace PB
 	{
 		Destroy();
 
-		if (desc.m_usageStates & PB::ETextureState::READ_ONLY_DEPTH_STENCIL)
-		{
-			int i = 0;
-			++i;
-		}
-
 		m_renderer = reinterpret_cast<Renderer*>(renderer);
 		m_device = m_renderer->GetDevice();
 		m_availableStates = desc.m_usageStates;
@@ -192,6 +186,7 @@ namespace PB
 		PB_ASSERT_MSG((desc.m_usageStates & ETextureState::MAX) == 0, "Invalid texture usage flag provided.");
 		PB_ASSERT_MSG(desc.m_width > 0 && desc.m_height > 0, "Texture cannot be zero width or height.");
 		PB_ASSERT_MSG(desc.m_mipCount >= 1, "Texture should have at least one mip level.");
+		PB_ASSERT_MSG(desc.m_arraySize >= 1, "Texture should have at least one array layer.");
 
 		if (desc.m_usageStates == ETextureState::NONE || (desc.m_usageStates & ETextureState::MAX) > 0)
 			return false;
@@ -222,7 +217,7 @@ namespace PB
 		imageInfo.extent = { desc.m_width, desc.m_height, desc.m_depth };
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageInfo.mipLevels = m_mipCount = desc.m_mipCount;
-		imageInfo.arrayLayers = 1; // Cube maps require an array layer for each face.
+		imageInfo.arrayLayers = desc.m_arraySize; // Cube maps require an array layer for each face.
 		auto queueFamilyIndex = static_cast<uint32_t>(m_renderer->GetDevice()->GetGraphicsQueueFamilyIndex());
 		imageInfo.pQueueFamilyIndices = &queueFamilyIndex;
 		imageInfo.queueFamilyIndexCount = 1;
@@ -250,6 +245,13 @@ namespace PB
 		PB_ASSERT(m_image == VK_NULL_HANDLE); // Make sure we're not leaking the previous image if re-created.
 		PB_ERROR_CHECK(vkCreateImage(m_device->GetHandle(), &imageInfo, nullptr, &m_image));
 		PB_ASSERT(m_image);
+
+#if PB_USE_DEBUG_UTILS
+		if (desc.m_name)
+		{
+			m_renderer->RegisterObjectName(desc.m_name, uint64_t(m_image), VK_OBJECT_TYPE_IMAGE);
+		}
+#endif
 
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(m_device->GetHandle(), m_image, &memRequirements);
@@ -355,7 +357,7 @@ namespace PB
 
 			PB::SubresourceRange subresources{};
 			subresources.m_mipCount = desc.m_mipCount;
-			subresources.m_arrayCount = desc.m_dimension == ETextureDimension::DIMENSION_CUBE ? 6 : 1;
+			subresources.m_arrayCount = desc.m_dimension == ETextureDimension::DIMENSION_CUBE ? 6 : desc.m_arraySize;
 			internalContext.CmdTransitionTexture(this, ETextureState::NONE, ETextureState::COPY_DST, subresources);
 
 			auto stagingBuffer = m_device->GetTempBufferAllocator().NewTempBuffer(totalDataSizeBytes, m_renderer->GetCurrentSwapchainImageIndex(), PB::EMemoryType::HOST_VISIBLE, 16);
@@ -386,7 +388,7 @@ namespace PB
 
 			if (highestMip == 0 && (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_GEN_MIPMAPS))
 			{ 
-				CLib::Vector<VkImageBlit, 8> blitOps{ subresources.m_arrayCount * (desc.m_mipCount - 1) };
+				CLib::Vector<VkImageBlit, 8> blitOps{ subresources.m_arrayCount * (uint32_t(desc.m_mipCount - 1)) };
 				for (uint32_t layer = 0; layer < subresources.m_arrayCount; ++layer)
 				{
 					PB::SubresourceRange srcSubresource{};

@@ -397,6 +397,9 @@ namespace PB
         case PB::ETextureViewType::VIEW_TYPE_2D:
             return VK_IMAGE_VIEW_TYPE_2D;
             break;
+        case PB::ETextureViewType::VIEW_TYPE_2D_ARRAY:
+            return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+            break;
         case PB::ETextureViewType::VIEW_TYPE_3D:
             PB_NOT_IMPLEMENTED;
             break;

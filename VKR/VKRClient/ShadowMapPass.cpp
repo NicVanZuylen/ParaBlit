@@ -1,6 +1,5 @@
 #include "ShadowMapPass.h"
 #include "RenderGraph.h"
-#include "Camera.h"
 #include "RenderBoundingVolumeHierarchy.h"
 #include "BatchDispatcher.h"
 
@@ -12,20 +11,33 @@
 
 using namespace PBClient;
 
-ShadowMapPass::ShadowMapPass(PB::IRenderer* renderer, CLib::Allocator* allocator) : RenderGraphBehaviour(renderer, allocator)
+ShadowMapPass::ShadowMapPass(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc) : RenderGraphBehaviour(renderer, allocator)
 {
 	m_renderer = renderer;
 	m_allocator = allocator;
+
+	m_frustrumSectionNear = desc.m_frustrumSectionNear;
+	m_frustrumSectionFar = desc.m_frustrumSectionFar;
+	m_softShadowPenumbraDistance = desc.m_softShadowPenumbraDistance;
+	m_shadowBiasMultiplier = desc.m_shadowBiasMultiplier;
+	m_shadowmapResolution = desc.m_shadowmapResolution;
+	m_cascadeIndex = desc.m_cascadeIndex;
 
 	PB::BufferObjectDesc shadowViewDesc;
 	shadowViewDesc.m_bufferSize = sizeof(ShadowConstants);
 	shadowViewDesc.m_options = 0;
 	shadowViewDesc.m_usage = PB::EBufferUsage::UNIFORM | PB::EBufferUsage::COPY_DST;
 	m_shadowViewBuffer = m_renderer->AllocateBuffer(shadowViewDesc);
-	m_svbView = m_shadowViewBuffer->GetViewAsUniformBuffer();
+	m_shadowConstantsView = m_shadowViewBuffer->GetViewAsUniformBuffer();
+
+	PB::BufferViewDesc viewPlanesDesc;
+	viewPlanesDesc.m_buffer = m_shadowViewBuffer;
+	viewPlanesDesc.m_offset = offsetof(ShadowConstants, ShadowConstants::m_shadowFrustrumPlanes);
+	viewPlanesDesc.m_size = sizeof(ShadowConstants::m_shadowFrustrumPlanes);
+	m_viewPlanesView = m_shadowViewBuffer->GetViewAsUniformBuffer(viewPlanesDesc);
 
 	m_batchBindings.m_uniformBufferCount = 1;
-	m_batchBindings.m_uniformBuffers = &m_svbView;
+	m_batchBindings.m_uniformBuffers = &m_shadowConstantsView;
 	m_batchBindings.m_resourceCount = 0;
 	m_batchBindings.m_resourceViews = nullptr;
 
@@ -50,12 +62,6 @@ void ShadowMapPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView*
 		m_shadowPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 	}
 
-	if (m_listRequiresUpdate)
-	{
-		m_geoDispatchList->Update(info.m_commandContext);
-		m_listRequiresUpdate = false;
-	}
-
 	m_rbvh->CullBatches(m_camera, m_batchDispatcher, m_batchBindings);
 	m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView);
 }
@@ -68,9 +74,6 @@ void ShadowMapPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetVie
 		m_shadowViewBuffer->EndPopulate();
 		m_shadowConstantsRequireUpdate = false;
 	}
-
-	//if (m_geoDispatchList)
-	//	m_geoDispatchList->Dispatch(info.m_commandContext, info.m_renderPass, info.m_frameBuffer);
 
 	info.m_commandContext->CmdSetViewport({ 0, 0, m_shadowmapResolution, m_shadowmapResolution }, 0.0f, 1.0f);
 	info.m_commandContext->CmdSetScissor({ 0, 0, m_shadowmapResolution, m_shadowmapResolution });
@@ -93,6 +96,8 @@ void ShadowMapPass::AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shado
 	depthDesc.m_format = PB::ETextureFormat::D16_UNORM;
 	depthDesc.m_width = shadowmapResolution;
 	depthDesc.m_height = shadowmapResolution;
+	depthDesc.m_arraySize = m_cascadeIndex + 1;
+	depthDesc.m_renderArrayLayer = m_cascadeIndex;
 	depthDesc.m_name = "WorldShadowmap";
 	depthDesc.m_usage = PB::EAttachmentUsage::DEPTHSTENCIL;
 	depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -104,55 +109,101 @@ void ShadowMapPass::AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shado
 	builder->AddNode(nodeDesc);
 }
 
-void ShadowMapPass::SetDispatchList(ObjectDispatchList* list, bool updateList)
-{
-	m_geoDispatchList = list;
-	m_listRequiresUpdate |= updateList;
-}
-
 void ShadowMapPass::SetOutputTexture(PB::ITexture* tex)
 {
 	m_outputTexture = tex;
 }
 
-void ShadowMapPass::SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh)
+void ShadowMapPass::SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh, glm::vec3 viewDirection)
 {
 	m_camera = camera;
 	m_rbvh = rbvh;
 
-	PB::BufferViewDesc viewPlanesDesc;
-	viewPlanesDesc.m_buffer = m_shadowViewBuffer;
-	viewPlanesDesc.m_offset = offsetof(ShadowConstants, ShadowConstants::m_shadowFrustrumPlanes);
-	viewPlanesDesc.m_size = sizeof(ShadowConstants::m_shadowFrustrumPlanes);
-	m_viewPlanesView = m_shadowViewBuffer->GetViewAsUniformBuffer(viewPlanesDesc);
-
-	glm::mat4 viewMat = camera->GetViewMatrix();
-	memcpy(m_localShadowConstants.m_viewMatrix, glm::value_ptr(viewMat), sizeof(glm::mat4));
-
-	const Camera::CameraFrustrum& frustrum = camera->GetFrustrum();
-	memcpy(&m_localShadowConstants.m_shadowFrustrumPlanes[0], glm::value_ptr(frustrum.m_near), sizeof(Camera::CameraFrustrum::Plane));
-	memcpy(&m_localShadowConstants.m_shadowFrustrumPlanes[4], glm::value_ptr(frustrum.m_left), sizeof(Camera::CameraFrustrum::Plane));
-	memcpy(&m_localShadowConstants.m_shadowFrustrumPlanes[8], glm::value_ptr(frustrum.m_right), sizeof(Camera::CameraFrustrum::Plane));
-	memcpy(&m_localShadowConstants.m_shadowFrustrumPlanes[12], glm::value_ptr(frustrum.m_top), sizeof(Camera::CameraFrustrum::Plane));
-	memcpy(&m_localShadowConstants.m_shadowFrustrumPlanes[16], glm::value_ptr(frustrum.m_bottom), sizeof(Camera::CameraFrustrum::Plane));
-	memcpy(&m_localShadowConstants.m_shadowFrustrumPlanes[20], glm::value_ptr(frustrum.m_far), sizeof(Camera::CameraFrustrum::Plane));
-
-	m_localShadowConstants.m_shadowViewDirection = PB::Float4(viewMat[3].x, viewMat[3].y, viewMat[3].z, 0.0f);
-	m_shadowConstantsRequireUpdate = true;
+	m_localShadowConstants.m_shadowViewDirection = glm::vec4(glm::normalize(viewDirection), 0.0f);
 }
 
-void ShadowMapPass::SetShadowParameters(float distance, float softShadowPenumbraDistance, float biasMultiplier, uint32_t resolution)
+void ShadowMapPass::Update()
 {
-	assert(m_camera != nullptr);
+	glm::mat4 axisCorrection;
+	axisCorrection[1][1] = -1.0f;
+	axisCorrection[2][2] = 1.0f;
+	axisCorrection[3][3] = 1.0f;
 
-	m_shadowmapResolution = resolution;
+	Camera::CameraFrustrum cascadeFrustrumSection;
+	m_camera->GetFrustrumSection(cascadeFrustrumSection, m_frustrumSectionNear, m_frustrumSectionFar);
 
-	float texelDistance = (distance * 2) / resolution;
-	m_localShadowConstants.m_shadowPenumbraDistance = softShadowPenumbraDistance / texelDistance;
-	m_localShadowConstants.m_shadowBiasMultiplier = biasMultiplier;
+	glm::vec3 frustrumCorners[8] =
+	{
+		cascadeFrustrumSection.m_nearBottomLeft,
+		cascadeFrustrumSection.m_nearBottomRight,
+		cascadeFrustrumSection.m_nearTopLeft,
+		cascadeFrustrumSection.m_nearTopRight,
+		cascadeFrustrumSection.m_farBottomLeft,
+		cascadeFrustrumSection.m_farBottomRight,
+		cascadeFrustrumSection.m_farTopLeft,
+		cascadeFrustrumSection.m_farTopRight
+	};
 
-	glm::mat4 shadowProj = m_camera->GetProjectionMatrix();
-	memcpy(m_localShadowConstants.m_projMatrix, &shadowProj, sizeof(float) * 16);
+	glm::vec3 cascadeCentre(0.0f);
+	for (const auto& corner : frustrumCorners)
+		cascadeCentre += corner;
+	cascadeCentre /= 8;
+
+	glm::vec3 normalizedViewDir = m_localShadowConstants.m_shadowViewDirection;
+	const float cascadeViewDistance = 100.0f;
+
+	Camera::CreateDesc cascadeCamDesc;
+	cascadeCamDesc.m_projectionType = Camera::EProjectionType::ORTHOGRAPHIC;
+	cascadeCamDesc.m_position = cascadeCentre + (normalizedViewDir * cascadeViewDistance);
+	cascadeCamDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 0.0f, 0.0f));
+	cascadeCamDesc.m_zNear = 1.0f;
+	cascadeCamDesc.m_zFar = 100.0f;
+	m_cascadeCamera = Camera(cascadeCamDesc);
+
+	glm::mat4 viewMat = m_cascadeCamera.GetViewMatrix();
+
+	//float shadowmapDistance = 0.0f;
+	float minWidth = 0.0f;
+	float minHeight = 0.0f;
+	float maxWidth = 0.0f;
+	float maxHeight = 0.0f;
+	float maxDepth = 0.0f;
+	for (auto& corner : frustrumCorners)
+	{
+		glm::vec4 viewSpaceCorner = viewMat * glm::vec4(corner, 1.0f);
+		minWidth = glm::min(minWidth, viewSpaceCorner.x);
+		minHeight = glm::min(minHeight, viewSpaceCorner.y);
+		maxWidth = glm::max(maxWidth, viewSpaceCorner.x);
+		maxHeight = glm::max(maxHeight, viewSpaceCorner.y);
+		maxDepth = glm::max(maxDepth, -viewSpaceCorner.z - cascadeViewDistance);
+	}
+
+	float mapWidth = maxWidth - minWidth;
+	float mapHeight = maxHeight - minHeight;
+
+	m_cascadeCamera.SetWidth(mapWidth);
+	m_cascadeCamera.SetHeight(mapHeight);
+	m_cascadeCamera.SetZFarDistance(m_cascadeCamera.ZFar() + maxDepth);
+	m_cascadeCamera.Update();
+
+	m_localShadowConstants.m_viewProjectionMatrix = m_cascadeCamera.GetProjectionMatrix() * viewMat;
+	const Camera::CameraFrustrum& cascadeFrustrum = m_cascadeCamera.GetFrustrum();
+
+	m_localShadowConstants.m_shadowFrustrumPlanes[0] = cascadeFrustrum.m_near;
+	m_localShadowConstants.m_shadowFrustrumPlanes[1] = cascadeFrustrum.m_left;
+	m_localShadowConstants.m_shadowFrustrumPlanes[2] = cascadeFrustrum.m_right;
+	m_localShadowConstants.m_shadowFrustrumPlanes[3] = cascadeFrustrum.m_top;
+	m_localShadowConstants.m_shadowFrustrumPlanes[4] = cascadeFrustrum.m_bottom;
+	m_localShadowConstants.m_shadowFrustrumPlanes[5] = cascadeFrustrum.m_far;
+
+	m_localShadowConstants.m_cascadeRange = glm::vec2(m_frustrumSectionNear, m_frustrumSectionFar);
+
+	//float texelDistance = (shadowmapDistance * 2) / m_shadowmapResolution;
+	float frustrumSectionLength = m_frustrumSectionFar - m_frustrumSectionNear;
+	float texelDistance = (frustrumSectionLength * 2) / m_shadowmapResolution;
+	m_localShadowConstants.m_shadowPenumbraDistance = m_softShadowPenumbraDistance / texelDistance;
+	m_localShadowConstants.m_shadowBiasMultiplier = m_shadowBiasMultiplier;
+
 	m_shadowConstantsRequireUpdate = true;
 }
 
@@ -174,12 +225,12 @@ PB::BindingLayout ShadowMapPass::GetDrawBatchBindings()
 {
 	PB::BindingLayout layout{};
 	layout.m_uniformBufferCount = 1;
-	layout.m_uniformBuffers = &m_svbView;
+	layout.m_uniformBuffers = &m_shadowConstantsView;
 
 	return layout;
 }
 
-PB::UniformBufferView ShadowMapPass::GetSVBView()
+PB::UniformBufferView ShadowMapPass::GetShadowConstantsView()
 {
-	return m_svbView;
+	return m_shadowConstantsView;
 }

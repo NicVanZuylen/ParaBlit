@@ -33,7 +33,7 @@ layout(set = 0, binding = 0) uniform texture2D textures[];
 layout(set = 0, binding = 0) uniform textureCube cubeTextures[];
 layout(set = 0, binding = 1) uniform sampler samplers[];
 
-DEFINE_VIEW_CONSTANTS(viewConstants)
+DEFINE_VIEW_CONSTANTS(viewConstants);
 #define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
 
 struct DirectionalLight

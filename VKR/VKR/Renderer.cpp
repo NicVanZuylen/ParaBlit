@@ -371,6 +371,21 @@ namespace PB
 		return m_currentFrame;
 	}
 
+	void Renderer::RegisterObjectName(const char* name, uint64_t objectHandle, VkObjectType objectType)
+	{
+#if PB_USE_DEBUG_UTILS
+		VkDebugUtilsObjectNameInfoEXT nameInfo;
+		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		nameInfo.pNext = nullptr;
+		nameInfo.objectHandle = objectHandle;
+		nameInfo.objectType = objectType;
+		nameInfo.pObjectName = name;
+
+		auto func = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(m_vkInstance.GetHandle(), "vkSetDebugUtilsObjectNameEXT");
+		func(m_device.GetHandle(), &nameInfo);
+#endif
+	}
+
 	void Renderer::CreateWindowSurface(WindowDesc* windowInfo)
 	{
 		if (m_windowSurface)

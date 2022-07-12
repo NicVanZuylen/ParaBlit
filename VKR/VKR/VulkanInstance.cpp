@@ -6,13 +6,9 @@
 #define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
 #define VK_LAYER_LUNARG_VALIDATION_NAME "VK_LAYER_LUNARG_standard_validation"
 
-#ifndef PB_USE_DEBUG_MESSENGER
-#define PB_USE_DEBUG_MESSENGER 1
-#endif
-
-#define PB_SHOW_VALIDATION_ERRORS 1 && PB_USE_DEBUG_MESSENGER
-#define PB_SHOW_VALIDATION_WARNINGS 1 && PB_USE_DEBUG_MESSENGER
-#define PB_SHOW_VALIDATION_INFO 0 && PB_USE_DEBUG_MESSENGER
+#define PB_SHOW_VALIDATION_ERRORS 1 && PB_USE_DEBUG_UTILS
+#define PB_SHOW_VALIDATION_WARNINGS 1 && PB_USE_DEBUG_UTILS
+#define PB_SHOW_VALIDATION_INFO 0 && PB_USE_DEBUG_UTILS
 
 namespace PB 
 {
@@ -137,7 +133,7 @@ namespace PB
 
 	void VulkanInstance::CreateDebugMessenger()
 	{
-#if PB_USE_DEBUG_MESSENGER
+#if PB_USE_DEBUG_UTILS
 		VkDebugUtilsMessengerCreateInfoEXT messengerInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT, nullptr };
 		messengerInfo.flags = 0;
 		messengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | 
@@ -159,7 +155,7 @@ namespace PB
 
 	void VulkanInstance::DestroyDebugMessenger()
 	{
-#if PB_USE_DEBUG_MESSENGER
+#if PB_USE_DEBUG_UTILS
 		auto destroyFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
 		PB_ASSERT(destroyFunc);
 

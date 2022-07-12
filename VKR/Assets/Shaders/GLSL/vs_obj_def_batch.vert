@@ -1,24 +1,18 @@
 #version 450
 #include "Common/pb_common.h"
+#include "Common/view_constants.h"
 #include "Common/vertex_common.h"
 
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(push_constant) uniform Bindings
 {
-    uint mvpIndex;
+    uint viewConstantsIndex;
     uint instanceBufferIndex;
-} bindings;
+} PB_BINDINGS_NAME;
 
-layout(set = 1, binding = 0) uniform MVP
-{
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-    mat4 invView;
-    mat4 invProj;
-    vec4 cameraPosition;
-} mvp[];
+DEFINE_VIEW_CONSTANTS(viewConstants);
+#define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
 
 layout(std430, set = 0, binding = 2) readonly buffer VertexBuffer
 {
@@ -58,7 +52,7 @@ void main()
     uint vertexIndex = uint(gl_VertexIndex) & 0xFFFFFF; // Mask out final 8 bits for vertex index.
     uint instanceIndex = uint(gl_VertexIndex) >> 24; // Shift 24 bits right for instance index.
 
-    VS_INSTANCE vsInstance = instanceBuffers[nonuniformEXT(bindings.instanceBufferIndex)].instances[nonuniformEXT(instanceIndex)];
+    VS_INSTANCE vsInstance = instanceBuffers[nonuniformEXT(PB_BINDINGS_NAME.instanceBufferIndex)].instances[nonuniformEXT(instanceIndex)];
     VS_IN vsInput = vertexBuffers[nonuniformEXT(vsInstance.vertexIndex)].vertices[nonuniformEXT(vertexIndex)];
 
     vec4 position;
@@ -77,7 +71,7 @@ void main()
         modelCpy * normal       // n
     );
 
-    gl_Position = mvp[nonuniformEXT(bindings.mvpIndex)].proj * mvp[nonuniformEXT(bindings.mvpIndex)].view * vsInstance.model * position;
+    gl_Position = VIEW_CONST.viewProj * vsInstance.model * position;
     vsOutput.position = vsInstance.model * position;
     vsOutput.position.w = 1.0;
     vsOutput.texCoord = texCoord;

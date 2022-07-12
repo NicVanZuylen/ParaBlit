@@ -41,6 +41,7 @@ RenderGraphBuilder::TransientTextureMeta::TransientTextureMeta(const AttachmentD
 	m_usage = TextureStateFromAttachmentUsage(desc.m_usage);
 	m_format = desc.m_format;
 	m_mipCount = desc.m_mipCount;
+	m_arraySize = desc.m_arraySize;
 	m_flags = desc.m_flags;
 }
 
@@ -52,6 +53,7 @@ RenderGraphBuilder::TransientTextureMeta::TransientTextureMeta(const TransientTe
 	m_usage = desc.m_usageFlags;
 	m_format = desc.m_format;
 	m_mipCount = desc.m_mipCount;
+	m_arraySize = desc.m_arraySize;
 }
 
 void RenderGraphBuilder::AddNode(const NodeDesc& desc)
@@ -80,6 +82,8 @@ void RenderGraphBuilder::AddNode(const NodeDesc& desc)
 		newMeta.m_usage = attachmentMeta.m_usage;
 		newMeta.m_clearColor = attachmentMeta.m_clearColor;
 		newMeta.m_clear = (attachmentMeta.m_flags & EAttachmentFlags::CLEAR) > 0;
+		newMeta.mipLevel = attachmentMeta.m_renderMip;
+		newMeta.arrayLayer = attachmentMeta.m_renderArrayLayer;
 		UpdateTextureUsageData(TransientTextureMeta(attachmentMeta), TextureStateFromAttachmentUsage(attachmentMeta.m_usage), uint32_t(m_buildNodes.size()) - 1);
 	}
 
@@ -162,6 +166,8 @@ RenderGraph* RenderGraphBuilder::Build(bool useDynamicRenderPasses)
 				rtTransition.m_oldState = usageMeta.m_mostRecentUsageState;
 				rtTransition.m_subresourceRange.m_baseMip = 0;
 				rtTransition.m_subresourceRange.m_mipCount = usageMeta.m_meta.m_mipCount;
+				rtTransition.m_subresourceRange.m_firstArrayElement = 0;
+				rtTransition.m_subresourceRange.m_arrayCount = usageMeta.m_meta.m_arraySize;
 				
 				switch (attachment.m_usage)
 				{
@@ -187,7 +193,7 @@ RenderGraph* RenderGraphBuilder::Build(bool useDynamicRenderPasses)
 
 				usageMeta.m_mostRecentUsageState = rtTransition.m_newState;
 
-				PB::RenderTargetView rtView = GetTextureView(usageMeta, rtTransition.m_newState);
+				PB::RenderTargetView rtView = GetTextureView(usageMeta, rtTransition.m_newState, attachment.mipLevel, attachment.arrayLayer);
 				fbDesc.m_attachmentViews[i] = rtView;
 				newRuntimeNode->m_renderTargetViews.PushBack(rtView);
 				newRuntimeNode->m_clearColors.PushBack(attachment.m_clearColor);
@@ -254,6 +260,8 @@ RenderGraph* RenderGraphBuilder::Build(bool useDynamicRenderPasses)
 			rtTransition.m_newState = transientTexture.m_initialUsage;
 			rtTransition.m_subresourceRange.m_baseMip = 0;
 			rtTransition.m_subresourceRange.m_mipCount = usageMeta.m_meta.m_mipCount;
+			rtTransition.m_subresourceRange.m_firstArrayElement = 0;
+			rtTransition.m_subresourceRange.m_arrayCount = usageMeta.m_meta.m_arraySize;
 
 			if (rtTransition.m_newState != rtTransition.m_oldState)
 				newRuntimeNode->m_transitions.PushBack(rtTransition);
@@ -286,10 +294,12 @@ RenderGraph* RenderGraphBuilder::Build(bool useDynamicRenderPasses)
 
 void RenderGraphBuilder::TextureDescFromTransientMeta(const TransientTextureMeta& meta, PB::TextureDesc& outDesc)
 {
+	outDesc.m_name = meta.m_name;
 	outDesc.m_format = meta.m_format;
 	outDesc.m_width = meta.m_width;
 	outDesc.m_height = meta.m_height;
 	outDesc.m_mipCount = meta.m_mipCount;
+	outDesc.m_arraySize = meta.m_arraySize;
 	outDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_NONE;
 	outDesc.m_initialState = PB::ETextureState::NONE;
 	outDesc.m_usageStates = meta.m_usage;
@@ -319,6 +329,8 @@ void RenderGraphBuilder::UpdateTextureUsageData(const TransientTextureMeta& meta
 			attach.m_meta.m_height = meta.m_height;
 		if (meta.m_mipCount > attach.m_meta.m_mipCount)
 			attach.m_meta.m_mipCount = meta.m_mipCount;
+		if (meta.m_arraySize > attach.m_meta.m_arraySize)
+			attach.m_meta.m_arraySize = meta.m_arraySize;
 
 		attach.m_meta.m_usage |= meta.m_usage;
 		attach.m_meta.m_flags |= meta.m_flags;
@@ -357,6 +369,7 @@ void RenderGraphBuilder::RecordInitialTransitions()
 		auto& meta = texUsage.m_meta;
 		PB::SubresourceRange subresourceRange{};
 		subresourceRange.m_mipCount = meta.m_mipCount;
+		subresourceRange.m_arrayCount = meta.m_arraySize;
 		cmdContext->CmdTransitionTexture(texUsage.m_texture, PB::ETextureState::NONE, texUsage.m_firstUsageState);
 	}
 
@@ -472,11 +485,14 @@ PB::ITexture* RenderGraphBuilder::CreateTexture(const TransientTextureMeta& meta
 	return m_renderer->AllocateTexture(desc);
 }
 
-PB::RenderTargetView RenderGraphBuilder::GetTextureView(const TextureUsageData& usageData, PB::ETextureState expectedState)
+PB::RenderTargetView RenderGraphBuilder::GetTextureView(const TextureUsageData& usageData, PB::ETextureState expectedState, uint8_t mip, uint8_t arraylayer)
 {
 	PB::TextureViewDesc viewDesc;
 	viewDesc.m_format = usageData.m_meta.m_format;
-	viewDesc.m_subresources = {};
+	viewDesc.m_subresources.m_mipCount = 1;
+	viewDesc.m_subresources.m_arrayCount = 1;
+	viewDesc.m_subresources.m_baseMip = mip;
+	viewDesc.m_subresources.m_firstArrayElement = arraylayer;
 	viewDesc.m_texture = usageData.m_texture;
 	viewDesc.m_expectedState = expectedState;
 	

@@ -118,6 +118,8 @@ namespace PB
 
 		u64 GetCurrentFrame();
 
+		void RegisterObjectName(const char* name, uint64_t objectHandle, VkObjectType objectType);
+
 	private:
 
 		inline void CreateWindowSurface(WindowDesc* windowHandle) override;

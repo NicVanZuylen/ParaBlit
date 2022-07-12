@@ -27,6 +27,9 @@ struct AttachmentDesc
 	PB::Float4 m_clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	PB::EAttachmentUsage m_usage = PB::EAttachmentUsage::NONE;
 	uint8_t m_mipCount = 1;
+	uint8_t m_arraySize = 1;
+	uint8_t m_renderMip = 0;
+	uint8_t m_renderArrayLayer = 0;
 	PB::ETextureFormat m_format = PB::ETextureFormat::UNKNOWN;
 	AttachmentFlags m_flags = EAttachmentFlags::NONE;
 };
@@ -41,6 +44,7 @@ struct TransientTextureDesc
 	PB::ETextureState m_initialUsage = PB::ETextureState::NONE;
 	PB::ETextureState m_finalUsage = PB::ETextureState::NONE;
 	uint8_t m_mipCount = 1;
+	uint8_t m_arraySize = 1;
 };
 
 struct NodeDesc
@@ -120,6 +124,7 @@ private:
 		PB::ETextureFormat m_format;
 		AttachmentFlags m_flags; 
 		uint32_t m_mipCount;
+		uint32_t m_arraySize;
 	};
 
 	struct InternalBuildNode
@@ -129,6 +134,8 @@ private:
 			const char* m_attachmentName;
 			PB::EAttachmentUsage m_usage;
 			PB::Float4 m_clearColor;
+			uint8_t mipLevel = 0;
+			uint8_t arrayLayer = 0;
 			bool m_clear = false;
 		};
 
@@ -173,7 +180,7 @@ private:
 
 	PB::ITexture* CreateTexture(const TransientTextureMeta& meta);
 
-	PB::RenderTargetView GetTextureView(const TextureUsageData& meta, PB::ETextureState expectedState);
+	PB::RenderTargetView GetTextureView(const TextureUsageData& meta, PB::ETextureState expectedState, uint8_t mip, uint8_t arraylayer);
 
 	PB::IRenderer* m_renderer = nullptr;
 	CLib::Allocator* m_allocator;

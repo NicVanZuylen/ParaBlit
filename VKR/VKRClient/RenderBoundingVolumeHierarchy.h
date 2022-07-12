@@ -53,6 +53,8 @@ public:
 
 	void BakeHierarchies(PB::ICommandContext* commandContext);
 
+	void SetCamera(const Camera* camera) { m_camera = camera; };
+
 	void CullBatches(const Camera* camera, BatchDispatcher* dispatcher, const PB::BindingLayout& globalBindings) const;
 
 private:

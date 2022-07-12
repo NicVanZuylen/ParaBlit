@@ -5,18 +5,29 @@
 #include "Texture.h"
 #include "Shader.h"
 #include "ObjectDispatcher.h"
+#include "Camera.h"
 
 class DrawBatch;
 class RenderGraphBuilder;
 class BatchDispatcher;
-class Camera;
 class RenderBoundingVolumeHierarchy;
+class DebugLinePass;
 
 class ShadowMapPass : public RenderGraphBehaviour
 {
 public:
 
-	ShadowMapPass(PB::IRenderer* renderer, CLib::Allocator* allocator);
+	struct CreateDesc
+	{
+		float m_frustrumSectionNear;
+		float m_frustrumSectionFar;
+		float m_softShadowPenumbraDistance;
+		float m_shadowBiasMultiplier;
+		uint32_t m_shadowmapResolution;
+		uint32_t m_cascadeIndex;
+	};
+
+	ShadowMapPass(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc);
 
 	~ShadowMapPass();
 
@@ -28,47 +39,50 @@ public:
 
 	void AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shadowmapResolution);
 
-	void SetDispatchList(ObjectDispatchList* list, bool updateList);
-
 	void SetOutputTexture(PB::ITexture* tex);
 
-	void SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh);
+	void SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh, glm::vec3 shadowDirection);
 
-	void SetShadowParameters(float distance, float softShadowPenumbraDistance, float biasMultiplier, uint32_t resolution);
+	void Update();
 
 	PB::GraphicsPipelineDesc GetBasePipelineDesc(uint32_t shadowMapResolution) const;
 
 	PB::BindingLayout GetDrawBatchBindings();
 
-	PB::UniformBufferView GetSVBView();
+	PB::UniformBufferView GetShadowConstantsView();
+
+	const Camera* GetCascadeCamera() const { return &m_cascadeCamera; }
 
 private:
 
 	struct ShadowConstants
 	{
-		float m_viewMatrix[16];
-		float m_projMatrix[16];
-		float m_shadowFrustrumPlanes[4 * 6];
-		PB::Float4 m_shadowViewDirection;
+		glm::mat4 m_viewProjectionMatrix;
+		glm::vec4 m_shadowFrustrumPlanes[6];
+		glm::vec4 m_shadowViewDirection;
+		glm::vec2 m_cascadeRange;
 		float m_shadowPenumbraDistance;
 		float m_shadowBiasMultiplier;
-		float m_pad[2];
 	} m_localShadowConstants{};
 	
 	PB::Pipeline m_shadowPipeline = 0;
 	BatchDispatcher* m_batchDispatcher = nullptr;
 	PB::IBufferObject* m_shadowViewBuffer = nullptr;
-	PB::UniformBufferView m_svbView = 0;
+	PB::UniformBufferView m_shadowConstantsView = 0;
 	PB::UniformBufferView m_viewPlanesView = nullptr;
 	PB::BindingLayout m_batchBindings{};
 	bool m_shadowConstantsRequireUpdate = false;
 
 	PB::ITexture* m_outputTexture = nullptr;
-	ObjectDispatchList* m_geoDispatchList = nullptr;
 	const Camera* m_camera = nullptr;
+	Camera m_cascadeCamera{};
 	const RenderBoundingVolumeHierarchy* m_rbvh = nullptr;
-	bool m_listRequiresUpdate = false;
 
-	uint32_t m_shadowmapResolution = 0;
+	float m_frustrumSectionNear;
+	float m_frustrumSectionFar;
+	float m_softShadowPenumbraDistance;
+	float m_shadowBiasMultiplier;
+	uint32_t m_shadowmapResolution;
+	uint32_t m_cascadeIndex;
 };
 

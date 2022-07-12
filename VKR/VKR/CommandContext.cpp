@@ -210,8 +210,7 @@ namespace PB
 		ValidateRecordingState();
 		PB_ASSERT(renderPass);
 		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to begin render passes.");
-		if (m_activeRenderpass)
-			CmdEndRenderPass();
+		PB_ASSERT_MSG(!m_activeRenderpass, "Cannot start a new render pass while another is currently active.");
 
 		VkRenderPass pass = reinterpret_cast<VkRenderPass>(renderPass);
 		PB_ASSERT(pass);
@@ -234,16 +233,14 @@ namespace PB
 		ValidateRecordingState();
 		PB_ASSERT(renderPass);
 		PB_ASSERT_MSG(!m_reusable, "Reusable command contexts cannot be used to begin render passes.");
-
-		if (m_activeRenderpass)
-			CmdEndRenderPass();
+		PB_ASSERT_MSG(!m_activeRenderpass, "Cannot start a new render pass while another is currently active.");
 
 		RenderPassCache::DynamicRenderPass* pass = reinterpret_cast<RenderPassCache::DynamicRenderPass*>(renderPass);
 		PB_ASSERT(pass);
 
 		// While most information for the pass is already known, some information needs to be set when the pass begins.
 		VkRenderingInfoKHR& info = pass->m_renderingInfo;
-		info.flags = !useCommandLists ? 0 : VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT_KHR;
+		info.flags = useCommandLists ? VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT_KHR : 0;
 		info.renderArea.offset = { 0, 0 };
 		info.renderArea.extent = { width, height };
 

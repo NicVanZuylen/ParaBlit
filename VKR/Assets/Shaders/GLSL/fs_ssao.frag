@@ -22,7 +22,7 @@ layout(push_constant) uniform Bindings
     uint randomRotationSamplerIdx;
 } PB_BINDINGS_NAME;
 
-DEFINE_VIEW_CONSTANTS(viewConstants)
+DEFINE_VIEW_CONSTANTS(viewConstants);
 
 layout(set = 1, binding = 0) uniform AOConstants
 {
