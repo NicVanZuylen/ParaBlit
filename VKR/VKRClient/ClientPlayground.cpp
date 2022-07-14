@@ -55,19 +55,7 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	m_camera = Camera(cameraDesc);
 	m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
-	cameraDesc.m_position = glm::vec3(-15.5f, 0.0f, -5.5f);
-	cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, -90.0f, 0.0f));
-	cameraDesc.m_zFar = 100.0f;
-	m_frustrumTestCamera = Camera(cameraDesc);
-
 	InitResources();
-
-	m_geoShadowDispatchList = m_allocator->Alloc<ObjectDispatchList>();
-	m_geoShadowDispatchList->Init(m_renderer, m_allocator, { 0, 0, 0, 0 });
-
-	DrawBatch::CreateDesc drawBatchDesc{};
-	drawBatchDesc.m_renderer = m_renderer;
-	drawBatchDesc.m_allocator = m_allocator;
 
 	RenderBoundingVolumeHierarchy::CreateDesc rbvhDesc{};
 	rbvhDesc.m_desiredMaxDepth = 50;
@@ -81,27 +69,16 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 	rbvhDesc.m_toleranceDistanceY = 0.2f;
 	rbvhDesc.m_toleranceStepY = 0.2f;
 
-	rbvhDesc.m_camera = &m_frustrumTestCamera;
-
+	rbvhDesc.m_camera = &m_camera;
 
 	m_renderHierarchy = m_allocator->Alloc<RenderBoundingVolumeHierarchy>(m_renderer, m_allocator, rbvhDesc);
 
-	m_drawBatch = m_allocator->Alloc<DrawBatch>(drawBatchDesc);
 	m_renderGraph = CreateRenderGraph();
 	SetupDrawBatch();
 
 	PB::CommandContextDesc contextDesc{};
 	contextDesc.m_renderer = m_renderer;
 	contextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
-
-	PB::SCommandContext initCmdContext(m_renderer);
-	initCmdContext->Init(contextDesc);
-	initCmdContext->Begin();
-
-	m_drawBatch->UpdateIndices(initCmdContext.GetContext());
-
-	initCmdContext->End();
-	initCmdContext->Return();
 
 	// --------------------------------------------------------------------------------------
 	// Cluster Test
@@ -329,10 +306,6 @@ ClientPlayground::~ClientPlayground()
 {
 	m_allocator->Free(m_renderHierarchy);
 
-	m_allocator->Free(m_drawBatch);
-
-	m_allocator->Free(m_geoShadowDispatchList);
-
 	DestroyResources();
 
 	m_allocator->Free(m_renderGraph);
@@ -358,9 +331,6 @@ ClientPlayground::~ClientPlayground()
 void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime, float elapsedTime, float stallTime, bool updateMetrics)
 {
 	m_camera.UpdateFreeCam(deltaTime, input, window);
-	m_frustrumTestCamera.Rotate(glm::vec3(0.0f, glm::radians(30.0f * deltaTime), 0.0f));
-	//m_frustrumTestCamera.SetRotation(glm::vec3(0.0f, glm::radians(120.0f), 0.0f));
-	m_frustrumTestCamera.Update();
 
 	// Update Text ---------------------------------------------------------------------------------------------------
 	{
@@ -408,50 +378,10 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		std::cout << "BVH: Drawing whole tree: " << (m_drawEntireRenderHierarchy ? "true" : "false") << "\n";
 	}
 
-	//if (!input->GetKey(GLFW_KEY_I, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_I, INPUTSTATE_PREVIOUS))
-	//{
-	//	const glm::vec3 minExtents(0.1f);
-	//	const glm::vec3 maxExtents = glm::vec3(1.0f) - minExtents;
-
-	//	const glm::vec3 minOrigin(-5.0f);
-	//	const glm::vec3 maxOrigin(5.0f);
-
-	//	std::default_random_engine rand(uint64_t(elapsedTime * 1000.0f));
-	//	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-
-	//	glm::vec3 nodeExtents
-	//	{
-	//		minExtents.x + (dist(rand) * maxExtents.x),
-	//		minExtents.y + (dist(rand) * maxExtents.y),
-	//		minExtents.z + (dist(rand) * maxExtents.z)
-	//	};
-
-	//	glm::vec3 nodeOrigin
-	//	{
-	//		minOrigin.x + ((maxOrigin.x - minOrigin.x) * dist(rand)),
-	//		minOrigin.y + ((maxOrigin.y - minOrigin.y) * dist(rand)),
-	//		minOrigin.z + ((maxOrigin.z - minOrigin.z) * dist(rand))
-	//	};
-
-	//	m_renderHierarchy->InsertNode(nodeOrigin, nodeExtents);
-	//}
-
-	//m_renderHierarchy->DebugDraw(m_debugLinePass, m_drawEntireRenderHierarchy ? ~uint32_t(0) : m_renderHierarchyDrawDebugDepth, true);
-
 	for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
 	{
 		m_shadowmapPass[i]->Update();
 	}
-
-	/*Camera::DrawFrustrum(m_debugLinePass, m_frustrumTestCamera.GetFrustrum(), glm::vec3(1.0f, 0.0f, 1.0f));
-	for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
-	{
-		Camera::DrawFrustrum(m_debugLinePass, m_shadowmapPass[i]->GetCascadeCamera()->GetFrustrum(), glm::vec3(1.0f, 0.0f, 0.0f));
-
-		Camera::CameraFrustrum sect;
-		m_frustrumTestCamera.GetFrustrumSection(sect, m_shadowCascadeSectionRanges[i * 2], m_shadowCascadeSectionRanges[(i * 2) + 1]);
-		Camera::DrawFrustrum(m_debugLinePass, sect, glm::vec3(0.0f, 1.0f, 0.0f));
-	}*/
 
 	// Update Camera -------------------------------------------------------------------------------------------------
 	{
@@ -510,17 +440,12 @@ void ClientPlayground::UpdateResolution(uint32_t width, uint32_t height)
 	m_allocator->Free(m_renderGraph);
 	m_renderGraph = CreateRenderGraph();
 
-	m_geoShadowDispatchList->FlushCommandLists(); // Force command lists to be re-recorded.
-
 	PB::u32 swapChainIdx = m_renderer->GetCurrentSwapchainImageIndex();
 	auto* swapChainTex = m_swapchain->GetImage(swapChainIdx);
 	m_textPass->SetOutputTexture(swapChainTex);
 
-	m_camera.SetWidth(width);
-	m_camera.SetHeight(height);
-
-	m_frustrumTestCamera.SetWidth(width);
-	m_frustrumTestCamera.SetHeight(height);
+	m_camera.SetWidth(float(width));
+	m_camera.SetHeight(float(height));
 }
 
 void ClientPlayground::InitResources()
@@ -739,7 +664,7 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	viewPlanesDesc.m_offset = frustrumPlanesOffset;
 	viewPlanesDesc.m_size = frustrumPlanesSize;
 
-	glm::vec3 sunDir(0.0f, 1.0f, 1.0f);
+	glm::vec3 sunDir = glm::normalize(glm::vec3(1.0f, 2.0f, 1.0f));
 
 	RenderGraph* output = nullptr;
 	{
@@ -873,13 +798,6 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		glm::vec3 sunColor = glm::vec3(2.4f);
 
 		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { sunColor.r, sunColor.g, sunColor.b, 1.0f });
-		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f });
-		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f });
-		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 5.0f, 5.0f, 5.0f, 1.0f });
-		//m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { 0.3f, 0.3f, 0.4f, 1.0f });
-		//m_deferredLightingPass->SetPointLight(0, { -1.0f, 1.0f, -4.0f, 1.0f }, { 0.0f, 3.0f, 3.0f }, 5.0f);
-		//m_deferredLightingPass->SetPointLight(1, { 1.0f, 1.0f, -4.0f, 1.0f }, { 3.0f, 0.0f, 3.0f }, 5.0f);
-
 		m_deferredLightingPass->SetSkyboxTexture(m_hdrSkyTexture, true, 1);
 	}
 
@@ -937,10 +855,6 @@ void ClientPlayground::SetupDrawBatch()
 
 		Bounds translatedBounds = spinnerBounds;
 		translatedBounds.Transform(spinnerModelMat);
-		//translatedBounds.m_origin += pos;
-		m_drawBatch->AddInstance(m_paintMesh, glm::value_ptr(spinnerModelMat), translatedBounds, m_paintViews, _countof(m_paintViews), m_colorSampler);
-		m_drawBatch->AddInstance(m_detailsMesh, glm::value_ptr(spinnerModelMat), translatedBounds, m_detailsViews, _countof(m_detailsViews), m_colorSampler);
-		m_drawBatch->AddInstance(m_glassMesh, glm::value_ptr(spinnerModelMat), translatedBounds, m_glassViews, _countof(m_glassViews), m_colorSampler);
 
 		RenderBoundingVolumeHierarchy::ObjectData& paintObj = nodes.PushBack();
 		paintObj.m_mesh = m_paintMesh;
@@ -965,7 +879,6 @@ void ClientPlayground::SetupDrawBatch()
 
 	modelMat = glm::translate(glm::mat4(), planeOffset);
 	planeBounds.Transform(modelMat);
-	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), planeBounds, plainViews, _countof(plainViews), m_colorSampler);
 
 	RenderBoundingVolumeHierarchy::ObjectData& planeObj = nodes.PushBack();
 	planeObj.m_mesh = m_planeMesh;
@@ -984,14 +897,11 @@ void ClientPlayground::SetupDrawBatch()
 	modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
 	debugPlaneBounds.Transform(modelMat);
-	m_drawBatch->AddInstance(m_planeMesh, glm::value_ptr(modelMat), debugPlaneBounds, plainViews, _countof(plainViews), m_colorSampler);
-	
+
 	RenderBoundingVolumeHierarchy::ObjectData& debugPlaneObj = nodes.PushBack();
 	debugPlaneObj.m_mesh = m_planeMesh;
 	debugPlaneObj.m_material = m_debugMaterial;
 	debugPlaneObj.m_transform = modelMat;
-
-	m_drawBatch->UpdateCullParams();
 
 	m_renderHierarchy->BuildBottomUp(nodes);
 
@@ -1004,13 +914,10 @@ void ClientPlayground::SetupDrawBatch()
 	initCmdContext->Init(contextDesc);
 	initCmdContext->Begin();
 
-	m_drawBatch->UpdateIndices(initCmdContext.GetContext());
 	m_renderHierarchy->BakeHierarchies(initCmdContext.GetContext());
 
 	initCmdContext->End();
 	initCmdContext->Return();
-
-	m_drawBatch->AddToDispatchList(m_geoShadowDispatchList, GetShadowDrawBatchPipeline(), m_shadowmapPass[0]->GetDrawBatchBindings());
 }
 
 PB::Pipeline ClientPlayground::GetShadowDrawBatchPipeline()

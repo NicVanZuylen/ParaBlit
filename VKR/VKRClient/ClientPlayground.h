@@ -80,7 +80,6 @@ private:
 	CLib::Allocator* m_allocator = nullptr;
 	RenderGraph* m_renderGraph = nullptr;
 	Camera m_camera;
-	Camera m_frustrumTestCamera;
 	// -------------------------------------------------------------------------
 
 	// -------------------------------------------------------------------------
@@ -137,9 +136,7 @@ private:
 
 	PBClient::Shader* m_shadowVertShader = nullptr;
 
-	ObjectDispatchList* m_geoShadowDispatchList = nullptr;
 	VertexPool* m_vertexPool = nullptr;
-	DrawBatch* m_drawBatch = nullptr;
 
 	float m_shadowCascadeSectionRanges[ShadowCascadeCount * 2]
 	{

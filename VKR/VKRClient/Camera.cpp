@@ -255,28 +255,25 @@ void Camera::GetFrustrumSection(CameraFrustrum& outFrustrum, float nearDistance,
 	outFrustrum.m_farBottomRight = trans * glm::vec4(outFrustrum.m_farBottomRight, 1.0f);
 }
 
-void Camera::GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, const glm::mat4& cameraTransformMatrix, float width, float height, float nearDistance, float farDistance)
+void Camera::GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, glm::vec3 position, glm::vec3 forward, float leftBound, float rightBound, float bottomBound, float topBound, float nearDistance, float farDistance)
 {
-	const glm::vec3 position = cameraTransformMatrix[3];
-	const glm::vec3 right = cameraTransformMatrix[0];
-	const glm::vec3 up = cameraTransformMatrix[1];
-	const glm::vec3 forward = cameraTransformMatrix[2];
+	glm::vec3 right = -glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
+	glm::vec3 up = glm::cross(forward, right);
 
 	const glm::vec3 nearCentre = position + (forward * nearDistance);
 	const glm::vec3 farCentre = position + (forward * farDistance);
 
-	const float halfWidth = width * 0.5f;
-	const float halfHeight = height * 0.5f;
+	{
+		outFrustrum.m_nearTopLeft = nearCentre + (up * topBound) + (right * leftBound);
+		outFrustrum.m_nearTopRight = nearCentre + (up * topBound) + (right * rightBound);
+		outFrustrum.m_nearBottomLeft = nearCentre + (up * bottomBound) + (right * leftBound);
+		outFrustrum.m_nearBottomRight = nearCentre + (up * bottomBound) + (right * rightBound);
 
-	outFrustrum.m_nearTopLeft = nearCentre + (up * halfHeight) - (right * halfWidth);
-	outFrustrum.m_nearTopRight = nearCentre + (up * halfHeight) + (right * halfWidth);
-	outFrustrum.m_nearBottomLeft = nearCentre - (up * halfHeight) - (right * halfWidth);
-	outFrustrum.m_nearBottomRight = nearCentre - (up * halfHeight) + (right * halfWidth);
-
-	outFrustrum.m_farTopLeft = farCentre + (up * halfHeight) - (right * halfWidth);
-	outFrustrum.m_farTopRight = farCentre + (up * halfHeight) + (right * halfWidth);
-	outFrustrum.m_farBottomLeft = farCentre - (up * halfHeight) - (right * halfWidth);
-	outFrustrum.m_farBottomRight = farCentre - (up * halfHeight) + (right * halfWidth);
+		outFrustrum.m_farTopLeft = farCentre + (up * topBound) + (right * leftBound);
+		outFrustrum.m_farTopRight = farCentre + (up * topBound) + (right * rightBound);
+		outFrustrum.m_farBottomLeft = farCentre + (up * bottomBound) + (right * leftBound);
+		outFrustrum.m_farBottomRight = farCentre + (up * bottomBound) + (right * rightBound);
+	}
 
 	const glm::vec3 leftNormal = glm::normalize
 	(
@@ -311,17 +308,19 @@ void Camera::GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, const glm::ma
 		)
 	);
 
-	outFrustrum.m_left = { -leftNormal, glm::dot(outFrustrum.m_farTopLeft, -leftNormal) };
-	outFrustrum.m_right = { -rightNormal, glm::dot(outFrustrum.m_farBottomRight, -rightNormal) };
+	{
+		outFrustrum.m_left = { -leftNormal, glm::dot(outFrustrum.m_farTopLeft, -leftNormal) };
+		outFrustrum.m_right = { -rightNormal, glm::dot(outFrustrum.m_farBottomRight, -rightNormal) };
 
-	outFrustrum.m_top = { -topNormal, glm::dot(outFrustrum.m_farTopLeft, -topNormal) };
-	outFrustrum.m_bottom = { -bottomNormal, glm::dot(outFrustrum.m_farBottomLeft, -bottomNormal) };
+		outFrustrum.m_top = { -topNormal, glm::dot(outFrustrum.m_farTopLeft, -topNormal) };
+		outFrustrum.m_bottom = { -bottomNormal, glm::dot(outFrustrum.m_farBottomLeft, -bottomNormal) };
 
-	const float projectedNear = glm::dot(position + (forward * nearDistance), forward);
-	const float projectedFar = glm::dot(position - (forward * farDistance), -forward);
+		const float projectedNear = glm::dot(position + (forward * nearDistance), forward);
+		const float projectedFar = glm::dot(position - (forward * farDistance), forward);
 
-	outFrustrum.m_near = { forward, -projectedNear };
-	outFrustrum.m_far = { -forward, -projectedFar };
+		outFrustrum.m_near = { forward, -projectedNear };
+		outFrustrum.m_far = { forward, projectedFar };
+	}
 
 	glm::mat4 noTranslate = glm::translate(glm::mat4(), position * glm::vec3(2.0f, 2.0f, 2.0f));
 	glm::mat4 axisCorrection; // Inverts the Y axis to match the OpenGL coordinate system.

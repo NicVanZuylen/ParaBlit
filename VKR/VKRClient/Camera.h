@@ -37,24 +37,39 @@ public:
 
 	struct CameraFrustrum
 	{
+		CameraFrustrum() {};
+
 		using Plane = glm::vec4;
+		union
+		{
+			struct
+			{
+				Plane m_left;
+				Plane m_right;
+				Plane m_top;
+				Plane m_bottom;
+				Plane m_near;
+				Plane m_far;
+			};
+			Plane m_planes[6]{};
+		};
 
-		Plane m_left;
-		Plane m_right;
-		Plane m_top;
-		Plane m_bottom;
-		Plane m_near;
-		Plane m_far;
+		union
+		{
+			struct
+			{
+				glm::vec3 m_nearTopLeft;
+				glm::vec3 m_nearTopRight;
+				glm::vec3 m_nearBottomLeft;
+				glm::vec3 m_nearBottomRight;
 
-		glm::vec3 m_nearTopLeft;
-		glm::vec3 m_nearTopRight;
-		glm::vec3 m_nearBottomLeft;
-		glm::vec3 m_nearBottomRight;
-
-		glm::vec3 m_farTopLeft;
-		glm::vec3 m_farTopRight;
-		glm::vec3 m_farBottomLeft;
-		glm::vec3 m_farBottomRight;
+				glm::vec3 m_farTopLeft;
+				glm::vec3 m_farTopRight;
+				glm::vec3 m_farBottomLeft;
+				glm::vec3 m_farBottomRight;
+			};
+			glm::vec3 m_frustrumCorners[8]{};
+		};
 	};
 
 	Camera();
@@ -98,7 +113,7 @@ public:
 
 	void GetFrustrumSection(CameraFrustrum& outFrustrum, float nearDistance, float farDistance) const;
 
-	static void GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, const glm::mat4& cameraTransformMatrix, float width, float height, float nearDistance, float farDistance);
+	static void GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, glm::vec3 position, glm::vec3 forward, float leftBound, float rightBound, float bottomBound, float topBound, float nearDistance, float farDistance);
 
 	static void DrawFrustrum(DebugLinePass* linePass, const CameraFrustrum& frustrum, glm::vec3 color);
 

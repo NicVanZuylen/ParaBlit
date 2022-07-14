@@ -51,7 +51,7 @@ public:
 
 	PB::UniformBufferView GetShadowConstantsView();
 
-	const Camera* GetCascadeCamera() const { return &m_cascadeCamera; }
+	const Camera::CameraFrustrum& GetCascadeFrustrum() const { return m_shadowCascadeFrustrum; }
 
 private:
 
@@ -75,7 +75,7 @@ private:
 
 	PB::ITexture* m_outputTexture = nullptr;
 	const Camera* m_camera = nullptr;
-	Camera m_cascadeCamera{};
+	Camera::CameraFrustrum m_shadowCascadeFrustrum;
 	const RenderBoundingVolumeHierarchy* m_rbvh = nullptr;
 
 	float m_frustrumSectionNear;
