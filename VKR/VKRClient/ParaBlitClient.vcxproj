@@ -186,7 +186,7 @@
     </Link>
     <CustomBuildStep>
       <Command>cd $(SolutionDir)
-$(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -Assets/</Command>
+$(SolutionDir)$(Platform)/Release/AssetPipeline.exe -Assets/</Command>
       <Outputs>$(SolutionDir)Assets/build/dummy.adb</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
@@ -241,7 +241,7 @@ $(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -Assets/</Comm
     </PreBuildEvent>
     <CustomBuildStep>
       <Command>cd $(SolutionDir)
-$(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -Assets/</Command>
+$(SolutionDir)$(Platform)/Release/AssetPipeline.exe -Assets/</Command>
       <Outputs>$(SolutionDir)Assets/build/dummy.adb</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
