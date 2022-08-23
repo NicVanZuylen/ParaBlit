@@ -36,13 +36,16 @@ namespace PB
 
 		m_swapchain.Destroy();
 		if (m_windowSurface)
+		{
 			vkDestroySurfaceKHR(m_vkInstance.GetHandle(), m_windowSurface, nullptr);
+			m_windowSurface = VK_NULL_HANDLE;
+		}
 
 		// Destroy sync objects.
 		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
 		{
 			vkDestroyFence(m_device.GetHandle(), m_frameInfos[i].m_frameFence, nullptr);
-			vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAquireSempahore, nullptr);
+			vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAcquireSempahore, nullptr);
 			vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_frameSemaphore, nullptr);
 
 			m_frameInfos[i].~FrameInfo();
@@ -72,7 +75,7 @@ namespace PB
 	void Renderer::Init(const RendererDesc& desc)
 	{
 		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
-		m_device.Init(m_vkInstance.GetHandle());
+		m_device.Init(m_vkInstance.GetHandle(), desc.m_windowInfo != nullptr);
 		m_renderPassCache.Init(&m_device);
 		m_viewCache.Init(&m_device, &m_masterResourceDescSet, &m_masterSetLayout);
 		m_framebufferCache.Init(&m_device);
@@ -83,8 +86,12 @@ namespace PB
 
 		m_pipelineCache.Init(this);
 
-		m_windowDesc = *desc.m_windowInfo;
-		CreateWindowSurface(desc.m_windowInfo);
+		if (desc.m_windowInfo != nullptr)
+		{
+			m_windowDesc = *desc.m_windowInfo;
+			CreateWindowSurface(desc.m_windowInfo);
+		}
+
 		CreateSyncObjects();
 		CreateCmdBuffers();
 
@@ -94,13 +101,18 @@ namespace PB
 
 	ISwapChain* Renderer::CreateSwapChain(const SwapChainDesc& desc)
 	{
+		PB_ASSERT_MSG(m_windowSurface != VK_NULL_HANDLE, "Cannot create a Swapchain without a valid window surface.");
+
 		m_swapchainDesc = desc;
 		m_swapchain.Init(desc, this, m_windowSurface);
+		m_validSwapchain = true;
 		return reinterpret_cast<ISwapChain*>(&m_swapchain);
 	}
 
 	void Renderer::RecreateSwapchain(const SwapChainDesc& desc, WindowDesc* windowDesc)
 	{
+		PB_ASSERT(m_validSwapchain == true);
+
 		m_swapchainDesc = desc;
 		m_windowDesc = *windowDesc;
 		m_resetSwapchain = true;
@@ -124,6 +136,11 @@ namespace PB
 	ISwapChain* Renderer::GetSwapchain()
 	{
 		return &m_swapchain;
+	}
+
+	bool Renderer::HasValidSwapchain()
+	{
+		return m_swapchain.GetHandle() != VK_NULL_HANDLE;
 	}
 
 	IShaderModuleCache* Renderer::GetShaderModuleCache()
@@ -206,13 +223,18 @@ namespace PB
 		m_device.GetTempBufferAllocator().ResetFrame(m_curFrameInfoIdx);
 
 		PB_ASSERT(curFrameInfo.m_frameSemaphore);
-		VkResult res = vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx);
-		PB_ASSERT(res == VK_SUCCESS);
+		if (m_validSwapchain)
+		{
+			VkResult res = vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAcquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx);
+			PB_ASSERT(res == VK_SUCCESS);
+		}
 
 		SubmitFrame();
-		Present();
 
-		if (m_resetSwapchain)
+		if(m_validSwapchain)
+			Present();
+
+		if (m_validSwapchain && m_resetSwapchain)
 		{
 			WaitIdle();
 
@@ -220,7 +242,7 @@ namespace PB
 			for (u32 i = 0; i < m_frameInfos.Count(); ++i)
 			{
 				vkDestroyFence(m_device.GetHandle(), m_frameInfos[i].m_frameFence, nullptr);
-				vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAquireSempahore, nullptr);
+				vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAcquireSempahore, nullptr);
 				vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_frameSemaphore, nullptr);
 			}
 
@@ -244,7 +266,8 @@ namespace PB
 
 	void Renderer::WaitIdle()
 	{
-		vkDeviceWaitIdle(m_device.GetHandle());
+		PB_ERROR_CHECK(vkDeviceWaitIdle(m_device.GetHandle()));
+		PB_BREAK_ON_ERROR;
 	}
 
 	u32 Renderer::GetCurrentSwapchainImageIndex()
@@ -417,8 +440,8 @@ namespace PB
 			FrameInfo& frameInfo = m_frameInfos[i];
 			vkCreateFence(m_device.GetHandle(), &fenceInfo, nullptr, &frameInfo.m_frameFence);
 			PB_ASSERT(frameInfo.m_frameFence);
-			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &frameInfo.m_imageAquireSempahore);
-			PB_ASSERT(frameInfo.m_imageAquireSempahore);
+			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &frameInfo.m_imageAcquireSempahore);
+			PB_ASSERT(frameInfo.m_imageAcquireSempahore);
 			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &frameInfo.m_frameSemaphore);
 			PB_ASSERT(frameInfo.m_frameSemaphore);
 		}
@@ -523,10 +546,10 @@ namespace PB
 		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr };
 		submitInfo.commandBufferCount = curFrameInfo.m_enqueuedCmdBuffers.Count();
 		submitInfo.pCommandBuffers = curFrameInfo.m_enqueuedCmdBuffers.Data();
-		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.signalSemaphoreCount = m_validSwapchain ? 1 : 0;
 		submitInfo.pSignalSemaphores = &curFrameInfo.m_frameSemaphore;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &curFrameInfo.m_imageAquireSempahore;
+		submitInfo.waitSemaphoreCount = m_validSwapchain ? 1 : 0; // No need to wait on acquire when there is no Swapchain to acquire from.
+		submitInfo.pWaitSemaphores = &curFrameInfo.m_imageAcquireSempahore;
 
 		// Wait for color attachment output before signalling the frame semaphore.
 		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };

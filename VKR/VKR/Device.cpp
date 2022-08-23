@@ -21,12 +21,12 @@ namespace PB
 		}
 	}
 
-	void Device::Init(VkInstance instance)
+	void Device::Init(VkInstance instance, bool enableSwapchainExtension)
 	{
 		PB_ASSERT_MSG(instance, "Attempted to get device using null instance.");
 		m_instance = instance;
 		EnumDevice();
-		CreateLogicalDevice();
+		CreateLogicalDevice(enableSwapchainExtension);
 		m_allocator.Init(this);
 		m_tempStagingBufferAllocator.Create(this);
 
@@ -51,28 +51,6 @@ namespace PB
 				0
 			};
 			m_deviceBufferAllocator.Init(this, EMemoryType::DEVICE_LOCAL, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
-		}
-
-		{
-			static constexpr uint32_t BufferPoolSize = 1024 * 1024 * 8; // 8MB pools.
-			static constexpr uint32_t BufferPoolMinAlignment = 256; // Common alignment requirement for Vulkan buffers.
-			CLib::Vector<uint32_t> bufferAllocatorSegments =
-			{
-				0,
-				128,
-				256,
-				512,
-				1024,
-				4096,
-				8192,
-				16384,
-				1024 * 64,
-				1024 * 256,
-				1024 * 512,
-				1024 * 1024,
-				1024 * 1024 * 8,
-				0
-			};
 			m_hostBufferAllocator.Init(this, EMemoryType::HOST_VISIBLE, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
 		}
 
@@ -94,7 +72,8 @@ namespace PB
 				1024 * 1024 * 32,
 				0
 			};
-			m_textureAllocator.Init(this,EMemoryType::DEVICE_LOCAL, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
+			m_deviceTextureAllocator.Init(this, EMemoryType::DEVICE_LOCAL, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
+			m_hostTextureAllocator.Init(this, EMemoryType::HOST_VISIBLE, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
 		}
 	}
 
@@ -312,12 +291,14 @@ namespace PB
 		PB_ASSERT_MSG(m_graphicsFamilyIndex > -1, "Could not find suitable graphics queue family.");
 	}
 
-	void Device::EnableExtensions(ExtensionManager& extManager)
+	void Device::EnableExtensions(ExtensionManager& extManager, bool enableSwapchainExtension)
 	{
 		extManager.PrintAvailableExtensions();
 
-		// Enable swapchain extension, we are useless without this.
-		PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
+		if (enableSwapchainExtension)
+		{
+			PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME), "Could not enable swapchain extension.");
+		}
 
 		// Descriptor indexing is in the core, but this will shut up validation which complains about shaders requiring it.
 		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), "Could not enable descriptor indexing extension.");
@@ -353,7 +334,7 @@ namespace PB
 
 	}
 
-	void Device::CreateLogicalDevice()
+	void Device::CreateLogicalDevice(bool enableSwapchainExtension)
 	{
 		VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, nullptr };
 		createInfo.flags = 0;
@@ -376,7 +357,7 @@ namespace PB
 		// Query and enable extensions & validation layers for the device.
 		ExtensionManager extManager(m_physicalDevice);
 		extManager.Query();
-		EnableExtensions(extManager);
+		EnableExtensions(extManager, enableSwapchainExtension);
 		EnableLayers(extManager);
 		
 		extManager.PrintEnabledExtensions();

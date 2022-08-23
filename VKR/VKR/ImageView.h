@@ -70,6 +70,7 @@ namespace PB
 		std::unordered_map<BufferViewDesc, UBOViewData, BufferViewDescHasher> m_uboViewCache;
 		std::unordered_map<BufferViewDesc, SSBOViewData, BufferViewDescHasher> m_ssboViewCache;
 		std::unordered_map<SamplerDesc, SamplerData, SamplerDescHasher> m_samplerCache;
+		u32 m_nextTextureUniqueId = 0;
 		DescriptorRegistry m_descriptorRegistry;
 	};
 }

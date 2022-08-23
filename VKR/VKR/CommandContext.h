@@ -78,6 +78,8 @@ namespace PB
 		void CmdBindResources(const BindingLayout& layout) override;
 		void CmdBindResources(const IBindingCache* layout) override;
 		void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) override;
+		void CmdCopyTextureSubresource(ITexture* src, ITexture* dst, u16 srcMipLevel, u16 srcArrayLayer, u16 dstMipLevel, u16 dstArrayLayer) override;
+		void CmdCopyTextureToBuffer(ITexture* src, PB::IBufferObject* dst, const PB::SubresourceRange& subresources, TextureDataDesc* outSubresourceData) override;
 		void CmdExecuteList(const ICommandList* list) override;
 
 		PARABLIT_API bool GetIsPriority();

@@ -5,6 +5,7 @@ VisualStudioVersion = 17.0.32112.339
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ParaBlitClient", "VKRClient\ParaBlitClient.vcxproj", "{33F72676-4323-4BEE-B5D7-AB6DCB2C260E}"
 	ProjectSection(ProjectDependencies) = postProject
+		{715F0455-7A0B-49A7-8C55-3B0A6B6F330E} = {715F0455-7A0B-49A7-8C55-3B0A6B6F330E}
 		{ADED99C1-1815-4D12-AF62-B85B9764A3B1} = {ADED99C1-1815-4D12-AF62-B85B9764A3B1}
 	EndProjectSection
 EndProject
@@ -14,6 +15,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AssetEncoder", "AssetEncode
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AssetPipeline", "AssetPipeline\AssetPipeline.vcxproj", "{715F0455-7A0B-49A7-8C55-3B0A6B6F330E}"
 	ProjectSection(ProjectDependencies) = postProject
+		{ADED99C1-1815-4D12-AF62-B85B9764A3B1} = {ADED99C1-1815-4D12-AF62-B85B9764A3B1}
 		{B54C14E5-3DCE-4847-9DB4-4FB34088AB4B} = {B54C14E5-3DCE-4847-9DB4-4FB34088AB4B}
 	EndProjectSection
 EndProject

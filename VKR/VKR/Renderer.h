@@ -29,7 +29,7 @@ namespace PB
 	struct FrameInfo // Stores the properties and resources unique to a single frame.
 	{
 		VkImage m_presentImage = VK_NULL_HANDLE;
-		VkSemaphore m_imageAquireSempahore = VK_NULL_HANDLE;				// Signalled when the swap chain image has been aquired, rendering will wait on this.
+		VkSemaphore m_imageAcquireSempahore = VK_NULL_HANDLE;				// Signalled when the swap chain image has been acquired, rendering will wait on this.
 		VkSemaphore m_frameSemaphore = VK_NULL_HANDLE;						// Signalled when the frame is complete. This semaphore will be waited on before the image is presented.
 		VkFence m_frameFence = VK_NULL_HANDLE;								// This semaphore indicates if this frame is currently in-flight.
 		VkCommandBuffer m_masterCommandBuffer = VK_NULL_HANDLE;				// Contains all recorded graphics commands for the frame.
@@ -63,6 +63,8 @@ namespace PB
 		PARABLIT_API ViewCache* GetViewCache();
 
 		ISwapChain* GetSwapchain() override;
+
+		bool HasValidSwapchain() override;
 
 		PARABLIT_API IShaderModuleCache* GetShaderModuleCache() override;
 
@@ -143,6 +145,7 @@ namespace PB
 		WindowDesc m_windowDesc{};
 		SwapChainDesc m_swapchainDesc;
 		Swapchain m_swapchain;
+		bool m_validSwapchain = false;
 
 		// Misc
 		CLib::Allocator m_allocator;

@@ -26,10 +26,18 @@ namespace PB
 	struct ViewData
 	{
 		u32 m_descriptorIndex = DESCRIPTORINDEX_INVALID;
+
+		// A unique ID needs to be tracked to ensure that a new view created at the same memory address as an old view with an identical descriptor can still be identified as a different view.
+		u32 m_uniqueId = 0;
 	};
 
 	struct TextureViewData : public ViewData
 	{
+		bool operator == (const TextureViewData& other) const
+		{
+			return m_uniqueId == other.m_uniqueId;
+		}
+
 		ETextureState m_expectedState = ETextureState::NONE;
 		VkImageView m_view = VK_NULL_HANDLE;
 	};

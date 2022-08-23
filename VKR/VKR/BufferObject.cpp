@@ -86,6 +86,12 @@ namespace PB
 			memoryRange.offset = (m_poolAllocation.m_offset + m_mapOffset);
 			memoryRange.size = (m_poolAllocation.m_size - m_mapOffset);
 
+			// Round down offset to a multiple of VkPhysicalDeviceLimits::nonCoherentAtomSize - as required by the Vulkan spec.
+			// This should still flush the desired range of memory, just with a little excess.
+			VkDeviceSize offsetAlign = m_renderer->GetDevice()->GetDeviceLimits()->nonCoherentAtomSize;
+			memoryRange.offset += (offsetAlign - (memoryRange.offset % offsetAlign));
+			memoryRange.offset -= offsetAlign;
+
 			vkFlushMappedMemoryRanges(m_renderer->GetDevice()->GetHandle(), 1, &memoryRange);
 		}
 	}

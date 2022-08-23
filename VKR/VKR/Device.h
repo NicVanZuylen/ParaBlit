@@ -19,7 +19,7 @@ namespace PB
 		/*
 		Description: Find suitable physical device and create logical device with required extensions & features.
 		*/
-		PARABLIT_API void Init(VkInstance instance);
+		PARABLIT_API void Init(VkInstance instance, bool enableSwapchainExtension);
 
 		/*
 		Description: Get the primary graphics queue family index.
@@ -44,7 +44,7 @@ namespace PB
 		PARABLIT_API DeviceAllocator& GetDeviceAllocator();
 
 		/*
-		Description: Gets the memory allocator for allocating memory with the specified memory type.
+		Description: Gets the memory allocator for allocating buffer memory with the specified memory type.
 		Return Type: PoolAllocator&
 		Param:
 			EMemoryType memoryType: The memory type used to get the correct allocator.
@@ -66,10 +66,26 @@ namespace PB
 		};
 
 		/*
-		Description: Gets the memory allocator for allocating memory on this device.
+		Description: Gets the memory allocator for allocating texture memory with the specified memory type.
 		Return Type: PoolAllocator&
+		Param:
+			EMemoryType memoryType: The memory type used to get the correct allocator.
 		*/
-		PoolAllocator& GetTextureAllocator() { return m_textureAllocator; };
+		PoolAllocator& GetTextureAllocator(EMemoryType memoryType)
+		{
+			switch (memoryType)
+			{
+			case PB::EMemoryType::HOST_VISIBLE:
+				return m_hostTextureAllocator;
+			case PB::EMemoryType::DEVICE_LOCAL:
+				return m_deviceTextureAllocator;
+			case PB::EMemoryType::END_RANGE:
+			default:
+				PB_NOT_IMPLEMENTED;
+				return m_hostTextureAllocator;
+				break;
+			}
+		};
 
 		/*
 		Description: Gets the temporary buffer allocator.
@@ -112,7 +128,7 @@ namespace PB
 		inline PARABLIT_API void CreateQueues();
 
 		// Query and enable necessary physical device extensions.
-		inline PARABLIT_API void EnableExtensions(ExtensionManager& extManager);
+		inline PARABLIT_API void EnableExtensions(ExtensionManager& extManager, bool enableSwapchainExtension);
 
 		// Query and enable device validation layers.
 		inline PARABLIT_API void EnableLayers(ExtensionManager& extManager);
@@ -121,7 +137,7 @@ namespace PB
 		inline PARABLIT_API void SetFeatureEnables();
 
 		// Create logical device.
-		inline PARABLIT_API void CreateLogicalDevice();
+		inline PARABLIT_API void CreateLogicalDevice(bool enableSwapchainExtension);
 
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
@@ -137,7 +153,8 @@ namespace PB
 		DeviceAllocator m_allocator;
 		PoolAllocator m_deviceBufferAllocator;
 		PoolAllocator m_hostBufferAllocator;
-		PoolAllocator m_textureAllocator;
+		PoolAllocator m_deviceTextureAllocator;
+		PoolAllocator m_hostTextureAllocator;
 		TempBufferAllocator m_tempStagingBufferAllocator;
 	};
 }

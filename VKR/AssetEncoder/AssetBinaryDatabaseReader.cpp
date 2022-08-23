@@ -52,12 +52,12 @@ namespace AssetEncoder
 		}
 	}
 
-	bool AssetBinaryDatabaseReader::HasOpenFile()
+	bool AssetBinaryDatabaseReader::HasOpenFile() const
 	{
 		return m_dbFile.is_open();
 	}
 
-	AssetMeta AssetBinaryDatabaseReader::GetAssetInfo(const char* assetName)
+	AssetMeta AssetBinaryDatabaseReader::GetAssetInfo(const char* assetName) const
 	{
 		auto it = m_stringMap.find(assetName);
 		if (it == m_stringMap.end())
@@ -66,7 +66,7 @@ namespace AssetEncoder
 		return it->second.m_asset;
 	}
 
-	void AssetBinaryDatabaseReader::GetAssetUserData(const AssetMeta& asset, void* outData)
+	void AssetBinaryDatabaseReader::GetAssetUserData(const AssetMeta& asset, void* outData) const
 	{
 		memcpy(outData, &m_stringCache[asset.m_userDataLocation], asset.m_userDataSize);
 	}

@@ -70,10 +70,14 @@ int Application::Init(int argumentCount, char** argumentVector)
 	auto extNames = glfwGetRequiredInstanceExtensions(&extCount);
 
 	PB::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
-	PB::RendererDesc rendererDesc = { extNames, extCount, &windowInfo };
+	PB::RendererDesc rendererDesc;
+	rendererDesc.m_extensionCount = extCount;
+	rendererDesc.m_extensionNames = extNames;
+	rendererDesc.m_windowInfo = &windowInfo;
+
 	m_renderer = PB::CreateRenderer();
 	m_renderer->Init(rendererDesc);
-	
+	 
 	PB::SwapChainDesc swapchainDesc;
 	swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 	swapchainDesc.m_height = 0;

@@ -229,6 +229,7 @@ namespace PB
 			PB_LOG_FORMAT("Wrapping swapchain image: %p", m_swapchainImages[i]);
 			wrappedTextureDesc.m_wrappedImage = m_swapchainImages[i];
 			wrappedTextureDesc.m_usageFlags = ETextureState::PRESENT | ETextureState::COLORTARGET | ETextureState::COPY_DST;
+			wrappedTextureDesc.m_format = m_imageFormat;
 			wrappedTextureDesc.m_width = m_width;
 			wrappedTextureDesc.m_height = m_height;
 			m_wrappedSwapchainImages[i].Create(m_renderer, wrappedTextureDesc);

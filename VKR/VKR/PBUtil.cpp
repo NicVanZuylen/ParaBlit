@@ -60,6 +60,8 @@ namespace PB
             return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         case ETextureState::COPY_DST:
             return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        case ETextureState::READBACK:
+            return VK_IMAGE_LAYOUT_GENERAL;
         case ETextureState::PRESENT:
             return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         default:
@@ -85,6 +87,8 @@ namespace PB
         if (availableStates & ETextureState::COPY_SRC)
             vkFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         if (availableStates & ETextureState::COPY_DST)
+            vkFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        if (availableStates & ETextureState::READBACK)
             vkFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         return vkFlags;
 	}
@@ -135,6 +139,9 @@ namespace PB
         case ETextureState::COPY_DST:
             return VK_PIPELINE_STAGE_TRANSFER_BIT;
             break;
+        case ETextureState::READBACK:
+            return VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_HOST_BIT;
+            break;
         case ETextureState::PRESENT:
             return VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
             break;
@@ -170,6 +177,9 @@ namespace PB
             break;
         case ETextureState::COPY_DST:
             return VK_PIPELINE_STAGE_TRANSFER_BIT;
+            break;
+        case ETextureState::READBACK:
+            return VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_HOST_BIT;
             break;
         case ETextureState::PRESENT:
             return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -209,6 +219,9 @@ namespace PB
         case ETextureState::COPY_DST:
             return VK_ACCESS_TRANSFER_WRITE_BIT;
             break;
+        case ETextureState::READBACK:
+            return VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT;
+            break;
         case ETextureState::PRESENT:
             return VK_ACCESS_MEMORY_READ_BIT;
             break;
@@ -247,6 +260,9 @@ namespace PB
             break;
         case ETextureState::COPY_DST:
             return VK_ACCESS_TRANSFER_WRITE_BIT;
+            break;
+        case ETextureState::READBACK:
+            return VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT;
             break;
         case ETextureState::PRESENT:
             return VK_ACCESS_MEMORY_READ_BIT;

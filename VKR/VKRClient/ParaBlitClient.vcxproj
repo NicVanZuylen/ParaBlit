@@ -168,11 +168,11 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level2</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)AssetPipeline/Include;$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;CLIB_ALLOCATOR_DEBUG=1;CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -186,7 +186,7 @@
     </Link>
     <CustomBuildStep>
       <Command>cd $(SolutionDir)
-$(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -VKR/Assets/</Command>
+$(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -Assets/</Command>
       <Outputs>$(SolutionDir)Assets/build/dummy.adb</Outputs>
     </CustomBuildStep>
     <PreBuildEvent>
@@ -214,13 +214,13 @@ $(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -VKR/Assets/</
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level2</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)AssetPipeline/Include;$(SolutionDir)External/CLib/ContainerLib/include;$(SolutionDir)External\glm;$(SolutionDir)External\tinyobjloader\;$(SolutionDir)External\stb;$(SolutionDir)VKR;$(SolutionDir)External\glfw\include;$(SolutionDir)VKR\STB\include;$(SolutionDir)VKR\ContainerLib\include;$(SolutionDir)AssetEncoder/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLFW_EXPOSE_NATIVE_WIN32;PARABLIT_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
@@ -241,7 +241,7 @@ $(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -VKR/Assets/</
     </PreBuildEvent>
     <CustomBuildStep>
       <Command>cd $(SolutionDir)
-$(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -VKR/Assets/</Command>
+$(SolutionDir)AssetPipeline/$(Platform)/Release/AssetPipeline.exe -Assets/</Command>
       <Outputs>$(SolutionDir)Assets/build/dummy.adb</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>

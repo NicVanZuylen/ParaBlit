@@ -119,6 +119,8 @@ private:
 	Material* m_debugMaterial = nullptr;
 
 	PBClient::Texture* m_hdrSkyTexture = nullptr;
+	PBClient::Texture* m_skyIrradianceMap = nullptr;
+	PBClient::Texture* m_skyPrefilterMap = nullptr;
 
 	PB::ITexture* m_solidWhiteTexture = nullptr;
 	PB::ITexture* m_solidBlackTexture = nullptr;

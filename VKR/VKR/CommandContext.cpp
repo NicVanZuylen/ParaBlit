@@ -366,22 +366,25 @@ namespace PB
 
 		auto& barrierSubresourceRange = imageBarrier.subresourceRange;
 
+		uint32_t mipCount = subResourceRange.AllMipLevels() ? internalTex->GetMipCount() : subResourceRange.m_mipCount;
+		uint32_t arrayLayerCount = subResourceRange.AllArrayLayers() ? internalTex->GetArrayLayerCount() : subResourceRange.m_arrayCount;
+
 		barrierSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		if (internalTex->HasDepthPlane())
 		{
-			PB_ASSERT(subResourceRange.m_mipCount == 1);
+			PB_ASSERT(mipCount == 1);
 			barrierSubresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		}
 		if (internalTex->HasStencilPlane())
 		{
-			PB_ASSERT(subResourceRange.m_mipCount == 1);
+			PB_ASSERT(arrayLayerCount == 1);
 			barrierSubresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
 
 		barrierSubresourceRange.baseMipLevel = subResourceRange.m_baseMip;
-		barrierSubresourceRange.levelCount = subResourceRange.m_mipCount;
+		barrierSubresourceRange.levelCount = mipCount;
 		barrierSubresourceRange.baseArrayLayer = subResourceRange.m_firstArrayElement;
-		barrierSubresourceRange.layerCount = subResourceRange.m_arrayCount;
+		barrierSubresourceRange.layerCount = arrayLayerCount;
 
 		VkPipelineStageFlags srcStageMask = GetSrcStatePipelineFlags(oldState);
 		VkPipelineStageFlags dstStageMask = GetDstStatePipelineFlags(newState);
@@ -681,6 +684,7 @@ namespace PB
 		PB_ASSERT(dstInternal->GetExtent().width >= srcInternal->GetExtent().width && dstInternal->GetExtent().height >= srcInternal->GetExtent().height);
 		PB_ASSERT((srcInternal->HasDepthPlane() && dstInternal->HasDepthPlane()) || (!srcInternal->HasDepthPlane() && !dstInternal->HasDepthPlane()));
 		PB_ASSERT_MSG(srcInternal->GetMipCount() == dstInternal->GetMipCount(), "Src and Dst mip count must be equal.");
+		PB_ASSERT_MSG(srcInternal->GetArrayLayerCount() == dstInternal->GetArrayLayerCount(), "Src and Dst array layer count must be equal.");
 
 		VkImageCopy region;
 		region.dstOffset = { 0, 0, 0 };
@@ -706,6 +710,117 @@ namespace PB
 		
 		region.dstSubresource = srcSubresource;
 		vkCmdCopyImage(m_cmdBuffer, srcInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	}
+
+	void CommandContext::CmdCopyTextureSubresource(ITexture* src, ITexture* dst, u16 srcMipLevel, u16 srcArrayLayer, u16 dstMipLevel, u16 dstArrayLayer)
+	{
+		PB_ASSERT_MSG(!m_activeRenderpass, "Copy commands cannot be issued during a render pass.");
+		ValidateRecordingState();
+
+		PB::Texture* srcInternal = reinterpret_cast<PB::Texture*>(src);
+		PB::Texture* dstInternal = reinterpret_cast<PB::Texture*>(dst);
+
+		PB_ASSERT_MSG(srcInternal->GetUsage() & ETextureState::COPY_SRC && dstInternal->GetUsage() & ETextureState::COPY_DST, "Src and Dst image layouts are incorrect.");
+		PB_ASSERT((srcInternal->HasDepthPlane() && dstInternal->HasDepthPlane()) || (!srcInternal->HasDepthPlane() && !dstInternal->HasDepthPlane()));
+
+		VkExtent3D srcExtent = srcInternal->GetExtent();
+		srcExtent.width >>= srcMipLevel;
+		srcExtent.height >>= srcMipLevel;
+
+		VkExtent3D dstExtent = dstInternal->GetExtent();
+		dstExtent.width >>= dstMipLevel;
+		dstExtent.height >>= dstMipLevel;
+
+		PB_ASSERT_MSG(srcExtent.width == dstExtent.width && srcExtent.height == dstExtent.height, "Width and height of Src and Dst mip level are not the same.");
+
+		VkImageCopy region;
+		region.dstOffset = { 0, 0, 0 };
+		region.srcOffset = { 0, 0, 0 };
+		region.extent = dstExtent;
+
+		auto& srcSubresource = region.srcSubresource;
+		srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		if (srcInternal->HasDepthPlane())
+		{
+			PB_ASSERT(srcInternal->GetMipCount() == 1);
+			srcSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		}
+		if (srcInternal->HasStencilPlane())
+		{
+			PB_ASSERT(srcInternal->GetMipCount() == 1);
+			srcSubresource.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+
+		srcSubresource.baseArrayLayer = srcArrayLayer;
+		srcSubresource.layerCount = 1;
+		srcSubresource.mipLevel = srcMipLevel;
+
+		auto& dstSubresource = region.dstSubresource;
+		dstSubresource.aspectMask = srcSubresource.aspectMask;
+		dstSubresource.baseArrayLayer = dstArrayLayer;
+		dstSubresource.layerCount = 1;
+		dstSubresource.mipLevel = dstMipLevel;
+
+		vkCmdCopyImage(m_cmdBuffer, srcInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	}
+
+	void CommandContext::CmdCopyTextureToBuffer(ITexture* src, PB::IBufferObject* dst, const PB::SubresourceRange& subresources, TextureDataDesc* outSubresourceData)
+	{
+		PB_ASSERT(src && dst);
+		PB_ASSERT(subresources.m_mipCount > 0 && subresources.m_baseMip < subresources.m_mipCount);
+		PB_ASSERT(subresources.m_arrayCount > 0 && subresources.m_firstArrayElement < subresources.m_arrayCount);
+		ValidateRecordingState();
+
+		Texture* srcInternal = reinterpret_cast<Texture*>(src);
+		BufferObject* dstInternal = reinterpret_cast<BufferObject*>(dst);
+
+		PB_ASSERT(subresources.m_mipCount <= srcInternal->GetMipCount());
+		PB_ASSERT(subresources.m_arrayCount <= srcInternal->GetArrayLayerCount());
+
+		CLib::Vector<VkBufferImageCopy, 16> copyRegions{};
+
+		VkDevice device = m_device->GetHandle();
+		VkImage image = srcInternal->GetImage();
+		VkImageSubresource subresource{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
+		VkSubresourceLayout subresourceLayout;
+
+		for (uint32_t mip = subresources.m_baseMip; mip < subresources.m_mipCount; ++mip)
+		{
+			VkExtent3D extent = srcInternal->GetExtent();
+			extent.width <<= mip;
+			extent.height <<= mip;
+
+			for (uint32_t layer = subresources.m_firstArrayElement; layer < subresources.m_arrayCount; ++layer)
+			{
+				subresource.mipLevel = mip;
+				subresource.arrayLayer = layer;
+				vkGetImageSubresourceLayout(device, image, &subresource, &subresourceLayout);
+
+				VkBufferImageCopy& region = copyRegions.PushBack();
+				region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				region.imageSubresource.baseArrayLayer = subresources.m_firstArrayElement;
+				region.imageSubresource.layerCount = 1;
+				region.imageSubresource.mipLevel = mip;
+				region.imageOffset = { 0, 0, 0 };
+				region.imageExtent = srcInternal->GetExtent();
+
+				region.bufferOffset = subresourceLayout.offset;
+				region.bufferRowLength = extent.width;
+				region.bufferImageHeight = extent.height;
+
+				if (outSubresourceData != nullptr)
+				{
+					TextureDataDesc& outDataDesc = outSubresourceData[(layer * subresources.m_mipCount) + mip];
+					outDataDesc.m_data = (u8*)subresourceLayout.offset;
+					outDataDesc.m_size = subresourceLayout.size;
+					outDataDesc.m_mipLevel = mip;
+					outDataDesc.m_arrayLayer = layer;
+					outDataDesc.m_next = nullptr;
+				}
+			}
+		}
+
+		vkCmdCopyImageToBuffer(m_cmdBuffer, srcInternal->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstInternal->GetHandle(), copyRegions.Count(), copyRegions.Data());
 	}
 
 	void CommandContext::CmdExecuteList(const PB::ICommandList* list)

@@ -1,6 +1,5 @@
 #include "Texture.h"
 #include "Shader.h"
-
 #include "ICommandContext.h"
 #include "CLib/Vector.h"
 
@@ -18,66 +17,127 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include <filesystem>
+
 namespace PBClient
 {
-	Texture::Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, bool srgb, bool convertToCube)
+	AssetEncoder::AssetBinaryDatabaseReader Texture::s_textureDatabaseLoader;
+
+	Texture::Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, bool srgb, bool convertToCube, bool loadFromDatabase)
 	{
 		m_renderer = renderer;
 		m_allocator = allocator;
 
-		std::string pathStr = filePath;
-		bool isHdr = (pathStr.find(".hdr", 0) != std::string::npos);
-
-		// Load image...
-		void* data = nullptr;
-		if (isHdr == true)
+		if (loadFromDatabase)
 		{
-			data = stbi_loadf(filePath, &m_width, &m_height, &m_channelCount, STBI_rgb_alpha);
+			constexpr const char* TextureDatabaseDir = "/Assets/build/textures.adb";
+			if (s_textureDatabaseLoader.HasOpenFile() == false)
+			{
+				std::string dbDir = std::move(std::filesystem::current_path().parent_path().string());
+				dbDir += TextureDatabaseDir;
+				s_textureDatabaseLoader.OpenFile(dbDir.c_str());
+			}
+
+			AssetEncoder::AssetMeta textureMeta = s_textureDatabaseLoader.GetAssetInfo(filePath);
+			if (textureMeta.m_binarySize == 0)
+			{
+				std::cout << "Texture: Failed to load image: " << filePath << std::endl;
+				return;
+			}
+			std::cout << "Texture: Successfully loaded image: " << filePath << std::endl;
+
+			AssetPipeline::TextureMetadata textureData;
+			s_textureDatabaseLoader.GetAssetUserData(textureMeta, &textureData);
+
+			void* buf = malloc(textureMeta.m_binarySize);
+			s_textureDatabaseLoader.GetAssetBinary(filePath, buf);
+
+			assert(textureData.m_isHdr == false);
+
+			PB::TextureDataDesc texDataDesc{};
+			texDataDesc.m_data = buf;
+			texDataDesc.m_size = textureMeta.m_binarySize;
+			texDataDesc.m_mipLevel = 0;
+			texDataDesc.m_arrayLayer = 0;
+			texDataDesc.m_next = nullptr;
+
+			PB::TextureDesc texDesc{};
+			texDesc.m_dimension = PB::ETextureDimension::DIMENSION_2D;
+			texDesc.m_format = srgb ? PB::ETextureFormat::R8G8B8A8_SRGB : PB::ETextureFormat::R8G8B8A8_UNORM;
+			texDesc.m_usageStates = PB::ETextureState::SAMPLED;
+			texDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
+			texDesc.m_data = &texDataDesc;
+			texDesc.m_width = textureData.m_width;
+			texDesc.m_height = textureData.m_height;
+			texDesc.m_mipCount = textureData.m_mipCount;
+			texDesc.m_arraySize = textureData.m_arraySize;
+
+			m_texture = m_renderer->AllocateTexture(texDesc);
+			m_ownsTexture = true;
+
+			free(buf);
+
+			if (convertToCube == true)
+			{
+				ConvertToCube(false);
+			}
 		}
 		else
 		{
-			data = stbi_load(filePath, &m_width, &m_height, &m_channelCount, STBI_rgb_alpha);
-		}
+			std::string pathStr = filePath;
+			bool isHdr = (pathStr.find(".hdr", 0) != std::string::npos);
 
-		if (data)
-		{
-			std::cout << "Texture: Successfully loaded image: " << filePath << std::endl;
-
-			PB::TextureDataDesc dataDesc{};
-			dataDesc.m_data = data;
-
-			PB::TextureDesc textureDesc{};
-			textureDesc.m_data = &dataDesc;
-			textureDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
-			textureDesc.m_usageStates = PB::ETextureState::SAMPLED;
-			textureDesc.m_width = m_width;
-			textureDesc.m_height = m_height;
-
-			if (isHdr)
+			// Load image...
+			void* data = nullptr;
+			if (isHdr == true)
 			{
-				textureDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
-				dataDesc.m_size = m_width * m_height * sizeof(float) * 4;
+				data = stbi_loadf(filePath, &m_width, &m_height, &m_channelCount, STBI_rgb_alpha);
 			}
 			else
 			{
-				textureDesc.m_format = srgb ? PB::ETextureFormat::R8G8B8A8_SRGB : PB::ETextureFormat::R8G8B8A8_UNORM;
-				dataDesc.m_size = m_width * m_height * sizeof(uint32_t);
+				data = stbi_load(filePath, &m_width, &m_height, &m_channelCount, STBI_rgb_alpha);
 			}
 
-			m_texture = m_renderer->AllocateTexture(textureDesc);
-			m_ownsTexture = true;
+			if (data)
+			{
+				std::cout << "Texture: Successfully loaded image: " << filePath << std::endl;
 
-			// Data is no longer needed here.
-			stbi_image_free(data);
-		}
-		else
-		{
-			std::cout << "Texture: Failed to load image: " << filePath << std::endl;
-		}
+				PB::TextureDataDesc dataDesc{};
+				dataDesc.m_data = data;
 
-		if (convertToCube == true)
-		{
-			ConvertToCube(isHdr);
+				PB::TextureDesc textureDesc{};
+				textureDesc.m_data = &dataDesc;
+				textureDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
+				textureDesc.m_usageStates = PB::ETextureState::SAMPLED;
+				textureDesc.m_width = m_width;
+				textureDesc.m_height = m_height;
+
+				if (isHdr)
+				{
+					textureDesc.m_format = PB::ETextureFormat::R32G32B32A32_FLOAT;
+					dataDesc.m_size = m_width * m_height * sizeof(float) * 4;
+				}
+				else
+				{
+					textureDesc.m_format = srgb ? PB::ETextureFormat::R8G8B8A8_SRGB : PB::ETextureFormat::R8G8B8A8_UNORM;
+					dataDesc.m_size = m_width * m_height * sizeof(uint32_t);
+				}
+
+				m_texture = m_renderer->AllocateTexture(textureDesc);
+				m_ownsTexture = true;
+
+				// Data is no longer needed here.
+				stbi_image_free(data);
+			}
+			else
+			{
+				std::cout << "Texture: Failed to load image: " << filePath << std::endl;
+			}
+
+			if (convertToCube == true)
+			{
+				ConvertToCube(isHdr);
+			}
 		}
 	}
 
@@ -176,6 +236,114 @@ namespace PBClient
 			if (ptr)
 				stbi_image_free(ptr);
 		}
+	}
+
+	Texture::Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, AssetPipeline::EConvolutedMapType mapType)
+	{
+		m_renderer = renderer;
+		m_allocator = allocator;
+
+		constexpr const char* TextureDatabaseDir = "/Assets/build/textures.adb";
+		if (s_textureDatabaseLoader.HasOpenFile() == false)
+		{
+			std::string dbDir = std::move(std::filesystem::current_path().parent_path().string());
+			dbDir += TextureDatabaseDir;
+			s_textureDatabaseLoader.OpenFile(dbDir.c_str());
+		}
+
+		std::string mapName = filePath;
+		switch (mapType)
+		{
+		case AssetPipeline::EConvolutedMapType::SKY:
+			mapName += "_sky";
+			break;
+		case AssetPipeline::EConvolutedMapType::IRRADIANCE:
+			mapName += "_env_irradiance";
+			break;
+		case AssetPipeline::EConvolutedMapType::PREFILTER:
+			mapName += "_env";
+			break;
+		default:
+			mapName += "_sky";
+			break;
+		}
+
+		AssetEncoder::AssetMeta textureMeta = s_textureDatabaseLoader.GetAssetInfo(mapName.c_str());
+		if (textureMeta.m_binarySize == 0)
+		{
+			std::cout << "Texture: Failed to load image: " << mapName.c_str() << std::endl;
+			return;
+		}
+		std::cout << "Texture: Successfully loaded image: " << mapName.c_str() << std::endl;
+
+		AssetPipeline::EnvironmentMapMetadata envMapData;
+		s_textureDatabaseLoader.GetAssetUserData(textureMeta, &envMapData);
+
+		uint8_t* buf = reinterpret_cast<uint8_t*>(malloc(textureMeta.m_binarySize));
+		s_textureDatabaseLoader.GetAssetBinary(mapName.c_str(), buf);
+
+		CLib::Vector<PB::TextureDataDesc, 6 * AssetPipeline::ConvolutionMipmapCount> dataDescs;
+
+		if (mapType == AssetPipeline::EConvolutedMapType::PREFILTER)
+		{
+			PB::TextureDataDesc* prevDesc = nullptr;
+			for (uint32_t layer = 0; layer < 6; ++layer)
+			{
+				uint32_t mipOffset = layer * envMapData.m_arrayLayerSize;
+				for (uint32_t mip = 0; mip < envMapData.m_mipCount; ++mip)
+				{
+					PB::TextureDataDesc& dataDesc = dataDescs.PushBackInit();
+					dataDesc.m_data = buf + mipOffset;
+					dataDesc.m_arrayLayer = layer;
+					dataDesc.m_mipLevel = mip;
+					dataDesc.m_size = envMapData.GetMipLevelSize(mip);
+					dataDesc.m_next = nullptr;
+
+					if (prevDesc != nullptr)
+					{
+						prevDesc->m_next = &dataDesc;
+					}
+					prevDesc = &dataDesc;
+
+					mipOffset += envMapData.m_mipmapAlignedSizes[mip];
+				}
+			}
+		}
+		else
+		{
+			PB::TextureDataDesc* prevDesc = nullptr;
+			for (uint32_t layer = 0; layer < 6; ++layer)
+			{
+				PB::TextureDataDesc& dataDesc = dataDescs.PushBackInit();
+				dataDesc.m_data = buf + (envMapData.m_mipmapAlignedSizes[0] * layer);
+				dataDesc.m_arrayLayer = layer;
+				dataDesc.m_mipLevel = 0;
+				dataDesc.m_size = envMapData.m_arrayLayerSize;
+				dataDesc.m_next = nullptr;
+
+				if (prevDesc != nullptr)
+				{
+					prevDesc->m_next = &dataDesc;
+				}
+				prevDesc = &dataDesc;
+			}
+		}
+
+		PB::TextureDesc texDesc{};
+		texDesc.m_dimension = PB::ETextureDimension::DIMENSION_CUBE;
+		texDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
+		texDesc.m_usageStates = PB::ETextureState::SAMPLED;
+		texDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
+		texDesc.m_data = dataDescs.Data();
+		texDesc.m_width = envMapData.m_width;
+		texDesc.m_height = envMapData.m_height;
+		texDesc.m_mipCount = envMapData.m_mipCount;
+
+		m_texture = m_renderer->AllocateTexture(texDesc);
+		m_mipCount = texDesc.m_mipCount;
+		m_ownsTexture = true;
+
+		free(buf);
 	}
 
 	Texture::~Texture()

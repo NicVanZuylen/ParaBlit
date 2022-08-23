@@ -124,16 +124,16 @@ glm::mat4 Camera::GetProjectionMatrix() const
 
 	if (m_projectionType == EProjectionType::PERSPECTIVE)
 	{
-		return axisCorrection * glm::perspectiveFov<float>(m_fovY, float(m_width), float(m_height), m_zNear, m_zFar);
+		return axisCorrection * glm::perspectiveFov<float>(m_fovY, m_width, m_height, m_zNear, m_zFar);
 	}
 	else if (m_projectionType == EProjectionType::ORTHOGRAPHIC)
 	{
-		float halfWidth = float(m_width) * 0.5f;
-		float halfHeight = float(m_height) * 0.5f;
+		float halfWidth = m_width * 0.5f;
+		float halfHeight = m_height * 0.5f;
 		return axisCorrection * glm::orthoZO(-halfWidth, halfWidth, -halfHeight, halfHeight, m_zNear, m_zFar);
 	}
 
-	return axisCorrection * glm::perspectiveFov<float>(m_fovY, float(m_width), float(m_height), m_zNear, m_zFar);
+	return axisCorrection * glm::perspectiveFov<float>(m_fovY, m_width, m_height, m_zNear, m_zFar);
 }
 
 void Camera::GetFrustrumSection(CameraFrustrum& outFrustrum, float nearDistance, float farDistance) const

@@ -66,7 +66,7 @@ namespace AssetEncoder
 		}
 		else
 		{
-			printf("%ws - Directory not found.", searchDir.c_str());
+			printf("%ws - Directory not found.\n", searchDir.c_str());
 		}
 	}
 

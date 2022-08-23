@@ -57,7 +57,11 @@ namespace AssetPipeline
 
 			// Load include file.
 			std::ifstream includeFile(pathString, std::ios::ate | std::ios::binary);
-			assert(includeFile.good());
+			if (!includeFile.good())
+			{
+				printf_s("[%s]: Include file not found: %s\n", requesting_source, pathString.c_str());
+				assert(false);
+			}
 
 			size_t fileLength = includeFile.tellg();
 			content->SetCount(uint32_t(fileLength));

@@ -32,7 +32,7 @@ public:
 
 	void SetPointLight(uint32_t index, PB::Float4 position, PB::Float3 color, float radius);
 
-	void SetSkyboxTexture(PBClient::Texture* skyboxTexture, bool isHdr, uint32_t mipCount = 1);
+	void SetSkyboxTexture(PBClient::Texture* skyboxTexture, PBClient::Texture* irradianceMap, PBClient::Texture* prefilterMap);
 
 private:
 
@@ -60,32 +60,17 @@ private:
 		} m_directionalLights;
 	} m_localLightingData{};
 
-	enum class EConvolutedMapType
-	{
-		IRRADIANCE,
-		PREFILTER
-	};
-
-	void ConvoluteSkybox(PB::ICommandContext* cmdContext, EConvolutedMapType type);
-
 	void GenSpecBDRFLut(PB::ICommandContext* cmdContext);
-
-	static constexpr const uint32_t ConvolutedMapDimMipCount = 6;
 
 	PBClient::Mesh m_pointLightVolumeMesh;
 	PB::u32 m_pointLightCount = 0;
 	PB::u32 m_directionalLightCount = 0;
 	PB::IBufferObject* m_mvpBuffer = nullptr;
 	PB::IBufferObject* m_lightingBuffer = nullptr;
-	PB::IBufferObject* m_cubeConvolutionConstantsBuffers[6]{};
-	PB::IBufferObject* m_cubeConvolutionMaterialConstantsBuffers[ConvolutedMapDimMipCount]{};
 	PBClient::Texture* m_skyboxTexture = nullptr;
-	PB::ITexture* m_irradianceMap = nullptr;
-	PB::ITexture* m_prefilterEnvMap = nullptr;
+	PBClient::Texture* m_irradianceMap = nullptr;
+	PBClient::Texture* m_prefilterEnvMap = nullptr;
 	PB::ITexture* m_specBDRFLut = nullptr;
-	uint32_t m_skyboxMipCount = 1;
-	bool m_hdrSkybox = false;
-	bool m_convoluteSkybox = false;
 
 	PB::UniformBufferView m_pointLightingView = nullptr;
 	PB::UniformBufferView m_dirLightingView = nullptr;

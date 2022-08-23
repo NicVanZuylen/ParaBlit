@@ -54,40 +54,10 @@ DeferredLightingPass::~DeferredLightingPass()
 	if (m_reusableCmdList)
 		m_renderer->FreeCommandList(m_reusableCmdList);
 
-	if (m_irradianceMap)
-	{
-		m_renderer->FreeTexture(m_irradianceMap);
-		m_irradianceMap = nullptr;
-	}
-
-	if (m_prefilterEnvMap)
-	{
-		m_renderer->FreeTexture(m_prefilterEnvMap);
-		m_prefilterEnvMap = nullptr;
-	}
-
 	if (m_specBDRFLut)
 	{
 		m_renderer->FreeTexture(m_specBDRFLut);
 		m_specBDRFLut = nullptr;
-	}
-
-	for (auto& buf : m_cubeConvolutionConstantsBuffers)
-	{
-		if (buf != nullptr)
-		{
-			m_renderer->FreeBuffer(buf);
-			buf = nullptr;
-		}
-	}
-
-	for (auto& buf : m_cubeConvolutionMaterialConstantsBuffers)
-	{
-		if (buf != nullptr)
-		{
-			m_renderer->FreeBuffer(buf);
-			buf = nullptr;
-		}
 	}
 
 	m_renderer->FreeBuffer(m_lightingBuffer);
@@ -105,12 +75,6 @@ void DeferredLightingPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTarg
 	if (m_specBDRFLut == nullptr)
 	{
 		GenSpecBDRFLut(info.m_commandContext);
-	}
-
-	if (m_convoluteSkybox)
-	{
-		ConvoluteSkybox(info.m_commandContext, EConvolutedMapType::IRRADIANCE);
-		ConvoluteSkybox(info.m_commandContext, EConvolutedMapType::PREFILTER);
 	}
 }
 
@@ -149,10 +113,10 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		PB::TextureViewDesc skyboxViewDesc{};
 		skyboxViewDesc.m_texture = m_skyboxTexture->GetTexture();
 		skyboxViewDesc.m_expectedState = PB::ETextureState::SAMPLED;
-		skyboxViewDesc.m_format = m_hdrSkybox ? PB::ETextureFormat::R16G16B16A16_FLOAT : PB::ETextureFormat::R8G8B8A8_SRGB;
+		skyboxViewDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
 		skyboxViewDesc.m_type = PB::ETextureViewType::VIEW_TYPE_CUBE;
 		skyboxViewDesc.m_subresources.m_arrayCount = 1;
-		skyboxViewDesc.m_subresources.m_mipCount = m_skyboxMipCount;
+		skyboxViewDesc.m_subresources.m_mipCount = 1;
 
 		PB::ResourceView skyboxView = m_skyboxTexture->GetTexture()->GetView(skyboxViewDesc);
 
@@ -160,20 +124,15 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		iblSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
 		iblSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
 		iblSamplerDesc.m_mipFilter = PB::ESamplerFilter::BILINEAR;
-		iblSamplerDesc.maxLod = float(m_skyboxMipCount);
+		iblSamplerDesc.maxLod = 1.0f;
 		PB::ResourceView iblSampler = m_renderer->GetSampler(iblSamplerDesc);
 
-		PB::ResourceView irradianceView = skyboxView;
-		PB::ResourceView prefilterView = skyboxView;
-		if (m_hdrSkybox)
-		{
-			skyboxViewDesc.m_texture = m_irradianceMap;
-			irradianceView = m_irradianceMap->GetView(skyboxViewDesc);
+		skyboxViewDesc.m_texture = m_irradianceMap->GetTexture();
+		PB::ResourceView irradianceView = m_irradianceMap->GetTexture()->GetView(skyboxViewDesc);
 
-			skyboxViewDesc.m_texture = m_prefilterEnvMap;
-			skyboxViewDesc.m_subresources.m_mipCount = ConvolutedMapDimMipCount;
-			prefilterView = m_prefilterEnvMap->GetView(skyboxViewDesc);
-		}
+		skyboxViewDesc.m_texture = m_prefilterEnvMap->GetTexture();
+		skyboxViewDesc.m_subresources.m_mipCount = m_prefilterEnvMap->GetMipCount();
+		PB::ResourceView prefilterView = m_prefilterEnvMap->GetTexture()->GetView(skyboxViewDesc);
 
 		// Sky
 		if (m_skyboxTexture != nullptr)
@@ -441,7 +400,7 @@ void DeferredLightingPass::SetPointLight(uint32_t index, PB::Float4 position, PB
 		m_pointLightCount = index + 1;
 }
 
-void DeferredLightingPass::SetSkyboxTexture(PBClient::Texture* skyboxTexture, bool isHdr, uint32_t mipCount)
+void DeferredLightingPass::SetSkyboxTexture(PBClient::Texture* skyboxTexture, PBClient::Texture* irradianceMap, PBClient::Texture* prefilterMap)
 {
 	if (m_reusableCmdList) // Record new command list to use the new skybox.
 	{
@@ -449,231 +408,9 @@ void DeferredLightingPass::SetSkyboxTexture(PBClient::Texture* skyboxTexture, bo
 		m_reusableCmdList = nullptr;
 	}
 
-	m_convoluteSkybox = isHdr && (skyboxTexture != m_skyboxTexture);
 	m_skyboxTexture = skyboxTexture;
-	m_skyboxMipCount = mipCount;
-	m_hdrSkybox = isHdr;
-
-	if (m_irradianceMap != nullptr && m_convoluteSkybox)
-	{
-		m_renderer->FreeTexture(m_irradianceMap);
-		m_irradianceMap = nullptr;
-		m_renderer->FreeTexture(m_prefilterEnvMap);
-		m_prefilterEnvMap = nullptr;
-	}
-}
-
-void DeferredLightingPass::ConvoluteSkybox(PB::ICommandContext* cmdContext, EConvolutedMapType type)
-{
-	assert(m_hdrSkybox == true);
-
-	uint32_t convolutedMapDim = type == EConvolutedMapType::IRRADIANCE ? 32 : 512;
-
-	PB::ITexture*& envMap = type == EConvolutedMapType::IRRADIANCE ? m_irradianceMap : m_prefilterEnvMap;
-
-	PB::TextureDesc convolutedSkyboxDesc{};
-	convolutedSkyboxDesc.m_dimension = PB::ETextureDimension::DIMENSION_CUBE;
-	convolutedSkyboxDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
-	convolutedSkyboxDesc.m_width = convolutedMapDim;
-	convolutedSkyboxDesc.m_height = convolutedMapDim;
-	convolutedSkyboxDesc.m_usageStates = PB::ETextureState::COLORTARGET | PB::ETextureState::SAMPLED;
-	convolutedSkyboxDesc.m_mipCount = type == EConvolutedMapType::IRRADIANCE ? 1 : ConvolutedMapDimMipCount;
-	if(!envMap)
-		envMap = m_renderer->AllocateTexture(convolutedSkyboxDesc);
-
-	PB::RenderPass convolutionRp = nullptr;
-	{
-		PB::RenderPassDesc convolutionRpDesc{};
-		convolutionRpDesc.m_attachmentCount = 1;
-		convolutionRpDesc.m_subpassCount = 1;
-
-		auto& attach = convolutionRpDesc.m_attachments[0];
-		attach.m_expectedState = PB::ETextureState::COLORTARGET;
-		attach.m_finalState = PB::ETextureState::SAMPLED;
-		attach.m_format = convolutedSkyboxDesc.m_format;
-		attach.m_loadAction = PB::EAttachmentAction::NONE;
-		attach.m_keepContents = true;
-
-		auto& subpass = convolutionRpDesc.m_subpasses[0];
-		subpass.m_attachments[0].m_attachmentFormat = convolutedSkyboxDesc.m_format;
-		subpass.m_attachments[0].m_attachmentIdx = 0;
-		subpass.m_attachments[0].m_usage = PB::EAttachmentUsage::COLOR;
-
-		convolutionRp = m_renderer->GetRenderPassCache()->GetRenderPass(convolutionRpDesc);
-	}
-
-	CLib::Vector<PB::Framebuffer, 6 * ConvolutedMapDimMipCount> framebuffers{};
-	{
-		for (uint32_t mip = 0; mip < convolutedSkyboxDesc.m_mipCount; ++mip)
-		{
-			for (uint32_t face = 0; face < 6; ++face)
-			{
-				PB::TextureViewDesc rtView{};
-				rtView.m_expectedState = PB::ETextureState::COLORTARGET;
-				rtView.m_format = convolutedSkyboxDesc.m_format;
-				rtView.m_subresources.m_baseMip = mip;
-				rtView.m_subresources.m_firstArrayElement = face;
-				rtView.m_texture = envMap;
-				rtView.m_type = PB::ETextureViewType::VIEW_TYPE_2D;
-
-				PB::FramebufferDesc convolutionFBDesc{};
-				convolutionFBDesc.m_attachmentViews[0] = envMap->GetRenderTargetView(rtView);
-				convolutionFBDesc.m_width = (convolutedSkyboxDesc.m_width >> mip);
-				convolutionFBDesc.m_height = (convolutedSkyboxDesc.m_height >> mip);
-				convolutionFBDesc.m_renderPass = convolutionRp;
-
-				framebuffers.PushBack(m_renderer->GetFramebufferCache()->GetFramebuffer(convolutionFBDesc));
-			}
-		}
-	}
-
-	PB::Pipeline convolutionPipeline = 0;
-	{
-		const char* fragmentShaderName = type == EConvolutedMapType::IRRADIANCE ? "Shaders/GLSL/fs_convolute_env_irradiance_cube" : "Shaders/GLSL/fs_convolute_env_prefilter_cube";
-
-		PB::GraphicsPipelineDesc convolutionPipelineDesc{};
-		convolutionPipelineDesc.m_attachmentCount = 1;
-		convolutionPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS;
-		convolutionPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
-		convolutionPipelineDesc.m_stencilTestEnable = false;
-		convolutionPipelineDesc.m_cullMode = PB::EFaceCullMode::NONE;
-		convolutionPipelineDesc.m_subpass = 0;
-		convolutionPipelineDesc.m_renderPass = convolutionRp;
-		convolutionPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = PBClient::Shader(m_renderer, "Shaders/GLSL/vs_cubegen", m_allocator, true).GetModule();
-		convolutionPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = PBClient::Shader(m_renderer, fragmentShaderName, m_allocator, true).GetModule();
-		convolutionPipelineDesc.m_colorBlendStates[0].m_enableBlending = false;
-
-		convolutionPipeline = m_renderer->GetPipelineCache()->GetPipeline(convolutionPipelineDesc);
-	}
-
-	struct ConvolutionConstants
-	{
-		glm::mat4 m_proj;
-		glm::mat4 m_view;
-	};
-
-	// We will be projecting the sphere map onto each cube face via a render pass for each face.
-	// Since each face is in a different direction, we need a view matrix for each face.
-	glm::mat4 cubeConvolutionViewMatrices[] =
-	{
-	   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), -glm::vec3(0.0f, -1.0f,  0.0f)),
-	   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), -glm::vec3(0.0f, -1.0f,  0.0f)),
-	   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), -glm::vec3(0.0f,  0.0f, 1.0f)),
-	   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), -glm::vec3(0.0f,  0.0f, -1.0f)),
-	   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), -glm::vec3(0.0f, -1.0f,  0.0f)),
-	   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), -glm::vec3(0.0f, -1.0f,  0.0f))
-	};
-
-	CLib::Vector<PB::UniformBufferView, 6> cubeConvolutionConstantsViews{};
-
-	PB::BufferObjectDesc constantsDesc{};
-	constantsDesc.m_bufferSize = sizeof(ConvolutionConstants);
-	constantsDesc.m_usage = PB::EBufferUsage::UNIFORM | PB::EBufferUsage::COPY_DST;
-
-	for (uint32_t face = 0; face < 6; ++face)
-	{
-		PB::IBufferObject*& cubeConvolutionConstants = m_cubeConvolutionConstantsBuffers[face];
-		if (cubeConvolutionConstants == nullptr)
-		{
-			cubeConvolutionConstants = m_renderer->AllocateBuffer(constantsDesc);
-
-			ConvolutionConstants* constantsData = reinterpret_cast<ConvolutionConstants*>(cubeConvolutionConstants->BeginPopulate());
-			constantsData->m_proj = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
-			constantsData->m_view = cubeConvolutionViewMatrices[face];
-			cubeConvolutionConstants->EndPopulate();
-		}
-
-		cubeConvolutionConstantsViews.PushBack(cubeConvolutionConstants->GetViewAsUniformBuffer());
-	}
-
-	struct ConvolutionMaterialConstants
-	{
-		float m_roughness;
-		PB::Float3 m_pad0;
-	};
-	constantsDesc.m_bufferSize = sizeof(ConvolutionMaterialConstants);
-
-	CLib::Vector<PB::UniformBufferView, ConvolutedMapDimMipCount> cubeConvolutionMaterialConstantsViews{};
-	for (uint32_t mip = 0; mip < ConvolutedMapDimMipCount; ++mip)
-	{
-		PB::IBufferObject*& cubeConvolutionMaterialConstants = m_cubeConvolutionMaterialConstantsBuffers[mip];
-		if (cubeConvolutionMaterialConstants == nullptr)
-		{
-			cubeConvolutionMaterialConstants = m_renderer->AllocateBuffer(constantsDesc);
-
-			ConvolutionMaterialConstants* constantsData = reinterpret_cast<ConvolutionMaterialConstants*>(cubeConvolutionMaterialConstants->BeginPopulate());
-			constantsData->m_roughness = float(mip) / (ConvolutedMapDimMipCount - 1);
-			constantsData->m_pad0 = {};
-			cubeConvolutionMaterialConstants->EndPopulate();
-		}
-
-		cubeConvolutionMaterialConstantsViews.PushBack(cubeConvolutionMaterialConstants->GetViewAsUniformBuffer());
-	}
-
-	{
-		PB::TextureViewDesc srcViewDesc{};
-		srcViewDesc.m_texture = m_skyboxTexture->GetTexture();
-		srcViewDesc.m_expectedState = PB::ETextureState::SAMPLED;
-		srcViewDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
-		srcViewDesc.m_type = PB::ETextureViewType::VIEW_TYPE_CUBE;
-		srcViewDesc.m_subresources.m_arrayCount = 1;
-		srcViewDesc.m_subresources.m_mipCount = 1;
-
-		PB::SamplerDesc srcSamplerDesc{};
-		srcSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
-		srcSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::REPEAT;
-		PB::ResourceView srcSampler = m_renderer->GetSampler(srcSamplerDesc);
-
-		PB::ResourceView resources[]
-		{
-			m_skyboxTexture->GetTexture()->GetView(srcViewDesc),
-			srcSampler
-		};
-
-		PB::SubresourceRange subresources{};
-		subresources.m_baseMip = 0;
-		subresources.m_mipCount = convolutedSkyboxDesc.m_mipCount;
-		subresources.m_firstArrayElement = 0;
-		subresources.m_arrayCount = 6;
-
-		cmdContext->CmdTransitionTexture(envMap, PB::ETextureState::NONE, PB::ETextureState::COLORTARGET, subresources);
-
-		// Render each face for each mip level.
-		for (uint32_t mip = 0; mip < convolutedSkyboxDesc.m_mipCount; ++mip)
-		{
-			uint32_t mipWidth = (convolutedSkyboxDesc.m_width >> mip);
-			uint32_t mipHeight = (convolutedSkyboxDesc.m_height >> mip);
-
-			for (uint32_t face = 0; face < 6; ++face)
-			{
-				uint32_t fbIndex = (mip * 6) + face;
-				cmdContext->CmdBeginRenderPass(convolutionRp, mipWidth, mipHeight, framebuffers[fbIndex], nullptr, 0, false);
-
-				cmdContext->CmdBindPipeline(convolutionPipeline);
-				cmdContext->CmdSetViewport({ 0, 0, mipWidth, mipHeight }, 0.0f, 1.0f);
-				cmdContext->CmdSetScissor({ 0, 0, mipWidth, mipHeight });
-
-				PB::UniformBufferView uniformViews[]
-				{
-					cubeConvolutionConstantsViews[face],
-					cubeConvolutionMaterialConstantsViews[mip]
-				};
-
-				PB::BindingLayout bindings{};
-				bindings.m_uniformBufferCount = type == EConvolutedMapType::IRRADIANCE ? 1 : 2;
-				bindings.m_uniformBuffers = uniformViews;
-				bindings.m_resourceCount = _countof(resources);
-				bindings.m_resourceViews = resources;
-
-				cmdContext->CmdBindResources(bindings);
-				cmdContext->CmdDraw(36, 1);
-
-				cmdContext->CmdEndRenderPass();
-			}
-		}
-	}
-
-	m_convoluteSkybox = false;
+	m_irradianceMap = irradianceMap;
+	m_prefilterEnvMap = prefilterMap;
 }
 
 void DeferredLightingPass::GenSpecBDRFLut(PB::ICommandContext* cmdContext)

@@ -1,5 +1,7 @@
 #pragma once
 #include "IRenderer.h"
+#include "AssetEncoder/AssetDatabaseReader.h"
+#include "AssetPipeline/TextureShared.h"
 
 namespace CLib
 {
@@ -18,7 +20,7 @@ namespace PBClient
 			PB::IRenderer* renderer: The renderer this texture will by use.
 			const char* filePath: File path of the image to load.
 		*/
-		Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, bool srgb = true, bool convertToCube = false);
+		Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, bool srgb = true, bool convertToCube = false, bool loadFromDatabase = false);
 
 		/*
 		Constructor: Construct as a cube map where each faces is loaded from a separate file.
@@ -27,6 +29,8 @@ namespace PBClient
 			const char** filePaths: Array of file paths for each cube face.
 		*/
 		Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char** filePaths, bool srgb = true, PB::u32 mipCount = 1);
+
+		Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, AssetPipeline::EConvolutedMapType mapType);
 
 		~Texture();
 
@@ -47,7 +51,11 @@ namespace PBClient
 		*/
 		int GetHeight() const;
 
+		uint32_t GetMipCount() const { return m_mipCount; }
+
 	protected:
+
+		static AssetEncoder::AssetBinaryDatabaseReader s_textureDatabaseLoader;
 
 		void ConvertToCube(bool isHdr);
 
@@ -60,6 +68,7 @@ namespace PBClient
 		int m_width = 0;
 		int m_height = 0;
 		int m_channelCount = 0;
+		uint32_t m_mipCount = 1;
 		bool m_ownsTexture = false;
 	};
 }

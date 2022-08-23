@@ -75,231 +75,6 @@ ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* all
 
 	m_renderGraph = CreateRenderGraph();
 	SetupDrawBatch();
-
-	PB::CommandContextDesc contextDesc{};
-	contextDesc.m_renderer = m_renderer;
-	contextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
-
-	// --------------------------------------------------------------------------------------
-	// Cluster Test
-	/*{
-		CLib::Vector<std::pair<glm::vec3, glm::vec3>> nodes;
-
-		nodes.PushBack
-		({
-			glm::vec3(5.0f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(5.0f, 5.0f, 6.5f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(5.0f, 7.0f, 5.0f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(5.0f, 7.0f, 6.5f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(7.0f, 5.0f, 5.0f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(7.0f, 5.0f, 6.5f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.5f, 5.0f, 5.0f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.5f, 5.0f, 6.5f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.0f, 5.0f, 1.0f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(5.0f, 5.0f, 1.0f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.5f, 6.5f, 5.5f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.5f, 5.0f, 9.4f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.5f, 6.5f, 9.4f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.5f, 5.0f, 10.6f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(10.5f, 6.5f, 10.6f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(5.5f, 5.0f, 10.6f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(5.5f, 6.5f, 10.6f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(7.5f, 5.0f, 8.5f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(7.5f, 6.5f, 8.5f),
-			glm::vec3(1.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(4.0f, 5.0f, 4.0f),
-			glm::vec3(10.0f)
-		});
-
-		nodes.PushBack
-		({
-			glm::vec3(0.0f),
-			glm::vec3(50.0f)
-		});
-
-		m_renderHierarchy->BuildBottomUp(nodes);
-	}*/
-	// --------------------------------------------------------------------------------------
-
-	// --------------------------------------------------------------------------------------
-	// Merge test
-
-	/*m_renderHierarchy->InsertNode(glm::vec3(-3.0f, 0.0f, -3.0f), glm::vec3(3.0f));
-	m_renderHierarchy->InsertNode(glm::vec3(-5.0f, 1.0f, -4.0f), glm::vec3(3.0f));
-
-	m_renderHierarchy->InsertNode(glm::vec3(3.0f, 1.0f, 6.0f), glm::vec3(3.0f));
-	m_renderHierarchy->InsertNode(glm::vec3(4.5f, 2.5f, 7.5f), glm::vec3(3.0f));
-	m_renderHierarchy->InsertNode(glm::vec3(5.0f, 3.0f, 8.0f), glm::vec3(1.0f));
-	m_renderHierarchy->InsertNode(glm::vec3(7.0f, 5.0f, 9.0f), glm::vec3(1.0f));
-	m_renderHierarchy->InsertNode(glm::vec3(3.0f, 1.0f, 6.0f), glm::vec3(1.0f));
-
-	m_renderHierarchy->InsertNode(glm::vec3(5.5f, 3.5f, 8.5f), glm::vec3(1.0f, 15.0f, 1.0f));
-	m_renderHierarchy->InsertNode(glm::vec3(6.5f, 3.5f, 8.5f), glm::vec3(1.0f));
-
-	m_renderHierarchy->InsertNode(glm::vec3(7.5f, 5.0f, 8.5f), glm::vec3(0.1f));
-	m_renderHierarchy->InsertNode(glm::vec3(7.5f, 6.0f, 9.0f), glm::vec3(0.1f));
-	m_renderHierarchy->InsertNode(glm::vec3(8.5f, 5.0f, 6.0f), glm::vec3(0.1f));*/
-
-	// --------------------------------------------------------------------------------------
-	// Force Merge Test
-
-	//m_renderHierarchy->InsertNode(glm::vec3(-2.0f, 0.0f, -5.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-5.0f, 0.0f, -5.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-2.0f, 0.0f, -2.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -4.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -2.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -0.0f), glm::vec3(1.0f));
-	//
-	//m_renderHierarchy->InsertNode(glm::vec3(-10.0f, 0.0f, -10.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-8.0f, 0.0f, -10.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-6.0f, 0.0f, -10.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-4.0f, 0.0f, -10.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-2.0f, 0.0f, -10.0f), glm::vec3(1.0f));
-	//m_renderHierarchy->InsertNode(glm::vec3(-0.0f, 0.0f, -10.0f), glm::vec3(1.0f));
-
-
-	// --------------------------------------------------------------------------------------
-	// Random node layout
-
-	//const uint32_t nodeCount = 20;
-
-	//const glm::vec3 minExtents(1.0f);
-	//const glm::vec3 maxExtents = glm::vec3(2.0f) - minExtents;
-
-	//const glm::vec3 minOrigin(-20.0f, 0.0f, -20.0f);
-	//const glm::vec3 maxOrigin(20.0f, 0.0f, 20.0f);
-
-	//std::default_random_engine rand{};
-	//std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-
-	//CLib::Vector<std::pair<glm::vec3, glm::vec3>> nodes;
-	//nodes.PushBack({ glm::vec3(-30.0f), glm::vec3(60.0f) });
-	//for (uint32_t level = 0; level < 5; ++level)
-	//{
-	//	for (uint32_t i = 0; i < nodeCount; ++i)
-	//	{
-	//		glm::vec3 nodeExtents
-	//		{
-	//			minExtents.x + (dist(rand) * maxExtents.x),
-	//			minExtents.y + (dist(rand) * maxExtents.y),
-	//			minExtents.z + (dist(rand) * maxExtents.z)
-	//		};
-
-	//		glm::vec3 nodeOrigin
-	//		{
-	//			minOrigin.x + ((maxOrigin.x - minOrigin.x) * dist(rand)),
-	//			//minOrigin.y + ((maxOrigin.y - minOrigin.y) * dist(rand)),
-	//			level * 3.0f,
-	//			minOrigin.z + ((maxOrigin.z - minOrigin.z) * dist(rand))
-	//		};
-
-	//		nodes.PushBack({ nodeOrigin, nodeExtents });
-	//	}
-	//}
-
-	//nodes.PushBack({ glm::vec3(-1.2f, 0.0f, -2.5f), glm::vec3(2.4f, 1.5f, 5.0f) });
-	//nodes.PushBack({ glm::vec3(-0.6f, 0.0f, -1.25f), glm::vec3(1.2f, 0.75f, 2.5f) });
-
-	//nodes.PushBack({ glm::vec3(-2.5f), glm::vec3(2.5f) });
-	//nodes.PushBack({ glm::vec3(-7.5f, -2.5f, -7.5f), glm::vec3(2.5f) });
-
-	//m_renderHierarchy->BuildBottomUp(nodes);
-
-	// --------------------------------------------------------------------------------------
 }
 
 ClientPlayground::~ClientPlayground()
@@ -496,31 +271,31 @@ void ClientPlayground::InitResources()
 	m_glassMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_glass", m_vertexPool);
 	m_planeMesh = m_allocator->Alloc<PBClient::Mesh>(m_renderer, "Meshes/Primitives/plane", m_vertexPool);
 
-	m_paintTextures[0] = m_allocator->Alloc<PBClient::Texture> (m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_diffuse.tga");
-	m_detailsTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_diffuse.tga");
-	m_glassTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_diffuse.tga");
+	m_paintTextures[0] = m_allocator->Alloc<PBClient::Texture> (m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_diffuse", true, false, true);
+	m_detailsTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_diffuse", true, false, true);
+	m_glassTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_diffuse", true, false, true);
 
-	m_paintTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_normal.tga", false);
-	m_detailsTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_normal.tga", false);
-	m_glassTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_normal.tga", false);
+	m_paintTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_normal", false, false, true);
+	m_detailsTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_normal", false, false, true);
+	m_glassTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_normal", false, false, true);
 
-	m_paintTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_specular_v2.tga");
-	m_detailsTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_specular.tga");
-	m_glassTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_specular.tga");
+	m_paintTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_specular_v2", true, false, true);
+	m_detailsTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_specular", true, false, true);
+	m_glassTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_specular", true, false, true);
 
-	m_paintTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/paint2048/m_spinner_paint_roughness.tga", false);
-	m_detailsTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_roughness.tga", false);
-	m_glassTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_roughness.tga", false);
+	m_paintTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_roughness", false, false, true);
+	m_detailsTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_roughness", false, false, true);
+	m_glassTextures[3] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_roughness", false, false, true);
 
-	m_detailsTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/details2048/m_spinner_details_emissive.tga");
-	m_glassTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Spinner/glass2048/m_spinner_glass_emissive.tga");
+	m_detailsTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_emissive", true, false, true);
+	m_glassTextures[4] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_emissive", true, false, true);
 
-	m_metalTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Metal/diffuse.tga");
-	m_metalTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Metal/normal.tga", false);
+	m_metalTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Metal/diffuse", true, false, true);
+	m_metalTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Metal/normal", false, false, true);
 
-	m_debugTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Debug/debug_albedo.tga");
-	m_debugTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Debug/debug_roughness.tga", false);
-	m_debugTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Debug/debug_specular.tga");
+	m_debugTextures[0] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Debug/debug_albedo", true, false, true);
+	m_debugTextures[1] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Debug/debug_roughness", false, false, true);
+	m_debugTextures[2] = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "Textures/Debug/debug_specular", true, false, true);
 
 	for (int i = 0; i < _countof(m_paintTextures); ++i)
 		m_paintViews[i] = m_paintTextures[i]->GetTexture()->GetDefaultSRV();
@@ -545,7 +320,11 @@ void ClientPlayground::InitResources()
 		"../Assets/Textures/Skybox/back.jpg"
 	};
 
-	m_hdrSkyTexture = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, "../Assets/Textures/Sky/Arches_E_PineTree_3k.hdr", true, true);
+	const char* envMapName = "Textures/Sky/Arches_E_PineTree_3k";
+
+	m_hdrSkyTexture = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, envMapName, AssetPipeline::EConvolutedMapType::SKY);
+	m_skyIrradianceMap = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, envMapName, AssetPipeline::EConvolutedMapType::IRRADIANCE);
+	m_skyPrefilterMap = m_allocator->Alloc<PBClient::Texture>(m_renderer, m_allocator, envMapName, AssetPipeline::EConvolutedMapType::PREFILTER);
 
 	m_fontTexture = m_allocator->Alloc<PBClient::FontTexture>(m_renderer, "../Assets/Fonts/arial.ttf", 32);
 
@@ -640,6 +419,8 @@ void ClientPlayground::DestroyResources()
 	}
 
 	m_allocator->Free(m_hdrSkyTexture);
+	m_allocator->Free(m_skyIrradianceMap);
+	m_allocator->Free(m_skyPrefilterMap);
 
 	m_allocator->Free(m_paintMesh);
 	m_allocator->Free(m_detailsMesh);
@@ -798,7 +579,7 @@ inline RenderGraph* ClientPlayground::CreateRenderGraph()
 		glm::vec3 sunColor = glm::vec3(2.4f);
 
 		m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { sunColor.r, sunColor.g, sunColor.b, 1.0f });
-		m_deferredLightingPass->SetSkyboxTexture(m_hdrSkyTexture, true, 1);
+		m_deferredLightingPass->SetSkyboxTexture(m_hdrSkyTexture, m_skyIrradianceMap, m_skyPrefilterMap);
 	}
 
 	return output;

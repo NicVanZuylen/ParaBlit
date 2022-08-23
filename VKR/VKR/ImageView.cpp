@@ -237,6 +237,7 @@ namespace PB
 		}
 		internalTex->RegisterView(desc);
 
+		viewData.m_uniqueId = m_nextTextureUniqueId++;
 		return viewData;
 	}
 

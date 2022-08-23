@@ -73,8 +73,9 @@ namespace PB
 		SAMPLED			=	1 << 4,
 		COPY_SRC		=	1 << 5,
 		COPY_DST		=	1 << 6,
-		PRESENT			=	1 << 7,
-		MAX				=	1 << 8
+		READBACK		=	1 << 7,
+		PRESENT			=	1 << 8,
+		MAX				=	1 << 9
 	};
 	PB_DEFINE_ENUM_FIELD(TextureStateFlags, ETextureState, u16)
 
@@ -284,12 +285,26 @@ namespace PB
 	// Defines a selection of subresources within a resource.
 	struct SubresourceRange
 	{
+		bool operator == (const SubresourceRange& other) const;
+
+		static SubresourceRange All()
+		{
+			SubresourceRange ret;
+			ret.m_baseMip = 0;
+			ret.m_mipCount = ~u16(0);
+			ret.m_firstArrayElement = 0;
+			ret.m_arrayCount = ~u16(0);
+
+			return ret;
+		}
+
+		bool AllMipLevels() const { return m_mipCount == 0xFFFF; }
+		bool AllArrayLayers() const { return m_arrayCount == 0xFFFF; }
+
 		u16 m_baseMip = 0;
 		u16 m_mipCount = 1;
 		u16 m_firstArrayElement = 0;
 		u16 m_arrayCount = 1;
-
-		bool operator == (const SubresourceRange& other) const;
 	};
 
 	// Contains views for binding to a pipeline state. 

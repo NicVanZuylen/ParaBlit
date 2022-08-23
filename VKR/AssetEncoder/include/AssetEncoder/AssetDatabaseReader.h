@@ -46,11 +46,11 @@ namespace AssetEncoder
 
 		ASSET_ENCODER_API void OpenFile(const char* databasePath);
 
-		ASSET_ENCODER_API bool HasOpenFile();
+		ASSET_ENCODER_API bool HasOpenFile() const;
 
-		ASSET_ENCODER_API AssetMeta GetAssetInfo(const char* name);
+		ASSET_ENCODER_API AssetMeta GetAssetInfo(const char* name) const;
 
-		ASSET_ENCODER_API void GetAssetUserData(const AssetMeta& asset, void* outData);
+		ASSET_ENCODER_API void GetAssetUserData(const AssetMeta& asset, void* outData) const;
 
 		ASSET_ENCODER_API void GetAssetBinary(const char* assetName, void* storage);
 

@@ -9,6 +9,16 @@ namespace PB
 	class IRenderer;
 	class ITexture;
 	class IBufferObject;
+	class IBindingCache;
+
+	class ICommandList
+	{
+	public:
+
+		PARABLIT_API ICommandList() = default;
+
+		PARABLIT_API ~ICommandList() = default;
+	};
 
 	struct ClearDesc
 	{
@@ -37,16 +47,7 @@ namespace PB
 		PB_INDEX_TYPE_UINT32
 	};
 
-	class ICommandList
-	{
-	public:
-
-		PARABLIT_API ICommandList() = default;
-
-		PARABLIT_API ~ICommandList() = default;
-	};
-
-	class IBindingCache;
+	struct TextureDataDesc;
 
 	class ICommandContext
 	{
@@ -89,7 +90,7 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) = 0;
 
-		PARABLIT_INTERFACE void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange = {}) = 0;
+		PARABLIT_INTERFACE void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange = SubresourceRange::All()) = 0;
 
 		/*
 		Description: Barrier which waits on all graphics work to complete.
@@ -132,6 +133,18 @@ namespace PB
 		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) = 0;
 
 		PARABLIT_INTERFACE void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) = 0;
+
+		PARABLIT_INTERFACE void CmdCopyTextureSubresource(ITexture* src, ITexture* dst, u16 srcMipLevel = 0, u16 srcArrayLayer = 0, u16 dstMipLevel = 0, u16 dstArrayLayer = 0) = 0;
+
+		/*
+		Description: Copy selected subresources from a texture into a buffer.
+		Param:
+			ITexture* src: Source texture.
+			IBufferObject* dst: Destination buffer.
+			const SubresourceRange& subresources: Defines subresources to copy into dst buffer.
+			TextureDataDesc* outSubresourceData: Optional - If non-null, is expected to be the amount of subresources to copy in size. Returns subresource offset in data pointer.
+		*/
+		PARABLIT_INTERFACE void CmdCopyTextureToBuffer(ITexture* src, PB::IBufferObject* dst, const PB::SubresourceRange& subresources, TextureDataDesc* outSubresourceData) = 0;
 
 		PARABLIT_INTERFACE void CmdExecuteList(const ICommandList* list) = 0;
 	};

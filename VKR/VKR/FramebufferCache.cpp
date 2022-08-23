@@ -22,9 +22,6 @@ namespace PB
 
 	size_t FramebufferDescHasher::operator()(const FramebufferDesc& desc) const
 	{
-		//auto descHash = MurmurHash3_x64_64(&desc, static_cast<int>(sizeof(FramebufferDesc) - sizeof(FramebufferDesc::m_attachmentViews)), 0);
-		//auto attachHash = MurmurHash3_x64_64(desc.m_attachmentViews, static_cast<int>(sizeof(RenderTargetView) * desc.m_attachmentCount), descHash);
-		//return MurmurHash3_x64_64(&attachHash, sizeof(u64), descHash);
 		return MurmurHash3_x64_64(&desc, sizeof(FramebufferDesc), 0);
 	}
 
@@ -36,7 +33,7 @@ namespace PB
 	void FramebufferCache::Destroy()
 	{
 		for (auto& framebuffer : m_cache)
-			vkDestroyFramebuffer(m_device->GetHandle(), reinterpret_cast<VkFramebuffer>(framebuffer.second), nullptr);
+			vkDestroyFramebuffer(m_device->GetHandle(), reinterpret_cast<VkFramebuffer>(framebuffer.second.m_framebuffer), nullptr);
 		m_cache.clear();
 		m_device = nullptr;
 	}
@@ -46,22 +43,48 @@ namespace PB
 		auto it = m_cache.find(desc);
 		if (it == m_cache.end())
 		{
-			auto newFramebuffer = CreateFramebuffer(desc);
-			m_cache[desc] = newFramebuffer;
-			return newFramebuffer;
+			FramebufferData& data = m_cache[desc];
+			CreateFramebuffer(data, desc);
+			return data.m_framebuffer;
 		}
 		else
-			return it->second;
+		{
+			auto& data = it->second;
+			bool validFramebuffer = true;
+			for (u32 i = 0; i < _countof(FramebufferDesc::m_attachmentViews); ++i)
+			{
+				u32 id = data.m_viewUniqueIds[i];
+				if (desc.m_attachmentViews[i] == 0)
+					break;
+
+				u32 otherId = reinterpret_cast<TextureViewData*>(desc.m_attachmentViews[i])->m_uniqueId;
+				validFramebuffer &= (id == otherId);
+			}
+
+			if (!validFramebuffer)
+			{
+				// This framebuffer probably references invalid views. So it should be re-created.
+				vkDestroyFramebuffer(m_device->GetHandle(), reinterpret_cast<VkFramebuffer>(data.m_framebuffer), nullptr);
+				data.m_framebuffer = nullptr;
+
+				CreateFramebuffer(data, desc);
+			}
+
+			return data.m_framebuffer;
+		}
 	}
 
-	Framebuffer FramebufferCache::CreateFramebuffer(const FramebufferDesc& desc)
+	void FramebufferCache::CreateFramebuffer(FramebufferData& outFramebufferData, const FramebufferDesc& desc)
 	{
 		CLib::Vector<VkImageView, 8> views;
 		for (auto& view : desc.m_attachmentViews)
 		{
 			if (view == 0)
 				break;
-			views.PushBack(reinterpret_cast<TextureViewData*>(view)->m_view);
+
+			auto* viewData = reinterpret_cast<TextureViewData*>(view);
+			outFramebufferData.m_viewUniqueIds.PushBack(viewData->m_uniqueId);
+			views.PushBack(viewData->m_view);
 		}
 
 		VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, nullptr };
@@ -77,6 +100,7 @@ namespace PB
 		PB_ERROR_CHECK(vkCreateFramebuffer(m_device->GetHandle(), &framebufferInfo, nullptr, &framebuffer));
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(framebuffer);
-		return framebuffer;
+		
+		outFramebufferData.m_framebuffer = framebuffer;
 	}
 }

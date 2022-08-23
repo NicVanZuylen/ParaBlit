@@ -25,9 +25,15 @@ namespace PB
 
 	private:
 
-		PARABLIT_API Framebuffer CreateFramebuffer(const FramebufferDesc& desc);
+		struct FramebufferData
+		{
+			Framebuffer m_framebuffer = 0;
+			CLib::Vector<u32> m_viewUniqueIds{};
+		};
+
+		PARABLIT_API void CreateFramebuffer(FramebufferData& outFramebufferData, const FramebufferDesc& desc);
 
 		Device* m_device = nullptr;
-		std::unordered_map<FramebufferDesc, Framebuffer, FramebufferDescHasher> m_cache;
+		std::unordered_map<FramebufferDesc, FramebufferData, FramebufferDescHasher> m_cache;
 	};
 }

@@ -47,6 +47,7 @@ namespace PB
 		TextureStateFlags m_usageStates = ETextureState::NONE;
 		ETextureDimension m_dimension = ETextureDimension::DIMENSION_2D;
 		TextureInitOptionFlags m_initOptions = ETextureInitOptions::PB_TEXTURE_INIT_NONE;
+		EMemoryType m_memoryType = EMemoryType::DEVICE_LOCAL;
 		ETextureFormat m_format = ETextureFormat::UNKNOWN;
 		bool m_aliasOther = false;
 		u32 m_width = 0;
@@ -139,6 +140,12 @@ namespace PB
 			ITexture* baseTexture: The base texture to alias.
 		*/
 		PARABLIT_INTERFACE void AliasTexture(ITexture* baseTexture) = 0;
+
+		PARABLIT_INTERFACE void GetMemorySizeAndAlign(u32& outSizeBytes, u32& outAlignBytes) = 0;
+
+		PARABLIT_INTERFACE u8* MapReadback() = 0;
+
+		PARABLIT_INTERFACE void UnmapReadback() = 0;
 
 		PARABLIT_INTERFACE ResourceView GetDefaultSRV() = 0;
 

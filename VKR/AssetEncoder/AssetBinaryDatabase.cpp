@@ -4,6 +4,7 @@
 #include <exception>
 #include <iostream>
 #include <filesystem>
+#include <cmath>
 
 namespace AssetEncoder
 {
@@ -27,17 +28,19 @@ namespace AssetEncoder
 		memcpy(&strMem[stringOffset], assetName, stringLength); // Copy string
 		++m_stringCount;
 
-		void* assetPtr = m_assetAllocator.Alloc(uint32_t(binarySize), 128);
-
-		size_t stringHeaderOffset = reinterpret_cast<size_t>(strMem) - reinterpret_cast<size_t>(m_stringPageHandles.Back());
+		size_t stringHeaderOffset = m_stringAllocator.GetAllocationOffsetInPage(strMem);
 		size_t stringHeaderLocation = ((m_stringPageHandles.Count() - 1) * StringCachePageSize) + stringHeaderOffset;
-		size_t assetOffset = reinterpret_cast<size_t>(assetPtr) - reinterpret_cast<size_t>(m_assetPageHandles.Back());
-		
+
+		void* assetPtr = m_assetAllocator.Alloc(uint32_t(binarySize), 128);
+		void* pageAddress = m_assetAllocator.GetAllocationPageAddress(assetPtr);
+		size_t assetLocalOffset = reinterpret_cast<uint8_t*>(assetPtr) - reinterpret_cast<uint8_t*>(pageAddress);
+		size_t pageOffset = m_assetPageHandleMap.at(pageAddress).second.m_offset;
+
 		DatabaseStringHeader* stringHeader = reinterpret_cast<DatabaseStringHeader*>(strMem);
 		stringHeader->m_stringSize = uint32_t(stringLength);
 		stringHeader->m_stride = 0;
 		stringHeader->m_asset.m_binarySize = binarySize;
-		stringHeader->m_asset.m_location = ((m_assetPageHandles.Count() - 1) * AssetCachePageSize) + assetOffset;
+		stringHeader->m_asset.m_location = pageOffset + assetLocalOffset;
 		stringHeader->m_asset.m_assetSize = binarySize;
 		stringHeader->m_asset.m_dateModified = date;
 		stringHeader->m_asset.m_dateBuilt = std::chrono::duration_cast<std::chrono::seconds>(std::filesystem::_File_time_clock::now().time_since_epoch()).count();;
@@ -86,26 +89,28 @@ namespace AssetEncoder
 			// Write strings...
 			size_t stringCount = 0;
 			currentPos = index.m_stringBegin;
-			for (auto& stringPage : m_stringPageHandles)
+			for (auto& [page, pageData] : m_stringPageHandles)
 			{
 				++stringCount;
 
 				dbFile.seekp(currentPos);
-				dbFile.write(reinterpret_cast<const char*>(stringPage), StringCachePageSize);
-				currentPos += StringCachePageSize;
-				currentSize += StringCachePageSize;
+				dbFile.write(reinterpret_cast<const char*>(page), pageData.m_size);
+				currentPos += pageData.m_size;
+				currentSize += pageData.m_size;
 			}
 			index.m_stringBlockSize = currentSize;
 			currentSize = 0;
 
 			// Write asset binaries...
 			index.m_assetBegin = currentPos;
-			for (auto& assetPage : m_assetPageHandles)
+			for (auto& [page, pageData] : m_assetPageHandleVector)
 			{
+				assert(pageData.m_offset == size_t(currentPos) - index.m_assetBegin);
+
 				dbFile.seekp(currentPos);
-				dbFile.write(reinterpret_cast<const char*>(assetPage), AssetCachePageSize);
-				currentPos += AssetCachePageSize;
-				currentSize += AssetCachePageSize;
+				dbFile.write(reinterpret_cast<const char*>(page), pageData.m_size);
+				currentPos += pageData.m_size;
+				currentSize += pageData.m_size;
 			}
 			index.m_assetBlockSize = currentSize;
 
@@ -117,5 +122,38 @@ namespace AssetEncoder
 		}
 
 		dbFile.close();
+	}
+
+	void* AssetBinaryDatabaseWriter::StringPageAlloc(void* context, uint32_t requestedMinSize, uint32_t& outSize)
+	{
+		outSize = StringCachePageSize;
+		void* newPage = malloc(outSize);
+		AssetBinaryDatabaseWriter* db = reinterpret_cast<AssetBinaryDatabaseWriter*>(context);
+		PageData data{ outSize, 0 };
+		db->m_stringPageHandles.PushBack({ newPage, data });
+		return newPage;
+	}
+
+	void* AssetBinaryDatabaseWriter::AssetPageAlloc(void* context, uint32_t requestedMinSize, uint32_t& outSize)
+	{
+		if (requestedMinSize > AssetCachePageSize && requestedMinSize % AssetCachePageSize > 0)
+		{
+			outSize = ((requestedMinSize / AssetCachePageSize) + 1) * AssetCachePageSize;
+		}
+		else
+		{
+			outSize = std::max<uint32_t>(requestedMinSize, uint32_t(AssetCachePageSize));
+		}
+
+		void* newPage = malloc(outSize);
+		AssetBinaryDatabaseWriter* db = reinterpret_cast<AssetBinaryDatabaseWriter*>(context);
+
+		PageData data{ outSize, db->m_currentAssetPageOffset };
+		PageHandle newHandle{ newPage, data };
+		db->m_assetPageHandleMap.insert({ newPage, newHandle });
+		db->m_assetPageHandleVector.PushBack(newHandle);
+		db->m_currentAssetPageOffset += outSize;
+		
+		return newPage;
 	}
 }
