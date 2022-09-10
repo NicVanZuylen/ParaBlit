@@ -2,6 +2,8 @@
 #include "PipelineShader.h"
 #include "ICommandContext.h"
 
+#include "LightningBC7.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -12,6 +14,8 @@
 #pragma warning(pop)
 
 #include <CLib/String.h>
+
+#include <compressonator.h>
 
 namespace AssetPipeline
 {
@@ -36,10 +40,31 @@ namespace AssetPipeline
 
 		for (auto& asset : assetStatus)
 		{
-			if (asset.m_extension == ".hdr")
+			AssetPropertyFile propertyFile(asset.m_propertyFilePath.c_str(), "Texture");
+			if(asset.m_hasPropertyFile == false)
 			{
-				// We're currently encoding HDR textures with the assumption that they're sphere environment maps (this is temporary).
-				// This case needs special treatment since environment maps consist of two texture assets with different names from the file.
+				// Add template property file.
+				propertyFile.SetBooleanProperty("ignoreHdr", false);
+				propertyFile.SetBooleanProperty("isSkybox", false);
+				propertyFile.SetBooleanProperty("isEnvironmentMap", false);
+				propertyFile.SetBooleanProperty("compress", true);
+				propertyFile.SetBooleanProperty("srgb", true);
+				propertyFile.SetIntegerProperty("mipCount", 1);
+				propertyFile.SetIntegerProperty("arrayCount", 1);
+				propertyFile.SetStringProperty("compressionFormat", "BC7");
+				propertyFile.Save();
+			}
+			else
+			{
+				propertyFile.Load();
+			}
+
+			if (propertyFile.GetBooleanProperty("isEnvironmentMap", false) == true)
+			{
+				// Environment map path.
+
+				std::string skyboxName = asset.m_dbPath + "_sky";
+				auto skyboxInfo = m_dbReader->GetAssetInfo(skyboxName.c_str());
 
 				std::string irradianceName = asset.m_dbPath + "_env_irradiance";
 				auto irradianceInfo = m_dbReader->GetAssetInfo(irradianceName.c_str());
@@ -49,18 +74,25 @@ namespace AssetPipeline
 
 				bool outdated = irradianceInfo.m_binarySize == 0 
 					|| prefilterInfo.m_binarySize == 0 
+					|| (skyboxInfo.m_dateModified < asset.m_lastModifiedTime)
 					|| (irradianceInfo.m_dateModified < asset.m_lastModifiedTime)
 					|| (prefilterInfo.m_dateModified < asset.m_lastModifiedTime);
 
 				if (outdated)
 				{
-					EncodeEnvironmentMap(asset);
+					EncodeEnvironmentMap(asset, propertyFile);
 					FlagAsModified();
+				}
+				else
+				{
+					WriteUnmodifiedAsset(skyboxName.c_str());
+					WriteUnmodifiedAsset(irradianceName.c_str());
+					WriteUnmodifiedAsset(prefilterName.c_str());
 				}
 			}
 			else if (asset.m_outdated)
 			{
-				EncodeUncompressedTexture(asset);
+				EncodeUncompressedTexture(asset, propertyFile);
 				FlagAsModified();
 			}
 			else
@@ -102,12 +134,45 @@ namespace AssetPipeline
 		}
 	}
 
-	void Texture2DEncoder::EncodeUncompressedTexture(const AssetStatus& asset)
+	PB::ETextureFormat FormatStringToFormat(const char* str, bool srgb)
+	{
+		if (strcmp(str, "BC3/5") == 0)
+			return srgb ? PB::ETextureFormat::BC3_SRGB : PB::ETextureFormat::BC5_UNORM;
+		else if (strcmp(str, "BC7") == 0)
+			return srgb ? PB::ETextureFormat::BC7_SRGB : PB::ETextureFormat::BC7_UNORM;
+
+
+		return srgb ? PB::ETextureFormat::BC3_SRGB : PB::ETextureFormat::BC5_UNORM;
+	}
+
+	CMP_FORMAT PBFormatToCMPFormat(PB::ETextureFormat fmt)
+	{
+		switch (fmt)
+		{
+		case PB::ETextureFormat::BC5_UNORM:
+			return CMP_FORMAT_BC5;
+		case PB::ETextureFormat::BC3_SRGB:
+			return CMP_FORMAT_BC3;
+		case PB::ETextureFormat::BC6H_RGB_U16F:
+			return CMP_FORMAT_BC6H;
+		case PB::ETextureFormat::BC6H_RGB_S16F:
+			return CMP_FORMAT_BC6H_SF;
+		case PB::ETextureFormat::BC7_UNORM:
+		case PB::ETextureFormat::BC7_SRGB:
+			return CMP_FORMAT_BC7;
+		default:
+			break;
+		}
+		return CMP_FORMAT_BC5;
+	}
+
+	void Texture2DEncoder::EncodeUncompressedTexture(const AssetStatus& asset, const AssetPropertyFile& properties)
 	{
 		// Uncompressed texture encoding path. Encodes RGBA channels in SDR or HDR if supported.
 
 		void* data = nullptr;
-		bool isHdr = stbi_is_hdr(asset.m_fullPath.c_str()) > 0;
+		bool isHdr = stbi_is_hdr(asset.m_fullPath.c_str()) > 0 && properties.GetBooleanProperty("ignoreHdr", false) == false;
+		bool srgb = properties.GetBooleanProperty("srgb", false);
 		int channelCount = 0;
 		int width = 0;
 		int height = 0;
@@ -135,12 +200,33 @@ namespace AssetPipeline
 		metaData.m_arraySize = 1;
 		metaData.m_isHdr = isHdr;
 
-		size_t textureDataSize = isHdr ? (width * height * sizeof(float) * channelCount) : (width * height * sizeof(uint32_t));
+		uint32_t textureDataSize = isHdr ? (width * height * sizeof(float) * channelCount) : (width * height * sizeof(uint32_t));
+		CMP_Texture srcTex{};
+		srcTex.dwSize = sizeof(CMP_Texture);
+		srcTex.pData = reinterpret_cast<CMP_BYTE*>(data);
+		srcTex.dwDataSize = textureDataSize;
+		srcTex.dwWidth = width;
+		srcTex.dwHeight = height;
+		srcTex.dwPitch = 0;
+		srcTex.format = CMP_FORMAT_RGBA_8888;
 
 		char* userData = nullptr;
-		uint8_t* outputData = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), sizeof(TextureMetadata), textureDataSize, asset.m_lastModifiedTime, &userData));
+		if (properties.GetBooleanProperty("compress", false))
+		{
+			size_t compressedTextureDataSize = LightningBC7::CalcBC7TextureSizeBytes(width, height);
+			metaData.m_format = FormatStringToFormat(properties.GetStringProperty("compressionFormat", "BC7"), srgb);
+
+			uint8_t* outputData = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), sizeof(TextureMetadata), compressedTextureDataSize, asset.m_lastModifiedTime, &userData));
+			LightningBC7::CompressBC7(data, outputData, width, height);
+		}
+		else
+		{
+			metaData.m_format = srgb ? PB::ETextureFormat::R8G8B8A8_SRGB : PB::ETextureFormat::R8G8B8A8_UNORM;
+
+			uint8_t* outputData = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), sizeof(TextureMetadata), textureDataSize, asset.m_lastModifiedTime, &userData));
+			memcpy(outputData, data, textureDataSize);
+		}
 		memcpy(userData, &metaData, sizeof(TextureMetadata));
-		memcpy(outputData, data, textureDataSize);
 
 		stbi_image_free(data);
 
@@ -518,8 +604,10 @@ namespace AssetPipeline
 		return cubeTex;
 	}
 
-	void Texture2DEncoder::EncodeEnvironmentMap(const AssetStatus& asset)
+	void Texture2DEncoder::EncodeEnvironmentMap(const AssetStatus& asset, const AssetPropertyFile& properties)
 	{
+		printf_s("%s: Encoding environment map: %s\n", m_name.c_str(), asset.m_dbPath.c_str());
+
 		void* data = nullptr;
 		int channelCount = 0;
 		int width = 0;
@@ -729,7 +817,9 @@ namespace AssetPipeline
 		m_renderer->FreeTexture(irradianceMap);
 		m_renderer->FreeTexture(prefilterMap);
 
-		// Copy readback data...
+		// Copy readback data and write assets...
+
+		bool compress = properties.GetBooleanProperty("compress", false);
 
 		// Skybox asset:
 		{
@@ -739,6 +829,25 @@ namespace AssetPipeline
 			PB::u32 readbackFaceSize;
 			PB::u32 readbackFaceAlign;
 			skyReadbackTextures[0]->GetMemorySizeAndAlign(readbackFaceSize, readbackFaceAlign);
+
+			CMP_Texture srcFace{};
+			srcFace.dwSize = sizeof(CMP_Texture);
+			srcFace.dwDataSize = readbackFaceSize;
+			srcFace.dwWidth = SkyboxDimensions;
+			srcFace.dwHeight = SkyboxDimensions;
+			srcFace.dwPitch = 0;
+			srcFace.format = CMP_FORMAT_ARGB_16F;
+
+			PB::u32 compressedFaceDataSize = 0;
+			CMP_Texture compressedFaceTex{};
+			compressedFaceTex.dwSize = sizeof(CMP_Texture);
+			compressedFaceTex.dwWidth = SkyboxDimensions;
+			compressedFaceTex.dwHeight = SkyboxDimensions;
+			compressedFaceTex.dwPitch = 0;
+			compressedFaceTex.format = PBFormatToCMPFormat(PB::ETextureFormat::BC6H_RGB_U16F);
+			compressedFaceTex.dwDataSize = compressedFaceDataSize = CMP_CalculateBufferSize(&compressedFaceTex);
+
+			readbackFaceSize = compress ? compressedFaceDataSize : readbackFaceSize;
 
 			const uint32_t skyboxFaceAlign = 1024;
 			const uint32_t roundedSize = readbackFaceSize + (readbackFaceSize % skyboxFaceAlign);
@@ -752,12 +861,31 @@ namespace AssetPipeline
 			metaData->m_mipCount = 1;
 			metaData->m_mapType = EConvolutedMapType::SKY;
 			metaData->m_arrayLayerSize = readbackFaceSize;
+			metaData->m_compressed = compress;
+
+			CMP_CompressOptions compressOptions{};
+			compressOptions.dwSize = sizeof(CMP_CompressOptions);
+			compressOptions.fquality = 0.05f;
+			compressOptions.dwnumThreads = 16;
 
 			for (uint32_t face = 0; face < 6; ++face)
 			{
 				PB::ITexture* readback = skyReadbackTextures[face];
 				PB::u8* mappedData = readback->MapReadback();
-				memcpy(&outData[face * roundedSize], mappedData, readbackFaceSize);
+
+				if (compress)
+				{
+					printf_s("%s:	> Compressing Skybox face: %u...\n", m_name.c_str(), face);
+
+					srcFace.pData = mappedData;
+					compressedFaceTex.pData = &outData[face * roundedSize];
+					CMP_ConvertTexture(&srcFace, &compressedFaceTex, &compressOptions, {});
+				}
+				else
+				{
+					memcpy(&outData[face * roundedSize], mappedData, readbackFaceSize);
+				}
+
 				readback->UnmapReadback();
 			}
 		}
@@ -767,6 +895,7 @@ namespace AssetPipeline
 			std::string irradianceMapName = asset.m_dbPath + "_env_irradiance";
 
 			// All faces will have the same size and align, so just retrieve from the first.
+			// Don't bother compressing the irradiance map, it should already be very small.
 			PB::u32 readbackFaceSize;
 			PB::u32 readbackFaceAlign;
 			irradianceReadbackTextures[0]->GetMemorySizeAndAlign(readbackFaceSize, readbackFaceAlign);
@@ -783,6 +912,7 @@ namespace AssetPipeline
 			metaData->m_mipCount = 1;
 			metaData->m_mapType = EConvolutedMapType::IRRADIANCE;
 			metaData->m_arrayLayerSize = readbackFaceSize;
+			metaData->m_compressed = false;
 
 			for (uint32_t face = 0; face < 6; ++face)
 			{
@@ -797,26 +927,53 @@ namespace AssetPipeline
 		{
 			const uint32_t prefilterSubresourceAlign = 4096;
 
+			CMP_Texture srcFace{};
+			srcFace.dwSize = sizeof(CMP_Texture);
+			srcFace.dwDataSize = 0;
+			srcFace.dwWidth = 0;
+			srcFace.dwHeight = 0;
+			srcFace.dwPitch = 0;
+			srcFace.format = CMP_FORMAT_ARGB_16F;
+
 			PB::u32 prefilterTotalSize = 0;
 			PB::u32 mipChainSize = 0;
 			PB::u32 mipSizes[ConvolutionMipmapCount];
 			PB::u32 mipAlignedSizes[ConvolutionMipmapCount];
+
+			CMP_Texture subresourceTex{};
+			subresourceTex.dwSize = sizeof(CMP_Texture);
+			subresourceTex.format = PBFormatToCMPFormat(PB::ETextureFormat::BC6H_RGB_U16F);
+			subresourceTex.dwWidth = 0;
+			subresourceTex.dwHeight = 0;
+			subresourceTex.dwPitch = 0;
 			for (uint32_t layer = 0; layer < 6; ++layer)
 			{
 				for (uint32_t mip = 0; mip < ConvolutionMipmapCount; ++mip)
 				{
 					PB::ITexture* readback = prefilterReadbackTextures[(layer * ConvolutionMipmapCount) + mip];
 
-					PB::u32 readbackSize;
-					PB::u32 readbackAlign;
+					PB::u32 readbackSize = 0;
+					PB::u32 readbackAlign = 0;
 					readback->GetMemorySizeAndAlign(readbackSize, readbackAlign);
+
+					if (layer == 0)
+					{
+						mipSizes[mip] = readbackSize;
+					}
+
+					if (compress)
+					{
+						subresourceTex.dwWidth = PrefilterMapDimensions >> mip;
+						subresourceTex.dwHeight = PrefilterMapDimensions >> mip;
+
+						readbackSize = CMP_CalculateBufferSize(&subresourceTex);
+					}
 
 					const uint32_t roundedSize = readbackSize + (readbackSize % prefilterSubresourceAlign);
 					prefilterTotalSize += roundedSize;
 
 					if (layer == 0)
 					{
-						mipSizes[mip] = readbackSize;
 						mipAlignedSizes[mip] = roundedSize;
 						mipChainSize += roundedSize;
 					}
@@ -825,7 +982,7 @@ namespace AssetPipeline
 
 			std::string prefilterMapName = asset.m_dbPath + "_env";
 			EnvironmentMapMetadata* metaData = nullptr;
-			PB::u8* outData = reinterpret_cast<PB::u8*>(m_dbWriter->AllocateAsset(prefilterMapName.c_str(), sizeof(EnvironmentMapMetadata), prefilterTotalSize * 6, asset.m_lastModifiedTime, reinterpret_cast<char**>(&metaData)));
+			PB::u8* outData = reinterpret_cast<PB::u8*>(m_dbWriter->AllocateAsset(prefilterMapName.c_str(), sizeof(EnvironmentMapMetadata), prefilterTotalSize, asset.m_lastModifiedTime, reinterpret_cast<char**>(&metaData)));
 
 			memcpy(metaData->m_mipmapAlignedSizes, mipAlignedSizes, sizeof(uint32_t) * ConvolutionMipmapCount);
 			metaData->m_width = PrefilterMapDimensions;
@@ -833,6 +990,12 @@ namespace AssetPipeline
 			metaData->m_arrayLayerSize = mipChainSize;
 			metaData->m_mipCount = ConvolutionMipmapCount;
 			metaData->m_mapType = EConvolutedMapType::PREFILTER;
+			metaData->m_compressed = compress;
+
+			CMP_CompressOptions compressOptions{};
+			compressOptions.dwSize = sizeof(CMP_CompressOptions);
+			compressOptions.fquality = 0.05f;
+			compressOptions.dwnumThreads = 16;
 
 			for (uint32_t layer = 0; layer < 6; ++layer)
 			{
@@ -841,8 +1004,30 @@ namespace AssetPipeline
 				{
 					PB::ITexture* readback = prefilterReadbackTextures[(layer * ConvolutionMipmapCount) + mip];
 					PB::u8* mappedData = readback->MapReadback();
+
 					PB::u32 offset = (layer * mipChainSize) + mipOffset;
-					memcpy(&outData[offset], mappedData, mipSizes[mip]);
+
+					if (compress)
+					{
+						printf_s("%s:	> Compressing Prefilter subresource [Mip:%u , Layer:%u]...\n", m_name.c_str(), mip, layer);
+
+						srcFace.dwWidth = PrefilterMapDimensions >> mip;
+						srcFace.dwHeight = PrefilterMapDimensions >> mip;
+						srcFace.dwDataSize = mipSizes[mip];
+						srcFace.pData = mappedData;
+
+						subresourceTex.dwWidth = srcFace.dwWidth;
+						subresourceTex.dwHeight = srcFace.dwHeight;
+						subresourceTex.dwDataSize = CMP_CalculateBufferSize(&subresourceTex);
+						subresourceTex.pData = &outData[offset];
+
+						CMP_ConvertTexture(&srcFace, &subresourceTex, &compressOptions, {});
+					}
+					else
+					{
+						memcpy(&outData[offset], mappedData, mipSizes[mip]);
+					}
+
 					readback->UnmapReadback();
 
 					mipOffset += mipAlignedSizes[mip];

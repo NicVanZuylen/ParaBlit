@@ -13,9 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="CLib">
-      <UniqueIdentifier>{c34c9763-a7bd-4dc2-9be7-6ee5f29358ab}</UniqueIdentifier>
-    </Filter>
     <Filter Include="RenderGraph">
       <UniqueIdentifier>{8cd174d6-bb70-409e-a2b3-8fdc8e9c6bb0}</UniqueIdentifier>
     </Filter>
@@ -51,9 +48,6 @@
     <ClCompile Include="Shader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\VKR\CLib\Allocator.cpp">
-      <Filter>CLib</Filter>
-    </ClCompile>
     <ClCompile Include="RenderGraphNode.cpp">
       <Filter>RenderGraph</Filter>
     </ClCompile>
@@ -74,9 +68,6 @@
     </ClCompile>
     <ClCompile Include="ClientPlayground.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp">
-      <Filter>CLib</Filter>
     </ClCompile>
     <ClCompile Include="ShadowMapPass.cpp">
       <Filter>RenderGraphBehaviours</Filter>
@@ -149,9 +140,6 @@
     <ClInclude Include="Shader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\VKR\CLib\Allocator.h">
-      <Filter>CLib</Filter>
-    </ClInclude>
     <ClInclude Include="RenderGraphNode.h">
       <Filter>RenderGraph</Filter>
     </ClInclude>
@@ -172,9 +160,6 @@
     </ClInclude>
     <ClInclude Include="ClientPlayground.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h">
-      <Filter>CLib</Filter>
     </ClInclude>
     <ClInclude Include="ManagedInstanceBuffer.h">
       <Filter>RenderGraph</Filter>

@@ -28,9 +28,11 @@ namespace AssetEncoder
 		{
 			AssetMeta m_info{};
 			std::string m_fullPath;
+			std::string m_propertyFilePath;
 			std::string m_dbPath;
 			std::string m_extension;
 			size_t m_lastModifiedTime;
+			bool m_hasPropertyFile = false;
 			bool m_outdated = false;
 		};
 
@@ -41,6 +43,8 @@ namespace AssetEncoder
 		ASSET_ENCODER_API void GetAssetStatus(const char* rootFolderName, const std::vector<FileInfo>& fileInfos, std::vector<AssetStatus>& outStatus);
 
 		ASSET_ENCODER_API void WriteUnmodifiedAsset(const AssetStatus& status);
+
+		ASSET_ENCODER_API void WriteUnmodifiedAsset(const char* assetDBName);
 
 		ASSET_ENCODER_API void FlagAsModified();
 

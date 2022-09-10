@@ -28,8 +28,10 @@ namespace AssetEncoder
 		memcpy(&strMem[stringOffset], assetName, stringLength); // Copy string
 		++m_stringCount;
 
-		size_t stringHeaderOffset = m_stringAllocator.GetAllocationOffsetInPage(strMem);
-		size_t stringHeaderLocation = ((m_stringPageHandles.Count() - 1) * StringCachePageSize) + stringHeaderOffset;
+		void* stringPageAddress = m_stringAllocator.GetAllocationPageAddress(strMem);
+		size_t stringHeaderLocalOffset = m_stringAllocator.GetAllocationOffsetInPage(strMem);
+		size_t stringPageOffset = m_stringPageHandleMap.at(stringPageAddress).second.m_offset;
+		size_t stringHeaderLocation = stringPageOffset + stringHeaderLocalOffset;
 
 		void* assetPtr = m_assetAllocator.Alloc(uint32_t(binarySize), 128);
 		void* pageAddress = m_assetAllocator.GetAllocationPageAddress(assetPtr);
@@ -38,7 +40,7 @@ namespace AssetEncoder
 
 		DatabaseStringHeader* stringHeader = reinterpret_cast<DatabaseStringHeader*>(strMem);
 		stringHeader->m_stringSize = uint32_t(stringLength);
-		stringHeader->m_stride = 0;
+		stringHeader->m_nextLocation = ~uint32_t(0);
 		stringHeader->m_asset.m_binarySize = binarySize;
 		stringHeader->m_asset.m_location = pageOffset + assetLocalOffset;
 		stringHeader->m_asset.m_assetSize = binarySize;
@@ -50,12 +52,11 @@ namespace AssetEncoder
 		if (outMeta != nullptr)
 			*outMeta = stringHeader->m_asset;
 
-		if (m_lastStringHeaderStride)
+		if (m_lastStringHeader)
 		{
-			*m_lastStringHeaderStride = stringHeaderLocation - m_lastStringHeaderLocation;
+			m_lastStringHeader->m_nextLocation = stringHeaderLocation;
 		}
-		m_lastStringHeaderStride = &stringHeader->m_stride;
-		m_lastStringHeaderLocation = stringHeaderLocation;
+		m_lastStringHeader = stringHeader;
 
 		return assetPtr;
 	}
@@ -89,7 +90,7 @@ namespace AssetEncoder
 			// Write strings...
 			size_t stringCount = 0;
 			currentPos = index.m_stringBegin;
-			for (auto& [page, pageData] : m_stringPageHandles)
+			for (auto& [page, pageData] : m_stringPageHandleVector)
 			{
 				++stringCount;
 
@@ -129,8 +130,13 @@ namespace AssetEncoder
 		outSize = StringCachePageSize;
 		void* newPage = malloc(outSize);
 		AssetBinaryDatabaseWriter* db = reinterpret_cast<AssetBinaryDatabaseWriter*>(context);
-		PageData data{ outSize, 0 };
-		db->m_stringPageHandles.PushBack({ newPage, data });
+
+		PageData data{ outSize, db->m_currentStringPageOffset };
+		PageHandle newHandle{ newPage, data };
+
+		db->m_stringPageHandleMap.insert({ newPage, newHandle });
+		db->m_stringPageHandleVector.PushBack(newHandle);
+		db->m_currentStringPageOffset += outSize;
 		return newPage;
 	}
 

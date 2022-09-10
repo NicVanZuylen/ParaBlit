@@ -19,8 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\VKR\CLib\Allocator.cpp" />
-    <ClCompile Include="..\VKR\CLib\FixedBlockAllocator.cpp" />
     <ClCompile Include="AmbientOcclusionPass.cpp" />
     <ClCompile Include="AOBlurPass.cpp" />
     <ClCompile Include="Application.cpp" />
@@ -53,8 +51,6 @@
     <ClCompile Include="WindowHandle.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\VKR\CLib\Allocator.h" />
-    <ClInclude Include="..\VKR\CLib\FixedBlockAllocator.h" />
     <ClInclude Include="AmbientOcclusionPass.h" />
     <ClInclude Include="AOBlurPass.h" />
     <ClInclude Include="Application.h" />

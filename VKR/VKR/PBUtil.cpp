@@ -327,6 +327,18 @@ namespace PB
             return VK_FORMAT_D32_SFLOAT;
         case ETextureFormat::D32_FLOAT_S8_UINT:
             return VK_FORMAT_D32_SFLOAT_S8_UINT;
+        case ETextureFormat::BC3_SRGB:
+            return VK_FORMAT_BC3_SRGB_BLOCK;
+        case ETextureFormat::BC5_UNORM:
+            return VK_FORMAT_BC5_UNORM_BLOCK;
+        case ETextureFormat::BC6H_RGB_U16F:
+            return VK_FORMAT_BC6H_UFLOAT_BLOCK;
+        case ETextureFormat::BC6H_RGB_S16F:
+            return VK_FORMAT_BC6H_SFLOAT_BLOCK;
+        case ETextureFormat::BC7_UNORM:
+            return VK_FORMAT_BC7_UNORM_BLOCK;
+        case ETextureFormat::BC7_SRGB:
+            return VK_FORMAT_BC7_SRGB_BLOCK;
         default:
             PB_NOT_IMPLEMENTED;
             break;
@@ -334,7 +346,12 @@ namespace PB
         return VK_FORMAT_UNDEFINED;
 	}
 
-    PARABLIT_API ETextureFormat ConvertVkFormatToPBFormat(VkFormat format)
+    bool IsFormatBlockCompressed(ETextureFormat format)
+    {
+        return u16(format) >= BlockCompressedStart && u16(format) <= BlockCompressedEnd;
+    }
+
+    ETextureFormat ConvertVkFormatToPBFormat(VkFormat format)
     {
         switch (format)
         {

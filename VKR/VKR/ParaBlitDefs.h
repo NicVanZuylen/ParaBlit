@@ -79,9 +79,15 @@ namespace PB
 	};
 	PB_DEFINE_ENUM_FIELD(TextureStateFlags, ETextureState, u16)
 
+	static constexpr u16 HDRStart = 1024;
+	static constexpr u16 HDREnd = 2047;
+	static constexpr u16 BlockCompressedStart = 2048;
+	static constexpr u16 BlockCompressedEnd = 3071;
 	enum class ETextureFormat : u16
 	{
 		UNKNOWN = 0,
+
+		// SDR Formats
 		R8_UNORM,
 		R8G8_UNORM,
 		R8G8B8_UNORM,
@@ -92,7 +98,9 @@ namespace PB
 		R8G8B8_SRGB,
 		R8G8B8A8_SRGB,
 		B8G8R8A8_SRGB,
-		R16_FLOAT,
+
+		// HDR Formats
+		R16_FLOAT = HDRStart,
 		R16G16_FLOAT,
 		R16G16B16_FLOAT,
 		R16G16B16A16_FLOAT,
@@ -105,6 +113,14 @@ namespace PB
 		D24_UNORM_S8_UINT,
 		D32_FLOAT,
 		D32_FLOAT_S8_UINT,
+
+		// Block Compressed Formats
+		BC3_SRGB = BlockCompressedStart,
+		BC5_UNORM,
+		BC6H_RGB_U16F,
+		BC6H_RGB_S16F,
+		BC7_UNORM,
+		BC7_SRGB,
 	};
 
 	enum class EAttachmentUsage : u8

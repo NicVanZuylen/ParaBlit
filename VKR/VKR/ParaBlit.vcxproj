@@ -133,7 +133,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;D:\VulkanSDK\1.1.106.0\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)VulkanSDK\1.2.198.1\Include;$(ProjectDir)TinyObjLoader\include;$(ProjectDir)STB\include;$(SolutionDir)External/CLib/ContainerLib/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>PARABLIT_EXPORT;PARABLIT_WINDOWS=;PB_FRAME_IN_FLIGHT_COUNT=3u;PARABLIT_ENABLE_API_VALIDATION=0;PB_USE_DEBUG_UTILS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
@@ -150,7 +150,6 @@
   <ItemGroup>
     <ClCompile Include="BindingCache.cpp" />
     <ClCompile Include="BufferObject.cpp" />
-    <ClCompile Include="CLib\Allocator.cpp" />
     <ClCompile Include="CmdContextPool.cpp" />
     <ClCompile Include="CommandContext.cpp" />
     <ClCompile Include="DescriptorRegistry.cpp" />
@@ -181,7 +180,6 @@
     <ClInclude Include="BindingCache.h" />
     <ClInclude Include="IBindingCache.h" />
     <ClInclude Include="BufferObject.h" />
-    <ClInclude Include="CLib\Allocator.h" />
     <ClInclude Include="CmdContextPool.h" />
     <ClInclude Include="CommandContext.h" />
     <ClInclude Include="DescriptorRegistry.h" />

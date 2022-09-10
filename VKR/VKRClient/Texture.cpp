@@ -63,7 +63,7 @@ namespace PBClient
 
 			PB::TextureDesc texDesc{};
 			texDesc.m_dimension = PB::ETextureDimension::DIMENSION_2D;
-			texDesc.m_format = srgb ? PB::ETextureFormat::R8G8B8A8_SRGB : PB::ETextureFormat::R8G8B8A8_UNORM;
+			texDesc.m_format = textureData.m_format;
 			texDesc.m_usageStates = PB::ETextureState::SAMPLED;
 			texDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
 			texDesc.m_data = &texDataDesc;
@@ -74,6 +74,7 @@ namespace PBClient
 
 			m_texture = m_renderer->AllocateTexture(texDesc);
 			m_ownsTexture = true;
+			m_isCompressed = PB::u16(texDesc.m_format) >= PB::BlockCompressedStart && PB::u16(texDesc.m_format) <= PB::BlockCompressedEnd;
 
 			free(buf);
 
@@ -230,6 +231,7 @@ namespace PBClient
 		}
 		m_texture = m_renderer->AllocateTexture(textureDesc);
 		m_ownsTexture = true;
+		m_isCompressed = PB::u16(textureDesc.m_format) >= PB::BlockCompressedStart && PB::u16(textureDesc.m_format) <= PB::BlockCompressedEnd;
 
 		for (auto& ptr : data)
 		{
@@ -331,7 +333,7 @@ namespace PBClient
 
 		PB::TextureDesc texDesc{};
 		texDesc.m_dimension = PB::ETextureDimension::DIMENSION_CUBE;
-		texDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
+		texDesc.m_format = envMapData.m_compressed ? PB::ETextureFormat::BC6H_RGB_U16F : PB::ETextureFormat::R16G16B16A16_FLOAT;
 		texDesc.m_usageStates = PB::ETextureState::SAMPLED;
 		texDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
 		texDesc.m_data = dataDescs.Data();
@@ -342,6 +344,7 @@ namespace PBClient
 		m_texture = m_renderer->AllocateTexture(texDesc);
 		m_mipCount = texDesc.m_mipCount;
 		m_ownsTexture = true;
+		m_isCompressed = PB::u16(texDesc.m_format) >= PB::BlockCompressedStart && PB::u16(texDesc.m_format) <= PB::BlockCompressedEnd;
 
 		free(buf);
 	}

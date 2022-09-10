@@ -53,6 +53,8 @@ namespace PBClient
 
 		uint32_t GetMipCount() const { return m_mipCount; }
 
+		bool IsCompressed() const { return m_isCompressed; }
+
 	protected:
 
 		static AssetEncoder::AssetBinaryDatabaseReader s_textureDatabaseLoader;
@@ -70,5 +72,6 @@ namespace PBClient
 		int m_channelCount = 0;
 		uint32_t m_mipCount = 1;
 		bool m_ownsTexture = false;
+		bool m_isCompressed = false;
 	};
 }

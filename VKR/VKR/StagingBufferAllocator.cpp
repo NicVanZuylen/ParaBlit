@@ -261,7 +261,9 @@ namespace PB
 	{
 		view.m_buffer = m_buffer;
 		view.m_mappedPtr = m_mappedMemory;
-		view.m_offset = m_bytesAllocated + (m_bytesAllocated % alignment);
+
+		u32 alignPad = alignment > 0 ? alignment - (m_bytesAllocated % alignment) : 0;
+		view.m_offset = m_bytesAllocated + alignPad;
 		view.m_alignment = alignment;
 
 		m_bytesAllocated += size;

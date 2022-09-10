@@ -391,10 +391,7 @@ healthchecksdb
 
 # Assets Directory (Except shaders)
 **/[Aa]ssets/*
-!**/[Aa]ssets/Shaders/
-
-# Mesh cache files
-*.mcache
+!**/[Aa]ssets/[Ss]haders/
 
 # Asset Databases
 *.adb
@@ -406,4 +403,7 @@ healthchecksdb
 *.spv
 
 # End of https://www.gitignore.io/api/c++,visualstudio
-VKR/VKR/VulkanTools/geforce_gtx_980.json
+
+# Exclude external dependencies except _genbuild files required to build some external libraries.
+**/[Ee]xternal/*
+!**/[Ee]xternal/*_[Gg]enbuild/

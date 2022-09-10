@@ -47,7 +47,7 @@ namespace AssetEncoder
 				const char* str = &m_stringCache[stringOffset];
 				m_stringMap.insert({ str, *header });
 
-				currentPos += header->m_stride;
+				currentPos = header->m_nextLocation;
 			}
 		}
 	}

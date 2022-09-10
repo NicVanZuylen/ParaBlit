@@ -76,12 +76,26 @@ namespace AssetEncoder
 		{
 			AssetStatus& status = outStatus.emplace_back();
 
+			// Assets may have an associated XML file with build properties inside. If this properties file is modified the asset needs to be rebuilt.
+			std::filesystem::path propertyFilePath = it->m_fileName;
+			propertyFilePath.replace_extension("xml");
+
+			std::filesystem::directory_entry propertyFileEntry(propertyFilePath);
+			size_t propertyLastModifiedTime = 0;
+			if (propertyFileEntry.exists())
+			{
+				propertyLastModifiedTime = std::chrono::duration_cast<std::chrono::seconds>(propertyFileEntry.last_write_time().time_since_epoch()).count();
+			}
+			size_t mostRecentModifiedTime = std::max(propertyLastModifiedTime, it->m_lastModifiedTime);
+
 			status.m_fullPath = it->m_fileName;
+			status.m_propertyFilePath = propertyFilePath.string();
 			status.m_dbPath = ConvertPathToDBFormat(rootFolderName, it->m_fileName);
 			status.m_extension = it->m_fileName.substr(it->m_fileName.find_last_of('.'));
 			status.m_info = m_dbReader->GetAssetInfo(status.m_dbPath.c_str());
-			status.m_outdated = status.m_info.m_binarySize == 0 || status.m_info.m_dateModified < it->m_lastModifiedTime;
-			status.m_lastModifiedTime = it->m_lastModifiedTime;
+			status.m_outdated = status.m_info.m_binarySize == 0 || status.m_info.m_dateModified < mostRecentModifiedTime;
+			status.m_hasPropertyFile = propertyFileEntry.exists();
+			status.m_lastModifiedTime = mostRecentModifiedTime;
 		}
 	}
 
@@ -91,6 +105,16 @@ namespace AssetEncoder
 		void* storage = m_dbWriter->AllocateAsset(status.m_dbPath.c_str(), status.m_info.m_userDataSize, status.m_info.m_binarySize, status.m_info.m_dateModified, &userData);
 		m_dbReader->GetAssetUserData(status.m_info, userData);
 		m_dbReader->GetAssetBinary(status.m_dbPath.c_str(), storage);
+	}
+
+	void EncoderBase::WriteUnmodifiedAsset(const char* assetDBName)
+	{
+		auto meta = m_dbReader->GetAssetInfo(assetDBName);
+
+		char* userData = nullptr;
+		void* storage = m_dbWriter->AllocateAsset(assetDBName, meta.m_userDataSize, meta.m_binarySize, meta.m_dateModified, &userData);
+		m_dbReader->GetAssetUserData(meta, userData);
+		m_dbReader->GetAssetBinary(assetDBName, storage);
 	}
 
 	void EncoderBase::FlagAsModified()

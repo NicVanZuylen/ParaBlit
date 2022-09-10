@@ -43,16 +43,16 @@ namespace AssetEncoder
 		using PageHandleVector = CLib::Vector<PageHandle>;
 		using PageHandleMap = std::unordered_map<void*, PageHandle>;
 
-		size_t* m_lastStringHeaderStride = nullptr;
-		size_t m_lastStringHeaderLocation = 0;
-		PageHandleVector m_stringPageHandles;
+		DatabaseStringHeader* m_lastStringHeader = nullptr;
+		PageHandleMap m_stringPageHandleMap;
+		PageHandleVector m_stringPageHandleVector;
+		size_t m_currentStringPageOffset = 0;
 		uint32_t m_stringCount = 0;
 		CLib::ExternalAllocator m_stringAllocator{ this, StringPageAlloc, PageFree };
 
 		PageHandleMap m_assetPageHandleMap;
 		PageHandleVector m_assetPageHandleVector;
 		size_t m_currentAssetPageOffset = 0;
-		size_t m_previousAssetPageSize = 0;
 		CLib::ExternalAllocator m_assetAllocator{ this, AssetPageAlloc, PageFree };
 
 		std::string m_databasePath;

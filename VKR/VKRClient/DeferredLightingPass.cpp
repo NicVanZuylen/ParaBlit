@@ -113,7 +113,7 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		PB::TextureViewDesc skyboxViewDesc{};
 		skyboxViewDesc.m_texture = m_skyboxTexture->GetTexture();
 		skyboxViewDesc.m_expectedState = PB::ETextureState::SAMPLED;
-		skyboxViewDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
+		skyboxViewDesc.m_format = m_skyboxTexture->IsCompressed() ? PB::ETextureFormat::BC6H_RGB_U16F : PB::ETextureFormat::R16G16B16A16_FLOAT;
 		skyboxViewDesc.m_type = PB::ETextureViewType::VIEW_TYPE_CUBE;
 		skyboxViewDesc.m_subresources.m_arrayCount = 1;
 		skyboxViewDesc.m_subresources.m_mipCount = 1;
@@ -127,9 +127,11 @@ void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTa
 		iblSamplerDesc.maxLod = 1.0f;
 		PB::ResourceView iblSampler = m_renderer->GetSampler(iblSamplerDesc);
 
+		skyboxViewDesc.m_format = PB::ETextureFormat::R16G16B16A16_FLOAT;
 		skyboxViewDesc.m_texture = m_irradianceMap->GetTexture();
 		PB::ResourceView irradianceView = m_irradianceMap->GetTexture()->GetView(skyboxViewDesc);
 
+		skyboxViewDesc.m_format = m_prefilterEnvMap->IsCompressed() ? PB::ETextureFormat::BC6H_RGB_U16F : PB::ETextureFormat::R16G16B16A16_FLOAT;
 		skyboxViewDesc.m_texture = m_prefilterEnvMap->GetTexture();
 		skyboxViewDesc.m_subresources.m_mipCount = m_prefilterEnvMap->GetMipCount();
 		PB::ResourceView prefilterView = m_prefilterEnvMap->GetTexture()->GetView(skyboxViewDesc);

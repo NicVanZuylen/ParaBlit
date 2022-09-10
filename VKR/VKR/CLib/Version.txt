@@ -1,7 +1,0 @@
-CLib Version 0.2
-
-Notes:
-
--Added string class, which wraps a vector object with extra functionality specific to strings.
--SetCount() in Vector will now reserve enough space in the vector to hold the count set in elements.
--Added const overloads for various getter/read functions in Vector.

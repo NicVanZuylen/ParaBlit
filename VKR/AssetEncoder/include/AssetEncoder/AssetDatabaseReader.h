@@ -30,7 +30,7 @@ namespace AssetEncoder
 	struct DatabaseStringHeader
 	{
 		size_t m_stringSize;
-		size_t m_stride;
+		size_t m_nextLocation;		// Location of next string header. UINT_MAX if this is the final string.
 		AssetMeta m_asset;
 	};
 

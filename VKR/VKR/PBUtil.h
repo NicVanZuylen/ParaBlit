@@ -23,6 +23,8 @@ namespace PB
 
 	PARABLIT_API inline VkFormat ConvertPBFormatToVkFormat(ETextureFormat format);
 
+	PARABLIT_API inline bool IsFormatBlockCompressed(ETextureFormat format);
+
 	PARABLIT_API inline ETextureFormat ConvertVkFormatToPBFormat(VkFormat format);
 
 	PARABLIT_API inline VkImageType PBImageDimensionToVKImageType(ETextureDimension dimension);
