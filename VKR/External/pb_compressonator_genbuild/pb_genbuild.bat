@@ -7,3 +7,5 @@ cmake -DOPTION_ENABLE_ALL_APPS=OFF -DLIB_BUILD_COMPRESSONATOR_SDK=ON -B compress
 cd compressonator-build
 
 ../../../../buildsinglelib.bat Compressonator.sln CMakePredefinedTargets\ALL_BUILD x64
+
+cd ../
