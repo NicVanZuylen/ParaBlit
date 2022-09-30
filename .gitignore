@@ -413,3 +413,4 @@ healthchecksdb
 # Exclude external dependencies except _genbuild files required to build some external libraries.
 **/[Ee]xternal/*
 !**/[Ee]xternal/*_[Gg]enbuild/
+!**/[Ee]xternal/CMakeLists.txt
