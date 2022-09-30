@@ -1,2 +1,1 @@
-cd VKRClient
-start ..\x64\Release\ParaBlitClient_release.exe -w=1920 -h=1080
+start build\Release\Engine.Runtime.exe -w=1920 -h=1080

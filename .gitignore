@@ -389,6 +389,12 @@ healthchecksdb
 # Vulkan SDK
 [Vv]ulkanSDK/
 
+# CMake Build Dir
+**/engine-build/*
+
+# Build Dir
+**/[Bb]uild/*
+
 # Assets Directory (Except shaders)
 **/[Aa]ssets/*
 !**/[Aa]ssets/[Ss]haders/
