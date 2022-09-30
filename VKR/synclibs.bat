@@ -1,6 +1,6 @@
 mkdir External
 cd External
-call ../clonerepo.bat https://github.com/NicVanZuylen/NVZ_CLib.git CLib 4f707a9
+call ../clonerepo.bat https://github.com/NicVanZuylen/NVZ_CLib.git CLib 64d39d7
 call ../clonerepo.bat https://github.com/nothings/stb.git stb 5a0bb8b
 call ../clonerepo.bat https://github.com/tinyobjloader/tinyobjloader.git tinyobjloader 51908fb
 call ../clonerepo.bat https://github.com/glfw/glfw.git glfw 201400b
