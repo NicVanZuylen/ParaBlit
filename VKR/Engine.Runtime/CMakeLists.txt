@@ -58,16 +58,16 @@ set_target_properties(${_LIBRARY_} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CM
 
 # Pipeline Post-build step
 add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/Assets/build/dummy.adb
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT ${_BUILD_DIR_}/dummy.adb
     DEPENDS Engine.AssetPipeline
-    COMMAND build/Release/Engine.AssetPipeline.exe -Assets/
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${_BUILD_DIR_}/$(Configuration)/Engine.AssetPipeline.exe -Assets/
     COMMENT "Running Build Pipeline..."
 )
 
 add_custom_target(
     POST_BUILD
-    DEPENDS ${CMAKE_SOURCE_DIR}/Assets/build/dummy.adb
+    DEPENDS ${_BUILD_DIR_}/dummy.adb
 )
 
 add_dependencies(${_LIBRARY_} POST_BUILD)

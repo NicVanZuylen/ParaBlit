@@ -38,8 +38,9 @@ target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/glfw/glfw-build/
 target_link_libraries(${_LIBRARY_} glfw3)
 
 # ShaderC
+set(_SHADERC_BUILD_DIR_ "${_EXTERNAL_DIR_}/shaderc/shaderc-build/libshaderc/Release")
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/shaderc/libshaderc/include")
-target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/shaderc/shaderc-build/libshaderc/${CFG}")
+target_link_directories(${_LIBRARY_} PRIVATE "${_SHADERC_BUILD_DIR_}")
 target_link_libraries(${_LIBRARY_} shaderc_shared)
 
 # Compressonator
@@ -61,6 +62,15 @@ set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${_BUILD_
 
 # Working dir
 set_target_properties(${_LIBRARY_} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# Copy Dependency DLLs
+add_custom_command(
+    TARGET ${_LIBRARY_}
+    PRE_BUILD
+    COMMAND \ncopy /y "\"${_SHADERC_BUILD_DIR_}/\\shaderc_shared.dll\"" "\"${_BUILD_DIR_}/$(Configuration)\""
+    COMMENT "Copying dependent DLLs..."
+)
+
 
 endif()
 # --------------------------------------------------------------------------

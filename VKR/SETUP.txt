@@ -1,5 +1,5 @@
 Install CMake using MSI installer and add to PATH during install.
 Install Python (At least Version 3) and make sure it is added to PATH.
 Locate msbuild.exe and add it's location to PATH.
-Install Vulkan SDK to VKR/VulkanSDK/[version] (E.g. VKR/VulkanSDK/1.2.148.1/). Current required SDK version is 1.2.198.1.
+Install Vulkan SDK to VKR/External/VulkanSDK/[version] (E.g. VKR/VulkanSDK/1.2.148.1/). Current required SDK version is 1.2.198.1.
 Install Google Drive and sync Assets folder to VKR/Assets.
