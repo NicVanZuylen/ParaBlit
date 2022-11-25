@@ -19,6 +19,11 @@ target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_SOURCE_DIR}/Engine.Asse
 target_link_libraries(${_LIBRARY_} Engine.AssetEncoder)
 add_dependencies(${_LIBRARY_} Engine.AssetEncoder)
 
+# Engine.Control
+target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_SOURCE_DIR}/Engine.Control/include")
+target_link_libraries(${_LIBRARY_} Engine.Control)
+add_dependencies(${_LIBRARY_} Engine.Control)
+
 # Engine.Parablit
 target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_SOURCE_DIR}/Engine.ParaBlit/include")
 target_link_libraries(${_LIBRARY_} Engine.ParaBlit)

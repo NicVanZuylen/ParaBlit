@@ -10,6 +10,8 @@
 #include "Encode/MeshEncoder.h"
 #include "Encode/Texture2DEncoder.h"
 
+#include "Engine.Control/Parse.h"
+
 void* GetWindowHandle(GLFWwindow* window)
 {
 #ifdef GLFW_EXPOSE_NATIVE_WIN32
@@ -26,22 +28,11 @@ namespace AssetPipeline
 {
 	PipelineApplication::PipelineApplication(int argc, char** argv)
 	{
-		if (argc <= 1)
-		{
-			printf("Arguments required:\n 1. %s\n\n",
-				"Asset Root Directory");
-		}
+		Ctrl::CommandLineParser parser(argc, argv);
+		Ctrl::SettingsHub& settings = Ctrl::SettingsHub::GetOrCreate();
+		settings.AddSettings(parser);
 
-		for (int i = 1; i < argc; ++i)
-		{
-			const char* argString = argv[i];
-			assert(argString[0] == '-');
-
-			if (strcmp(&argString[1], "DebugWindow") == 0)
-			{
-				m_useDebugWindow = true;
-			}
-		}
+		m_useDebugWindow = parser.HasToken("DebugWindow");
 
 		PB::RendererDesc rendererDesc{};
 		rendererDesc.m_extensionCount = 0;
@@ -102,11 +93,11 @@ namespace AssetPipeline
 
 	void PipelineApplication::Run(int argc, char** argv)
 	{
+		Ctrl::SettingsHub& settings = Ctrl::SettingsHub::GetOrCreate();
+
 		printf("Running Asset Pipeline...\n\n");
 
-		std::string assetRootDir = argv[1];
-		assert(assetRootDir[0] == '-');
-		assetRootDir.erase(assetRootDir.begin());
+		std::string assetRootDir = settings.GetStringValue("Assets");
 
 		std::string workingDir = std::filesystem::current_path().string();
 		std::string pipelineDbDir = workingDir + "\\" + "PipelineAssets\\";

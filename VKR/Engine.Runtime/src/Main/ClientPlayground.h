@@ -153,7 +153,7 @@ private:
 	};
 
 	uint32_t m_renderHierarchyDrawDebugDepth = 0;
-	bool m_drawEntireRenderHierarchy = true;
+	bool m_drawEntireRenderHierarchy = false;
 
 	// -------------------------------------------------------------------------
 };

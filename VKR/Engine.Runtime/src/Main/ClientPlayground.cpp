@@ -153,6 +153,9 @@ void ClientPlayground::Update(GLFWwindow* window, Input* input, float deltaTime,
 		std::cout << "BVH: Drawing whole tree: " << (m_drawEntireRenderHierarchy ? "true" : "false") << "\n";
 	}
 
+	if(m_drawEntireRenderHierarchy)
+		m_renderHierarchy->DebugDraw(m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
+
 	for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
 	{
 		m_shadowmapPass[i]->Update();

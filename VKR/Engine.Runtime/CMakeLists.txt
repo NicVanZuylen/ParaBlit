@@ -61,7 +61,7 @@ add_custom_command(
     OUTPUT ${_BUILD_DIR_}/dummy.adb
     DEPENDS Engine.AssetPipeline
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMAND ${_BUILD_DIR_}/$(Configuration)/Engine.AssetPipeline.exe -Assets/
+    COMMAND ${_BUILD_DIR_}/$(Configuration)/Engine.AssetPipeline.exe -Assets Assets/
     COMMENT "Running Build Pipeline..."
 )
 
