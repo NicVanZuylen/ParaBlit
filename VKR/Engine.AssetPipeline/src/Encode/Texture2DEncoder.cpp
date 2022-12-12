@@ -40,26 +40,23 @@ namespace AssetPipeline
 
 		for (auto& asset : assetStatus)
 		{
-			AssetPropertyFile propertyFile(asset.m_propertyFilePath.c_str(), "Texture");
+			Ctrl::IConfigFile* propertyFile = Ctrl::IConfigFile::Create(asset.m_propertyFilePath.c_str(), Ctrl::IConfigFile::EOpenMode::OPEN_READ_WRITE);
+			auto* data = propertyFile->GetData();
 			if(asset.m_hasPropertyFile == false)
 			{
-				// Add template property file.
-				propertyFile.SetBooleanProperty("ignoreHdr", false);
-				propertyFile.SetBooleanProperty("isSkybox", false);
-				propertyFile.SetBooleanProperty("isEnvironmentMap", false);
-				propertyFile.SetBooleanProperty("compress", true);
-				propertyFile.SetBooleanProperty("srgb", true);
-				propertyFile.SetIntegerProperty("mipCount", 1);
-				propertyFile.SetIntegerProperty("arrayCount", 1);
-				propertyFile.SetStringProperty("compressionFormat", "BC7");
-				propertyFile.Save();
-			}
-			else
-			{
-				propertyFile.Load();
+				data->SetBooleanValue("Texture.IgnoreHDR", false);
+				data->SetBooleanValue("Texture.IsSkybox", false);
+				data->SetBooleanValue("Texture.IsEnvironmentMap", false);
+				data->SetBooleanValue("Texture.Compress", true);
+				data->SetBooleanValue("Texture.SRGB", true);
+				data->SetIntegerValue("Texture.MipCount", 1);
+				data->SetIntegerValue("Texture.ArrayCount", 1);
+				data->SetStringValue("Texture.CompressionFormat", "BC7");
+
+				propertyFile->WriteData();
 			}
 
-			if (propertyFile.GetBooleanProperty("isEnvironmentMap", false) == true)
+			if (data->GetBooleanValue("Texture.IsEnvironmentMap") == true)
 			{
 				// Environment map path.
 
@@ -80,7 +77,7 @@ namespace AssetPipeline
 
 				if (outdated)
 				{
-					EncodeEnvironmentMap(asset, propertyFile);
+					EncodeEnvironmentMap(asset, data);
 					FlagAsModified();
 				}
 				else
@@ -92,13 +89,15 @@ namespace AssetPipeline
 			}
 			else if (asset.m_outdated)
 			{
-				EncodeUncompressedTexture(asset, propertyFile);
+				EncodeUncompressedTexture(asset, data);
 				FlagAsModified();
 			}
 			else
 			{
 				WriteUnmodifiedAsset(asset);
 			}
+
+			Ctrl::IConfigFile::Destroy(propertyFile);
 		}
 	}
 
@@ -166,13 +165,13 @@ namespace AssetPipeline
 		return CMP_FORMAT_BC5;
 	}
 
-	void Texture2DEncoder::EncodeUncompressedTexture(const AssetStatus& asset, const AssetPropertyFile& properties)
+	void Texture2DEncoder::EncodeUncompressedTexture(const AssetStatus& asset, const Ctrl::IDataContainer* properties)
 	{
 		// Uncompressed texture encoding path. Encodes RGBA channels in SDR or HDR if supported.
 
 		void* data = nullptr;
-		bool isHdr = stbi_is_hdr(asset.m_fullPath.c_str()) > 0 && properties.GetBooleanProperty("ignoreHdr", false) == false;
-		bool srgb = properties.GetBooleanProperty("srgb", false);
+		bool isHdr = stbi_is_hdr(asset.m_fullPath.c_str()) > 0 && properties->GetBooleanValue("Texture.IgnoreHDR") == false;
+		bool srgb = properties->GetBooleanValue("Texture.SRGB");
 		int channelCount = 0;
 		int width = 0;
 		int height = 0;
@@ -211,10 +210,10 @@ namespace AssetPipeline
 		srcTex.format = CMP_FORMAT_RGBA_8888;
 
 		char* userData = nullptr;
-		if (properties.GetBooleanProperty("compress", false))
+		if (properties->GetBooleanValue("Texture.Compress"))
 		{
 			size_t compressedTextureDataSize = LightningBC7::CalcBC7TextureSizeBytes(width, height);
-			metaData.m_format = FormatStringToFormat(properties.GetStringProperty("compressionFormat", "BC7"), srgb);
+			metaData.m_format = FormatStringToFormat(properties->GetStringValue("Texture.CompressionFormat"), srgb);
 
 			uint8_t* outputData = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), sizeof(TextureMetadata), compressedTextureDataSize, asset.m_lastModifiedTime, &userData));
 			LightningBC7::CompressBC7(data, outputData, width, height);
@@ -604,7 +603,7 @@ namespace AssetPipeline
 		return cubeTex;
 	}
 
-	void Texture2DEncoder::EncodeEnvironmentMap(const AssetStatus& asset, const AssetPropertyFile& properties)
+	void Texture2DEncoder::EncodeEnvironmentMap(const AssetStatus& asset, const Ctrl::IDataContainer* properties)
 	{
 		printf_s("%s: Encoding environment map: %s\n", m_name.c_str(), asset.m_dbPath.c_str());
 
@@ -819,7 +818,7 @@ namespace AssetPipeline
 
 		// Copy readback data and write assets...
 
-		bool compress = properties.GetBooleanProperty("compress", false);
+		bool compress = properties->GetBooleanValue("Texture.Compress");
 
 		// Skybox asset:
 		{

@@ -117,6 +117,5 @@ target_include_directories(${_LIBRARY_} PRIVATE ${_INCLUDE_DIR_})
 
 add_source("src" "${_LIBRARY_}")
 add_source("src/Encode" "Encode")
-add_source("src/pugixml" "pugixml")
 add_source("src/bc7enc" "bc7enc")
 add_source("src/TinyObjLoader" "TinyObjLoader")

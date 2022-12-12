@@ -5,3 +5,5 @@
 #else
 #define CONTROL_API __declspec(dllimport)
 #endif
+
+#define CONTROL_INTERFACE virtual

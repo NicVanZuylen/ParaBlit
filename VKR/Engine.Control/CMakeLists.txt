@@ -47,7 +47,7 @@ file(GLOB_RECURSE SRC_FILES
     "${source_dir}/*.ixx"
 )
 source_group(${filter_name} FILES ${SRC_FILES})
-target_sources(${_LIBRARY_} PRIVATE ${SRC_FILES})
+target_sources(${_LIBRARY_} PUBLIC ${SRC_FILES})
 
 endfunction()
 # ------------------------------------------------------------
