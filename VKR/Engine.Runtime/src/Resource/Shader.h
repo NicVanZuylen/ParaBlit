@@ -7,7 +7,7 @@ namespace CLib
 	class Allocator;
 }
 
-namespace PBClient
+namespace Eng
 {
 	class Shader
 	{

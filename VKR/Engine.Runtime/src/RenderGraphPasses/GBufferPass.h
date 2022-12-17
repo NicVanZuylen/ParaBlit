@@ -6,43 +6,45 @@
 #include "Resource/Shader.h"
 #include "World/ObjectDispatcher.h"
 
-class DrawBatch;
-class RenderGraphBuilder;
-class BatchDispatcher;
-class Camera;
-class RenderBoundingVolumeHierarchy;
-
-class GBufferPass : public RenderGraphBehaviour
+namespace Eng
 {
-public:
+	class DrawBatch;
+	class RenderGraphBuilder;
+	class BatchDispatcher;
+	class Camera;
+	class RenderBoundingVolumeHierarchy;
 
-	GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::UniformBufferView viewConstView, PB::UniformBufferView viewPlanesView, const Camera* camera, RenderBoundingVolumeHierarchy* hierarchy);
+	class GBufferPass : public RenderGraphBehaviour
+	{
+	public:
 
-	~GBufferPass();
+		GBufferPass(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::UniformBufferView viewConstView, PB::UniformBufferView viewPlanesView, const Camera* camera, RenderBoundingVolumeHierarchy* hierarchy);
 
-	void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
+		~GBufferPass();
 
-	void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
+		void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
+		void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void AddToRenderGraph(RenderGraphBuilder* builder);
+		void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) override;
 
-	void SetOutputTexture(PB::ITexture* tex);
+		void AddToRenderGraph(RenderGraphBuilder* builder);
 
-	PB::GraphicsPipelineDesc GetBasePipelineDesc() const;
+		void SetOutputTexture(PB::ITexture* tex);
 
-private:
+		PB::GraphicsPipelineDesc GetBasePipelineDesc() const;
 
-	// Dispatch list provided by the user, which draws geometry into the G Buffers.
-	PB::ITexture* m_outputTexture = nullptr;
-	BatchDispatcher* m_batchDispatcher = nullptr;
+	private:
 
-	PB::UniformBufferView m_viewConstView = nullptr;
-	PB::UniformBufferView m_viewPlanesView = nullptr;
-	const Camera* m_camera = nullptr;
-	const RenderBoundingVolumeHierarchy* m_rbvh = nullptr;
-	PB::BindingLayout m_batchBindings;
-	PB::Pipeline m_drawbatchPipeline = 0;
+		// Dispatch list provided by the user, which draws geometry into the G Buffers.
+		PB::ITexture* m_outputTexture = nullptr;
+		BatchDispatcher* m_batchDispatcher = nullptr;
+
+		PB::UniformBufferView m_viewConstView = nullptr;
+		PB::UniformBufferView m_viewPlanesView = nullptr;
+		const Camera* m_camera = nullptr;
+		const RenderBoundingVolumeHierarchy* m_rbvh = nullptr;
+		PB::BindingLayout m_batchBindings;
+		PB::Pipeline m_drawbatchPipeline = 0;
+	};
 };
-

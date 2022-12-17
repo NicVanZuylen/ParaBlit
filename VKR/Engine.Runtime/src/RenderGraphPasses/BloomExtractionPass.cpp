@@ -7,7 +7,7 @@
 #include "glm/glm.hpp"
 #pragma warning(pop)
 
-using namespace PBClient;
+using namespace Eng;
 
 BloomExtractionPass::BloomExtractionPass(PB::IRenderer* renderer, CLib::Allocator* allocator, bool halfRes) : RenderGraphBehaviour(renderer, allocator)
 {

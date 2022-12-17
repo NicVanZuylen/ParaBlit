@@ -8,7 +8,7 @@
 #include "World/DrawBatch.h"
 #include "Engine.AssetEncoder/AssetDatabaseReader.h"
 
-namespace PBClient
+namespace Eng
 {
 	struct Vertex
 	{

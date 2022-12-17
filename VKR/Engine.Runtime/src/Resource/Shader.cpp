@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <filesystem>
 
-namespace PBClient
+namespace Eng
 {
 	AssetEncoder::AssetBinaryDatabaseReader Shader::s_shaderDatabaseLoader;
 

@@ -35,7 +35,7 @@ namespace PB
 		u32 m_extensionCount = 0;
 
 		// Platform-native window info.
-		WindowDesc* m_windowInfo;
+		WindowDesc* m_windowInfo = nullptr;
 	};
 
 	class ICommandList;

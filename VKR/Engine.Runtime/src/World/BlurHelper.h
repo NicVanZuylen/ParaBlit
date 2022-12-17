@@ -9,7 +9,7 @@ namespace PB
 	class IBufferObject;
 }
 
-namespace PBClient
+namespace Eng
 {
 	struct BlurImageParams
 	{

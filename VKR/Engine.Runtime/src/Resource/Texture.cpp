@@ -19,7 +19,7 @@
 
 #include <filesystem>
 
-namespace PBClient
+namespace Eng
 {
 	AssetEncoder::AssetBinaryDatabaseReader Texture::s_textureDatabaseLoader;
 
@@ -453,8 +453,8 @@ namespace PBClient
 			cubeGenPipelineDesc.m_cullMode = PB::EFaceCullMode::NONE;
 			cubeGenPipelineDesc.m_subpass = 0;
 			cubeGenPipelineDesc.m_renderPass = cubeGenRp;
-			cubeGenPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = PBClient::Shader(m_renderer, "Shaders/GLSL/vs_cubegen", m_allocator, true).GetModule();
-			cubeGenPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = PBClient::Shader(m_renderer, "Shaders/GLSL/fs_cubegen", m_allocator, true).GetModule();
+			cubeGenPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_cubegen", m_allocator, true).GetModule();
+			cubeGenPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_cubegen", m_allocator, true).GetModule();
 			cubeGenPipelineDesc.m_colorBlendStates[0].m_enableBlending = false;
 
 			cubeGenPipeline = m_renderer->GetPipelineCache()->GetPipeline(cubeGenPipelineDesc);

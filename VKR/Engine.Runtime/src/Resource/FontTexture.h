@@ -2,7 +2,7 @@
 #include <cstdint>
 #include "Engine.ParaBlit/IRenderer.h"
 
-namespace PBClient
+namespace Eng
 {
 	class FontTexture
 	{

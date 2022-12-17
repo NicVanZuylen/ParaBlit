@@ -6,36 +6,40 @@
 
 class CLib::Allocator;
 
-struct RenderGraphInfo
+namespace Eng
 {
-	PB::IRenderer* m_renderer = nullptr;
-	PB::ICommandContext* m_commandContext = nullptr;
-	CLib::Allocator* m_allocator = nullptr;
+	struct RenderGraphInfo
+	{
+		PB::IRenderer* m_renderer = nullptr;
+		PB::ICommandContext* m_commandContext = nullptr;
+		CLib::Allocator* m_allocator = nullptr;
 
-	PB::RenderPass m_renderPass = nullptr;
-	PB::Framebuffer m_frameBuffer = nullptr;
-	uint32_t m_renderTargetCount = 0;
-};
+		PB::RenderPass m_renderPass = nullptr;
+		PB::Framebuffer m_frameBuffer = nullptr;
+		uint32_t m_renderTargetCount = 0;
+	};
 
-class RenderGraphBehaviour
-{
-public:
+	class RenderGraphBehaviour
+	{
+	public:
 
-	RenderGraphBehaviour(PB::IRenderer* renderer, CLib::Allocator* allocator);
+		RenderGraphBehaviour(PB::IRenderer* renderer, CLib::Allocator* allocator);
 
-	virtual void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
+		virtual void OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
 
-	virtual void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
+		virtual void OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
 
-	virtual void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
+		virtual void OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures) = 0;
 
-	PB::RenderPass GetRenderPass() { return m_renderPass; };
+		PB::RenderPass GetRenderPass() { return m_renderPass; };
 
-protected:
+	protected:
 
-	friend class RenderGraphBuilder;
+		friend class RenderGraphBuilder;
 
-	PB::IRenderer* m_renderer = nullptr;
-	PB::RenderPass m_renderPass = nullptr;
-	CLib::Allocator* m_allocator = nullptr;
+		PB::IRenderer* m_renderer = nullptr;
+		PB::RenderPass m_renderPass = nullptr;
+		CLib::Allocator* m_allocator = nullptr;
+	};
+
 };

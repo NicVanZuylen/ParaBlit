@@ -1,82 +1,87 @@
 #include "BatchDispatcher.h"
 #include "Resource/Shader.h"
 
-BatchDispatcher::BatchDispatcher(PB::IRenderer* renderer, CLib::Allocator* allocator)
+namespace Eng
 {
-	m_renderer = renderer;
 
-	PB::ComputePipelineDesc cullPipelineDesc{};
-	cullPipelineDesc.m_computeModule = PBClient::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull", allocator, true).GetModule();
-
-	m_batchCullPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
-}
-
-BatchDispatcher::~BatchDispatcher()
-{
-}
-
-void BatchDispatcher::AddBatch(DrawBatch* batch, PB::Pipeline batchDrawPipeline, const PB::BindingLayout& batchBindings)
-{
-	m_batches.try_emplace(batchDrawPipeline);
-	auto it = m_batches.find(batchDrawPipeline);
-	assert(it != m_batches.end());
-	it->second.PushBack({ batch, batchBindings });
-
-	m_batchDrawParamQueue.PushBack(batch->GetDrawParametersBuffer());
-	m_state = EDispatcherState::PRE_CULL;
-}
-
-void BatchDispatcher::Reset()
-{
-	m_batches.clear();
-	m_batchDrawParamQueue.Clear();
-	m_state = EDispatcherState::CLEAR;
-}
-
-void BatchDispatcher::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView)
-{
-	if (m_batches.empty())
-		return;
-
-	assert(m_state == EDispatcherState::PRE_CULL);
-
-	// Dispatch frustrum cull for all batches.
-	cmdContext->CmdBindPipeline(m_batchCullPipeline);
-	for (auto& pipelineBatches : m_batches)
+	BatchDispatcher::BatchDispatcher(PB::IRenderer* renderer, CLib::Allocator* allocator)
 	{
-		for (auto& batchState : pipelineBatches.second)
+		m_renderer = renderer;
+
+		PB::ComputePipelineDesc cullPipelineDesc{};
+		cullPipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull", allocator, true).GetModule();
+
+		m_batchCullPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
+	}
+
+	BatchDispatcher::~BatchDispatcher()
+	{
+	}
+
+	void BatchDispatcher::AddBatch(DrawBatch* batch, PB::Pipeline batchDrawPipeline, const PB::BindingLayout& batchBindings)
+	{
+		m_batches.try_emplace(batchDrawPipeline);
+		auto it = m_batches.find(batchDrawPipeline);
+		assert(it != m_batches.end());
+		it->second.PushBack({ batch, batchBindings });
+
+		m_batchDrawParamQueue.PushBack(batch->GetDrawParametersBuffer());
+		m_state = EDispatcherState::PRE_CULL;
+	}
+
+	void BatchDispatcher::Reset()
+	{
+		m_batches.clear();
+		m_batchDrawParamQueue.Clear();
+		m_state = EDispatcherState::CLEAR;
+	}
+
+	void BatchDispatcher::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView)
+	{
+		if (m_batches.empty())
+			return;
+
+		assert(m_state == EDispatcherState::PRE_CULL);
+
+		// Dispatch frustrum cull for all batches.
+		cmdContext->CmdBindPipeline(m_batchCullPipeline);
+		for (auto& pipelineBatches : m_batches)
 		{
-			batchState.batch->DispatchFrustrumCull(cmdContext, viewConstantsView);
+			for (auto& batchState : pipelineBatches.second)
+			{
+				batchState.batch->DispatchFrustrumCull(cmdContext, viewConstantsView);
+			}
 		}
+
+		// Issue memory barrier between dispatch and draw for all batch draw param buffers.
+		cmdContext->CmdDrawIndirectBarrier(m_batchDrawParamQueue.Data(), m_batchDrawParamQueue.Count());
+		m_state = EDispatcherState::PRE_DRAW;
 	}
 
-	// Issue memory barrier between dispatch and draw for all batch draw param buffers.
-	cmdContext->CmdDrawIndirectBarrier(m_batchDrawParamQueue.Data(), m_batchDrawParamQueue.Count());
-	m_state = EDispatcherState::PRE_DRAW;
-}
-
-void BatchDispatcher::DrawBatches(PB::ICommandContext* cmdContext, PB::Pipeline overridePipeline)
-{
-	if (m_batches.empty())
-		return;
-
-	assert(m_state == EDispatcherState::PRE_DRAW);
-
-	if (overridePipeline != 0)
+	void BatchDispatcher::DrawBatches(PB::ICommandContext* cmdContext, PB::Pipeline overridePipeline)
 	{
-		cmdContext->CmdBindPipeline(overridePipeline);
-	}
+		if (m_batches.empty())
+			return;
 
-	for (auto& pipelineBatches : m_batches)
-	{
-		if(overridePipeline == 0)
-			cmdContext->CmdBindPipeline(pipelineBatches.first);
+		assert(m_state == EDispatcherState::PRE_DRAW);
 
-		for (auto& batchState : pipelineBatches.second)
+		if (overridePipeline != 0)
 		{
-			batchState.batch->DrawCulledGeometry(cmdContext, batchState.batchBindings);
+			cmdContext->CmdBindPipeline(overridePipeline);
 		}
+
+		for (auto& pipelineBatches : m_batches)
+		{
+			if (overridePipeline == 0)
+				cmdContext->CmdBindPipeline(pipelineBatches.first);
+
+			for (auto& batchState : pipelineBatches.second)
+			{
+				batchState.batch->DrawCulledGeometry(cmdContext, batchState.batchBindings);
+			}
+		}
+
+		Reset();
 	}
 
-	Reset();
-}
+};
