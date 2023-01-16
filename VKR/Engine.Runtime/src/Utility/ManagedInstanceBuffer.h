@@ -48,7 +48,6 @@ public:
 		m_mapRegions.PushBack() = { (elementSrcLocation + m_buffer->StagingBufferOffset()), elementDstLocation, elementRegionEnd - elementRegionStart };
 
 		return m_curMappedStagingBuffer + elementSrcLocation;
-		//return reinterpret_cast<PB::u8*>(&reinterpret_cast<ElementT*>(m_curMappedStagingBuffer)[elementLocation]) + elementRegionStart;
 	}
 
 	void FlushChanges()

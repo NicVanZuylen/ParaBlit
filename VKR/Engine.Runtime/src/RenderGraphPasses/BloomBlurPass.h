@@ -1,6 +1,6 @@
 #pragma once
 #include "RenderGraph/RenderGraphNode.h"
-#include "World/BlurHelper.h"
+#include "WorldRender/BlurHelper.h"
 
 namespace Eng
 {

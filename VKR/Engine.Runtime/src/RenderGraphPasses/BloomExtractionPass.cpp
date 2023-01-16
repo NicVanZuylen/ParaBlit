@@ -1,7 +1,7 @@
 #include "BloomExtractionPass.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Resource/Shader.h"
-#include "World/BlurHelper.h"
+#include "WorldRender/BlurHelper.h"
 
 #pragma warning(push, 0)
 #include "glm/glm.hpp"

@@ -4,7 +4,7 @@
 #include "Resource/Mesh.h"
 #include "Resource/Texture.h"
 #include "Resource/Shader.h"
-#include "World/ObjectDispatcher.h"
+#include "WorldRender/ObjectDispatcher.h"
 
 namespace Eng
 {

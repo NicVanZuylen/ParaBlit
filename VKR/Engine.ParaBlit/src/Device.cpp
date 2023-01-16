@@ -1,5 +1,4 @@
 #include "Device.h"
-#include "CLib/Vector.h"
 #include "ParaBlitDebug.h"
 
 namespace PB 
@@ -21,10 +20,12 @@ namespace PB
 		}
 	}
 
-	void Device::Init(VkInstance instance, bool enableSwapchainExtension)
+	void Device::Init(VkInstance instance, Renderer* renderer, bool enableSwapchainExtension)
 	{
 		PB_ASSERT_MSG(instance, "Attempted to get device using null instance.");
 		m_instance = instance;
+		m_renderer = renderer;
+
 		EnumDevice();
 		CreateLogicalDevice(enableSwapchainExtension);
 		m_allocator.Init(this);
@@ -50,8 +51,8 @@ namespace PB
 				1024 * 1024 * 8,
 				0
 			};
-			m_deviceBufferAllocator.Init(this, EMemoryType::DEVICE_LOCAL, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
-			m_hostBufferAllocator.Init(this, EMemoryType::HOST_VISIBLE, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
+			m_deviceBufferAllocator.Init(m_renderer, EMemoryType::DEVICE_LOCAL, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
+			m_hostBufferAllocator.Init(m_renderer, EMemoryType::HOST_VISIBLE, BufferPoolSize, BufferPoolMinAlignment, bufferAllocatorSegments);
 		}
 
 		{
@@ -72,8 +73,8 @@ namespace PB
 				1024 * 1024 * 32,
 				0
 			};
-			m_deviceTextureAllocator.Init(this, EMemoryType::DEVICE_LOCAL, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
-			m_hostTextureAllocator.Init(this, EMemoryType::HOST_VISIBLE, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
+			m_deviceTextureAllocator.Init(m_renderer, EMemoryType::DEVICE_LOCAL, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
+			m_hostTextureAllocator.Init(m_renderer, EMemoryType::HOST_VISIBLE, TexturePoolSize, TexturePoolMinAlignment, texAllocatorSegments);
 		}
 	}
 

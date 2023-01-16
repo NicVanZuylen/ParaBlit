@@ -5,6 +5,37 @@
 
 namespace PB
 {
+	class BufferDeferredDeletion : public DeferredDeletion
+	{
+	public:
+
+		BufferDeferredDeletion(Device* device, VkBuffer buffer, PoolAllocator::PoolAllocation allocation, PB::EMemoryType memoryType) 
+		{ 
+			m_device = device;
+			m_buffer = buffer;
+			m_allocation = allocation;
+			m_memoryType = memoryType;
+		}
+		~BufferDeferredDeletion() = default;
+
+		void OnDelete() override
+		{
+			vkDestroyBuffer(m_device->GetHandle(), m_buffer, nullptr);
+
+			if (m_allocation.m_memoryHandle != VK_NULL_HANDLE)
+				m_device->GetBufferAllocator(m_memoryType).Free(m_allocation);
+
+			this->~BufferDeferredDeletion();
+		}
+
+	private:
+
+		Device* m_device;
+		VkBuffer m_buffer;
+		PoolAllocator::PoolAllocation m_allocation;
+		PB::EMemoryType m_memoryType;
+	};
+
 	void BufferObject::Create(IRenderer* renderer, const BufferObjectDesc& desc)
 	{
 		m_renderer = reinterpret_cast<Renderer*>(renderer);
@@ -19,7 +50,6 @@ namespace PB
 
 	void BufferObject::Destroy()
 	{
-		auto device = m_renderer->GetDevice();
 		if (m_handle != VK_NULL_HANDLE)
 		{
 			for (auto& view : m_ownedViews)
@@ -37,11 +67,12 @@ namespace PB
 					break;
 				}
 			}
-
-			vkDestroyBuffer(device->GetHandle(), m_handle, nullptr);
-
-			if(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE)
-				device->GetBufferAllocator(m_memoryType).Free(m_poolAllocation);
+		
+			auto device = m_renderer->GetDevice();
+			m_renderer->AddDeferredDeletion(m_renderer->GetAllocator().Alloc<BufferDeferredDeletion>(device, m_handle, m_poolAllocation, m_memoryType));
+		
+			//if(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE)
+			//	device->GetBufferAllocator(m_memoryType).Free(m_poolAllocation);
 		}
 	}
 
@@ -83,7 +114,7 @@ namespace PB
 			memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
 			memoryRange.pNext = nullptr;
 			memoryRange.memory = m_poolAllocation.m_memoryHandle;
-			memoryRange.offset = (m_poolAllocation.m_offset + m_mapOffset);
+			memoryRange.offset = VkDeviceSize(m_poolAllocation.m_offset) + VkDeviceSize(m_mapOffset);
 			memoryRange.size = (m_poolAllocation.m_size - m_mapOffset);
 
 			// Round down offset to a multiple of VkPhysicalDeviceLimits::nonCoherentAtomSize - as required by the Vulkan spec.

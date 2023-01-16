@@ -9,7 +9,7 @@
 
 namespace PB
 {
-	class Device;
+	class Renderer;
 
 	class PoolAllocator
 	{
@@ -27,7 +27,7 @@ namespace PB
 
 		~PoolAllocator();
 
-		void Init(Device* device, EMemoryType memoryType, uint32_t poolSize, uint32_t minAlignmentBytes, const CLib::Vector<uint32_t>& segments);
+		void Init(Renderer* renderer, EMemoryType memoryType, uint32_t poolSize, uint32_t minAlignmentBytes, const CLib::Vector<uint32_t>& segments);
 
 		void Alloc(uint32_t sizeBytes, uint32_t alignBytes, PoolAllocation& outAllocation);
 
@@ -43,6 +43,7 @@ namespace PB
 		static void* PoolAlloc(void* context, uint32_t requestedMinSize, uint32_t& outSize);
 		static void PoolFree(void* context, void* ptr);
 
+		Renderer* m_renderer = nullptr;
 		VkDevice m_device = VK_NULL_HANDLE;
 		uint32_t m_memoryTypeIndex = 0;
 		uint32_t m_poolSize = 0;

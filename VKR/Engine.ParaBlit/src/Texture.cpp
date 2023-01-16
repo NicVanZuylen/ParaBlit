@@ -7,6 +7,37 @@
 
 namespace PB 
 {
+	class TextureDeferredDeletion : public DeferredDeletion
+	{
+	public:
+
+		TextureDeferredDeletion(Device* device, VkImage image, PoolAllocator::PoolAllocation allocation, EMemoryType memoryType)
+		{
+			m_device = device;
+			m_image = image;
+			m_allocation = allocation;
+			m_memoryType = memoryType;
+		}
+		~TextureDeferredDeletion() = default;
+
+		void OnDelete() override
+		{
+			vkDestroyImage(m_device->GetHandle(), m_image, nullptr);
+
+			if (m_allocation.m_memoryHandle != VK_NULL_HANDLE)
+				m_device->GetTextureAllocator(m_memoryType).Free(m_allocation);
+
+			this->~TextureDeferredDeletion();
+		}
+
+	private:
+
+		Device* m_device;
+		VkImage m_image;
+		PoolAllocator::PoolAllocation m_allocation;
+		EMemoryType m_memoryType;
+	};
+
 	Texture::Texture()
 	{
 		m_ownsImage = false;
@@ -73,14 +104,9 @@ namespace PB
 
 			if (m_ownsImage)
 			{
-				vkDestroyImage(m_device->GetHandle(), m_image, nullptr);
+				m_poolAllocation.m_memoryHandle = m_isAlias ? VK_NULL_HANDLE : m_poolAllocation.m_memoryHandle; // Invalidate memory handle if this is an alias, as this object is not responsible for freeing the allocation.
+				m_renderer->AddDeferredDeletion(m_renderer->GetAllocator().Alloc<TextureDeferredDeletion>(m_device, m_image, m_poolAllocation, m_memoryType));
 				m_image = VK_NULL_HANDLE;
-
-				// Free memory block.
-				if (!m_isAlias)
-				{
-					m_device->GetTextureAllocator(m_memoryType).Free(m_poolAllocation);
-				}
 
 				m_availableStates = ETextureState::NONE;
 				m_format = ETextureFormat::UNKNOWN;

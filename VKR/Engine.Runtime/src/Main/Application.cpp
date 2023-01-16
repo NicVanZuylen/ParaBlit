@@ -217,7 +217,7 @@ namespace Eng
 			{
 				if (m_displayPerfMetrics)
 				{
-					double frameTime = double(m_deltaTime * 1000.0f);
+					double frameTime = double(m_deltaTime) * 1000.0;
 					printf_s("Frametime %f ms\n", frameTime);
 					printf_s("Elapsed Time: %f\n", m_elapsedTime);
 					printf_s("FPS: %i\n", (int)ceilf((1.0f / m_deltaTime)));

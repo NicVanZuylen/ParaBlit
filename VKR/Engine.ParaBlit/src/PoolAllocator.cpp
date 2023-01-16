@@ -3,8 +3,35 @@
 
 namespace PB
 {
-	void PoolAllocator::Init(Device* device, EMemoryType memoryType, uint32_t poolSize, uint32_t minAlignmentBytes, const CLib::Vector<uint32_t>& segments)
+	class MemoryDeferredDeletion : public DeferredDeletion
 	{
+	public:
+
+		MemoryDeferredDeletion(VkDevice device, VkDeviceMemory memory)
+		{
+			m_device = device;
+			m_memory = memory;
+		}
+		~MemoryDeferredDeletion() = default;
+
+		void OnDelete() override
+		{
+			vkFreeMemory(m_device, m_memory, nullptr);
+			this->~MemoryDeferredDeletion();
+		}
+
+	private:
+
+		VkDevice m_device;
+		VkDeviceMemory m_memory;
+	};
+
+	void PoolAllocator::Init(Renderer* renderer, EMemoryType memoryType, uint32_t poolSize, uint32_t minAlignmentBytes, const CLib::Vector<uint32_t>& segments)
+	{
+		m_renderer = renderer;
+
+		Device* device = renderer->GetDevice();
+
 		m_device = device->GetHandle();
 		m_memoryTypeIndex = device->FindMemoryTypeIndex(~u32(0), memoryType);
 		m_memoryType = memoryType;
@@ -18,7 +45,8 @@ namespace PB
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 
-		// Destruction of m_poolSuballocator should clean up memory pools.
+		// Memory pools should be cleaned up when all allocations belonging to them are freed.
+		// Destruction of m_poolSuballocator should clean up memory pools which persist.
 	}
 
 	void PoolAllocator::Alloc(uint32_t sizeBytes, uint32_t alignBytes, PoolAllocation& outAllocation)
@@ -98,7 +126,15 @@ namespace PB
 		{
 			vkUnmapMemory(self->m_device, it->second);
 		}
-		vkFreeMemory(self->m_device, it->second, nullptr);
+		
+		// Schedule deferred deletion of memory.
+		{
+			Renderer* renderer = self->m_renderer;
+			CLib::Allocator& allocator = renderer->GetAllocator();
+
+			renderer->AddDeferredDeletion(allocator.Alloc<MemoryDeferredDeletion>(self->m_device, it->second));
+		}
+
 		self->m_pools.erase(it);
 	}
 }

@@ -1,9 +1,9 @@
 #include "GBufferPass.h"
 #include "RenderGraph/RenderGraph.h"
-#include "World/BatchDispatcher.h"
-#include "World/RenderBoundingVolumeHierarchy.h"
-#include "World/Camera.h"
-#include "World/DrawBatch.h"
+#include "WorldRender/BatchDispatcher.h"
+#include "WorldRender/RenderBoundingVolumeHierarchy.h"
+#include "WorldRender/Camera.h"
+#include "WorldRender/DrawBatch.h"
 
 namespace Eng
 {
@@ -40,7 +40,7 @@ namespace Eng
 			m_drawbatchPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 		}
 
-		m_rbvh->CullBatches(m_camera, m_batchDispatcher, m_batchBindings);
+		m_rbvh->CullBatches(m_camera->GetFrustrum(), m_batchDispatcher, m_batchBindings);
 		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView);
 	}
 

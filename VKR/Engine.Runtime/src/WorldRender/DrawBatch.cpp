@@ -78,7 +78,7 @@ namespace Eng
             m_dynamicIndexBuffer = nullptr;
         }
         m_renderer->FreeBuffer(m_dynamicIndexUpdateBuffer);
-
+        
         m_renderer->FreeBuffer(m_cullConstantsBuffer);
         m_renderer->FreeBuffer(m_drawParamsBuffer);
     }
@@ -195,7 +195,15 @@ namespace Eng
         instanceData.m_sampler = sampler;
 
         m_instanceBoundData.PushBack(bounds);
-        m_bounds.Encapsulate(bounds);
+
+        if (m_bounds.IsZero())
+        {
+            m_bounds = bounds;
+        }
+        else
+        {
+            m_bounds.Encapsulate(bounds);
+        }
 
         m_totalIndexCount += entry.m_indexCount;
         return m_instanceCount++;
@@ -282,6 +290,7 @@ namespace Eng
     void DrawBatch::UpdateCullParams()
     {
         BatchCullConstants* cullData = reinterpret_cast<BatchCullConstants*>(m_cullConstantsBuffer->BeginPopulate());
+        memset(cullData, 0, sizeof(BatchCullConstants));
 
         uint32_t totalIndexCount = 0;
         for (uint32_t i = 0; i < m_dynamicUpdateQueue.Count(); ++i)

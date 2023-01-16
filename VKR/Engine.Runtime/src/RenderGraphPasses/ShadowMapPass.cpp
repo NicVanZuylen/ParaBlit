@@ -1,7 +1,7 @@
 #include "ShadowMapPass.h"
 #include "RenderGraph/RenderGraph.h"
-#include "World/RenderBoundingVolumeHierarchy.h"
-#include "World/BatchDispatcher.h"
+#include "WorldRender/RenderBoundingVolumeHierarchy.h"
+#include "WorldRender/BatchDispatcher.h"
 
 #pragma warning(push, 0)
 #define GLM_FORCE_CTOR_INIT
@@ -62,7 +62,7 @@ namespace Eng
 			m_shadowPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 		}
 
-		m_rbvh->CullBatches(m_camera, m_batchDispatcher, m_batchBindings);
+		m_rbvh->CullBatches(m_shadowCascadeFrustrum, m_batchDispatcher, m_batchBindings);
 		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView);
 	}
 

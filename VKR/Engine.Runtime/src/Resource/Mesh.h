@@ -5,7 +5,7 @@
 #include <string>
 
 #include "Engine.ParaBlit/IRenderer.h"
-#include "World/DrawBatch.h"
+#include "WorldRender/DrawBatch.h"
 #include "Engine.AssetEncoder/AssetDatabaseReader.h"
 
 namespace Eng

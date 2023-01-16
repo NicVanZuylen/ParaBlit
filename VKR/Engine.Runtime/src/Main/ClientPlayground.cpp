@@ -25,9 +25,9 @@
 #include "Resource/Shader.h"
 #include "Resource/Material.h"
 
-#include "World/DrawBatch.h"
-#include "World/ObjectDispatcher.h"
-#include "World/RenderBoundingVolumeHierarchy.h"
+#include "WorldRender/DrawBatch.h"
+#include "WorldRender/ObjectDispatcher.h"
+#include "WorldRender/RenderBoundingVolumeHierarchy.h"
 
 #include "glm/gtc/type_ptr.hpp"
 
@@ -73,8 +73,6 @@ namespace Eng
 
 		rbvhDesc.m_toleranceDistanceY = 0.2f;
 		rbvhDesc.m_toleranceStepY = 0.2f;
-
-		rbvhDesc.m_camera = &m_camera;
 
 		m_renderHierarchy = m_allocator->Alloc<RenderBoundingVolumeHierarchy>(m_renderer, m_allocator, rbvhDesc);
 
@@ -163,11 +161,40 @@ namespace Eng
 		}
 
 		if (m_drawEntireRenderHierarchy)
-			m_renderHierarchy->DebugDraw(m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
+			m_renderHierarchy->DebugDraw(&m_camera, m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
+
+		if (!input->GetKey(GLFW_KEY_END, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_END, INPUTSTATE_PREVIOUS))
+		{
+			m_drawRenderHierarchyPipelineTree = !m_drawRenderHierarchyPipelineTree;
+			std::cout << "BVH: Drawing whole pipeline tree: " << (m_drawRenderHierarchyPipelineTree ? "true" : "false") << "\n";
+		}
+
+		if (m_drawRenderHierarchyPipelineTree)
+			m_renderHierarchy->DebugDrawBatchTree(&m_camera, m_debugLinePass);
 
 		for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
 		{
 			m_shadowmapPass[i]->Update();
+		}
+
+		if (!input->GetKey(GLFW_KEY_R, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_R, INPUTSTATE_PREVIOUS))
+		{
+			std::cout << "BVH: Rebuilding subtree experiment... \n";
+
+			PB::CommandContextDesc contextDesc{};
+			contextDesc.m_renderer = m_renderer;
+			contextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
+			contextDesc.m_flags = PB::ECommandContextFlags::PRIORITY;
+
+			PB::SCommandContext initCmdContext(m_renderer);
+			initCmdContext->Init(contextDesc);
+			initCmdContext->Begin();
+
+			m_renderHierarchy->RebuildTest();
+			m_renderHierarchy->BakeBatches(initCmdContext.GetContext());
+
+			initCmdContext->End();
+			initCmdContext->Return();
 		}
 
 		// Update Camera -------------------------------------------------------------------------------------------------
@@ -723,7 +750,7 @@ namespace Eng
 		initCmdContext->Init(contextDesc);
 		initCmdContext->Begin();
 
-		m_renderHierarchy->BakeHierarchies(initCmdContext.GetContext());
+		m_renderHierarchy->BakeBatches(initCmdContext.GetContext());
 
 		initCmdContext->End();
 		initCmdContext->Return();

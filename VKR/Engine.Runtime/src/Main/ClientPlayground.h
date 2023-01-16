@@ -2,7 +2,7 @@
 #include "Engine.ParaBlit/IRenderer.h"
 #include "Engine.ParaBlit/ISwapChain.h"
 
-#include "World/Camera.h"
+#include "WorldRender/Camera.h"
 
 #include "Entity/Entity.h"
 
@@ -79,7 +79,6 @@ namespace Eng
 		CLib::Allocator* m_allocator = nullptr;
 		RenderGraph* m_renderGraph = nullptr;
 		Camera m_camera;
-		// -------------------------------------------------------------------------
 
 		// -------------------------------------------------------------------------
 		// Render Graph
@@ -153,6 +152,7 @@ namespace Eng
 
 		uint32_t m_renderHierarchyDrawDebugDepth = 0;
 		bool m_drawEntireRenderHierarchy = false;
+		bool m_drawRenderHierarchyPipelineTree = false;
 
 		// -------------------------------------------------------------------------
 		// Entities

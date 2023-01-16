@@ -26,6 +26,14 @@ namespace PB
 		PB_FRAME_STATE_IN_FLIGHT
 	};
 
+	// Wrapper class for deleting objects (meshes/textures) which will be deleted after the last from using it is reset/retired.
+	class DeferredDeletion
+	{
+	public:
+
+		virtual void OnDelete() = 0;
+	};
+
 	struct FrameInfo // Stores the properties and resources unique to a single frame.
 	{
 		VkImage m_presentImage = VK_NULL_HANDLE;
@@ -39,7 +47,8 @@ namespace PB
 		CLib::Vector<VkCommandBuffer, 8> m_prioritySubmittedContextBuffers;	// Submitted context command buffers that will be executed before non-priority command buffers.
 		CLib::Vector<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;		// Submitted context command buffers that will be executed before non-priority command buffers.
 		CLib::Vector<VkCommandBuffer, 24> m_enqueuedCmdBuffers;				// Contains all command buffers which have been submitted to the queue.
-		CLib::Vector<VkDescriptorSet, 16> m_submittedUBODescSets;			// Contains this frame's in-flight UBO descriptor sets.
+		CLib::Vector<VkDescriptorSet, 16, 16> m_submittedUBODescSets;		// Contains this frame's in-flight UBO descriptor sets.
+		CLib::Vector<DeferredDeletion*, 16, 16> m_deferredDeletions;		// Contains references to resources to be deleted when the frame is complete.
 	};
 
 	class Renderer : public IRenderer
@@ -116,6 +125,8 @@ namespace PB
 
 		VkDescriptorSetLayout GetUBOSetLayout();
 
+		void AddDeferredDeletion(DeferredDeletion* deletion);
+
 		CLib::Allocator& GetAllocator();
 
 		u64 GetCurrentFrame();
@@ -177,8 +188,10 @@ namespace PB
 		CLib::Vector<VkCommandBuffer, PB_FRAME_IN_FLIGHT_COUNT> m_masterCmdBuffers;
 		CLib::Vector<VkCommandBuffer, 32> m_freeContextCmdBuffers[2];
 		CLib::Vector<VkCommandBuffer, 32> m_internalCmdBuffers;
+		CLib::Vector<DeferredDeletion*, 16, 16> m_pendingDeletions;
 		std::mutex m_contextCmdAllocLock;
 		std::mutex m_contextCmdReturnLock;
+		std::mutex m_deletionLock;
 		CmdContextPool m_contextPool;
 	};
 }

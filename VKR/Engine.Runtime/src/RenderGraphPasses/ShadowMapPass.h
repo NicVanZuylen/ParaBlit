@@ -3,8 +3,8 @@
 #include "Resource/Mesh.h"
 #include "Resource/Texture.h"
 #include "Resource/Shader.h"
-#include "World/ObjectDispatcher.h"
-#include "World/Camera.h"
+#include "WorldRender/ObjectDispatcher.h"
+#include "WorldRender/Camera.h"
 
 namespace Eng
 {

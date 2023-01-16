@@ -19,34 +19,36 @@ namespace Eng
 			m_extents = extents;
 		}
 
+		inline bool IsZero() const { return m_origin + m_extents == glm::vec3(0.0f); }
+
 		inline float MaxX() const { return m_origin.x + m_extents.x; }
 		inline float MaxY() const { return m_origin.y + m_extents.y; }
 		inline float MaxZ() const { return m_origin.z + m_extents.z; }
 
-		glm::vec3 Centre() const
+		inline glm::vec3 Centre() const
 		{
 			return m_origin + (m_extents * 0.5f);
 		}
 
-		float Volume() const
+		inline float Volume() const
 		{
 			return m_extents.x * m_extents.y * m_extents.z;
 		}
 
-		bool IntersectsWith(const Bounds& other) const
+		inline bool IntersectsWith(const Bounds& other) const
 		{
 			return	(m_origin.x <= other.MaxX() && MaxX() >= other.m_origin.x) &&
 				(m_origin.y <= other.MaxY() && MaxY() >= other.m_origin.y) &&
 				(m_origin.z <= other.MaxZ() && MaxZ() >= other.m_origin.z);
 		}
 
-		bool Encapsulates(const Bounds& other) const
+		inline bool Encapsulates(const Bounds& other) const
 		{
 			return (m_origin.x <= other.m_origin.x && m_origin.y <= other.m_origin.y && m_origin.z <= other.m_origin.z)
 				&& (MaxX() >= other.MaxX() && MaxY() >= other.MaxY() && MaxZ() >= other.MaxZ());
 		}
 
-		void Encapsulate(const Bounds& other)
+		inline void Encapsulate(const Bounds& other)
 		{
 			m_extents.x = glm::max(MaxX(), other.MaxX());
 			m_extents.y = glm::max(MaxY(), other.MaxY());
@@ -59,7 +61,7 @@ namespace Eng
 			m_extents -= m_origin;
 		}
 
-		void Transform(const glm::mat4& matrix)
+		inline void Transform(const glm::mat4& matrix)
 		{
 			struct Vertices
 			{

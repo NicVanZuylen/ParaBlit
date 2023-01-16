@@ -34,6 +34,20 @@ namespace PB
 	{
 		vkDeviceWaitIdle(m_device.GetHandle());
 
+		for (uint32_t i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
+		{
+			FrameInfo& frameInfo = m_frameInfos[i];
+			PB_ASSERT(frameInfo.m_deferredDeletions.Count() == 0);
+		}
+
+		for (uint32_t i = 0; i < m_pendingDeletions.Count(); ++i)
+		{
+			m_pendingDeletions[i]->OnDelete();
+
+			m_allocator.Free(reinterpret_cast<void*>(m_pendingDeletions[i]));
+		}
+		m_pendingDeletions.Clear();
+
 		m_swapchain.Destroy();
 		if (m_windowSurface)
 		{
@@ -75,7 +89,7 @@ namespace PB
 	void Renderer::Init(const RendererDesc& desc)
 	{
 		m_vkInstance.Create(desc.m_extensionNames, desc.m_extensionCount);
-		m_device.Init(m_vkInstance.GetHandle(), desc.m_windowInfo != nullptr);
+		m_device.Init(m_vkInstance.GetHandle(), this, desc.m_windowInfo != nullptr);
 		m_renderPassCache.Init(&m_device);
 		m_viewCache.Init(&m_device, &m_masterResourceDescSet, &m_masterSetLayout);
 		m_framebufferCache.Init(&m_device);
@@ -210,17 +224,29 @@ namespace PB
 		vkWaitForFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence, VK_TRUE, ~(0ULL));
 		std::chrono::time_point afterWait = std::chrono::high_resolution_clock::now();
 		vkResetFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence);
-		
 		auto waitTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(afterWait - beforeWait).count();
 		outStallTimeMs = float(double(waitTimeUs) / 1000.0f);
 
-		m_freeContextCmdBuffers[0] += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
-		curFrameInfo.m_state = PB_FRAME_STATE_OPEN;
+		// Reset frame...
+		{
+			m_freeContextCmdBuffers[0] += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
+			curFrameInfo.m_state = PB_FRAME_STATE_OPEN;
 
-		m_uboDescSets += curFrameInfo.m_submittedUBODescSets;
-		curFrameInfo.m_submittedUBODescSets.Clear();
+			m_uboDescSets += curFrameInfo.m_submittedUBODescSets;
+			curFrameInfo.m_submittedUBODescSets.Clear();
 
-		m_device.GetTempBufferAllocator().ResetFrame(m_curFrameInfoIdx);
+			m_device.GetTempBufferAllocator().ResetFrame(m_curFrameInfoIdx);
+
+			// Deferred deletions...
+			for (DeferredDeletion*& deletion : curFrameInfo.m_deferredDeletions)
+			{
+				deletion->OnDelete();
+
+				// Interpret as raw memory as the deletion object will have called it's own destructor in OnDelete().
+				m_allocator.Free(reinterpret_cast<void*>(deletion));
+			}
+			curFrameInfo.m_deferredDeletions.Clear();
+		}
 
 		PB_ASSERT(curFrameInfo.m_frameSemaphore);
 		if (m_validSwapchain)
@@ -384,6 +410,12 @@ namespace PB
 		return m_uboSetLayout;
 	}
 
+	void Renderer::AddDeferredDeletion(DeferredDeletion* deletion)
+	{
+		std::lock_guard<std::mutex> deletionLock(m_deletionLock);
+		m_pendingDeletions.PushBack(deletion);
+	}
+
 	CLib::Allocator& Renderer::GetAllocator()
 	{
 		return m_allocator;
@@ -542,6 +574,13 @@ namespace PB
 
 		curFrameInfo.m_submittedUBODescSets += m_usedUBODescSets;
 		m_usedUBODescSets.Clear();
+
+		{
+			std::lock_guard<std::mutex> deletionLock(m_deletionLock);
+
+			curFrameInfo.m_deferredDeletions += m_pendingDeletions;
+			m_pendingDeletions.Clear();
+		}
 
 		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr };
 		submitInfo.commandBufferCount = curFrameInfo.m_enqueuedCmdBuffers.Count();

@@ -8,6 +8,8 @@
 
 namespace PB 
 {
+	class Renderer;
+
 	class Device
 	{
 	public:
@@ -19,7 +21,7 @@ namespace PB
 		/*
 		Description: Find suitable physical device and create logical device with required extensions & features.
 		*/
-		PARABLIT_API void Init(VkInstance instance, bool enableSwapchainExtension);
+		PARABLIT_API void Init(VkInstance instance, Renderer* renderer, bool enableSwapchainExtension);
 
 		/*
 		Description: Get the primary graphics queue family index.
@@ -140,6 +142,7 @@ namespace PB
 		inline PARABLIT_API void CreateLogicalDevice(bool enableSwapchainExtension);
 
 		VkInstance m_instance = VK_NULL_HANDLE;
+		Renderer* m_renderer = nullptr;
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 		VkPhysicalDeviceFeatures2 m_physDeviceFeatures = {};
 		VkPhysicalDeviceVulkan12Features m_physDeviceVulkan12Features = {};
