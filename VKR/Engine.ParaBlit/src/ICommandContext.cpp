@@ -21,7 +21,7 @@ namespace PB
 		if (!renderer)
 			return nullptr;
 
-		return reinterpret_cast<Renderer*>(renderer)->GetContextPool().Allocate();
+		return reinterpret_cast<Renderer*>(renderer)->AllocateCommandContext();
 	}
 
 	void DestroyCommandContext(ICommandContext*& cmdContext)
@@ -30,7 +30,8 @@ namespace PB
 		if (!cmdContext)
 			return;
 
-		reinterpret_cast<CommandContext*>(cmdContext)->GetRenderer()->GetContextPool().Free(cmdContext);
+		CommandContext* internalContext = reinterpret_cast<CommandContext*>(cmdContext);
+		internalContext->GetRenderer()->FreeCommandContext(internalContext);
 		cmdContext = nullptr;
 	}
 

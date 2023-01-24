@@ -148,5 +148,71 @@ namespace PB
 			u8 m_flags = false;
 		};
 	};
+
+	// Command context wrapper used for thread_local storage duration.
+	class ThreadCommandContext
+	{
+	public:
+
+		ThreadCommandContext() = default;
+		~ThreadCommandContext()
+		{
+			ExplicitDestroy();
+		}
+
+		CommandContext* Get(Renderer* renderer)
+		{
+			if (m_ptr == nullptr)
+			{
+				m_renderer = renderer;
+				m_ptr = reinterpret_cast<CommandContext*>(CreateCommandContext(reinterpret_cast<IRenderer*>(m_renderer)));
+
+				CommandContextDesc desc;
+				desc.m_flags = ECommandContextFlags::PRIORITY;
+				desc.m_usage = ECommandContextUsage::GRAPHICS;
+				desc.m_renderer = reinterpret_cast<IRenderer*>(renderer);
+
+				// Initialize and flag as internal.
+				m_ptr->Init(desc);
+				m_ptr->SetIsInternal();
+			}
+
+			if (m_ptr->GetState() != PB::ECmdContextState::RECORDING)
+			{
+				m_ptr->Begin();
+			}
+
+			return m_ptr;
+		}
+
+		void End()
+		{
+			if (m_ptr->GetState() == PB::ECmdContextState::RECORDING)
+			{
+				m_ptr->End();
+				m_ptr->Return();
+			}
+		}
+
+		void ExplicitDestroy()
+		{
+			if (m_ptr != nullptr)
+			{
+				if (m_ptr->GetState() == PB::ECmdContextState::RECORDING)
+				{
+					m_ptr->End();
+					m_ptr->Return();
+				}
+
+				DestroyCommandContext(reinterpret_cast<ICommandContext*&>(m_ptr));
+				m_ptr = nullptr;
+			}
+		}
+
+	private:
+
+		Renderer* m_renderer = nullptr;
+		CommandContext* m_ptr;
+	};
 }
 

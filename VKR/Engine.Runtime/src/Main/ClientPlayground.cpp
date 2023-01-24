@@ -668,11 +668,11 @@ namespace Eng
 
 		Eng::Transform* spinnerTransform = m_spinnerPaintEntity->GetComponent<Eng::Transform>();
 
-		const uint32_t spinnerCount = 2;
+		const uint32_t spinnerCount = 15;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
-			//glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
-			glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
+			glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
 
 			if (i == 1)
 			{

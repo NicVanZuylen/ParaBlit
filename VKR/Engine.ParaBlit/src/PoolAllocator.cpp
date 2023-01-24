@@ -1,6 +1,9 @@
 #include "PoolAllocator.h"
 #include "Renderer.h"
 
+// May help in diagnosing issues with suballocation.
+#define POOL_ALLOCATOR_DISABLE_SUBALLOCATION false
+
 namespace PB
 {
 	class MemoryDeferredDeletion : public DeferredDeletion
@@ -14,10 +17,12 @@ namespace PB
 		}
 		~MemoryDeferredDeletion() = default;
 
-		void OnDelete() override
+		void OnDelete(CLib::Allocator& allocator) override
 		{
 			vkFreeMemory(m_device, m_memory, nullptr);
-			this->~MemoryDeferredDeletion();
+			m_memory = VK_NULL_HANDLE;
+
+			allocator.Free(this);
 		}
 
 	private:
@@ -51,26 +56,44 @@ namespace PB
 
 	void PoolAllocator::Alloc(uint32_t sizeBytes, uint32_t alignBytes, PoolAllocation& outAllocation)
 	{
+		if constexpr (POOL_ALLOCATOR_DISABLE_SUBALLOCATION)
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+
+			outAllocation.m_ptr = nullptr;
+			outAllocation.m_offset = 0;
+			outAllocation.m_size = sizeBytes;
+
+			VkMemoryAllocateInfo allocInfo{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr };
+			allocInfo.allocationSize = sizeBytes;
+			allocInfo.memoryTypeIndex = m_memoryTypeIndex;
+
+			PB_ERROR_CHECK(vkAllocateMemory(m_device, &allocInfo, nullptr, &outAllocation.m_memoryHandle));
+			PB_BREAK_ON_ERROR;
+
+			if (m_memoryType == PB::EMemoryType::HOST_VISIBLE)
+			{
+				PB_ERROR_CHECK(vkMapMemory(m_device, outAllocation.m_memoryHandle, 0, sizeBytes, 0, &outAllocation.m_ptr));
+				PB_BREAK_ON_ERROR;
+			}
+			return;
+		}
+
 		if (alignBytes < m_minAlignment)
 		{
-			if (alignBytes == 0)
-				alignBytes = m_minAlignment;
-			else
-			{
-				uint32_t alignPad = m_minAlignment % alignBytes;
-				alignBytes = m_minAlignment + alignBytes;
-			}
+			alignBytes = m_minAlignment;
 		}
 
 		std::lock_guard<std::mutex> lock(m_mutex);
 
 		void* address = m_poolSuballocator.Alloc(sizeBytes, alignBytes);
+		void* pageAddress = m_poolSuballocator.GetAllocationPageAddress(address);
 
-		auto it = std::prev(m_pools.upper_bound(address));
-		PB_ASSERT(it != m_pools.end());
+		auto pageIt = m_pools.find(pageAddress);
+		PB_ASSERT(pageIt != m_pools.end());
 
-		outAllocation.m_ptr = it->first;
-		outAllocation.m_memoryHandle = it->second;
+		outAllocation.m_ptr = pageIt->first;
+		outAllocation.m_memoryHandle = pageIt->second;
 		outAllocation.m_offset = static_cast<uint32_t>(reinterpret_cast<size_t>(address) - reinterpret_cast<size_t>(outAllocation.m_ptr));
 		outAllocation.m_size = sizeBytes;
 	}
@@ -78,6 +101,19 @@ namespace PB
 	void PoolAllocator::Free(PoolAllocation& allocation)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
+
+		if constexpr (POOL_ALLOCATOR_DISABLE_SUBALLOCATION)
+		{
+			if (m_memoryType == PB::EMemoryType::HOST_VISIBLE)
+			{
+				vkUnmapMemory(m_device, allocation.m_memoryHandle);
+			}
+			m_renderer->AddDeferredDeletion(m_renderer->GetAllocator().Alloc<MemoryDeferredDeletion>(m_device, allocation.m_memoryHandle));
+
+			allocation.m_ptr = nullptr;
+			allocation.m_memoryHandle = VK_NULL_HANDLE;
+			return;
+		}
 
 		void* address = reinterpret_cast<void*>(reinterpret_cast<size_t>(allocation.m_ptr) + allocation.m_offset);
 		m_poolSuballocator.Free(address);

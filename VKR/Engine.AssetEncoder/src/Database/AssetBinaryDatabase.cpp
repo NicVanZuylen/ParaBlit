@@ -13,6 +13,22 @@ namespace AssetEncoder
 		m_databasePath = databasePath;
 	}
 
+	AssetBinaryDatabaseWriter::~AssetBinaryDatabaseWriter()
+	{
+		// Free allocations to free external allocator pages.
+		for (auto& stringAllocation : m_stringAllocations)
+		{
+			m_stringAllocator.Free(stringAllocation);
+		}
+		m_stringAllocations.Clear();
+
+		for (auto& assetAllocation : m_assetAllocations)
+		{
+			m_assetAllocator.Free(assetAllocation);
+		}
+		m_assetAllocations.Clear();
+	}
+
 	void* AssetBinaryDatabaseWriter::AllocateAsset(const char* assetName, size_t userDataSize, size_t binarySize, size_t date, char** outUserData, AssetMeta* outMeta)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
@@ -23,6 +39,8 @@ namespace AssetEncoder
 
 		size_t stringLength = strlen(assetName) + 1; // Include null terminator.
 		char* strMem = reinterpret_cast<char*>(m_stringAllocator.Alloc(uint32_t(stringLength + stringOffset), 16));
+		m_stringAllocations.PushBack(strMem);
+
 		if(outUserData != nullptr)
 			*outUserData = &strMem[userDataOffset];
 		memcpy(&strMem[stringOffset], assetName, stringLength); // Copy string
@@ -34,6 +52,8 @@ namespace AssetEncoder
 		size_t stringHeaderLocation = stringPageOffset + stringHeaderLocalOffset;
 
 		void* assetPtr = m_assetAllocator.Alloc(uint32_t(binarySize), 128);
+		m_assetAllocations.PushBack(assetPtr);
+
 		void* pageAddress = m_assetAllocator.GetAllocationPageAddress(assetPtr);
 		size_t assetLocalOffset = reinterpret_cast<uint8_t*>(assetPtr) - reinterpret_cast<uint8_t*>(pageAddress);
 		size_t pageOffset = m_assetPageHandleMap.at(pageAddress).second.m_offset;

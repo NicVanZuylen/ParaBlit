@@ -6,7 +6,8 @@
 #include "Swapchain.h"
 #include "CLib/Vector.h"
 #include "CLib/Allocator.h"
-#include "CmdContextPool.h"
+#include "CLib/FixedBlockAllocator.h"
+#include "CommandContext.h"
 #include "RenderPassCache.h"
 #include "ImageView.h"
 #include "FramebufferCache.h"
@@ -31,7 +32,7 @@ namespace PB
 	{
 	public:
 
-		virtual void OnDelete() = 0;
+		virtual void OnDelete(CLib::Allocator& allocator) = 0;
 	};
 
 	struct FrameInfo // Stores the properties and resources unique to a single frame.
@@ -54,6 +55,8 @@ namespace PB
 	class Renderer : public IRenderer
 	{
 	public:
+
+		static thread_local ThreadCommandContext t_threadResourceInitializationCommandContext;
 
 		PARABLIT_API Renderer();
 
@@ -87,6 +90,10 @@ namespace PB
 
 		PARABLIT_API void ReturnOpenBuffer(CommandContext& context);
 
+		PARABLIT_API CommandContext* AllocateCommandContext();
+
+		PARABLIT_API void FreeCommandContext(CommandContext* context);
+
 		PARABLIT_API void EndFrame(float& outStallTimeMs) override;
 
 		PARABLIT_API void WaitIdle() override;
@@ -112,8 +119,6 @@ namespace PB
 		void FreeBindingCache(IBindingCache* cache) override;
 
 		void FreeCommandList(ICommandList* list) override;
-
-		PARABLIT_API CmdContextPool& GetContextPool();
 
 		VkDescriptorSet GetMasterSet();
 
@@ -192,7 +197,9 @@ namespace PB
 		std::mutex m_contextCmdAllocLock;
 		std::mutex m_contextCmdReturnLock;
 		std::mutex m_deletionLock;
-		CmdContextPool m_contextPool;
+
+		CLib::FixedBlockAllocator m_commandContextAllocator{ sizeof(CommandContext), sizeof(CommandContext) * 16 };
+		CLib::Vector<CommandContext*, 8, 8> m_freeCommandContexts;
 	};
 }
 

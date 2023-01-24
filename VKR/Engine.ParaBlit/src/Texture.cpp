@@ -20,14 +20,14 @@ namespace PB
 		}
 		~TextureDeferredDeletion() = default;
 
-		void OnDelete() override
+		void OnDelete(CLib::Allocator& allocator) override
 		{
 			vkDestroyImage(m_device->GetHandle(), m_image, nullptr);
 
 			if (m_allocation.m_memoryHandle != VK_NULL_HANDLE)
 				m_device->GetTextureAllocator(m_memoryType).Free(m_allocation);
 
-			this->~TextureDeferredDeletion();
+			allocator.Free(this);
 		}
 
 	private:
@@ -380,10 +380,7 @@ namespace PB
 		{
 			PB_ASSERT_MSG(m_availableStates & ETextureState::COPY_DST, "Cannot zero initialize an image which does not support copy dst.");
 
-			// TODO: Share an internal context for initialization of all resources, as making a context for every resource will quickly bloat the graphics queue with many contexts in complex scenes.
-			CommandContext internalContext;
-			MakeInternalContext(internalContext, m_renderer);
-			internalContext.Begin();
+			CommandContext& internalContext = *Renderer::t_threadResourceInitializationCommandContext.Get(m_renderer);
 
 			SubresourceRange pbSubresourceRange;
 			pbSubresourceRange.m_baseMip = 0; // TODO: Support for subresources.
@@ -412,9 +409,6 @@ namespace PB
 				subresources.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 				vkCmdClearColorImage(internalContext.GetCmdBuffer(), m_image, ConvertPBStateToImageLayout(ETextureState::COPY_DST), &clearColor, 1, &subresources);
 			}
-
-			internalContext.End();
-			internalContext.Return();
 		}
 		else if (desc.m_initOptions & ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA)
 		{
@@ -438,9 +432,7 @@ namespace PB
 				currentDataDesc = currentDataDesc->m_next;
 			}
 
-			PB::CommandContext internalContext;
-			MakeInternalContext(internalContext, m_renderer);
-			internalContext.Begin();
+			CommandContext& internalContext = *Renderer::t_threadResourceInitializationCommandContext.Get(m_renderer);
 
 			PB::SubresourceRange subresources{};
 			subresources.m_mipCount = desc.m_mipCount;
@@ -513,9 +505,6 @@ namespace PB
 				}
 				vkCmdBlitImage(internalContext.GetCmdBuffer(), m_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, blitOps.Count() , blitOps.Data(), VK_FILTER_LINEAR);
 			}
-
-			internalContext.End();
-			internalContext.Return();
 		}
 	}
 }

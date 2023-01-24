@@ -7,6 +7,8 @@
 
 namespace PB 
 {
+	thread_local ThreadCommandContext Renderer::t_threadResourceInitializationCommandContext{};
+
 	static CLib::Allocator vectorAllocator;
 
 	static void* VectorAlloc(unsigned long long size)
@@ -34,6 +36,14 @@ namespace PB
 	{
 		vkDeviceWaitIdle(m_device.GetHandle());
 
+		t_threadResourceInitializationCommandContext.ExplicitDestroy();
+
+		for (auto& context : m_freeCommandContexts)
+		{
+			m_commandContextAllocator.Free(context);
+		}
+		m_freeCommandContexts.Clear();
+
 		for (uint32_t i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
 		{
 			FrameInfo& frameInfo = m_frameInfos[i];
@@ -42,9 +52,7 @@ namespace PB
 
 		for (uint32_t i = 0; i < m_pendingDeletions.Count(); ++i)
 		{
-			m_pendingDeletions[i]->OnDelete();
-
-			m_allocator.Free(reinterpret_cast<void*>(m_pendingDeletions[i]));
+			m_pendingDeletions[i]->OnDelete(m_allocator);
 		}
 		m_pendingDeletions.Clear();
 
@@ -84,6 +92,8 @@ namespace PB
 
 		// Destroy master command pool (will free master command buffers).
 		vkDestroyCommandPool(m_device.GetHandle(), m_masterCmdPool, nullptr);
+
+		m_allocator.DumpMemoryLeaks();
 	}
 
 	void Renderer::Init(const RendererDesc& desc)
@@ -215,8 +225,25 @@ namespace PB
 		context.Invalidate();
 	}
 
+	CommandContext* Renderer::AllocateCommandContext()
+	{
+		if (m_freeCommandContexts.Count() > 0)
+		{
+			return m_freeCommandContexts.PopBack();
+		}
+
+		return m_commandContextAllocator.Alloc<CommandContext>();
+	}
+
+	void Renderer::FreeCommandContext(CommandContext* context)
+	{
+		m_freeCommandContexts.PushBack(context);
+	}
+
 	void Renderer::EndFrame(float& outStallTimeMs)
 	{
+		t_threadResourceInitializationCommandContext.End();
+
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
 
 		// Wait for frame to finish if it's still in-flight.
@@ -240,10 +267,7 @@ namespace PB
 			// Deferred deletions...
 			for (DeferredDeletion*& deletion : curFrameInfo.m_deferredDeletions)
 			{
-				deletion->OnDelete();
-
-				// Interpret as raw memory as the deletion object will have called it's own destructor in OnDelete().
-				m_allocator.Free(reinterpret_cast<void*>(deletion));
+				deletion->OnDelete(m_allocator);
 			}
 			curFrameInfo.m_deferredDeletions.Clear();
 		}
@@ -365,11 +389,6 @@ namespace PB
 		for (auto& set : internalList->GetUBOSets())
 			m_usedUBODescSets.PushBack(set);
 		m_allocator.Free(internalList);
-	}
-
-	CmdContextPool& Renderer::GetContextPool()
-	{
-		return m_contextPool;
 	}
 
 	VkDescriptorSet Renderer::GetMasterSet()

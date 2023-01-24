@@ -15,6 +15,8 @@ namespace AssetEncoder
 
 		ASSET_ENCODER_API AssetBinaryDatabaseWriter(const char* databasePath);
 
+		ASSET_ENCODER_API ~AssetBinaryDatabaseWriter();
+
 		ASSET_ENCODER_API void* AllocateAsset(const char* assetName, size_t userDataSize, size_t binarySize, size_t date, char** outUserData = nullptr, AssetMeta* outMeta = nullptr);
 
 		ASSET_ENCODER_API void WriteDatabase();
@@ -49,11 +51,13 @@ namespace AssetEncoder
 		size_t m_currentStringPageOffset = 0;
 		uint32_t m_stringCount = 0;
 		CLib::ExternalAllocator m_stringAllocator{ this, StringPageAlloc, PageFree };
+		CLib::Vector<void*, 1, 256> m_stringAllocations;
 
 		PageHandleMap m_assetPageHandleMap;
 		PageHandleVector m_assetPageHandleVector;
 		size_t m_currentAssetPageOffset = 0;
 		CLib::ExternalAllocator m_assetAllocator{ this, AssetPageAlloc, PageFree };
+		CLib::Vector<void*, 1, 256> m_assetAllocations;
 
 		std::string m_databasePath;
 		std::mutex m_mutex;

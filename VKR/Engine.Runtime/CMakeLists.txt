@@ -78,6 +78,7 @@ endif()
 # ------------------------- PREPROCESSOR DEFINITIONS -------------------------
 add_compile_definitions(PARABLIT_WINDOWS)
 add_compile_definitions(GLFW_EXPOSE_NATIVE_WIN32)
+add_compile_definitions(CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1)
 
 # ----------------------------------------------------------------------------
 

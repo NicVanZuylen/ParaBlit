@@ -581,7 +581,7 @@ namespace Eng
 			}
 		}
 
-		printf_s("\nBaked Node Count: %u\n", finalBakedNodes.size());
+		printf_s("\nBaked Node Count: %u\n", uint32_t(finalBakedNodes.size()));
 
 		m_globalBatchHierarchy.m_bakedNodeUpdateIndices.PushBack(highestBakedNodeIndex);
 	}
@@ -734,12 +734,15 @@ namespace Eng
 	{
 		for (BuildNode* child : node->m_children)
 		{
-			if (keepBatches == false)
-			{
-				for (auto& pipelineBatch : child->m_drawBatches)
-					m_allocator->Free(pipelineBatch.m_batch);
-			}
 			RecursiveFreeNode(child, keepBatches);
+		}
+
+		if (keepBatches == false)
+		{
+			for (auto& pipelineBatch : node->m_drawBatches)
+			{
+				m_allocator->Free(pipelineBatch.m_batch);
+			}
 		}
 
 		m_allocator->Free(node);

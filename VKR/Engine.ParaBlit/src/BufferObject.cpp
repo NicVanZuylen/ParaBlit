@@ -18,14 +18,18 @@ namespace PB
 		}
 		~BufferDeferredDeletion() = default;
 
-		void OnDelete() override
+		void OnDelete(CLib::Allocator& allocator) override
 		{
 			vkDestroyBuffer(m_device->GetHandle(), m_buffer, nullptr);
+			m_buffer = VK_NULL_HANDLE;
 
 			if (m_allocation.m_memoryHandle != VK_NULL_HANDLE)
+			{
 				m_device->GetBufferAllocator(m_memoryType).Free(m_allocation);
+				m_allocation.m_memoryHandle = VK_NULL_HANDLE;
+			}
 
-			this->~BufferDeferredDeletion();
+			allocator.Free(this);
 		}
 
 	private:
@@ -70,9 +74,6 @@ namespace PB
 		
 			auto device = m_renderer->GetDevice();
 			m_renderer->AddDeferredDeletion(m_renderer->GetAllocator().Alloc<BufferDeferredDeletion>(device, m_handle, m_poolAllocation, m_memoryType));
-		
-			//if(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE)
-			//	device->GetBufferAllocator(m_memoryType).Free(m_poolAllocation);
 		}
 	}
 
@@ -93,7 +94,7 @@ namespace PB
 
 	u8* BufferObject::Map(u32 offset, u32 size)
 	{
-		PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
+		//PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
 
 		void* data = nullptr;
 		if (m_memoryType == EMemoryType::HOST_VISIBLE)
@@ -106,7 +107,7 @@ namespace PB
 
 	void BufferObject::Unmap()
 	{
-		PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
+		//PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
 
 		if (m_memoryType == EMemoryType::HOST_VISIBLE)
 		{
@@ -150,16 +151,11 @@ namespace PB
 
 	void BufferObject::EndPopulate(BufferCopyRegion* regions, u32 regionCount)
 	{
-		PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
+		//PB_ASSERT(m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE && m_poolAllocation.m_ptr != nullptr);
 
-		CommandContext internalContext;
-		MakeInternalContext(internalContext, m_renderer);
-		internalContext.Begin();
-
+		CommandContext& internalContext = *Renderer::t_threadResourceInitializationCommandContext.Get(m_renderer);
 		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), m_stagingBuffer.m_buffer, m_handle, regionCount, reinterpret_cast<const VkBufferCopy*>(regions));
 
-		internalContext.End();
-		internalContext.Return();
 		m_stagingBuffer.m_mappedPtr = nullptr;
 	}
 
@@ -311,16 +307,11 @@ namespace PB
 
 	inline void BufferObject::CopyStagingBuffer(const TempBuffer& buffer, const u32& writeOffset)
 	{
-		CommandContext internalContext;
-		MakeInternalContext(internalContext, m_renderer);
-		internalContext.Begin();
+		CommandContext& internalContext = *Renderer::t_threadResourceInitializationCommandContext.Get(m_renderer);
 
 		// Staging buffers don't use the IBufferObject API, so we'll have to issue the copy command here.
 		u32 copySize = m_size < buffer.m_size ? m_size : buffer.m_size;
 		VkBufferCopy copyRegion{ buffer.m_offset, writeOffset, copySize };
 		vkCmdCopyBuffer(internalContext.GetCmdBuffer(), buffer.m_buffer, m_handle, 1, &copyRegion);
-
-		internalContext.End();
-		internalContext.Return();
 	}
 };

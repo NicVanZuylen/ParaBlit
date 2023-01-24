@@ -33,6 +33,9 @@ namespace Eng
 		Input::Destroy();
 
 		glfwTerminate();
+
+		// Dump any memory leaks.
+		m_allocator.DumpMemoryLeaks();
 	}
 
 	int Application::Init(int argumentCount, char** argumentVector)
@@ -82,7 +85,7 @@ namespace Eng
 		swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 		swapchainDesc.m_height = 0;
 		swapchainDesc.m_presentMode = PB::EPresentMode::FIFO;
-		swapchainDesc.m_imageCount = 3;
+		swapchainDesc.m_imageCount = 2;
 
 		m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
 
