@@ -31,6 +31,8 @@ namespace Eng
 			s_entityComponentStorage.Free(component);
 		}
 
+		void OnConstruction() override {};
+
 		void OnDestruction() override { ECDestroy(this); }
 
 		void GetReflection(CLib::Reflector& outReflector) override { outReflector.Init(this); }

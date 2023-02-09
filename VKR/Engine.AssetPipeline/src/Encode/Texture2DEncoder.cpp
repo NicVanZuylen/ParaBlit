@@ -61,13 +61,16 @@ namespace AssetPipeline
 				// Environment map path.
 
 				std::string skyboxName = asset.m_dbPath + "_sky";
-				auto skyboxInfo = m_dbReader->GetAssetInfo(skyboxName.c_str());
+				AssetEncoder::AssetHandle skyboxHandle(skyboxName.c_str());
+				auto skyboxInfo = m_dbReader->GetAssetInfo(skyboxHandle);
 
 				std::string irradianceName = asset.m_dbPath + "_env_irradiance";
-				auto irradianceInfo = m_dbReader->GetAssetInfo(irradianceName.c_str());
+				AssetEncoder::AssetHandle irradianceHandle(irradianceName.c_str());
+				auto irradianceInfo = m_dbReader->GetAssetInfo(irradianceHandle);
 
 				std::string prefilterName = asset.m_dbPath + "_env";
-				auto prefilterInfo = m_dbReader->GetAssetInfo(prefilterName.c_str());
+				AssetEncoder::AssetHandle prefilterHandle(prefilterName.c_str());
+				auto prefilterInfo = m_dbReader->GetAssetInfo(prefilterHandle);
 
 				bool outdated = irradianceInfo.m_binarySize == 0 
 					|| prefilterInfo.m_binarySize == 0 

@@ -42,6 +42,7 @@ add_compile_definitions(ASSET_ENCODER_VERSION=1)
 function(add_source source_dir filter_name)
 
 file(GLOB_RECURSE SRC_FILES
+    "${source_dir}/*.h"
     "${source_dir}/*.cpp"
 )
 source_group(${filter_name} FILES ${SRC_FILES})

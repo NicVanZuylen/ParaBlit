@@ -6,11 +6,13 @@
 namespace Eng
 {
 	class Entity;
+	class EntityHierarchy;
 
 	class EntityComponent
 	{
 	public:
 
+		virtual void OnConstruction() = 0;
 		virtual void OnDestruction() = 0;
 
 		Entity* GetHost() { return m_host; }
@@ -40,7 +42,11 @@ namespace Eng
 	{
 	public:
 
-		Entity() = default;
+		Entity(EntityHierarchy* hierarchy)
+			: m_hierarchy(hierarchy)
+		{
+
+		}
 
 		~Entity();
 
@@ -59,6 +65,7 @@ namespace Eng
 			T* newComponent = T::EC_CONSTRUCTOR_NAME(args...);
 			newComponent->m_host = this;
 			newComponent->m_typeHash = typeid(T).hash_code();
+			newComponent->OnConstruction();
 
 			m_components.PushBack(newComponent);
 			return newComponent;
@@ -147,8 +154,11 @@ namespace Eng
 			return false;
 		}
 
+		inline EntityHierarchy* GetHierarchy() { return m_hierarchy; }
+
 	private:
 
+		EntityHierarchy* m_hierarchy;
 		CLib::Vector<Entity*, 4, 4> m_children;
 		CLib::Vector<EntityComponent*, 4, 4> m_components;
 	};

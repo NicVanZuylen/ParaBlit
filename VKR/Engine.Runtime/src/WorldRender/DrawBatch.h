@@ -50,7 +50,7 @@ namespace Eng
 		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView);
 		void DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
 
-		DrawBatchInstance AddInstance(Eng::Mesh* mesh, float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler);
+		DrawBatchInstance AddInstance(Eng::Mesh* mesh, const float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler);
 		void UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix);
 
 		void FinalizeUpdates();

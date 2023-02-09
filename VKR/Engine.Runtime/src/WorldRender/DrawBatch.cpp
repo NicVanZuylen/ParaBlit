@@ -168,7 +168,7 @@ namespace Eng
         cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, sizeof(DrawParamsBuffer::m_drawIndexedParams), MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
     }
 
-    DrawBatch::DrawBatchInstance DrawBatch::AddInstance(Eng::Mesh* mesh, float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
+    DrawBatch::DrawBatchInstance DrawBatch::AddInstance(Eng::Mesh* mesh, const float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
     {
         assert(mesh);
         assert(modelMatrix);

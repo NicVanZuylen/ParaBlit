@@ -12,11 +12,12 @@ namespace AssetPipeline
 		moduleDesc.m_key = assetName;
 		moduleDesc.m_keySize = strlen(assetName);
 
-		auto assetInfo = reader->GetAssetInfo(assetName);
+		AssetEncoder::AssetHandle handle(assetName);
+		auto assetInfo = reader->GetAssetInfo(handle);
 		assert(assetInfo.m_binarySize > 0);
 
 		void* byteCode = malloc(assetInfo.m_binarySize);
-		reader->GetAssetBinary(assetName, byteCode);
+		reader->GetAssetBinary(handle, byteCode);
 
 		moduleDesc.m_size = assetInfo.m_binarySize;
 		moduleDesc.m_byteCode = reinterpret_cast<const char*>(byteCode);

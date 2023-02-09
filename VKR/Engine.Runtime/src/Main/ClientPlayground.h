@@ -2,9 +2,10 @@
 #include "Engine.ParaBlit/IRenderer.h"
 #include "Engine.ParaBlit/ISwapChain.h"
 
-#include "WorldRender/Camera.h"
-
 #include "Entity/Entity.h"
+#include "Entity/EntityHierarchy.h"
+
+#include "Resource/AssetStreamer.h"
 
 struct GLFWwindow;
 
@@ -95,8 +96,6 @@ namespace Eng
 		class TextRenderPass* m_textPass = nullptr;
 		// -------------------------------------------------------------------------
 
-		class RenderBoundingVolumeHierarchy* m_renderHierarchy = nullptr;
-
 		// -------------------------------------------------------------------------
 		// Resources
 		PB::IBufferObject* m_mvpBuffer = nullptr;
@@ -154,12 +153,16 @@ namespace Eng
 		bool m_drawEntireRenderHierarchy = false;
 		bool m_drawRenderHierarchyPipelineTree = false;
 
+
+		// -------------------------------------------------------------------------
+		// Resources
+
+		AssetStreamer m_assetStreamer;
+
 		// -------------------------------------------------------------------------
 		// Entities
 
-		Eng::Entity* m_spinnerPaintEntity = nullptr;
-		Eng::Entity* m_spinnerDetailsEntity = nullptr;
-		Eng::Entity* m_spinnerGlassEntity = nullptr;
+		EntityHierarchy m_hierarchy;
 
 		// -------------------------------------------------------------------------
 	};

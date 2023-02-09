@@ -94,6 +94,8 @@ namespace PB
 
 		PARABLIT_API void FreeCommandContext(CommandContext* context);
 
+		void AddThreadCommandContext(ThreadCommandContext* context);
+
 		PARABLIT_API void EndFrame(float& outStallTimeMs) override;
 
 		PARABLIT_API void WaitIdle() override;
@@ -164,7 +166,7 @@ namespace PB
 		bool m_validSwapchain = false;
 
 		// Misc
-		CLib::Allocator m_allocator;
+		CLib::Allocator m_allocator{ 1024 * 1024, true };
 
 		// Resource Cache
 		RenderPassCache m_renderPassCache;
@@ -196,9 +198,11 @@ namespace PB
 		CLib::Vector<DeferredDeletion*, 16, 16> m_pendingDeletions;
 		std::mutex m_contextCmdAllocLock;
 		std::mutex m_contextCmdReturnLock;
+		std::mutex m_threadContextLock;
 		std::mutex m_deletionLock;
 
 		CLib::FixedBlockAllocator m_commandContextAllocator{ sizeof(CommandContext), sizeof(CommandContext) * 16 };
+		CLib::Vector<ThreadCommandContext*, 8, 8> m_threadCommandContexts;
 		CLib::Vector<CommandContext*, 8, 8> m_freeCommandContexts;
 	};
 }

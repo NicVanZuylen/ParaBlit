@@ -36,14 +36,15 @@ namespace Eng
 					s_shaderDatabaseLoader.OpenFile(dbDir.c_str());
 				}
 
-				const AssetEncoder::AssetMeta& assetInfo = s_shaderDatabaseLoader.GetAssetInfo(path);
+				AssetEncoder::AssetHandle handle(path);
+				const AssetEncoder::AssetMeta& assetInfo = s_shaderDatabaseLoader.GetAssetInfo(handle);
 				moduleDesc.m_size = assetInfo.m_binarySize;
 				if (allocator)
 					data = reinterpret_cast<char*>(allocator->Alloc(uint32_t(assetInfo.m_binarySize)));
 				else
 					data = new char[assetInfo.m_binarySize];
 
-				s_shaderDatabaseLoader.GetAssetBinary(path, data);
+				s_shaderDatabaseLoader.GetAssetBinary(handle, data);
 
 				printf("Shader: Successfully loaded asset [%s] (%u bytes) from database: %s\n", path, uint32_t(assetInfo.m_binarySize), ShaderDatabaseDir);
 			}

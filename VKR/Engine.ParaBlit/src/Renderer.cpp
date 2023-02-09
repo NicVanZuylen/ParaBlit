@@ -240,9 +240,22 @@ namespace PB
 		m_freeCommandContexts.PushBack(context);
 	}
 
+	void Renderer::AddThreadCommandContext(ThreadCommandContext* context)
+	{
+		std::lock_guard<std::mutex> lock(m_threadContextLock);
+		m_threadCommandContexts.PushBack(context);
+	}
+
 	void Renderer::EndFrame(float& outStallTimeMs)
 	{
-		t_threadResourceInitializationCommandContext.End();
+		{
+			std::lock_guard<std::mutex> lock(m_threadContextLock);
+			for (ThreadCommandContext*& context : m_threadCommandContexts)
+			{
+				context->End();
+			}
+			m_threadCommandContexts.Clear();
+		}
 
 		FrameInfo& curFrameInfo = m_frameInfos[m_curFrameInfoIdx];
 

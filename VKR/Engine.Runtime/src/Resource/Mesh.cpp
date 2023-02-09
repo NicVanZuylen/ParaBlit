@@ -47,11 +47,13 @@ namespace Eng
 		std::string tmpName = filePath;
 		m_name = "|" + tmpName.substr(tmpName.find_last_of('/') + 1) + "|";
 
-		Load(filePath);
+		Load(renderer, filePath);
 	}
 
-	void Mesh::Load(const char* filePath)
+	void Mesh::Load(PB::IRenderer* renderer, AssetEncoder::AssetBinaryDatabaseReader* databaseReader, AssetEncoder::AssetID assetID)
 	{
+		m_renderer = renderer;
+
 		// Delete old vertex buffer if there is one.
 		if (!m_empty)
 		{
@@ -64,7 +66,6 @@ namespace Eng
 			m_indexBuffer = nullptr;
 		}
 
-		m_filePath = filePath;
 		m_empty = false;
 
 		constexpr const char* MeshDatabaseDir = "/Assets/build/meshes.adb";
@@ -75,9 +76,9 @@ namespace Eng
 			s_meshDatabaseLoader.OpenFile(dbDir.c_str());
 		}
 
-		const AssetEncoder::AssetMeta& assetInfo = s_meshDatabaseLoader.GetAssetInfo(filePath);
+		const AssetEncoder::AssetMeta& assetInfo = s_meshDatabaseLoader.GetAssetInfo(assetID);
 		MeshCacheData cacheData;
-		s_meshDatabaseLoader.GetAssetBinaryRange(filePath, &cacheData, 0, sizeof(MeshCacheData));
+		s_meshDatabaseLoader.GetAssetBinaryRange(assetID, &cacheData, 0, sizeof(MeshCacheData));
 
 		m_totalVertexCount = cacheData.m_vertexCount;
 		m_totalIndexCount = cacheData.m_indexCount;
@@ -92,7 +93,7 @@ namespace Eng
 		PB::BufferObjectDesc vertexBufferDesc;
 		vertexBufferDesc.m_bufferSize = static_cast<PB::u32>(vertexBufferSize);
 		vertexBufferDesc.m_options = 0;
-		vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
+		vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::STORAGE;
 
 		if (m_vertexPool == nullptr)
 		{
@@ -100,7 +101,7 @@ namespace Eng
 			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
 			PB::u8* vertexData = m_vertexBuffer->BeginPopulate();
-			s_meshDatabaseLoader.GetAssetBinaryRange(filePath, vertexData, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
+			s_meshDatabaseLoader.GetAssetBinaryRange(assetID, vertexData, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
 			m_vertexBuffer->EndPopulate();
 		}
 		else
@@ -128,7 +129,7 @@ namespace Eng
 			m_vertexPool->GetPool()->PlaceBuffer(m_vertexBuffer, placementLocation);
 			char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
 
-			s_meshDatabaseLoader.GetAssetBinaryRange(filePath, vertexAddress, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
+			s_meshDatabaseLoader.GetAssetBinaryRange(assetID, vertexAddress, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
 
 			m_vertexBuffer->EndPopulate();
 			m_firstVertexInPool = firstVertex;
@@ -137,18 +138,22 @@ namespace Eng
 		PB::BufferObjectDesc indexBufferDesc;
 		indexBufferDesc.m_bufferSize = static_cast<PB::u32>(indexBufferSize);
 		indexBufferDesc.m_options = 0;
-		indexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX;
-		if (m_vertexPool != nullptr)
-			indexBufferDesc.m_usage |= PB::EBufferUsage::STORAGE;
+		indexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
 		m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
 
 		PB::u8* indexData = m_indexBuffer->BeginPopulate();
-		s_meshDatabaseLoader.GetAssetBinaryRange(filePath, indexData, cacheData.m_indexOffset, cacheData.m_indexOffset + indexBufferSize);
+		s_meshDatabaseLoader.GetAssetBinaryRange(assetID, indexData, cacheData.m_indexOffset, cacheData.m_indexOffset + indexBufferSize);
 		m_indexBuffer->EndPopulate();
 
 		m_empty = false;
 
-		printf("Mesh: Successfully loaded asset [%s] (%u bytes) from database: %s\n", filePath, uint32_t(assetInfo.m_binarySize), MeshDatabaseDir);
+		printf("Mesh: Successfully loaded asset [%llx] (%u bytes) from database: %s\n", assetID, uint32_t(assetInfo.m_binarySize), MeshDatabaseDir);
+	}
+
+	void Mesh::Load(PB::IRenderer* renderer, const char* filePath)
+	{
+		AssetEncoder::AssetHandle handle(filePath);
+		Load(renderer, &s_meshDatabaseLoader, handle.GetID(&s_meshDatabaseLoader));
 	}
 
 	uint32_t Mesh::VertexCount() const

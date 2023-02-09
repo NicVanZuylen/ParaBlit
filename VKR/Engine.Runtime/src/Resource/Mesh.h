@@ -37,6 +37,8 @@ namespace Eng
 	{
 	public:
 
+		static AssetEncoder::AssetBinaryDatabaseReader s_meshDatabaseLoader;
+
 		Mesh() = default;
 
 		Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
@@ -54,7 +56,15 @@ namespace Eng
 			const char* filePath: The path to the .obj mesh file.
 			bool loadFromDatabase: Whether or not to load the mesh from an asset database (.adb) file, and treat filePath as a database-local path.
 		*/
-		void Load(const char* filePath);
+		void Load(PB::IRenderer* renderer, AssetEncoder::AssetBinaryDatabaseReader* databaseReader, AssetEncoder::AssetID assetID);
+
+		/*
+		Description: Load the mesh from a file, and any included materials.
+		Param:
+			const char* filePath: The path to the .obj mesh file.
+			bool loadFromDatabase: Whether or not to load the mesh from an asset database (.adb) file, and treat filePath as a database-local path.
+		*/
+		void Load(PB::IRenderer* renderer, const char* filePath);
 
 		/*
 		Description: Get the amount of vertices in the entire mesh.
@@ -117,8 +127,6 @@ namespace Eng
 		const VertexPool* GetVertexPool() const;
 
 	private:
-
-		static AssetEncoder::AssetBinaryDatabaseReader s_meshDatabaseLoader;
 
 		PB::IRenderer* m_renderer = nullptr;
 		PB::IBufferObject* m_vertexBuffer = nullptr;

@@ -1,7 +1,5 @@
 #pragma once
-#include "CLib/Allocator.h"
-#include "Camera.h"
-#include "Bounds.h"
+#include "Utility/BoundingVolumeHierarchy.h"
 #include "Engine.ParaBlit/IRenderer.h"
 #include "Engine.ParaBlit/ICommandContext.h"
 
@@ -18,75 +16,34 @@ namespace Eng
 	class DrawBatch;
 	class BatchDispatcher;
 
-	class RenderBoundingVolumeHierarchy
+	class RenderBoundingVolumeHierarchy : public BoundingVolumeHierarchy
 	{
 	public:
 
-		struct CreateDesc
-		{
-			uint32_t m_desiredMaxDepth = 0;
-
-			float m_toleranceDistanceX = 0.1f;
-			float m_toleranceDistanceY = 0.1f;
-			float m_toleranceDistanceZ = 0.1f;
-
-			float m_toleranceStepX = 0.1f;
-			float m_toleranceStepY = 0.1f;
-			float m_toleranceStepZ = 0.1f;
-		};
-
-		struct ObjectData
+		struct ObjectData : public BoundingVolumeHierarchy::ObjectData
 		{
 			Eng::Mesh* m_mesh = nullptr;
 			Eng::Material* m_material = nullptr;
 			glm::mat4 m_transform;
 		};
 
-		struct BuildNode;
-
+		RenderBoundingVolumeHierarchy() = default;
 		RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc);
 
 		~RenderBoundingVolumeHierarchy();
 
-		void BuildBottomUp(CLib::Vector<ObjectData>& objects);
-
-		BuildNode* BuildSubTree(CLib::Vector<ObjectData>& objects);
+		void Init(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc);
 
 		void RebuildTest();
 
-		void RebuildSubTree(BuildNode* subtreeRoot);
-
 		void BakeBatches(PB::ICommandContext* commandContext);
-
-		void DebugDraw(const Camera* camera, DebugLinePass* lines, uint32_t depth, bool drawObjectBounds);
 
 		void DebugDrawBatchTree(const Camera* camera, DebugLinePass* lines);
 
 		void CullBatches(const Camera::CameraFrustrum& cameraFrustrum, BatchDispatcher* dispatcher, const PB::BindingLayout& globalBindings) const;
 
-		Bounds GetBounds() const { return m_sourceRoot ? m_sourceRoot->m_bounds : Bounds(); }
-
 	private:
 
-		static constexpr const uint32_t ChildSoftLimit = 4;
-		static_assert(ChildSoftLimit > 1);
-
-		struct ProjectedRange
-		{
-			float m_min;
-			float m_max;
-		};
-
-		enum class EProjectedAxis
-		{
-			X,
-			Y,
-			Z
-		};
-
-		using Cluster = CLib::Vector<BuildNode*>;
-		using ClusterArray = CLib::Vector<Cluster*, 128, 64>;
-		using NodeWave = std::pair<CLib::Vector<BuildNode*>*, float>;
 		using BatchObjects = CLib::Vector<BuildNode*>;
 		using BatchMap = std::map<PB::Pipeline, CLib::Vector<BuildNode*>>;
 
@@ -112,8 +69,14 @@ namespace Eng
 			size_t m_bakedNodeIndex; // Index of baked node corresponding to the drawbatch.
 		};
 
-		using NodeChildren = CLib::Vector<BuildNode*, ChildSoftLimit>;
 		using NodeDrawBatches = CLib::Vector<PipelineDrawbatch, 4, 4>;
+		struct NodeData : public BoundingVolumeHierarchy::NodeData
+		{
+			BuildNode* m_sourceNode = nullptr;
+			NodeDrawBatches m_drawBatches{};
+		};
+
+		/*using NodeChildren = CLib::Vector<BuildNode*, ChildSoftLimit>;
 		struct BuildNode
 		{
 			bool IsLeaf() { return m_children.Count() == 0; }
@@ -145,7 +108,7 @@ namespace Eng
 			NodeDrawBatches m_drawBatches{};
 			uint32_t m_depth = 0;
 			bool m_isObject = false;
-		};
+		};*/
 
 		using BakedNodes = std::vector<BakedNode>;
 		struct BatchHierarchy
@@ -155,19 +118,13 @@ namespace Eng
 			BakedNodes m_bakedNodes{};
 		};
 
-		static uint64_t GetScore(const Bounds& bounds);
+		BuildNode* BuildBottomUp(InputObjects& objects) override;
 
-		float GetClusterScore(const BuildNode* a, std::vector<BuildNode*>& pool);
+		void RebuildSubTree(BuildNode* subtreeRoot) override;
 
-		void GenClusters(CLib::Vector<BuildNode*>& nodes, CLib::Vector<Cluster*>& outClusters, EProjectedAxis axis);
+		BoundingVolumeHierarchy::NodeData* AllocateNodeData() override;
 
-		void AxisSplitClusters(ClusterArray& clusters, EProjectedAxis axis);
-
-		BuildNode* BuildBottomUpInternal(CLib::Vector<BuildNode*>& nodes);
-
-		BuildNode* RecursiveBuildBottomUp(const CLib::Vector<BuildNode*>& nodes, CLib::Vector<NodeWave>& waves, uint32_t waveIdx, uint32_t passCount);
-
-		void AssignDepth(BuildNode* node, uint32_t depth);
+		void FreeNodeData(BoundingVolumeHierarchy::NodeData* data) override;
 
 		void BuildDrawBatch(PB::Pipeline pipeline, BuildNode* node, BatchObjects& objects);
 
@@ -175,7 +132,7 @@ namespace Eng
 
 		void RecursiveSearchUpForDrawbatches(BuildNode* node, BuildNode*& highestFound, std::set<PB::Pipeline>& pipelinesToFind, size_t& highestBakedNodeIndex);
 
-		void RebuildDrawBatchesForSubtree(BuildNode* subtree, BuildNode* oldSubtree, CLib::Vector<ObjectData>& objectData);
+		void RebuildDrawBatchesForSubtree(BuildNode* subtree, BuildNode* oldSubtree, InputObjects& objectData);
 
 		void BuildDrawBatchesExclusive(BuildNode* root, BatchMap& batchMap, std::set<PB::Pipeline>& excludedPipelines);
 
@@ -185,17 +142,11 @@ namespace Eng
 
 		void GetBatchCandidates(BatchMap& batchMap, BuildNode* node);
 
-		void RecursiveGetObjectData(CLib::Vector<ObjectData>& outObjectData, BuildNode* node);
-
 		void RecursiveFreeNode(BuildNode* node, bool keepBatches = false);
 
 		void BakeHierarchies(BuildNode* start);
 
 		void RecursiveBakeHierarchy(BakedNodes& bakedNodes, BuildNode* node, size_t parentIndex, size_t baseIndex = 0);
-
-		inline bool IsInFrontOfPlane(const Camera::CameraFrustrum::Plane& plane, const Bounds& bounds) const;
-
-		inline bool FrustrumTest(const Camera::CameraFrustrum& frustrum, const Bounds& bounds) const;
 
 		void RecursiveBakeBatches(PB::ICommandContext* cmdContext, BakedNode& node);
 
@@ -203,18 +154,8 @@ namespace Eng
 
 		void RecursiveDebugDrawBakedTree(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, const BakedNode& node);
 
-		void RecursiveDebugDrawNode(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, BuildNode* node, uint32_t depth, bool drawObjectBounds);
-
-		void DebugDrawCube(DebugLinePass* lines, const glm::vec3& origin, const glm::vec3& extents, const glm::vec3& lineColor);
-
 		PB::IRenderer* m_renderer = nullptr;
-		CLib::Allocator* m_allocator = nullptr;
-		BuildNode* m_sourceRoot = nullptr;
 		BatchHierarchy m_globalBatchHierarchy{};
-		uint32_t m_desiredMaxDepth = 0;
-		uint32_t m_totalNodeCount = 0;
-		float m_toleranceDistance[uint32_t(EProjectedAxis::Z) + 1];
-		float m_toleranceStep[uint32_t(EProjectedAxis::Z) + 1];
 	};
 
 };

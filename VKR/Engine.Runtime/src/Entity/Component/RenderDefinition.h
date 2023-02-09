@@ -1,6 +1,7 @@
 #include "Entity/Entity.h"
 #include "Mesh.h"
 #include "Material.h"
+#include "RenderBoundingVolumeHierarchy.h"
 
 namespace Eng
 {
@@ -8,10 +9,10 @@ namespace Eng
 	{
 	public:
 
-		RenderDefinition(const Mesh* mesh, const Material* material);
+		RenderDefinition(Mesh* mesh, Material* material);
 		~RenderDefinition() = default;
 
-		static RenderDefinition* ECCreate(const Mesh* mesh, const Material* material)
+		static RenderDefinition* ECCreate(Mesh* mesh, Material* material)
 		{
 			return s_entityComponentStorage.Alloc<RenderDefinition>(mesh, material);
 		}
@@ -20,6 +21,8 @@ namespace Eng
 		{
 			s_entityComponentStorage.Free(component);
 		}
+
+		void OnConstruction() override;
 
 		void OnDestruction() override { ECDestroy(this); }
 
@@ -30,9 +33,11 @@ namespace Eng
 
 	private:
 
+		RenderBoundingVolumeHierarchy::ObjectData m_objectData{};
+
 		CLIB_REFLECTABLE(RenderDefinition,
-			(const Mesh*) m_mesh,
-			(const Material*) m_material
+			(Mesh*) m_mesh,
+			(Material*) m_material
 		)
 	};
 }

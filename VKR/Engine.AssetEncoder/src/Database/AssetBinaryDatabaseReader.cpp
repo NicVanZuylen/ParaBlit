@@ -4,6 +4,16 @@
 
 namespace AssetEncoder
 {
+	AssetID AssetHandle::GetID(const AssetBinaryDatabaseReader* reader)
+	{
+		if (m_id == ~AssetID(0))
+		{
+			m_id = reader->GetAssetID(m_assetName);
+		}
+
+		return m_id;
+	}
+
 	AssetBinaryDatabaseReader::AssetBinaryDatabaseReader(const char* databasePath)
 	{
 		OpenFile(databasePath);
@@ -44,8 +54,11 @@ namespace AssetEncoder
 				DatabaseStringHeader* header = reinterpret_cast<DatabaseStringHeader*>(&m_stringCache[currentPos]);
 				size_t stringOffset = currentPos + sizeof(DatabaseStringHeader) + header->m_asset.m_userDataSize;
 
+				uint64_t id = m_currentFreeId++;
+
 				const char* str = &m_stringCache[stringOffset];
-				m_stringMap.insert({ str, *header });
+				m_assetMap.insert({ id, *header });
+				m_stringMap.insert({ AssetString(str), id});
 
 				currentPos = header->m_nextLocation;
 			}
@@ -57,13 +70,33 @@ namespace AssetEncoder
 		return m_dbFile.is_open();
 	}
 
-	AssetMeta AssetBinaryDatabaseReader::GetAssetInfo(const char* assetName) const
+	AssetID AssetBinaryDatabaseReader::GetAssetID(const char* assetName) const
 	{
-		auto it = m_stringMap.find(assetName);
+		AssetString str(assetName);
+		auto it = m_stringMap.find(str);
 		if (it == m_stringMap.end())
+			return 0;
+
+		return it->second;
+	}
+
+	AssetID AssetBinaryDatabaseReader::GetAssetID(AssetHandle& handle) const
+	{
+		return handle.GetID(this);
+	}
+
+	AssetMeta AssetBinaryDatabaseReader::GetAssetInfo(AssetID id) const
+	{
+		auto it = m_assetMap.find(id);
+		if (it == m_assetMap.end())
 			return {};
 
 		return it->second.m_asset;
+	}
+
+	AssetMeta AssetBinaryDatabaseReader::GetAssetInfo(AssetHandle& handle) const
+	{
+		return GetAssetInfo(handle.GetID(this));
 	}
 
 	void AssetBinaryDatabaseReader::GetAssetUserData(const AssetMeta& asset, void* outData) const
@@ -71,10 +104,10 @@ namespace AssetEncoder
 		memcpy(outData, &m_stringCache[asset.m_userDataLocation], asset.m_userDataSize);
 	}
 
-	void AssetBinaryDatabaseReader::GetAssetBinary(const char* assetName, void* storage)
+	void AssetBinaryDatabaseReader::GetAssetBinary(AssetHandle& handle, void* storage)
 	{
-		auto it = m_stringMap.find(assetName);
-		if (it == m_stringMap.end())
+		auto it = m_assetMap.find(handle.GetID(this));
+		if (it == m_assetMap.end())
 			return;
 
 		DatabaseStringHeader header = it->second;
@@ -82,10 +115,10 @@ namespace AssetEncoder
 		m_dbFile.read(reinterpret_cast<char*>(storage), header.m_asset.m_binarySize);
 	}
 
-	void AssetBinaryDatabaseReader::GetAssetBinaryRange(const char* assetName, void* storage, size_t beginBytes, size_t endBytes)
+	void AssetBinaryDatabaseReader::GetAssetBinaryRange(AssetID id, void* storage, size_t beginBytes, size_t endBytes)
 	{
-		auto it = m_stringMap.find(assetName);
-		if (it == m_stringMap.end())
+		auto it = m_assetMap.find(id);
+		if (it == m_assetMap.end())
 			return;
 
 		DatabaseStringHeader header = it->second;
@@ -96,5 +129,16 @@ namespace AssetEncoder
 
 		m_dbFile.seekg(m_index.m_assetBegin + header.m_asset.m_location + beginBytes);
 		m_dbFile.read(reinterpret_cast<char*>(storage), endBytes - beginBytes);
+	}
+
+	void AssetBinaryDatabaseReader::GetAssetBinaryRange(AssetHandle& handle, void* storage, size_t beginBytes, size_t endBytes)
+	{
+		GetAssetBinaryRange(handle.GetID(this), storage, beginBytes, endBytes);
+	}
+
+	size_t AssetBinaryDatabaseReader::AssetStringHasher::operator() (const AssetString& string) const
+	{
+		std::hash<std::string> hasher;
+		return hasher(string.m_string);
 	}
 }

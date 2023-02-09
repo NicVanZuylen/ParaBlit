@@ -8,8 +8,8 @@ namespace Eng
 {
 	struct Bounds
 	{
-		glm::vec3 m_origin;
-		glm::vec3 m_extents;
+		glm::vec3 m_origin = { 0.0f, 0.0f, 0.0f };
+		glm::vec3 m_extents = { 1.0f, 1.0f, 1.0f };
 
 		Bounds() = default;
 
@@ -17,6 +17,19 @@ namespace Eng
 		{
 			m_origin = origin;
 			m_extents = extents;
+		}
+
+		static const Bounds& Identity()
+		{
+			return 
+			{ 
+				{
+					0.0f, 0.0f, 0.0f
+				}, 
+				{
+					1.0f, 1.0f, 1.0f
+				} 
+			};
 		}
 
 		inline bool IsZero() const { return m_origin + m_extents == glm::vec3(0.0f); }

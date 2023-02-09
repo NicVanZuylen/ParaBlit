@@ -20,6 +20,7 @@ set(_VK_VERSION_ 1.2.198.1)
 # External
 add_subdirectory(${_EXTERNAL_DIR_})
 
+add_subdirectory(Engine.Log)
 add_subdirectory(Engine.ParaBlit)
 add_subdirectory(Engine.Control)
 add_subdirectory(Engine.AssetEncoder)

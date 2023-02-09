@@ -34,9 +34,31 @@ namespace AssetEncoder
 		AssetMeta m_asset;
 	};
 
+	class AssetBinaryDatabaseReader;
+
+	using AssetID = uint64_t;
+	class AssetHandle
+	{
+	public:
+
+		AssetHandle(const char* assetName)
+			: m_assetName(assetName)
+		{
+
+		}
+
+		ASSET_ENCODER_API AssetID GetID(const AssetBinaryDatabaseReader* reader);
+
+	private:
+
+		const char* m_assetName;
+		AssetID m_id = ~AssetID(0);
+	};
+
 	class AssetBinaryDatabaseReader
 	{
 	public:
+
 
 		ASSET_ENCODER_API AssetBinaryDatabaseReader() = default;
 
@@ -48,17 +70,39 @@ namespace AssetEncoder
 
 		ASSET_ENCODER_API bool HasOpenFile() const;
 
-		ASSET_ENCODER_API AssetMeta GetAssetInfo(const char* name) const;
+		ASSET_ENCODER_API AssetID GetAssetID(const char* assetName) const;
+		ASSET_ENCODER_API AssetID GetAssetID(AssetHandle& handle) const;
+
+		ASSET_ENCODER_API AssetMeta GetAssetInfo(AssetHandle& handle) const;
+		ASSET_ENCODER_API AssetMeta GetAssetInfo(AssetID id) const;
 
 		ASSET_ENCODER_API void GetAssetUserData(const AssetMeta& asset, void* outData) const;
 
-		ASSET_ENCODER_API void GetAssetBinary(const char* assetName, void* storage);
+		ASSET_ENCODER_API void GetAssetBinary(AssetHandle& handle, void* storage);
 
-		ASSET_ENCODER_API void GetAssetBinaryRange(const char* assetName, void* storage, size_t beginBytes, size_t endBytes);
+		ASSET_ENCODER_API void GetAssetBinaryRange(AssetID id, void* storage, size_t beginBytes, size_t endBytes);
+		ASSET_ENCODER_API void GetAssetBinaryRange(AssetHandle& handle, void* storage, size_t beginBytes, size_t endBytes);
 
 	private:
 
-		std::unordered_map<std::string, DatabaseStringHeader> m_stringMap;
+		struct AssetString
+		{
+			bool operator == (const AssetString& other) const
+			{
+				return strcmp(m_string.c_str(), other.m_string.c_str()) == 0;
+			}
+
+			std::string m_string;
+		};
+
+		struct AssetStringHasher
+		{
+			size_t operator () (const AssetString& string) const;
+		};
+
+		std::unordered_map<AssetID, DatabaseStringHeader> m_assetMap;
+		AssetID m_currentFreeId = 1;
+		std::unordered_map<AssetString, AssetID, AssetStringHasher> m_stringMap;
 		char* m_stringCache = nullptr;
 		AssetDatabaseIndex m_index{};
 		std::streampos m_startPos{};

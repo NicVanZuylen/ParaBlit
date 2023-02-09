@@ -27,7 +27,6 @@
 
 #include "WorldRender/DrawBatch.h"
 #include "WorldRender/ObjectDispatcher.h"
-#include "WorldRender/RenderBoundingVolumeHierarchy.h"
 
 #include "glm/gtc/type_ptr.hpp"
 
@@ -37,6 +36,7 @@
 #include <sstream>
 #include <iostream>
 #include <random>
+#include <filesystem>
 
 namespace Eng
 {
@@ -60,21 +60,13 @@ namespace Eng
 		m_camera = Camera(cameraDesc);
 		m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
+		std::string dbDir = std::filesystem::current_path().string();
+		std::string databasePath = dbDir + "/Assets/build";
+		m_assetStreamer.Init(m_renderer, databasePath.c_str());
+
 		InitResources();
 
-		RenderBoundingVolumeHierarchy::CreateDesc rbvhDesc{};
-		rbvhDesc.m_desiredMaxDepth = 50;
-
-		rbvhDesc.m_toleranceDistanceX = 0.05f;
-		rbvhDesc.m_toleranceDistanceY = 0.05f;
-
-		rbvhDesc.m_toleranceStepX = 0.05f;
-		rbvhDesc.m_toleranceStepZ = 0.05f;
-
-		rbvhDesc.m_toleranceDistanceY = 0.2f;
-		rbvhDesc.m_toleranceStepY = 0.2f;
-
-		m_renderHierarchy = m_allocator->Alloc<RenderBoundingVolumeHierarchy>(m_renderer, m_allocator, rbvhDesc);
+		m_hierarchy.Init(m_allocator, m_renderer);
 
 		m_renderGraph = CreateRenderGraph();
 		SetupDrawBatch();
@@ -82,13 +74,9 @@ namespace Eng
 
 	ClientPlayground::~ClientPlayground()
 	{
-		m_allocator->Free(m_renderHierarchy);
-
-		m_allocator->Free(m_spinnerPaintEntity);
-		m_allocator->Free(m_spinnerDetailsEntity);
-		m_allocator->Free(m_spinnerGlassEntity);
-
+		m_hierarchy.Destroy();
 		DestroyResources();
+		m_assetStreamer.Shutdown();
 
 		m_allocator->Free(m_renderGraph);
 
@@ -161,7 +149,7 @@ namespace Eng
 		}
 
 		if (m_drawEntireRenderHierarchy)
-			m_renderHierarchy->DebugDraw(&m_camera, m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
+			m_hierarchy.GetRenderHierarchy().DebugDraw(&m_camera, m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
 
 		if (!input->GetKey(GLFW_KEY_END, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_END, INPUTSTATE_PREVIOUS))
 		{
@@ -170,7 +158,7 @@ namespace Eng
 		}
 
 		if (m_drawRenderHierarchyPipelineTree)
-			m_renderHierarchy->DebugDrawBatchTree(&m_camera, m_debugLinePass);
+			m_hierarchy.GetRenderHierarchy().DebugDrawBatchTree(&m_camera, m_debugLinePass);
 
 		for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
 		{
@@ -190,8 +178,8 @@ namespace Eng
 			initCmdContext->Init(contextDesc);
 			initCmdContext->Begin();
 
-			m_renderHierarchy->RebuildTest();
-			m_renderHierarchy->BakeBatches(initCmdContext.GetContext());
+			m_hierarchy.GetRenderHierarchy().RebuildTest();
+			m_hierarchy.GetRenderHierarchy().BakeBatches(initCmdContext.GetContext());
 
 			initCmdContext->End();
 			initCmdContext->Return();
@@ -305,10 +293,51 @@ namespace Eng
 		m_vertexPool = m_allocator->Alloc<VertexPool>(m_renderer, uint32_t(sizeof(Eng::Vertex) * 1000000), uint32_t(sizeof(Eng::Vertex)));
 
 		// Meshes & Textures
-		m_paintMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_paint", m_vertexPool);
-		m_detailsMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_details", m_vertexPool);
-		m_glassMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_glass", m_vertexPool);
-		m_planeMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Primitives/plane", m_vertexPool);
+		//m_paintMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_paint", m_vertexPool);
+		//m_detailsMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_details", m_vertexPool);
+		//m_glassMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Objects/Spinner/mesh_spinner_low_glass", m_vertexPool);
+		//m_planeMesh = m_allocator->Alloc<Eng::Mesh>(m_renderer, "Meshes/Primitives/plane", m_vertexPool);
+
+		StreamableHandle paintMeshHandle
+		(
+			AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_paint").GetID(&Mesh::s_meshDatabaseLoader),
+			Eng::EStreamableResourceType::MESH,
+			Eng::StreamableHandle::EBindingType::NONE
+		);
+
+		StreamableHandle detailsMeshHandle
+		(
+			AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_details").GetID(&Mesh::s_meshDatabaseLoader),
+			Eng::EStreamableResourceType::MESH,
+			Eng::StreamableHandle::EBindingType::NONE
+		);
+
+		StreamableHandle glassMeshHandle
+		(
+			AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader),
+			Eng::EStreamableResourceType::MESH,
+			Eng::StreamableHandle::EBindingType::NONE
+		);
+
+		StreamableHandle planeMeshHandle
+		(
+			AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader),
+			Eng::EStreamableResourceType::MESH,
+			Eng::StreamableHandle::EBindingType::NONE
+		);
+
+		StreamingBatch* meshBatch = m_assetStreamer.AllocStreamingBatch();
+		meshBatch->AddResource(paintMeshHandle);
+		meshBatch->AddResource(detailsMeshHandle);
+		meshBatch->AddResource(glassMeshHandle);
+		meshBatch->AddResource(planeMeshHandle);
+
+		meshBatch->BeginStreaming(true);
+
+		m_paintMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(paintMeshHandle));
+		m_detailsMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(detailsMeshHandle));
+		m_glassMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(glassMeshHandle));
+		m_planeMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(planeMeshHandle));
 
 		m_paintTextures[0] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_diffuse", true, false, true);
 		m_detailsTextures[0] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_diffuse", true, false, true);
@@ -382,9 +411,6 @@ namespace Eng
 			m_solidBlackTexture
 		};
 		m_spinnerMaterials[0] = m_allocator->Alloc<Eng::Material>(0, paintTextures, _countof(paintTextures), m_colorSampler);
-		m_spinnerPaintEntity = m_allocator->Alloc<Eng::Entity>();
-		m_spinnerPaintEntity->AddComponent<Eng::Transform>();
-		m_spinnerPaintEntity->AddComponent<Eng::RenderDefinition>(m_paintMesh, m_spinnerMaterials[0]);
 
 		PB::ITexture* detailsTextures[5]
 		{
@@ -395,9 +421,6 @@ namespace Eng
 			m_detailsTextures[4]->GetTexture()
 		};
 		m_spinnerMaterials[1] = m_allocator->Alloc<Eng::Material>(0, detailsTextures, _countof(detailsTextures), m_colorSampler);
-		m_spinnerDetailsEntity = m_allocator->Alloc<Eng::Entity>();
-		m_spinnerDetailsEntity->AddComponent<Eng::Transform>();
-		m_spinnerDetailsEntity->AddComponent<Eng::RenderDefinition>(m_detailsMesh, m_spinnerMaterials[1]);
 
 		PB::ITexture* glassTextures[5]
 		{
@@ -408,9 +431,6 @@ namespace Eng
 			m_glassTextures[4]->GetTexture()
 		};
 		m_spinnerMaterials[2] = m_allocator->Alloc<Eng::Material>(0, glassTextures, _countof(glassTextures), m_colorSampler);
-		m_spinnerGlassEntity = m_allocator->Alloc<Eng::Entity>();
-		m_spinnerGlassEntity->AddComponent<Eng::Transform>();
-		m_spinnerGlassEntity->AddComponent<Eng::RenderDefinition>(m_glassMesh, m_spinnerMaterials[2]);
 
 		PB::ITexture* planeTextures[5]
 		{
@@ -470,10 +490,10 @@ namespace Eng
 		m_allocator->Free(m_skyIrradianceMap);
 		m_allocator->Free(m_skyPrefilterMap);
 
-		m_allocator->Free(m_paintMesh);
-		m_allocator->Free(m_detailsMesh);
-		m_allocator->Free(m_glassMesh);
-		m_allocator->Free(m_planeMesh);
+		//m_allocator->Free(m_paintMesh);
+		//m_allocator->Free(m_detailsMesh);
+		//m_allocator->Free(m_glassMesh);
+		//m_allocator->Free(m_planeMesh);
 
 		m_allocator->Free(m_shadowVertShader);
 
@@ -514,7 +534,7 @@ namespace Eng
 						shadowMapPassDesc.m_cascadeIndex = i;
 
 						m_shadowmapPass[i] = m_allocator->Alloc<ShadowMapPass>(m_renderer, m_allocator, shadowMapPassDesc);
-						m_shadowmapPass[i]->SetCamera(&m_camera, m_renderHierarchy, sunDir);
+						m_shadowmapPass[i]->SetCamera(&m_camera, &m_hierarchy.GetRenderHierarchy(), sunDir);
 					}
 					m_shadowmapPass[i]->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
 				}
@@ -523,7 +543,7 @@ namespace Eng
 			// GBuffer pass
 			{
 				if (!m_gBufferPass)
-					m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), m_mvpBuffer->GetViewAsUniformBuffer(viewPlanesDesc), &m_camera, m_renderHierarchy);
+					m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), m_mvpBuffer->GetViewAsUniformBuffer(viewPlanesDesc), &m_camera, &m_hierarchy.GetRenderHierarchy());
 				m_gBufferPass->AddToRenderGraph(&rgBuilder);
 			}
 
@@ -640,14 +660,14 @@ namespace Eng
 		glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
 		glm::mat4 spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
-		PB::ResourceView plainViews[]
-		{
-			m_solidWhiteTexture->GetDefaultSRV(),
-			m_flatNormalTexture->GetDefaultSRV(),
-			m_solidBlackTexture->GetDefaultSRV(),
-			m_solidWhiteTexture->GetDefaultSRV(),
-			m_solidBlackTexture->GetDefaultSRV()
-		};
+		//PB::ResourceView plainViews[]
+		//{
+		//	m_solidWhiteTexture->GetDefaultSRV(),
+		//	m_flatNormalTexture->GetDefaultSRV(),
+		//	m_solidBlackTexture->GetDefaultSRV(),
+		//	m_solidWhiteTexture->GetDefaultSRV(),
+		//	m_solidBlackTexture->GetDefaultSRV()
+		//};
 
 		//PB::ResourceView plainViews[]
 		//{
@@ -656,17 +676,6 @@ namespace Eng
 		//	m_solidBlackTexture->GetDefaultSRV(),
 		//	m_solidBlackTexture->GetDefaultSRV()
 		//};
-
-		CLib::Vector<RenderBoundingVolumeHierarchy::ObjectData> nodes;
-
-		//Bounds spinnerBounds(glm::vec3(-1.2f, 0.0f, -2.5f), glm::vec3(2.4f, 1.5f, 5.0f));
-		Bounds spinnerBounds = m_paintMesh->GetBounds();
-		spinnerBounds.Encapsulate(m_detailsMesh->GetBounds());
-		spinnerBounds.Encapsulate(m_glassMesh->GetBounds());
-		//spinnerBounds.m_origin *= 0.01f;
-		//spinnerBounds.m_extents *= 0.01f;
-
-		Eng::Transform* spinnerTransform = m_spinnerPaintEntity->GetComponent<Eng::Transform>();
 
 		const uint32_t spinnerCount = 15;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
@@ -680,80 +689,84 @@ namespace Eng
 				pos.z += 2.5f;
 			}
 
-			CLib::Reflector transformReflector;
-			spinnerTransform->GetReflection(transformReflector);
+			glm::quat spinnerQuat = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			//RenderBoundingVolumeHierarchy::ObjectData& paintObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
+			//paintObj.m_mesh = m_paintMesh;
+			//paintObj.m_material = m_spinnerMaterials[0];
+			//paintObj.m_transform = spinnerModelMat;
+			//
+			//RenderBoundingVolumeHierarchy::ObjectData& detailsObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
+			//detailsObj.m_mesh = m_detailsMesh;
+			//detailsObj.m_material = m_spinnerMaterials[1];
+			//detailsObj.m_transform = spinnerModelMat;
+			//
+			//RenderBoundingVolumeHierarchy::ObjectData& glassObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
+			//glassObj.m_mesh = m_glassMesh;
+			//glassObj.m_material = m_spinnerMaterials[2];
+			//glassObj.m_transform = spinnerModelMat;
 
-			*transformReflector.GetFieldWithName<glm::vec3>("m_translation") = pos;
-			*transformReflector.GetFieldWithName<glm::quat>("m_quaternion") = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-			*transformReflector.GetFieldWithName<glm::vec3>("m_scale") = glm::vec3(0.01f);
+			Entity* paintEntity = m_hierarchy.AddEntity(pos);
+			Transform* paintTransform = paintEntity->GetComponent<Transform>();
+			paintTransform->SetPosition(pos);
+			paintTransform->SetRotation(spinnerQuat);
+			paintTransform->SetScale(glm::vec3(0.01f));
+			paintEntity->AddComponent<RenderDefinition>(m_paintMesh, m_spinnerMaterials[0]);
 
-			spinnerModelMat = spinnerTransform->GetMatrix();
+			Entity* detailsEntity = m_hierarchy.AddEntity(pos);
+			Transform* detailsTransform = detailsEntity->GetComponent<Transform>();
+			detailsTransform->SetPosition(pos);
+			detailsTransform->SetRotation(spinnerQuat);
+			detailsTransform->SetScale(glm::vec3(0.01f));
+			detailsEntity->AddComponent<RenderDefinition>(m_detailsMesh, m_spinnerMaterials[1]);
 
-			Bounds translatedBounds = spinnerBounds;
-			translatedBounds.Transform(spinnerModelMat);
-
-			RenderBoundingVolumeHierarchy::ObjectData& paintObj = nodes.PushBack();
-			paintObj.m_mesh = m_paintMesh;
-			paintObj.m_material = m_spinnerMaterials[0];
-			paintObj.m_transform = spinnerModelMat;
-
-			RenderBoundingVolumeHierarchy::ObjectData& detailsObj = nodes.PushBack();
-			detailsObj.m_mesh = m_detailsMesh;
-			detailsObj.m_material = m_spinnerMaterials[1];
-			detailsObj.m_transform = spinnerModelMat;
-
-			RenderBoundingVolumeHierarchy::ObjectData& glassObj = nodes.PushBack();
-			glassObj.m_mesh = m_glassMesh;
-			glassObj.m_material = m_spinnerMaterials[2];
-			glassObj.m_transform = spinnerModelMat;
+			Entity* glassEntity = m_hierarchy.AddEntity(pos);
+			Transform* glassTransform = glassEntity->GetComponent<Transform>();
+			glassTransform->SetPosition(pos);
+			glassTransform->SetRotation(spinnerQuat);
+			glassTransform->SetScale(glm::vec3(0.01f));
+			glassEntity->AddComponent<RenderDefinition>(m_glassMesh, m_spinnerMaterials[2]);
 		}
 
 		modelMat = glm::identity<glm::mat4>();
-
 		glm::vec3 planeOffset = glm::vec3(0.0f, -0.2f, 0.0f);
-		Bounds planeBounds = m_planeMesh->GetBounds();
-
 		modelMat = glm::translate(glm::mat4(), planeOffset);
-		planeBounds.Transform(modelMat);
 
-		RenderBoundingVolumeHierarchy::ObjectData& planeObj = nodes.PushBack();
-		planeObj.m_mesh = m_planeMesh;
-		planeObj.m_material = m_planeMaterial;
-		planeObj.m_transform = modelMat;
+		//RenderBoundingVolumeHierarchy::ObjectData& planeObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
+		//planeObj.m_mesh = m_planeMesh;
+		//planeObj.m_material = m_planeMaterial;
+		//planeObj.m_transform = modelMat;
 
-		plainViews[0] = m_debugViews[0];
-		plainViews[2] = m_debugViews[2];
-		plainViews[3] = m_debugViews[1];
+		Entity* planeEntity = m_hierarchy.AddEntity(planeOffset);
+		Transform* planeTransform = planeEntity->GetComponent<Transform>();
+		planeTransform->SetPosition(planeOffset);
+		planeEntity->AddComponent<RenderDefinition>(m_planeMesh, m_planeMaterial);
+
+		//plainViews[0] = m_debugViews[0];
+		//plainViews[2] = m_debugViews[2];
+		//plainViews[3] = m_debugViews[1];
 
 		glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
-		Bounds debugPlaneBounds = m_planeMesh->GetBounds();
 
-		modelMat = glm::identity<glm::mat4>();
-		modelMat = glm::translate(modelMat, debugPlaneOffset);
-		modelMat = glm::rotate(modelMat, glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		modelMat = glm::scale(modelMat, glm::vec3(0.2f, 0.2f, 0.2f));
-		debugPlaneBounds.Transform(modelMat);
+		Entity* debugPlaneEntity = m_hierarchy.AddEntity(debugPlaneOffset);
+		Transform* debugPlaneTransform = debugPlaneEntity->GetComponent<Transform>();
+		debugPlaneTransform->SetPosition(debugPlaneOffset);
+		debugPlaneTransform->RotateEulerZ(-45.0f);
+		debugPlaneTransform->SetScale(glm::vec3(0.2f));
+		debugPlaneEntity->AddComponent<RenderDefinition>(m_planeMesh, m_debugMaterial);
 
-		RenderBoundingVolumeHierarchy::ObjectData& debugPlaneObj = nodes.PushBack();
-		debugPlaneObj.m_mesh = m_planeMesh;
-		debugPlaneObj.m_material = m_debugMaterial;
-		debugPlaneObj.m_transform = modelMat;
+		//RenderBoundingVolumeHierarchy::ObjectData& debugPlaneObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
+		//debugPlaneObj.m_mesh = m_planeMesh;
+		//debugPlaneObj.m_material = m_debugMaterial;
+		//debugPlaneObj.m_transform = modelMat;
 
-		m_renderHierarchy->BuildBottomUp(nodes);
+		//for (auto& objectData : m_hierarchyObjectData)
+		//{
+		//	objectData->m_bounds = objectData->m_mesh->GetBounds();
+		//	objectData->m_bounds.Transform(objectData->m_transform);
+		//	m_renderHierarchy->AddObject(objectData);
+		//}
 
-		PB::CommandContextDesc contextDesc{};
-		contextDesc.m_renderer = m_renderer;
-		contextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
-		contextDesc.m_flags = PB::ECommandContextFlags::PRIORITY;
-
-		PB::SCommandContext initCmdContext(m_renderer);
-		initCmdContext->Init(contextDesc);
-		initCmdContext->Begin();
-
-		m_renderHierarchy->BakeBatches(initCmdContext.GetContext());
-
-		initCmdContext->End();
-		initCmdContext->Return();
+		m_hierarchy.BakeTrees();
 	}
 
 	PB::Pipeline ClientPlayground::GetShadowDrawBatchPipeline()

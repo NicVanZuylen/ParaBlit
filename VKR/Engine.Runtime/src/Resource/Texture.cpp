@@ -38,7 +38,8 @@ namespace Eng
 				s_textureDatabaseLoader.OpenFile(dbDir.c_str());
 			}
 
-			AssetEncoder::AssetMeta textureMeta = s_textureDatabaseLoader.GetAssetInfo(filePath);
+			AssetEncoder::AssetHandle handle(filePath);
+			AssetEncoder::AssetMeta textureMeta = s_textureDatabaseLoader.GetAssetInfo(handle);
 			if (textureMeta.m_binarySize == 0)
 			{
 				std::cout << "Texture: Failed to load image: " << filePath << std::endl;
@@ -50,7 +51,7 @@ namespace Eng
 			s_textureDatabaseLoader.GetAssetUserData(textureMeta, &textureData);
 
 			void* buf = malloc(textureMeta.m_binarySize);
-			s_textureDatabaseLoader.GetAssetBinary(filePath, buf);
+			s_textureDatabaseLoader.GetAssetBinary(handle, buf);
 
 			assert(textureData.m_isHdr == false);
 
@@ -270,7 +271,8 @@ namespace Eng
 			break;
 		}
 
-		AssetEncoder::AssetMeta textureMeta = s_textureDatabaseLoader.GetAssetInfo(mapName.c_str());
+		AssetEncoder::AssetHandle handle(mapName.c_str());
+		AssetEncoder::AssetMeta textureMeta = s_textureDatabaseLoader.GetAssetInfo(handle);
 		if (textureMeta.m_binarySize == 0)
 		{
 			std::cout << "Texture: Failed to load image: " << mapName.c_str() << std::endl;
@@ -282,7 +284,7 @@ namespace Eng
 		s_textureDatabaseLoader.GetAssetUserData(textureMeta, &envMapData);
 
 		uint8_t* buf = reinterpret_cast<uint8_t*>(malloc(textureMeta.m_binarySize));
-		s_textureDatabaseLoader.GetAssetBinary(mapName.c_str(), buf);
+		s_textureDatabaseLoader.GetAssetBinary(handle, buf);
 
 		CLib::Vector<PB::TextureDataDesc, 6 * AssetPipeline::ConvolutionMipmapCount> dataDescs;
 

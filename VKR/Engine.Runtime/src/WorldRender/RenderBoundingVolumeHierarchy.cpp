@@ -1,63 +1,44 @@
-#include "BatchDispatcher.h"
-#include "Camera.h"
 #include "RenderBoundingVolumeHierarchy.h"
+#include "WorldRender/BatchDispatcher.h"
 #include "RenderGraphPasses/DebugLinePass.h"
 #include "Resource/Mesh.h"
 #include "Resource/Material.h"
 
 #include "glm/gtc/type_ptr.hpp"
 #include <algorithm>
-#include <iostream>
-#include <map>
 
 namespace Eng
 {
 
-	RenderBoundingVolumeHierarchy::RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc)
+	RenderBoundingVolumeHierarchy::RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc) 
+		: BoundingVolumeHierarchy(allocator, desc)
 	{
 		m_renderer = renderer;
-		m_allocator = allocator;
-
-		m_desiredMaxDepth = desc.m_desiredMaxDepth;
-
-		m_toleranceDistance[0] = desc.m_toleranceDistanceX;
-		m_toleranceDistance[1] = desc.m_toleranceDistanceY;
-		m_toleranceDistance[2] = desc.m_toleranceDistanceZ;
-
-		m_toleranceStep[0] = desc.m_toleranceStepX;
-		m_toleranceStep[1] = desc.m_toleranceStepY;
-		m_toleranceStep[2] = desc.m_toleranceStepZ;
 	}
 
 	RenderBoundingVolumeHierarchy::~RenderBoundingVolumeHierarchy()
 	{
-		RecursiveFreeNode(m_sourceRoot);
+		if (m_root != nullptr)
+		{
+			RecursiveFreeNode(m_root);
+			m_root = nullptr;
+		}
 	}
 
-	void RenderBoundingVolumeHierarchy::BuildBottomUp(CLib::Vector<ObjectData>& objects)
+	void RenderBoundingVolumeHierarchy::Init(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc)
 	{
-		CLib::Vector<BuildNode*> nodes;
-		nodes.Reserve(objects.Count());
-		m_totalNodeCount = objects.Count();
+		BoundingVolumeHierarchy::Init(allocator, desc);
 
-		for (ObjectData& obj : objects)
-		{
-			BuildNode* n = m_allocator->Alloc<BuildNode>();
-			nodes.PushBack(n);
-			BuildNode& node = *n;
+		m_renderer = renderer;
+	}
 
-			node.m_bounds = obj.m_mesh->GetBounds();
-			node.m_bounds.Transform(obj.m_transform);
-			node.m_objectData = obj;
-			node.m_depth = 0;
-			node.m_isObject = true;
-		}
-
-		m_sourceRoot = BuildBottomUpInternal(nodes);
+	BoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::BuildBottomUp(InputObjects& objects)
+	{
+		BuildNode* buildResult = BoundingVolumeHierarchy::BuildBottomUp(objects);
 
 		BatchMap batchMap;
 		std::set<PB::Pipeline> excludedPipelines;
-		BuildDrawBatchesExclusive(m_sourceRoot, batchMap, excludedPipelines);
+		BuildDrawBatchesExclusive(buildResult, batchMap, excludedPipelines);
 
 		BuildNode* pipelineSubtree = BuildBottomUpInternal(m_globalBatchHierarchy.m_buildNodes);
 		m_globalBatchHierarchy.m_buildNodes.Clear();
@@ -66,45 +47,22 @@ namespace Eng
 		RecursiveFreeNode(pipelineSubtree, true);
 
 		m_globalBatchHierarchy.m_bakedNodeUpdateIndices.PushBack(0);
-	}
-
-	RenderBoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::BuildSubTree(CLib::Vector<ObjectData>& objects)
-	{
-		CLib::Vector<BuildNode*> nodes;
-		nodes.Reserve(objects.Count());
-		m_totalNodeCount = objects.Count();
-
-		for (ObjectData& obj : objects)
-		{
-			BuildNode* n = m_allocator->Alloc<BuildNode>();
-			nodes.PushBack(n);
-			BuildNode& node = *n;
-
-			node.m_bounds = obj.m_mesh->GetBounds();
-			node.m_bounds.Transform(obj.m_transform);
-			node.m_objectData = obj;
-			node.m_parent = nullptr;
-			node.m_depth = 0;
-			node.m_isObject = true;
-		}
-
-		BuildNode* subTree = BuildBottomUpInternal(nodes);
-		return subTree;
+		return buildResult;
 	}
 
 	void RenderBoundingVolumeHierarchy::RebuildTest()
 	{
-		BuildNode* subtree = m_sourceRoot->m_children[1];
+		BuildNode* subtree = m_root->m_children[1];
 
 		RebuildSubTree(subtree);
 	}
 
 	void RenderBoundingVolumeHierarchy::RebuildSubTree(BuildNode* subtreeRoot)
 	{
-		CLib::Vector<ObjectData> objects;
-		RecursiveGetObjectData(objects, subtreeRoot);
+		InputObjects objects;
+		BoundingVolumeHierarchy::RecursiveGetObjectData(objects, subtreeRoot);
 
-		BuildNode* newSubtree = BuildSubTree(objects);
+		BuildNode* newSubtree = BoundingVolumeHierarchy::BuildBottomUp(objects);
 		newSubtree->m_parent = subtreeRoot->m_parent;
 
 		// Replace old subtree with new one in parent.
@@ -137,20 +95,6 @@ namespace Eng
 		m_globalBatchHierarchy.m_bakedNodeUpdateIndices.Clear();
 	}
 
-	void RenderBoundingVolumeHierarchy::DebugDraw(const Camera* camera, DebugLinePass* lines, uint32_t depth, bool drawObjectBounds)
-	{
-		Camera::CameraFrustrum frustrum;
-		if (camera != nullptr)
-		{
-			frustrum = camera->GetFrustrum();
-			// Draw frustrum
-			glm::vec3 frustrumColor(1.0f, 0.0f, 1.0f);
-			Camera::DrawFrustrum(lines, frustrum, frustrumColor);
-		}
-
-		RecursiveDebugDrawNode(lines, frustrum, m_sourceRoot, depth, drawObjectBounds);
-	}
-
 	void RenderBoundingVolumeHierarchy::DebugDrawBatchTree(const Camera* camera, DebugLinePass* lines)
 	{
 		Camera::CameraFrustrum frustrum;
@@ -164,289 +108,11 @@ namespace Eng
 		RecursiveDebugDrawBakedTree(lines, frustrum, m_globalBatchHierarchy.m_bakedNodes.front());
 	}
 
-	float RenderBoundingVolumeHierarchy::GetClusterScore(const BuildNode* a, std::vector<BuildNode*>& pool)
-	{
-		float total = 0.0f;
-		for (const BuildNode* b : pool)
-		{
-			if (b != a)
-			{
-				float dist = glm::distance(a->m_bounds.Centre(), b->m_bounds.Centre());
-				total -= dist;
-			}
-		}
-
-		return total - GetScore(a->m_bounds);
-	}
-
-	void RenderBoundingVolumeHierarchy::GenClusters(CLib::Vector<BuildNode*>& nodes, CLib::Vector<Cluster*>& outClusters, EProjectedAxis axis)
-	{
-		auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
-		{
-			return a->GetRange(axis).m_min < b->GetRange(axis).m_min;
-		};
-		std::sort(nodes.begin(), nodes.end(), rangeCompare);
-	}
-
-	void RenderBoundingVolumeHierarchy::AxisSplitClusters(ClusterArray& clusters, EProjectedAxis axis)
-	{
-		auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
-		{
-			return a->GetRange(axis).m_min < b->GetRange(axis).m_min;
-		};
-
-		CLib::Vector<Cluster*, 32, 32> newClusters;
-		for (Cluster* c : clusters)
-		{
-			Cluster& cluster = *c;
-
-			std::sort(cluster.begin(), cluster.end(), rangeCompare);
-
-			Cluster* lastCluster = &cluster;
-			ProjectedRange prevNodeRange = cluster[0]->GetRange(axis);
-			for (uint32_t i = 1; i < cluster.Count(); ++i)
-			{
-				ProjectedRange nodeRange = cluster[i]->GetRange(axis);
-
-				if (nodeRange.m_min <= prevNodeRange.m_max || (nodeRange.m_min - prevNodeRange.m_max) <= m_toleranceDistance[uint32_t(axis)])
-				{
-					if (lastCluster != &cluster)
-					{
-						lastCluster->PushBack(cluster[i]);
-						cluster[i] = nullptr;
-					}
-				}
-				else
-				{
-					lastCluster = newClusters.PushBack() = m_allocator->Alloc<Cluster>();
-
-					lastCluster->PushBack(cluster[i]);
-					cluster[i] = nullptr;
-				}
-
-				prevNodeRange = nodeRange;
-			}
-
-			auto clusterCpy = cluster;
-			cluster.Clear();
-
-			for (auto& node : clusterCpy)
-			{
-				if (node != nullptr)
-					cluster.PushBack(node);
-			}
-		}
-
-		clusters += newClusters;
-	}
-
-	RenderBoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::BuildBottomUpInternal(CLib::Vector<BuildNode*>& nodes)
-	{
-		auto compare = [=](const BuildNode* a, const BuildNode* b)
-		{
-			return a->m_bounds.Volume() < b->m_bounds.Volume();
-		};
-		std::sort(nodes.begin(), nodes.end(), compare);
-
-		// Represents nodes who's insertion/cluster detection has been deferred to higher up the tree
-		// due to large size relative to previous nodes.
-		//
-		// deferredNodes is a 2D array of nodes, where each array contains nodes X% larger volume than the previous arrays's largest node.
-		CLib::Vector<NodeWave> deferredNodes(nodes.Count());
-
-		const float percentageThreshold = 20.0f / 100.0f;
-		float prevVolume = 0.0f;
-		Cluster* currentGroup = nullptr;
-		for (auto& n : nodes)
-		{
-			float volume = n->m_bounds.Volume();
-
-			if (volume - prevVolume > (prevVolume * percentageThreshold))
-			{
-				NodeWave& newWave = deferredNodes.PushBack();
-				newWave.second = volume;
-
-				currentGroup = newWave.first = m_allocator->Alloc<Cluster>(32);
-				currentGroup->PushBack(n);
-				n = nullptr;
-
-				prevVolume = volume;
-			}
-			else if (currentGroup != nullptr)
-			{
-				currentGroup->PushBack(n);
-				n = nullptr;
-			}
-
-		}
-
-		BuildNode* root = RecursiveBuildBottomUp(*deferredNodes[0].first, deferredNodes, 1, 0);
-		for (NodeWave& wave : deferredNodes)
-		{
-			m_allocator->Free(wave.first);
-		}
-
-		AssignDepth(root, 0);
-		return root;
-	}
-
-	RenderBoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::RecursiveBuildBottomUp(const CLib::Vector<BuildNode*>& nodes, CLib::Vector<NodeWave>& waves, uint32_t waveIdx, uint32_t passCount)
-	{
-		ClusterArray clusters{};
-
-		Cluster* startCluster = clusters.PushBack() = m_allocator->Alloc<Cluster>();
-		for (uint32_t i = 0; i < nodes.Count(); ++i)
-		{
-			startCluster->PushBack(nodes[i]);
-		}
-
-		// Increasing SplitPassCount will increase the amount of clusters produced.
-		// An odd split pass count will most likely result in clusters extending further on one axis, so an even number is recommended.
-		static constexpr uint32_t SplitPassCount = 2;
-
-		for (uint32_t i = 0; i < SplitPassCount; ++i)
-		{
-			AxisSplitClusters(clusters, EProjectedAxis::X);
-			AxisSplitClusters(clusters, EProjectedAxis::Y);
-			AxisSplitClusters(clusters, EProjectedAxis::Z);
-		}
-
-		CLib::Vector<BuildNode*> clusterNodes{};
-		clusterNodes.Reserve(clusters.Count());
-
-		auto volumeCompare = [=](const BuildNode* a, const BuildNode* b)
-		{
-			return a->m_bounds.Volume() > b->m_bounds.Volume();
-		};
-
-		float largestClusterVolume = 0.0f;
-		for (Cluster*& cluster : clusters)
-		{
-			if (cluster == nullptr)
-				continue;
-
-			std::sort(cluster->begin(), cluster->end(), volumeCompare);
-			if (cluster->Count() > 1)
-			{
-				Cluster& c = *cluster;
-
-				uint32_t prevIdx = 0;
-				for (uint32_t i = 1; i < c.Count(); ++i)
-				{
-					BuildNode*& cur = c[i];
-					BuildNode*& prev = c[prevIdx];
-					if (cur->m_bounds.Encapsulates(prev->m_bounds))
-					{
-						prev->m_parent = cur;
-						cur->m_children.PushBack(prev);
-						prevIdx = i;
-						prev = nullptr;
-					}
-					else if (prev->m_bounds.Encapsulates(cur->m_bounds))
-					{
-						cur->m_parent = prev;
-						prev->m_children.PushBack(cur);
-						cur = nullptr;
-					}
-				}
-
-				auto cpy = c;
-				c.Clear();
-
-				for (auto& n : cpy)
-				{
-					if (n != nullptr)
-						c.PushBack(n);
-				}
-			}
-
-			assert(cluster->Count() > 0);
-			if (cluster->Count() == 1)
-			{
-				// Cluster only has one node. Continue with the node as-is.
-				clusterNodes.PushBack(cluster->Front());
-				largestClusterVolume = glm::max<float>(largestClusterVolume, cluster->Front()->m_bounds.Volume());
-			}
-			else if (cluster->Count() > 3 && passCount <= 1)
-			{
-				// Cluster has many nodes and we're deep in the tree. Add nodes as a child of the last node to reduce complexity.
-				BuildNode* last = clusterNodes.PushBack() = cluster->PopBack();
-
-				for (auto& child : *cluster)
-				{
-					child->m_parent = last;
-					last->m_bounds.Encapsulate(child->m_bounds);
-					last->m_children.PushBack(child);
-				}
-
-				largestClusterVolume = glm::max<float>(largestClusterVolume, last->m_bounds.Volume());
-			}
-			else
-			{
-				// Cluster has few nodes, or is otherwise higher up in the tree. Create a new node and add all cluster nodes as children.
-				BuildNode* newNode = clusterNodes.PushBack() = m_allocator->Alloc<BuildNode>();
-				newNode->m_bounds = cluster->Front()->m_bounds;
-
-				for (auto& child : *cluster)
-				{
-					child->m_parent = newNode;
-					newNode->m_bounds.Encapsulate(child->m_bounds);
-					newNode->m_children.PushBack(child);
-				}
-
-				largestClusterVolume = glm::max<float>(largestClusterVolume, newNode->m_bounds.Volume());
-			}
-
-			m_allocator->Free(cluster);
-			cluster = nullptr;
-		}
-
-		if (waveIdx < waves.Count() && (clusterNodes.Count() == 1 || largestClusterVolume >= waves[waveIdx].second))
-		{
-			clusterNodes += *waves[waveIdx].first;
-			++waveIdx;
-		}
-
-		BuildNode* root = nullptr;
-
-		if ((clusterNodes.Count() > 1 || passCount < waves.Count() - 1) && passCount < 500)
-		{
-			m_toleranceDistance[0] += m_toleranceStep[0];
-			m_toleranceDistance[1] += m_toleranceStep[1];
-			m_toleranceDistance[2] += m_toleranceStep[2];
-
-			root = RecursiveBuildBottomUp(clusterNodes, waves, waveIdx, passCount + 1);
-		}
-		else if (clusterNodes.Count() > 1)
-		{
-			root = m_allocator->Alloc<BuildNode>();
-
-			for (auto& child : clusterNodes)
-			{
-				child->m_parent = root;
-				root->m_bounds.Encapsulate(child->m_bounds);
-				root->m_children.PushBack(child);
-			}
-		}
-		else
-		{
-			root = clusterNodes[0];
-		}
-
-		return root;
-	}
-
-	void RenderBoundingVolumeHierarchy::AssignDepth(BuildNode* node, uint32_t depth)
-	{
-		node->m_depth = depth;
-
-		for (auto& n : node->m_children)
-			AssignDepth(n, depth + 1);
-	}
-
 	void RenderBoundingVolumeHierarchy::BuildDrawBatch(PB::Pipeline pipeline, BuildNode* node, BatchObjects& objects)
 	{
-		PipelineDrawbatch& pipelineBatch = node->m_drawBatches.PushBack();
+		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+
+		PipelineDrawbatch& pipelineBatch = nodeData->m_drawBatches.PushBack();
 		pipelineBatch.m_pipeline = pipeline;
 		pipelineBatch.m_bakedNodeIndex = ~size_t(0);
 
@@ -457,17 +123,18 @@ namespace Eng
 
 		for (auto& node : objects)
 		{
-			ObjectData& obj = node->m_objectData;
-			PB::BindingLayout materialBindings = obj.m_material->GetBindings();
+			const ObjectData* obj = reinterpret_cast<const ObjectData*>(node->m_objectData);
+			PB::BindingLayout materialBindings = obj->m_material->GetBindings();
 
-			pipelineBatch.m_batch->AddInstance(obj.m_mesh, glm::value_ptr(obj.m_transform), node->m_bounds, materialBindings.m_resourceViews, materialBindings.m_resourceCount, obj.m_material->GetSampler());
+			pipelineBatch.m_batch->AddInstance(obj->m_mesh, glm::value_ptr(obj->m_transform), node->m_bounds, materialBindings.m_resourceViews, materialBindings.m_resourceCount, obj->m_material->GetSampler());
 		}
 		pipelineBatch.m_batch->UpdateCullParams();
 	}
 
 	void RenderBoundingVolumeHierarchy::RecursiveSearchDownForDrawbatches(BuildNode* node, size_t& highestBakedNodeIndex)
 	{
-		for (auto& pipelineBatch : node->m_drawBatches)
+		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+		for (auto& pipelineBatch : nodeData->m_drawBatches)
 		{
 			highestBakedNodeIndex = std::min<size_t>(highestBakedNodeIndex, pipelineBatch.m_bakedNodeIndex);
 
@@ -477,7 +144,7 @@ namespace Eng
 			BakedNode& baked = m_globalBatchHierarchy.m_bakedNodes[pipelineBatch.m_bakedNodeIndex];
 			baked.m_batch = nullptr;
 		}
-		node->m_drawBatches.Clear();
+		nodeData->m_drawBatches.Clear();
 
 		for (auto& child : node->m_children)
 		{
@@ -487,10 +154,11 @@ namespace Eng
 
 	void RenderBoundingVolumeHierarchy::RecursiveSearchUpForDrawbatches(BuildNode* node, BuildNode*& highestFound, std::set<PB::Pipeline>& pipelinesToFind, size_t& highestBakedNodeIndex)
 	{
-		if(node->m_drawBatches.Count() > 0)
+		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+		if(nodeData->m_drawBatches.Count() > 0)
 		{
 			NodeDrawBatches newBatches{};
-			for (auto& pipelineBatch : node->m_drawBatches)
+			for (auto& pipelineBatch : nodeData->m_drawBatches)
 			{
 				auto it = pipelinesToFind.find(pipelineBatch.m_pipeline);
 				if(it != pipelinesToFind.end())
@@ -510,7 +178,7 @@ namespace Eng
 					newBatches.PushBack(pipelineBatch);
 				}
 			}
-			node->m_drawBatches = newBatches;
+			nodeData->m_drawBatches = newBatches;
 		}
 
 		if (node->m_parent != nullptr && pipelinesToFind.empty() == false)
@@ -519,12 +187,14 @@ namespace Eng
 		}
 	}
 
-	void RenderBoundingVolumeHierarchy::RebuildDrawBatchesForSubtree(BuildNode* subtree, BuildNode* oldSubtree, CLib::Vector<ObjectData>& objectData)
+	void RenderBoundingVolumeHierarchy::RebuildDrawBatchesForSubtree(BuildNode* subtree, BuildNode* oldSubtree, InputObjects& objectData)
 	{
 		std::set<PB::Pipeline> pipelinesToFind;
-		for (auto& obj : objectData)
+		for (const BoundingVolumeHierarchy::ObjectData*& obj : objectData)
 		{
-			PB::Pipeline pipeline = obj.m_material->GetPipeline();
+			const ObjectData* data = reinterpret_cast<const ObjectData*>(obj);
+
+			PB::Pipeline pipeline = data->m_material->GetPipeline();
 			if (pipelinesToFind.contains(pipeline) == false)
 				pipelinesToFind.insert(pipeline);
 		}
@@ -607,12 +277,17 @@ namespace Eng
 				BuildDrawBatch(pair.first, root, pair.second);
 				newlyExcludedPipelines.insert(pair.first);
 
-				PipelineDrawbatch& pipelineBatch = root->m_drawBatches.Back();
-				BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(m_allocator->Alloc<BuildNode>());
-				newBuildNode->m_sourceNode = root;
+				NodeData* rootData = reinterpret_cast<NodeData*>(root->m_data);
+				PipelineDrawbatch& pipelineBatch = rootData->m_drawBatches.Back();
+
+				BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(AllocateBuildNode());
 				newBuildNode->m_bounds = pipelineBatch.m_batch->GetBounds();
-				newBuildNode->m_drawBatches.PushBack(pipelineBatch);
+				newBuildNode->m_objectData = nullptr;
 				newBuildNode->m_isObject = true;
+
+				NodeData* nodeData = reinterpret_cast<NodeData*>(newBuildNode->m_data);
+				nodeData->m_sourceNode = root;
+				nodeData->m_drawBatches.PushBack(pipelineBatch);
 			}
 			else
 			{
@@ -645,14 +320,17 @@ namespace Eng
 				BuildDrawBatch(pair.first, root, pair.second);
 				includedPipelines.erase(pipelineIt);
 
-				auto& pipelineBatch = root->m_drawBatches.Back();
+				NodeData* rootData = reinterpret_cast<NodeData*>(root->m_data);
+				PipelineDrawbatch& pipelineBatch = rootData->m_drawBatches.Back();
 
-				// Create build node for the new batch.
-				BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(m_allocator->Alloc<BuildNode>());
-				newBuildNode->m_sourceNode = root;
+				BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(AllocateBuildNode());
 				newBuildNode->m_bounds = pipelineBatch.m_batch->GetBounds();
-				newBuildNode->m_drawBatches.PushBack(pipelineBatch);
+				newBuildNode->m_objectData = nullptr;
 				newBuildNode->m_isObject = true;
+
+				NodeData* nodeData = reinterpret_cast<NodeData*>(newBuildNode->m_data);
+				nodeData->m_sourceNode = root;
+				nodeData->m_drawBatches.PushBack(pipelineBatch);
 			}
 		}
 
@@ -674,11 +352,14 @@ namespace Eng
 			batch.m_batch = node.m_batch;
 			batch.m_pipeline = 0;
 
-			BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(m_allocator->Alloc<BuildNode>());
-			newBuildNode->m_sourceNode = nullptr;
-			newBuildNode->m_bounds = node.m_batch->GetBounds();
-			newBuildNode->m_drawBatches.PushBack(batch);
+			BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(AllocateBuildNode());
+			newBuildNode->m_bounds = batch.m_batch->GetBounds();
+			newBuildNode->m_objectData = nullptr;
 			newBuildNode->m_isObject = true;
+
+			NodeData* nodeData = reinterpret_cast<NodeData*>(newBuildNode->m_data);
+			nodeData->m_sourceNode = nullptr;
+			nodeData->m_drawBatches.PushBack(batch);
 		}
 
 		const uint32_t& childCount = node.m_childCount;
@@ -705,7 +386,9 @@ namespace Eng
 
 		if (node->m_isObject)
 		{
-			PB::Pipeline pipeline = node->m_objectData.m_material->GetPipeline();
+			const ObjectData* objectData = reinterpret_cast<const ObjectData*>(node->m_objectData);
+
+			PB::Pipeline pipeline = objectData->m_material->GetPipeline();
 			batchMap.try_emplace(pipeline);
 			auto it = batchMap.find(pipeline);
 			assert(it != batchMap.end());
@@ -719,17 +402,6 @@ namespace Eng
 		}
 	}
 
-	void RenderBoundingVolumeHierarchy::RecursiveGetObjectData(CLib::Vector<ObjectData>& outObjectData, BuildNode* node)
-	{
-		if (node->m_isObject)
-		{
-			outObjectData.PushBack(node->m_objectData);
-		}
-
-		for (auto& child : node->m_children)
-			RecursiveGetObjectData(outObjectData, child);
-	}
-
 	void RenderBoundingVolumeHierarchy::RecursiveFreeNode(BuildNode* node, bool keepBatches)
 	{
 		for (BuildNode* child : node->m_children)
@@ -739,13 +411,14 @@ namespace Eng
 
 		if (keepBatches == false)
 		{
-			for (auto& pipelineBatch : node->m_drawBatches)
+			NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+			for (auto& pipelineBatch : nodeData->m_drawBatches)
 			{
 				m_allocator->Free(pipelineBatch.m_batch);
 			}
 		}
 
-		m_allocator->Free(node);
+		FreeBuildNode(node);
 	}
 
 	void RenderBoundingVolumeHierarchy::BakeHierarchies(BuildNode* start)
@@ -755,12 +428,13 @@ namespace Eng
 
 	void RenderBoundingVolumeHierarchy::RecursiveBakeHierarchy(BakedNodes& bakedNodes, BuildNode* node, size_t parentIndex, size_t baseIndex)
 	{
-		assert(node->m_drawBatches.Count() <= 1);
+		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+		assert(nodeData->m_drawBatches.Count() <= 1);
 
 		size_t index = bakedNodes.size();
 
 		{
-			PipelineDrawbatch* nodeBatch = node->m_drawBatches.Count() > 0 ? &node->m_drawBatches.Front() : nullptr;
+			PipelineDrawbatch* nodeBatch = nodeData->m_drawBatches.Count() > 0 ? &nodeData->m_drawBatches.Front() : nullptr;
 
 			BakedNode& baked = bakedNodes.emplace_back();
 			baked.m_bounds = node->m_bounds;
@@ -769,9 +443,10 @@ namespace Eng
 			baked.m_batch = nodeBatch ? nodeBatch->m_batch : nullptr;
 			baked.m_batchPipeline = nodeBatch ? nodeBatch->m_pipeline : 0;
 
-			if (node->m_sourceNode != nullptr)
+			if (nodeData->m_sourceNode != nullptr)
 			{
-				NodeDrawBatches& sourceBatches = node->m_sourceNode->m_drawBatches;
+				NodeData* sourceNodeData = reinterpret_cast<NodeData*>(nodeData->m_sourceNode->m_data);
+				NodeDrawBatches& sourceBatches = sourceNodeData->m_drawBatches;
 				for (auto& pipelineBatch : sourceBatches)
 				{
 					if (pipelineBatch.m_batch == baked.m_batch)
@@ -788,29 +463,6 @@ namespace Eng
 			RecursiveBakeHierarchy(bakedNodes, n, index, baseIndex);
 		}
 		bakedNodes[index].m_strideToNext = uint32_t(bakedNodes.size() - index);
-	}
-
-	bool RenderBoundingVolumeHierarchy::IsInFrontOfPlane(const Camera::CameraFrustrum::Plane& plane, const Bounds& bounds) const
-	{
-		const glm::vec3 centre = bounds.Centre();
-		const glm::vec3 halfExtents = bounds.m_extents * 0.5f;
-
-		const float r = halfExtents.x * std::abs(plane.x) +
-			halfExtents.y * std::abs(plane.y) + halfExtents.z * std::abs(plane.z);
-
-		const float signedDist = glm::dot(glm::vec3(plane), centre) - plane.w;
-
-		return -r <= signedDist;
-	}
-
-	bool RenderBoundingVolumeHierarchy::FrustrumTest(const Camera::CameraFrustrum& frustrum, const Bounds& bounds) const
-	{
-		return IsInFrontOfPlane(frustrum.m_near, bounds)
-			&& IsInFrontOfPlane(frustrum.m_left, bounds)
-			&& IsInFrontOfPlane(frustrum.m_right, bounds)
-			&& IsInFrontOfPlane(frustrum.m_top, bounds)
-			&& IsInFrontOfPlane(frustrum.m_bottom, bounds)
-			&& IsInFrontOfPlane(frustrum.m_far, bounds);
 	}
 
 	void RenderBoundingVolumeHierarchy::RecursiveBakeBatches(PB::ICommandContext* cmdContext, BakedNode& node)
@@ -868,91 +520,13 @@ namespace Eng
 		RecursiveCullBatches(dispatcher, globalBindings, cameraFrustrum, m_globalBatchHierarchy.m_bakedNodes.front());
 	}
 
-	void RenderBoundingVolumeHierarchy::RecursiveDebugDrawNode(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, BuildNode* node, uint32_t depth, bool drawObjectBounds)
+	BoundingVolumeHierarchy::NodeData* RenderBoundingVolumeHierarchy::AllocateNodeData()
 	{
-		glm::vec3 lineColor = node->m_isObject ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
-		lineColor = (depth != ~uint32_t(0) && node->m_depth == depth) ? glm::vec3(0.0f, 0.0f, 1.0f) : lineColor;
-
-		const glm::vec3& origin = node->m_bounds.m_origin;
-		const glm::vec3& extents = node->m_bounds.m_extents;
-
-		// Origin to sky
-		if (node == m_sourceRoot)
-		{
-			const Bounds& b = node->m_bounds;
-
-			lines->DrawLine(PB::Float3(origin.x, origin.y - 1000.0f, origin.z), PB::Float3(origin.x, origin.y + 1000.0f, origin.z), PB::Float3(0.0f, 0.0f, 1.0f));
-			lines->DrawLine(PB::Float3(origin.x + extents.x, origin.y + extents.y - 1000.0f, origin.z + extents.z), PB::Float3(origin.x + extents.x, origin.y + extents.y + 1000.0f, origin.z + extents.z), PB::Float3(0.0f, 0.0f, 1.0f));
-		}
-
-		if (FrustrumTest(frustrum, node->m_bounds) == false)
-		{
-			return;
-		}
-
-		if ((node->m_depth == depth && !node->IsLeaf()) || node->m_depth == (depth + 1) || depth == ~uint32_t(0))
-		{
-			DebugDrawCube(lines, origin, extents, lineColor);
-		}
-
-		if (node->m_depth <= depth)
-		{
-			for (BuildNode* n : node->m_children)
-				RecursiveDebugDrawNode(lines, frustrum, n, depth, drawObjectBounds);
-		}
+		return m_allocator->Alloc<NodeData>();
 	}
 
-	void RenderBoundingVolumeHierarchy::DebugDrawCube(DebugLinePass* lines, const glm::vec3& origin, const glm::vec3& extents, const glm::vec3& lineColor)
+	void RenderBoundingVolumeHierarchy::FreeNodeData(BoundingVolumeHierarchy::NodeData* data)
 	{
-		PB::Float3 color3(lineColor.r, lineColor.g, lineColor.b);
-
-		// Bottom square
-		lines->DrawLine(PB::Float3(origin.x, origin.y, origin.z), PB::Float3(origin.x + extents.x, origin.y, origin.z), color3);
-		lines->DrawLine(PB::Float3(origin.x, origin.y, origin.z), PB::Float3(origin.x, origin.y, origin.z + extents.z), color3);
-		lines->DrawLine(PB::Float3(origin.x + extents.x, origin.y, origin.z), PB::Float3(origin.x + extents.x, origin.y, origin.z + extents.z), color3);
-		lines->DrawLine(PB::Float3(origin.x + extents.x, origin.y, origin.z + extents.z), PB::Float3(origin.x, origin.y, origin.z + extents.z), color3);
-
-		// Top square
-		lines->DrawLine(PB::Float3(origin.x, origin.y + extents.y, origin.z), PB::Float3(origin.x + extents.x, origin.y + extents.y, origin.z), color3);
-		lines->DrawLine(PB::Float3(origin.x, origin.y + extents.y, origin.z), PB::Float3(origin.x, origin.y + extents.y, origin.z + extents.z), color3);
-		lines->DrawLine(PB::Float3(origin.x + extents.x, origin.y + extents.y, origin.z), PB::Float3(origin.x + extents.x, origin.y + extents.y, origin.z + extents.z), color3);
-		lines->DrawLine(PB::Float3(origin.x + extents.x, origin.y + extents.y, origin.z + extents.z), PB::Float3(origin.x, origin.y + extents.y, origin.z + extents.z), color3);
-
-		// Columns
-		lines->DrawLine(PB::Float3(origin.x, origin.y, origin.z), PB::Float3(origin.x, origin.y + extents.y, origin.z), color3);
-		lines->DrawLine(PB::Float3(origin.x + extents.x, origin.y, origin.z), PB::Float3(origin.x + extents.x, origin.y + extents.y, origin.z), color3);
-		lines->DrawLine(PB::Float3(origin.x, origin.y, origin.z + extents.z), PB::Float3(origin.x, origin.y + extents.y, origin.z + extents.z), color3);
-		lines->DrawLine(PB::Float3(origin.x + extents.x, origin.y, origin.z + extents.z), PB::Float3(origin.x + extents.x, origin.y + extents.y, origin.z + extents.z), color3);
+		m_allocator->Free(reinterpret_cast<NodeData*>(data));
 	}
-
-	uint64_t RenderBoundingVolumeHierarchy::GetScore(const Bounds& bounds)
-	{
-		// TODO: To produce better results, it may be worth biasing axes e.g. valuing taller volumes less that wider and longer volumes for mostly flat levels.
-		//		 In an engine-level implementation, axes could be biased based on which angles a player is most likely to be looking at any given time at the location of insertion e.g. looking up/down more often in taller locations.
-
-		glm::vec3 dimensions = glm::vec3
-		(
-			glm::abs(bounds.m_origin.x - bounds.MaxX()),
-			glm::abs(bounds.m_origin.y - bounds.MaxY()),
-			glm::abs(bounds.m_origin.z - bounds.MaxZ())
-		);
-		return uint64_t(dimensions.x * dimensions.y * dimensions.z);
-	}
-
-	void RenderBoundingVolumeHierarchy::BuildNode::RemoveChild(BuildNode* child)
-	{
-		for (auto& c : m_children)
-		{
-			if (c == child)
-			{
-				if (c == m_children.Back())
-					m_children.PopBack();
-				else // Preserving order does not matter. Just move the back element to overwrite 'c'.
-					c = m_children.PopBack();
-
-				return;
-			}
-		}
-	}
-
 };
