@@ -104,15 +104,20 @@ namespace AssetEncoder
 		memcpy(outData, &m_stringCache[asset.m_userDataLocation], asset.m_userDataSize);
 	}
 
-	void AssetBinaryDatabaseReader::GetAssetBinary(AssetHandle& handle, void* storage)
+	void AssetBinaryDatabaseReader::GetAssetBinary(AssetID id, void* storage)
 	{
-		auto it = m_assetMap.find(handle.GetID(this));
+		auto it = m_assetMap.find(id);
 		if (it == m_assetMap.end())
 			return;
 
 		DatabaseStringHeader header = it->second;
 		m_dbFile.seekg(m_index.m_assetBegin + header.m_asset.m_location);
 		m_dbFile.read(reinterpret_cast<char*>(storage), header.m_asset.m_binarySize);
+	}
+
+	void AssetBinaryDatabaseReader::GetAssetBinary(AssetHandle& handle, void* storage)
+	{
+		GetAssetBinary(handle.GetID(this), storage);
 	}
 
 	void AssetBinaryDatabaseReader::GetAssetBinaryRange(AssetID id, void* storage, size_t beginBytes, size_t endBytes)

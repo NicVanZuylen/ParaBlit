@@ -143,6 +143,11 @@ namespace Eng
 		}
 	}
 
+	Texture::Texture(PB::IRenderer* renderer)
+	{
+		m_renderer = renderer;
+	}
+
 	Texture::Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char** filePaths, bool srgb, PB::u32 mipCount)
 	{
 		m_renderer = renderer;
@@ -370,6 +375,46 @@ namespace Eng
 		}
 
 		m_ownsTexture = false;
+	}
+
+	void Texture::Load2D(AssetEncoder::AssetID assetID, AssetEncoder::AssetBinaryDatabaseReader* reader)
+	{
+		assert(reader->HasOpenFile());
+
+		const auto& textureMeta = reader->GetAssetInfo(assetID);
+		AssetPipeline::TextureMetadata textureData;
+		s_textureDatabaseLoader.GetAssetUserData(textureMeta, &textureData);
+
+		void* buf = malloc(textureMeta.m_binarySize);
+		s_textureDatabaseLoader.GetAssetBinary(assetID, buf);
+
+		assert(textureData.m_isHdr == false);
+
+		PB::TextureDataDesc texDataDesc{};
+		texDataDesc.m_data = buf;
+		texDataDesc.m_size = textureMeta.m_binarySize;
+		texDataDesc.m_mipLevel = 0;
+		texDataDesc.m_arrayLayer = 0;
+		texDataDesc.m_next = nullptr;
+
+		PB::TextureDesc texDesc{};
+		texDesc.m_dimension = PB::ETextureDimension::DIMENSION_2D;
+		texDesc.m_format = textureData.m_format;
+		texDesc.m_usageStates = PB::ETextureState::SAMPLED;
+		texDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_USE_DATA;
+		texDesc.m_data = &texDataDesc;
+		texDesc.m_width = textureData.m_width;
+		texDesc.m_height = textureData.m_height;
+		texDesc.m_mipCount = textureData.m_mipCount;
+		texDesc.m_arraySize = textureData.m_arraySize;
+
+		m_texture = m_renderer->AllocateTexture(texDesc);
+		m_ownsTexture = true;
+		m_isCompressed = PB::u16(texDesc.m_format) >= PB::BlockCompressedStart && PB::u16(texDesc.m_format) <= PB::BlockCompressedEnd;
+
+		printf("Texture: Successfully loaded asset [%u] (%u bytes)\n", uint32_t(assetID), uint32_t(textureMeta.m_binarySize));
+
+		free(buf);
 	}
 
 	PB::ITexture* Texture::GetTexture()

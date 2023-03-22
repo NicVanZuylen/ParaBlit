@@ -3,11 +3,13 @@
 
 #include "Engine.ParaBlit/ICommandContext.h"
 
+#include "Resource/AssetStreamer.h"
+
 namespace Eng
 {
-	EntityHierarchy::EntityHierarchy(CLib::Allocator* allocator, PB::IRenderer* renderer)
+	EntityHierarchy::EntityHierarchy(CLib::Allocator* allocator, PB::IRenderer* renderer, AssetStreamer* streamer)
 	{
-		Init(allocator, renderer);
+		Init(allocator, renderer, streamer);
 	}
 
 	EntityHierarchy::~EntityHierarchy()
@@ -15,10 +17,11 @@ namespace Eng
 
 	}
 
-	void EntityHierarchy::Init(CLib::Allocator* allocator, PB::IRenderer* renderer)
+	void EntityHierarchy::Init(CLib::Allocator* allocator, PB::IRenderer* renderer, AssetStreamer* streamer)
 	{
 		m_allocator = allocator;
 		m_renderer = renderer;
+		m_streamer = streamer;
 
 		// Initialize bounding volume hierarchies.
 		{
@@ -34,7 +37,7 @@ namespace Eng
 			bvhDesc.m_toleranceDistanceY = 0.2f;
 			bvhDesc.m_toleranceStepY = 0.2f;
 
-			m_renderHierarchy.Init(renderer, allocator, bvhDesc);
+			m_renderHierarchy.Init(renderer, allocator, m_streamer, bvhDesc);
 			m_entityHierarchy.Init(allocator, bvhDesc);
 		}
 	}

@@ -10,10 +10,11 @@
 namespace Eng
 {
 
-	RenderBoundingVolumeHierarchy::RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc) 
+	RenderBoundingVolumeHierarchy::RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc)
 		: BoundingVolumeHierarchy(allocator, desc)
 	{
 		m_renderer = renderer;
+		m_streamer = streamer;
 	}
 
 	RenderBoundingVolumeHierarchy::~RenderBoundingVolumeHierarchy()
@@ -25,11 +26,12 @@ namespace Eng
 		}
 	}
 
-	void RenderBoundingVolumeHierarchy::Init(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc)
+	void RenderBoundingVolumeHierarchy::Init(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc)
 	{
 		BoundingVolumeHierarchy::Init(allocator, desc);
 
 		m_renderer = renderer;
+		m_streamer = streamer;
 	}
 
 	BoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::BuildBottomUp(InputObjects& objects)
@@ -119,14 +121,14 @@ namespace Eng
 		DrawBatch::CreateDesc drawBatchDesc;
 		drawBatchDesc.m_renderer = m_renderer;
 		drawBatchDesc.m_allocator = m_allocator;
+		drawBatchDesc.m_streamer = m_streamer;
 		pipelineBatch.m_batch = m_allocator->Alloc<DrawBatch>(drawBatchDesc);
 
 		for (auto& node : objects)
 		{
 			const ObjectData* obj = reinterpret_cast<const ObjectData*>(node->m_objectData);
-			PB::BindingLayout materialBindings = obj->m_material->GetBindings();
 
-			pipelineBatch.m_batch->AddInstance(obj->m_mesh, glm::value_ptr(obj->m_transform), node->m_bounds, materialBindings.m_resourceViews, materialBindings.m_resourceCount, obj->m_material->GetSampler());
+			pipelineBatch.m_batch->AddInstance(obj->m_meshID, glm::value_ptr(obj->m_transform), node->m_bounds, obj->m_material->GetTextureIDs(), obj->m_material->GetTextureCount(), obj->m_material->GetSampler());
 		}
 		pipelineBatch.m_batch->UpdateCullParams();
 	}

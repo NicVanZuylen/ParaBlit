@@ -92,7 +92,7 @@ namespace AssetPipeline
 			}
 			else if (asset.m_outdated)
 			{
-				EncodeUncompressedTexture(asset, data);
+				Encode2DTexture(asset, data);
 				FlagAsModified();
 			}
 			else
@@ -168,7 +168,7 @@ namespace AssetPipeline
 		return CMP_FORMAT_BC5;
 	}
 
-	void Texture2DEncoder::EncodeUncompressedTexture(const AssetStatus& asset, const Ctrl::IDataContainer* properties)
+	void Texture2DEncoder::Encode2DTexture(const AssetStatus& asset, const Ctrl::IDataContainer* properties)
 	{
 		// Uncompressed texture encoding path. Encodes RGBA channels in SDR or HDR if supported.
 

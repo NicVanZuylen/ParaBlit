@@ -9,12 +9,12 @@ namespace Eng
 	{
 	public:
 
-		RenderDefinition(Mesh* mesh, Material* material);
+		RenderDefinition(AssetEncoder::AssetID meshID, Material* material);
 		~RenderDefinition() = default;
 
-		static RenderDefinition* ECCreate(Mesh* mesh, Material* material)
+		static RenderDefinition* ECCreate(AssetEncoder::AssetID meshID, Material* material)
 		{
-			return s_entityComponentStorage.Alloc<RenderDefinition>(mesh, material);
+			return s_entityComponentStorage.Alloc<RenderDefinition>(meshID, material);
 		}
 
 		static void ECDestroy(RenderDefinition* component)
@@ -28,7 +28,7 @@ namespace Eng
 
 		void GetReflection(CLib::Reflector& outReflector) override { outReflector.Init(this); }
 
-		const Mesh* GetMesh() const { return m_mesh; }
+		const AssetEncoder::AssetID GetMeshID() const { return m_meshID; }
 		const Material* GetMaterial() const { return m_material; }
 
 	private:
@@ -36,7 +36,7 @@ namespace Eng
 		RenderBoundingVolumeHierarchy::ObjectData m_objectData{};
 
 		CLIB_REFLECTABLE(RenderDefinition,
-			(Mesh*) m_mesh,
+			(AssetEncoder::AssetID) m_meshID,
 			(Material*) m_material
 		)
 	};

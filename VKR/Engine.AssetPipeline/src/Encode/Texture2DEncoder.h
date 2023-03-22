@@ -18,7 +18,7 @@ namespace AssetPipeline
 
 	private:
 
-		void EncodeUncompressedTexture(const AssetStatus& asset, const Ctrl::IDataContainer* properties);
+		void Encode2DTexture(const AssetStatus& asset, const Ctrl::IDataContainer* properties);
 
 		void GenerateEnvironmentMap(PB::ICommandContext* cmdContext, PB::ITexture* srcCube, PB::ITexture*& envMap, EConvolutedMapType mapType);
 

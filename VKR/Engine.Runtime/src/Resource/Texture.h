@@ -14,6 +14,8 @@ namespace Eng
 	{
 	public:
 
+		static AssetEncoder::AssetBinaryDatabaseReader s_textureDatabaseLoader;
+
 		/*
 		Constructor: Construct as a texture loaded from an image file.
 		Param:
@@ -21,6 +23,8 @@ namespace Eng
 			const char* filePath: File path of the image to load.
 		*/
 		Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, bool srgb = true, bool convertToCube = false, bool loadFromDatabase = false);
+
+		Texture(PB::IRenderer* renderer);
 
 		/*
 		Constructor: Construct as a cube map where each faces is loaded from a separate file.
@@ -33,6 +37,14 @@ namespace Eng
 		Texture(PB::IRenderer* renderer, CLib::Allocator* allocator, const char* filePath, AssetPipeline::EConvolutedMapType mapType);
 
 		~Texture();
+
+		/*
+		Description: Load and initialize a texture from a texture database.
+		Param:
+			AssetEncoder::AssetID: The asset ID used for loading the texture.
+			AssetEncoder::AssetBinaryDatabaseReader* reader: Database reader the texture will be loaded using.
+		*/
+		void Load2D(AssetEncoder::AssetID assetID, AssetEncoder::AssetBinaryDatabaseReader* reader = &s_textureDatabaseLoader);
 
 		/*
 		Description: Get the internal parablit texture.
@@ -56,8 +68,6 @@ namespace Eng
 		bool IsCompressed() const { return m_isCompressed; }
 
 	protected:
-
-		static AssetEncoder::AssetBinaryDatabaseReader s_textureDatabaseLoader;
 
 		void ConvertToCube(bool isHdr);
 

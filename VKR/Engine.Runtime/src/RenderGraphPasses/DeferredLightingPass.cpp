@@ -35,7 +35,9 @@ namespace Eng
 		gBufferSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_EDGE;
 		m_gBufferSampler = renderer->GetSampler(gBufferSamplerDesc);
 
-		m_pointLightVolumeMesh.Init(m_renderer, "Meshes/Primitives/sphere");
+		AssetEncoder::AssetHandle pointLightMeshHandle("Meshes/Primitives/sphere");
+		m_pointLightVolumeMesh.Init(pointLightMeshHandle.GetID(&Mesh::s_meshDatabaseLoader), &Mesh::s_meshDatabaseLoader);
+		m_pointLightVolumeMesh.Load(m_renderer, &Mesh::s_meshDatabaseLoader);
 
 		m_screenQuadShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/vs_screenQuad_maxdepth", m_allocator, true);
 		m_defDirLightShader = m_allocator->Alloc<Shader>(m_renderer, "Shaders/GLSL/fs_def_directional_light_shadow", m_allocator, true);

@@ -105,12 +105,6 @@ namespace Eng
 		Eng::Mesh* m_glassMesh = nullptr;
 		Eng::Mesh* m_planeMesh = nullptr;
 
-		Eng::Texture* m_paintTextures[4]{};
-		Eng::Texture* m_detailsTextures[5]{};
-		Eng::Texture* m_glassTextures[5]{};
-		Eng::Texture* m_metalTextures[2]{};
-		Eng::Texture* m_debugTextures[3]{};
-
 		Eng::Material* m_spinnerMaterials[3]{};
 		Eng::Material* m_planeMaterial = nullptr;
 		Eng::Material* m_debugMaterial = nullptr;

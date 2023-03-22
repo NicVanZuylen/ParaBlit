@@ -1,10 +1,12 @@
 #pragma once
 #include "Engine.ParaBlit/IRenderer.h"
+#include "Engine.ParaBlit/ICommandContext.h"
 #include "CLib/Vector.h"
 #include "CLib/Allocator.h"
 #include "CLib/FixedBlockAllocator.h"
 #include "Engine.AssetEncoder/AssetDatabaseReader.h"
 
+#include <map>
 #include <mutex>
 #include <thread>
 
@@ -16,15 +18,34 @@ namespace Eng
 	{
 		INVALID,
 		MESH,
+		TEXTURE,
 	};
 
 	using ResourceID = uint64_t;
 
 	static_assert(sizeof(ResourceID) == sizeof(uint64_t));
 
+	namespace StreamableSimple
+	{
+		enum ESimpleTextureType : uint8_t
+		{
+			NONE,
+			SOLID_BLACK,
+			SOLID_WHITE,
+			MID_GRAY,
+			FLAT_NORMAL_MAP,
+			COUNT
+		};
+
+		static const AssetEncoder::AssetID SrvBlackHandle = ~AssetEncoder::AssetID(0) - SOLID_BLACK;
+		static const AssetEncoder::AssetID SrvWhiteHandle = ~AssetEncoder::AssetID(0) - SOLID_WHITE;
+		static const AssetEncoder::AssetID SrvMidGrayHandle = ~AssetEncoder::AssetID(0) - MID_GRAY;
+		static const AssetEncoder::AssetID SrvFlatNormalMapHandle = ~AssetEncoder::AssetID(0) - FLAT_NORMAL_MAP;
+	}
+
 	struct StreamableHandle
 	{
-		enum class EBindingType : uint32_t
+		enum class EBindingType : uint8_t
 		{
 			NONE,
 			SRV,
@@ -33,20 +54,30 @@ namespace Eng
 
 		static constexpr uint32_t TypeShift = 56;
 		static constexpr uint32_t IDShift = 64 - TypeShift;
+		static constexpr uint8_t BindingSubresourceAll = ~uint8_t(0);
 
-		StreamableHandle(AssetEncoder::AssetID id, EStreamableResourceType type, EBindingType bindingType)
+		StreamableHandle(AssetEncoder::AssetID id, EStreamableResourceType type, EBindingType bindingType, uint8_t bindingSubresource = BindingSubresourceAll)
 		{
+			if (id > ~AssetEncoder::AssetID(0) - StreamableSimple::ESimpleTextureType::COUNT)
+			{
+				AssetEncoder::AssetID simpleID = (~AssetEncoder::AssetID(0) - id);
+				m_simpleType = StreamableSimple::ESimpleTextureType(simpleID);
+			}
+
 			m_id = id;
 			m_id |= (uint64_t(type) << TypeShift);
 			m_bindingType = bindingType;
+			m_bindingSubresource = bindingSubresource;
 		}
 
 		AssetEncoder::AssetID GetID() const { return (m_id << IDShift) >> IDShift; }
 
 		EStreamableResourceType GetType() const { return EStreamableResourceType(m_id >> TypeShift); }
 
-		ResourceID m_id = 0;
-		EBindingType m_bindingType = EBindingType::NONE;
+		ResourceID m_id;
+		EBindingType m_bindingType;
+		uint8_t m_bindingSubresource;
+		StreamableSimple::ESimpleTextureType m_simpleType = StreamableSimple::ESimpleTextureType::NONE;
 	};
 
 	class StreamingBatch
@@ -65,16 +96,36 @@ namespace Eng
 			FREE,
 			PENDING_STREAMING,
 			STREAMING,
-			DONE
+			IDLE
 		};
 
+		enum EBindingOutputLocation : uint8_t
+		{
+			CPU_BUFFER,
+			GPU_BUFFER
+		};
 
 		void AddResource(const StreamableHandle& desc)
 		{
 			m_resources.PushBack(desc);
 		};
 
+		void SetOutputBindingLocation(PB::ResourceView* outputBindings) 
+		{
+			m_bindingsDstCpu = outputBindings;
+			m_bindingOutputLocation = EBindingOutputLocation::CPU_BUFFER;
+		};
+
+		void SetOutputBindingLocation(PB::IBufferObject* outputBuffer, size_t outputOffsetBytes)
+		{
+			m_bindingsDstGpu = outputBuffer;
+			m_gpuBufferOffset = outputOffsetBytes;
+			m_bindingOutputLocation = EBindingOutputLocation::GPU_BUFFER;
+		}
+
 		EStreamingStatus GetStatus() const { return m_status; }
+
+		void WaitForStatus(EStreamingStatus status);
 
 		/*
 		Description: Begin streaming in the assets in this batch.
@@ -83,24 +134,45 @@ namespace Eng
 		*/
 		void BeginStreaming(bool block = false);
 
+		void WaitStreamingComplete();
+
 		void EndStreamingAndDelete();
 
 		/*
 		Description: Notify the streaming system that the resources in this streaming batch will be needed this frame. This will prevent them from being unloaded too soon. 
 		*/
-		void NotifyUsage() { m_usedThisFrame = true; };
+		void NotifyUsage();
+
+		uint32_t CalculateOutputBindingCount();
 
 	private:
 
 		friend class AssetStreamer;
 
+		uint32_t GetMeshBindingCount(StreamableHandle::EBindingType bindingType, uint8_t bindingSubresource);
+		uint32_t GetTextureBindingCount(StreamableHandle::EBindingType bindingType, uint8_t bindingSubresource);
+
+		void WaitForFrames(int64_t waitFrameCount, size_t currentFrame);
+		bool IsWaitingDone(size_t currentFrame);
+
 		// Output location of loaded resource binding indices.
 		StreamingBatch* m_next = nullptr;
 		AssetStreamer* m_streamer = nullptr;
-		uint32_t* bindingsDst = nullptr;
+
+		union
+		{
+			PB::ResourceView* m_bindingsDstCpu;
+			PB::IBufferObject* m_bindingsDstGpu = nullptr;
+		};
+		size_t m_gpuBufferOffset = 0;
+
 		EStreamingStatus m_status = EStreamingStatus::PENDING_STREAMING;
-		bool m_usedThisFrame = false;
-		CLib::Vector<StreamableHandle, 16, 16> m_resources;
+		EBindingOutputLocation m_bindingOutputLocation = EBindingOutputLocation::GPU_BUFFER;
+		int64_t m_streamingWaitFrames = 0;
+		int64_t m_streamingWaitBegin = 0;
+		std::mutex m_streamingLock;
+		std::condition_variable m_conditionVar;
+		CLib::Vector<StreamableHandle, 4, 4> m_resources;
 	};
 
 	class AssetStreamer
@@ -116,7 +188,7 @@ namespace Eng
 
 		void Shutdown();
 
-		void NextFrame() { ++m_currentFrame; };
+		void NextFrame();
 
 		StreamingBatch* AllocStreamingBatch(uint32_t reserveResourceCount = 1);
 
@@ -130,6 +202,16 @@ namespace Eng
 			size_t m_lastUsedFrame = ~size_t(0);
 		};
 
+		struct IndexUploadBuffer
+		{
+			PB::IBufferObject* m_buffer = nullptr;
+			PB::ResourceView* m_mapped = nullptr;
+			size_t m_maxIndexCount = 0;
+			size_t m_allocatedIndexCount = 0;
+		};
+
+		using CopyPair = std::pair<PB::IBufferObject*, PB::IBufferObject*>;
+
 		void Update();
 
 		void FreeBatch(StreamingBatch* batch);
@@ -138,7 +220,13 @@ namespace Eng
 
 		void AddStreamingBatch(StreamingBatch* batch);
 
-		bool LoadResource(const StreamableHandle& handle, ResourceHandle& resHandle);
+		bool LoadResource(const StreamableHandle& handle, ResourceHandle& resHandle, PB::ResourceView*& outputBinding);
+
+		bool LoadViews(const StreamableHandle& handle, ResourceHandle& resHandle, PB::ResourceView*& outputBinding);
+
+		void AllocateNewUploadBuffer();
+
+		PB::ResourceView* AllocateIndexUpload(PB::IBufferObject* dstBuffer, uint32_t dstOffset, uint32_t indexCount);
 
 		friend class StreamingBatch;
 
@@ -147,13 +235,23 @@ namespace Eng
 		std::mutex m_streamingLock;
 		std::thread m_streamingThread;
 		std::unordered_map<ResourceID, ResourceData> m_resourceMap;
-		AssetEncoder::AssetBinaryDatabaseReader* m_meshReader;
+		std::map<CopyPair, CLib::Vector<PB::CopyRegion, 16, 16>> m_indexUploadMap;
+		CLib::Vector<IndexUploadBuffer*, 0, 4> m_indexUploadSrcBuffers;
+		AssetEncoder::AssetBinaryDatabaseReader* m_meshReader = nullptr;
+		AssetEncoder::AssetBinaryDatabaseReader* m_textureReader = nullptr;
 		CLib::FixedBlockAllocator m_streamingBatchAllocator{ sizeof(StreamingBatch), sizeof(StreamingBatch) * 256 };
 		CLib::Allocator m_resourceAllocator;
-		CLib::Vector<StreamingBatch*, 1, 256> m_freeBatches;
+		CLib::Vector<StreamingBatch*, 0, 256> m_freeBatches;
 		StreamingBatch* m_liveBatches = nullptr;
 		StreamingBatch* m_pendingBatches = nullptr;
+
+		PB::ITexture* m_simpleBlackTexture = nullptr;
+		PB::ITexture* m_simpleWhiteTexture = nullptr;
+		PB::ITexture* m_simpleMidGrayTexture = nullptr;
+		PB::ITexture* m_simpleFlatNormalTexture = nullptr;
+
 		size_t m_currentFrame = 0;
 		bool m_activeStreamingThread = false;
+		bool m_indexUploadReady = false;
 	};
 }

@@ -217,20 +217,19 @@ namespace AssetPipeline
 		uint32_t totalVertexCount = wholeMeshVertices.Count();
 		uint32_t totalIndexCount = wholeMeshIndices.Count();
 
-		MeshCacheData outCacheData;
-		outCacheData.m_vertexCount = wholeMeshVertices.Count();
-		outCacheData.m_indexCount = wholeMeshIndices.Count();
-		outCacheData.m_vertexDataOffset = sizeof(MeshCacheData);
-		outCacheData.m_indexOffset = outCacheData.m_vertexDataOffset + vertexBufferSize;
-		outCacheData.m_boundOrigin = glm::vec4(meshBoundOrigin, 0.0f);
-		outCacheData.m_boundExtents = glm::vec4(meshBoundExtents, 0.0f);
+		MeshCacheData* outCacheData;
+		size_t totalSize = vertexBufferSize + indexBufferSize;
+		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), sizeof(MeshCacheData), totalSize, asset.m_lastModifiedTime, reinterpret_cast<char**>(&outCacheData)));
 
-		size_t totalSize = sizeof(MeshCacheData) + vertexBufferSize + indexBufferSize;
-		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), 0, totalSize, asset.m_lastModifiedTime));
+		outCacheData->m_vertexCount = wholeMeshVertices.Count();
+		outCacheData->m_indexCount = wholeMeshIndices.Count();
+		outCacheData->m_vertexDataOffset = 0;
+		outCacheData->m_indexOffset = outCacheData->m_vertexDataOffset + vertexBufferSize;
+		outCacheData->m_boundOrigin = glm::vec4(meshBoundOrigin, 0.0f);
+		outCacheData->m_boundExtents = glm::vec4(meshBoundExtents, 0.0f);
 
-		memcpy(data, &outCacheData, sizeof(MeshCacheData));
-		memcpy(&data[outCacheData.m_vertexDataOffset], wholeMeshVertices.Data(), vertexBufferSize);
-		memcpy(&data[outCacheData.m_indexOffset], wholeMeshIndices.Data(), indexBufferSize);
+		memcpy(data, wholeMeshVertices.Data(), vertexBufferSize);
+		memcpy(&data[outCacheData->m_indexOffset], wholeMeshIndices.Data(), indexBufferSize);
 
 		printf("%s: Stored encoded mesh %s in database: %s at location: %s\n", m_name.c_str(), asset.m_fullPath.c_str(), m_dbName.c_str(), asset.m_dbPath.c_str());
 	}

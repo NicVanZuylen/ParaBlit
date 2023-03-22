@@ -41,14 +41,14 @@ namespace Eng
 
 		Mesh() = default;
 
-		Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
+		Mesh(AssetEncoder::AssetID assetID, AssetEncoder::AssetBinaryDatabaseReader* databaseReader = &s_meshDatabaseLoader);
 
 		~Mesh();
 
 		/*
 		Description: Constructor logic.
 		*/
-		void Init(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool = nullptr);
+		void Init(AssetEncoder::AssetID assetID, AssetEncoder::AssetBinaryDatabaseReader* databaseReader = &s_meshDatabaseLoader);
 
 		/*
 		Description: Load the mesh from a file, and any included materials.
@@ -56,15 +56,13 @@ namespace Eng
 			const char* filePath: The path to the .obj mesh file.
 			bool loadFromDatabase: Whether or not to load the mesh from an asset database (.adb) file, and treat filePath as a database-local path.
 		*/
-		void Load(PB::IRenderer* renderer, AssetEncoder::AssetBinaryDatabaseReader* databaseReader, AssetEncoder::AssetID assetID);
+		void Load(PB::IRenderer* renderer, AssetEncoder::AssetBinaryDatabaseReader* databaseReader = &s_meshDatabaseLoader);
 
 		/*
-		Description: Load the mesh from a file, and any included materials.
-		Param:
-			const char* filePath: The path to the .obj mesh file.
-			bool loadFromDatabase: Whether or not to load the mesh from an asset database (.adb) file, and treat filePath as a database-local path.
+		Description: Get the asset ID used for loading the mesh.
+		Return Type: AssetEncoder::AssetID
 		*/
-		void Load(PB::IRenderer* renderer, const char* filePath);
+		AssetEncoder::AssetID GetAssetID() const { return m_assetID; }
 
 		/*
 		Description: Get the amount of vertices in the entire mesh.
@@ -83,12 +81,6 @@ namespace Eng
 		Return Type: uint32_t
 		*/
 		uint32_t FirstVertex() const;
-
-		/*
-		Description: Get the name of this mesh, which should be the name of the file.
-		Return Type: const std::string&
-		*/
-		const std::string& GetName() const;
 
 		/*
 		Description: Get the mesh vertex buffer.
@@ -126,8 +118,11 @@ namespace Eng
 		*/
 		const VertexPool* GetVertexPool() const;
 
+		static void GetMeshData(AssetEncoder::AssetID assetID, MeshCacheData* outData);
+
 	private:
 
+		AssetEncoder::AssetID m_assetID = 0;
 		PB::IRenderer* m_renderer = nullptr;
 		PB::IBufferObject* m_vertexBuffer = nullptr;
 		PB::IBufferObject* m_indexBuffer = nullptr;
@@ -137,7 +132,6 @@ namespace Eng
 		const char* m_filePath = nullptr;
 		VertexPool* m_vertexPool = nullptr;
 		uint64_t m_firstVertexInPool = 0;
-		std::string m_name;
 		bool m_empty = true;
 	};
 }

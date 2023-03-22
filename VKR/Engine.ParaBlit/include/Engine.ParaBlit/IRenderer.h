@@ -39,6 +39,7 @@ namespace PB
 	};
 
 	class ICommandList;
+	class ICommandContext;
 	class IBindingCache;
 
 	class IRenderer
@@ -76,6 +77,12 @@ namespace PB
 		PARABLIT_INTERFACE IBindingCache* AllocateBindingCache() = 0;
 		PARABLIT_INTERFACE void FreeBindingCache(IBindingCache* cache) = 0;
 		PARABLIT_INTERFACE void FreeCommandList(ICommandList* list) = 0;
+
+		/*
+		Description: Get a command context belonging to the current thread which will be used to perform upload copies before other commands are executed.
+		Return Type: ICommandContext*
+		*/
+		PARABLIT_INTERFACE ICommandContext* GetThreadUploadContext() = 0;
 
 		PARABLIT_INTERFACE ISwapChain* GetSwapchain() = 0;
 		PARABLIT_INTERFACE bool HasValidSwapchain() = 0;

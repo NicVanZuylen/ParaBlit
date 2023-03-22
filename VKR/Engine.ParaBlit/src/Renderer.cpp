@@ -90,8 +90,19 @@ namespace PB
 		vkDestroyDescriptorPool(m_device.GetHandle(), m_sharedDescPool, nullptr);
 		m_sharedDescPool = VK_NULL_HANDLE;
 
+		for (auto& pool : m_liveCommandPools)
+		{
+			m_freeCommandPools.PushBack(pool.second);
+		}
+		m_liveCommandPools.clear();
+
 		// Destroy master command pool (will free master command buffers).
-		vkDestroyCommandPool(m_device.GetHandle(), m_masterCmdPool, nullptr);
+		//vkDestroyCommandPool(m_device.GetHandle(), m_masterCmdPool, nullptr);
+		for (auto& pool : m_freeCommandPools)
+		{
+			vkDestroyCommandPool(m_device.GetHandle(), pool->m_pool, nullptr);
+			m_allocator.Free(pool);
+		}
 
 		m_allocator.DumpMemoryLeaks();
 	}
@@ -117,7 +128,6 @@ namespace PB
 		}
 
 		CreateSyncObjects();
-		CreateCmdBuffers();
 
 		vkGetDeviceQueue(m_device.GetHandle(), m_device.GetGraphicsQueueFamilyIndex(), 0, &m_presentQueue);
 		PB_ASSERT(m_presentQueue);
@@ -185,22 +195,71 @@ namespace PB
 	VkCommandBuffer Renderer::AllocateCommandBuffer(bool secondary)
 	{
 		std::lock_guard<std::mutex> lock(m_contextCmdAllocLock); // Only one thread should be allocating command context buffers at any given time.
+		std::thread::id threadId = std::this_thread::get_id();
 
-		u32 index = secondary ? 1 : 0;
-		if (m_freeContextCmdBuffers[index].Count() > 0) // Return an available existing command buffer if possible.
+		CommandPoolInfo* foundPoolInfo = nullptr;
+		auto poolIt = m_liveCommandPools.find(threadId);
+		if (poolIt == m_liveCommandPools.end())
 		{
-			return m_freeContextCmdBuffers[index].PopBack();
+			if (m_freeCommandPools.Count() > 0)
+			{
+				foundPoolInfo = m_freeCommandPools.PopBack();
+				m_liveCommandPools.insert({ threadId, foundPoolInfo });
+				PB_ASSERT(foundPoolInfo->m_allocatedCmdBufferCount == 0);
+			}
+			else
+			{
+				foundPoolInfo = m_allocator.Alloc<CommandPoolInfo>();
+				m_liveCommandPools.insert({ threadId, foundPoolInfo });
+
+				VkCommandPoolCreateInfo poolCreateInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr };
+				poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+				poolCreateInfo.queueFamilyIndex = m_device.GetGraphicsQueueFamilyIndex();
+
+				PB_ERROR_CHECK(vkCreateCommandPool(m_device.GetHandle(), &poolCreateInfo, nullptr, &foundPoolInfo->m_pool));
+				PB_BREAK_ON_ERROR;
+			}
+		}
+		else
+		{
+			foundPoolInfo = poolIt->second;
+		}
+
+		PB_ASSERT(foundPoolInfo != nullptr);
+
+		CommandPoolInfo& poolInfo = *foundPoolInfo;
+		++poolInfo.m_allocatedCmdBufferCount;
+
+		if (secondary == true)
+		{
+			if (poolInfo.m_freeSecondaryCommandBuffers.Count() > 0)
+			{
+				VkCommandBuffer cmdBuf = poolInfo.m_freeSecondaryCommandBuffers.PopBack();
+				m_commandBufferThreads.insert({ cmdBuf, { threadId, secondary } });
+				return cmdBuf;
+			}
+		}
+		else
+		{
+			if (poolInfo.m_freePrimaryCommandBuffers.Count() > 0)
+			{
+				VkCommandBuffer cmdBuf = poolInfo.m_freePrimaryCommandBuffers.PopBack();
+				m_commandBufferThreads.insert({ cmdBuf, { threadId, secondary } });
+				return cmdBuf;
+			}
 		}
 
 		// ...Otherwise allocate a new one.
 		VkCommandBuffer newCmdBuf;
 		VkCommandBufferAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr };
 		allocInfo.commandBufferCount = 1;
-		allocInfo.commandPool = m_masterCmdPool;
+		allocInfo.commandPool = poolInfo.m_pool;
 		allocInfo.level = secondary ? VK_COMMAND_BUFFER_LEVEL_SECONDARY : VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
 		vkAllocateCommandBuffers(m_device.GetHandle(), &allocInfo, &newCmdBuf);
 		PB_ASSERT(newCmdBuf);
+		m_commandBufferThreads.insert({ newCmdBuf, { threadId, secondary } });
+
 		return newCmdBuf;
 	}
 
@@ -221,7 +280,8 @@ namespace PB
 	{
 		std::lock_guard<std::mutex> lock(m_contextCmdReturnLock);
 
-		m_freeContextCmdBuffers[0].PushBack(context.GetCmdBuffer());
+		//m_freeContextCmdBuffers[0].PushBack(context.GetCmdBuffer());
+		FreeCommandBuffer(context.GetCmdBuffer());
 		context.Invalidate();
 	}
 
@@ -237,6 +297,7 @@ namespace PB
 
 	void Renderer::FreeCommandContext(CommandContext* context)
 	{
+		context->Invalidate();
 		m_freeCommandContexts.PushBack(context);
 	}
 
@@ -269,7 +330,12 @@ namespace PB
 
 		// Reset frame...
 		{
-			m_freeContextCmdBuffers[0] += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
+			//m_freeContextCmdBuffers[0] += curFrameInfo.m_enqueuedCmdBuffers; // Append submitted command buffers to free buffer array, as they are now no longer in-flight.
+			for (auto& cmdBuf : curFrameInfo.m_enqueuedCmdBuffers)
+			{
+				FreeCommandBuffer(cmdBuf);
+			}
+
 			curFrameInfo.m_state = PB_FRAME_STATE_OPEN;
 
 			m_uboDescSets += curFrameInfo.m_submittedUBODescSets;
@@ -348,8 +414,7 @@ namespace PB
 	void Renderer::FreeBuffer(IBufferObject* buffer)
 	{
 		auto* internalBuf = reinterpret_cast<BufferObject*>(buffer);
-		internalBuf->Destroy();
-		m_allocator.Free(internalBuf);
+		internalBuf->Release();
 	}
 
 	IResourcePool* Renderer::AllocateResourcePool(const ResourcePoolDesc& poolDesc)
@@ -398,10 +463,16 @@ namespace PB
 		std::lock_guard<std::mutex> lock(m_contextCmdReturnLock);
 
 		CommandList* internalList = reinterpret_cast<CommandList*>(list);
-		m_freeContextCmdBuffers[1].PushBack(internalList->GetCommandBuffer());
+		//m_freeContextCmdBuffers[1].PushBack(internalList->GetCommandBuffer());
+		FreeCommandBuffer(internalList->GetCommandBuffer());
 		for (auto& set : internalList->GetUBOSets())
 			m_usedUBODescSets.PushBack(set);
 		m_allocator.Free(internalList);
+	}
+
+	ICommandContext* Renderer::GetThreadUploadContext()
+	{
+		return t_threadResourceInitializationCommandContext.Get(this);
 	}
 
 	VkDescriptorSet Renderer::GetMasterSet()
@@ -511,28 +582,6 @@ namespace PB
 		}
 	}
 
-	void Renderer::CreateCmdBuffers()
-	{
-		VkCommandPoolCreateInfo cmdPoolInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr };
-		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		cmdPoolInfo.queueFamilyIndex = m_device.GetGraphicsQueueFamilyIndex();
-		
-		PB_ERROR_CHECK(vkCreateCommandPool(m_device.GetHandle(), &cmdPoolInfo, nullptr, &m_masterCmdPool));
-		PB_ASSERT(m_masterCmdPool);
-
-		// Allocate and assign master command buffers to frame infos.
-		VkCommandBufferAllocateInfo cmdAllocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr };
-		cmdAllocInfo.commandBufferCount = m_frameInfos.Count();
-		cmdAllocInfo.commandPool = m_masterCmdPool;
-		cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-		m_masterCmdBuffers.SetCount(m_frameInfos.Count());
-		PB_ERROR_CHECK(vkAllocateCommandBuffers(m_device.GetHandle(), &cmdAllocInfo, m_masterCmdBuffers.Data()));
-
-		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
-			m_frameInfos[i].m_masterCommandBuffer = m_masterCmdBuffers[i];
-	}
-
 	void Renderer::CreatePoolAndSetLayouts()
 	{
 		CLib::Vector<VkDescriptorPoolSize, 1> poolSizes;
@@ -630,6 +679,33 @@ namespace PB
 		VkResult error = VK_SUCCESS;
 		PB_ERROR_CHECK(error = vkQueueSubmit(m_presentQueue, 1, &submitInfo, curFrameInfo.m_frameFence));
 		PB_BREAK_ON_ERROR;
+	}
+
+	void Renderer::FreeCommandBuffer(VkCommandBuffer cmdBuf)
+	{
+		auto it = m_commandBufferThreads.find(cmdBuf);
+		PB_ASSERT(it != m_commandBufferThreads.end());
+
+		auto [threadId, secondary] = it->second;
+		
+		auto poolIt = m_liveCommandPools.find(threadId);
+		PB_ASSERT(poolIt != m_liveCommandPools.end());
+		CommandPoolInfo& poolInfo = *poolIt->second;
+		if (secondary)
+		{
+			poolInfo.m_freeSecondaryCommandBuffers.PushBack(cmdBuf);
+		}
+		else
+		{
+			poolInfo.m_freePrimaryCommandBuffers.PushBack(cmdBuf);
+		}
+
+		if (--poolInfo.m_allocatedCmdBufferCount == 0)
+		{
+			m_freeCommandPools.PushBack(&poolInfo);
+			m_liveCommandPools.erase(poolIt);
+		}
+		m_commandBufferThreads.erase(it);
 	}
 
 	void Renderer::Present()

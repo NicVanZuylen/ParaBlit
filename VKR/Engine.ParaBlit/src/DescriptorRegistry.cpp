@@ -100,13 +100,152 @@ namespace PB
 
 	void DescriptorRegistry::FreeView(EDescriptorType type, u32 index)
 	{
-		if(index < DESCRIPTORINDEX_INVALID)
+		if (index < DESCRIPTORINDEX_INVALID)
+		{
 			m_descriptorStates[static_cast<u32>(type)].m_freeDescriptors.PushBack(index);
+
+			// We need to write a null descriptor in place of the free descriptor, as the resource the free descriptor belongs to is assumed to be destroyed.
+			VkWriteDescriptorSet nullDescriptorWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr };
+			nullDescriptorWrite.descriptorCount = 1;
+			nullDescriptorWrite.dstSet = m_masterSet;
+			nullDescriptorWrite.dstBinding = static_cast<u32>(type);
+			nullDescriptorWrite.dstArrayElement = index;
+
+			switch (type)
+			{
+			case PB::EDescriptorType::DESCRIPTORTYPE_TEXTURE:
+				nullDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_SAMPLER:
+				nullDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_STORAGE_BUFFER:
+				nullDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_STORAGE_IMAGE:
+				nullDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_COUNT:
+			default:
+				PB_NOT_IMPLEMENTED;
+				break;
+			}
+
+			switch (type)
+			{
+			case PB::EDescriptorType::DESCRIPTORTYPE_TEXTURE:
+				nullDescriptorWrite.pImageInfo = &m_nullImageInfo;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_SAMPLER:
+				nullDescriptorWrite.pImageInfo = &m_nullSamplerInfo;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_STORAGE_BUFFER:
+				nullDescriptorWrite.pBufferInfo = &m_nullBufferInfo;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_STORAGE_IMAGE:
+				nullDescriptorWrite.pImageInfo = &m_nullImageInfo;
+				break;
+			case PB::EDescriptorType::DESCRIPTORTYPE_COUNT:
+			default:
+				PB_NOT_IMPLEMENTED;
+				break;
+			}
+
+			vkUpdateDescriptorSets(m_device->GetHandle(), 1, &nullDescriptorWrite, 0, nullptr);
+		}
 	}
 
 	void DescriptorRegistry::Create(Device* device, VkDescriptorSet* outMasterSet, VkDescriptorSetLayout* outMasterSetLayout)
 	{
 		m_device = device;
+		uint32_t graphicsQueueFamilyIndex = m_device->GetGraphicsQueueFamilyIndex();
+
+		// Create null resources.
+		VkBufferCreateInfo nullBufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr };
+		nullBufferInfo.flags = 0;
+		nullBufferInfo.pQueueFamilyIndices = &graphicsQueueFamilyIndex;
+		nullBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		nullBufferInfo.size = 4;
+		nullBufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		PB_ERROR_CHECK(vkCreateBuffer(m_device->GetHandle(), &nullBufferInfo, nullptr, &m_nullBuffer));
+		PB_BREAK_ON_ERROR;
+
+		VkImageCreateInfo nullImageCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, nullptr };
+		nullImageCreateInfo.flags = 0;
+		nullImageCreateInfo.arrayLayers = 1;
+		nullImageCreateInfo.mipLevels = 1;
+		nullImageCreateInfo.extent = { 32, 32, 1 };
+		nullImageCreateInfo.format = VK_FORMAT_R8_UINT;
+		nullImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		nullImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		nullImageCreateInfo.pQueueFamilyIndices = &graphicsQueueFamilyIndex;
+		nullImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		nullImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		nullImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		nullImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+		PB_ERROR_CHECK(vkCreateImage(m_device->GetHandle(), &nullImageCreateInfo, nullptr, &m_nullImage));
+		PB_BREAK_ON_ERROR;
+
+		VkSamplerCreateInfo nullSamplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, nullptr };
+		nullSamplerInfo.compareEnable = VK_FALSE;
+		nullSamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		nullSamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		nullSamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		nullSamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		nullSamplerInfo.anisotropyEnable = VK_FALSE;
+		nullSamplerInfo.maxAnisotropy = 1.0f;
+		nullSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		nullSamplerInfo.minFilter = VK_FILTER_NEAREST;
+		nullSamplerInfo.magFilter = VK_FILTER_NEAREST;
+		nullSamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		nullSamplerInfo.minLod = 0.0f;
+		nullSamplerInfo.maxLod = 1.0f;
+		nullSamplerInfo.mipLodBias = 0.0f;
+		PB_ERROR_CHECK(vkCreateSampler(m_device->GetHandle(), &nullSamplerInfo, nullptr, &m_nullSampler));
+		PB_BREAK_ON_ERROR;
+
+		// Allocate memory for null resources.
+		VkMemoryRequirements memRequirements;
+		vkGetImageMemoryRequirements(m_device->GetHandle(), m_nullImage, &memRequirements);
+
+		VkMemoryAllocateInfo allocInfo{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr };
+		allocInfo.allocationSize = memRequirements.size;
+		allocInfo.memoryTypeIndex = m_device->FindMemoryTypeIndex(memRequirements.memoryTypeBits, EMemoryType::DEVICE_LOCAL);
+		PB_ERROR_CHECK(vkAllocateMemory(m_device->GetHandle(), &allocInfo, nullptr, &m_nullResourceMemory));
+		PB_BREAK_ON_ERROR;
+
+		vkBindImageMemory(m_device->GetHandle(), m_nullImage, m_nullResourceMemory, 0);
+		vkBindBufferMemory(m_device->GetHandle(), m_nullBuffer, m_nullResourceMemory, 0);
+
+		// Create views
+		VkImageSubresourceRange subresources;
+		subresources.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		subresources.baseArrayLayer = 0;
+		subresources.baseMipLevel = 0;
+		subresources.layerCount = 1;
+		subresources.levelCount = 1;
+
+		VkImageViewCreateInfo sampledViewInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, nullptr };
+		sampledViewInfo.flags = 0;
+		sampledViewInfo.format = VK_FORMAT_R8_UINT;
+		sampledViewInfo.image = m_nullImage;
+		sampledViewInfo.subresourceRange = subresources;
+		sampledViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		vkCreateImageView(m_device->GetHandle(), &sampledViewInfo, nullptr, &m_nullImageView);
+
+		// Set up null binding info.
+		m_nullBufferInfo.buffer = m_nullBuffer;
+		m_nullBufferInfo.offset = 0;
+		m_nullBufferInfo.range = 4;
+
+		m_nullImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		m_nullImageInfo.imageView = m_nullImageView;
+		m_nullImageInfo.sampler = VK_NULL_HANDLE;
+
+		m_nullSamplerInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		m_nullSamplerInfo.imageView = VK_NULL_HANDLE;
+		m_nullSamplerInfo.sampler = m_nullSampler;
+
 		CreateDescriptorPool();
 		AllocateDescriptorSets();
 		*outMasterSet = m_masterSet;
@@ -125,6 +264,27 @@ namespace PB
 		{
 			vkDestroyDescriptorSetLayout(m_device->GetHandle(), m_masterSetLayout, nullptr);
 			m_masterSetLayout = VK_NULL_HANDLE;
+		}
+
+		if (m_nullImage)
+		{
+			vkDestroyImageView(m_device->GetHandle(), m_nullImageView, nullptr);
+			vkDestroyImage(m_device->GetHandle(), m_nullImage, nullptr);
+		}
+
+		if (m_nullBuffer)
+		{
+			vkDestroyBuffer(m_device->GetHandle(), m_nullBuffer, nullptr);
+		}
+
+		if (m_nullSampler)
+		{
+			vkDestroySampler(m_device->GetHandle(), m_nullSampler, nullptr);
+		}
+
+		if (m_nullResourceMemory)
+		{
+			vkFreeMemory(m_device->GetHandle(), m_nullResourceMemory, nullptr);
 		}
 	}
 

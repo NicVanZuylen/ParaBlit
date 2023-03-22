@@ -1,4 +1,5 @@
 #pragma once
+#include "Resource/Mesh.h"
 #include "Utility/BoundingVolumeHierarchy.h"
 #include "Engine.ParaBlit/IRenderer.h"
 #include "Engine.ParaBlit/ICommandContext.h"
@@ -16,23 +17,26 @@ namespace Eng
 	class DrawBatch;
 	class BatchDispatcher;
 
+	class AssetStreamer;
+
 	class RenderBoundingVolumeHierarchy : public BoundingVolumeHierarchy
 	{
 	public:
 
 		struct ObjectData : public BoundingVolumeHierarchy::ObjectData
 		{
-			Eng::Mesh* m_mesh = nullptr;
+			AssetEncoder::AssetID m_meshID = 0;
+			MeshCacheData m_meshData;
 			Eng::Material* m_material = nullptr;
 			glm::mat4 m_transform;
 		};
 
 		RenderBoundingVolumeHierarchy() = default;
-		RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc);
+		RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc);
 
 		~RenderBoundingVolumeHierarchy();
 
-		void Init(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc);
+		void Init(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc);
 
 		void RebuildTest();
 
@@ -155,6 +159,7 @@ namespace Eng
 		void RecursiveDebugDrawBakedTree(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, const BakedNode& node);
 
 		PB::IRenderer* m_renderer = nullptr;
+		AssetStreamer* m_streamer = nullptr;
 		BatchHierarchy m_globalBatchHierarchy{};
 	};
 

@@ -41,7 +41,6 @@ namespace PB
 		VkSemaphore m_imageAcquireSempahore = VK_NULL_HANDLE;				// Signalled when the swap chain image has been acquired, rendering will wait on this.
 		VkSemaphore m_frameSemaphore = VK_NULL_HANDLE;						// Signalled when the frame is complete. This semaphore will be waited on before the image is presented.
 		VkFence m_frameFence = VK_NULL_HANDLE;								// This semaphore indicates if this frame is currently in-flight.
-		VkCommandBuffer m_masterCommandBuffer = VK_NULL_HANDLE;				// Contains all recorded graphics commands for the frame.
 		EFrameState m_state = PB_FRAME_STATE_OPEN;							// TODO: Evaluate if this state enum is even needed outside of validation.
 		u32 m_presentImageIdx = 0;											// Swapchain image index.
 		CLib::Vector<VkCommandBuffer, 8> m_submittedContextCmdBuffers;		// Command context command buffers submitted for this frame, these will be emptied when the frame is next ready for use.
@@ -122,6 +121,8 @@ namespace PB
 
 		void FreeCommandList(ICommandList* list) override;
 
+		ICommandContext* GetThreadUploadContext() override;
+
 		VkDescriptorSet GetMasterSet();
 
 		VkDescriptorSetLayout GetMasterSetLayout();
@@ -142,11 +143,17 @@ namespace PB
 
 	private:
 
+		struct CommandPoolInfo
+		{
+			VkCommandPool m_pool = VK_NULL_HANDLE;
+			CLib::Vector<VkCommandBuffer, 4, 4> m_freePrimaryCommandBuffers;
+			CLib::Vector<VkCommandBuffer, 4, 4> m_freeSecondaryCommandBuffers;
+			uint32_t m_allocatedCmdBufferCount = 0;
+		};
+
 		inline void CreateWindowSurface(WindowDesc* windowHandle) override;
 
 		inline void CreateSyncObjects();
-
-		inline void CreateCmdBuffers();
 
 		inline void CreatePoolAndSetLayouts();
 
@@ -154,6 +161,8 @@ namespace PB
 		inline void BeginNextFrame();
 
 		inline void SubmitFrame();
+
+		inline void FreeCommandBuffer(VkCommandBuffer cmdBuf);
 
 		inline void Present();
 
@@ -180,7 +189,6 @@ namespace PB
 		// Shared descriptors
 		static constexpr const u32 MaxUBOSets = 512;
 
-		VkCommandPool m_masterCmdPool = VK_NULL_HANDLE;
 		VkDescriptorPool m_sharedDescPool = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
 
@@ -192,9 +200,11 @@ namespace PB
 		CLib::Vector<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT> m_frameInfos;
 		CLib::Vector<VkDescriptorSet, 16> m_uboDescSets;
 		CLib::Vector<VkDescriptorSet, 16> m_usedUBODescSets;
-		CLib::Vector<VkCommandBuffer, PB_FRAME_IN_FLIGHT_COUNT> m_masterCmdBuffers;
-		CLib::Vector<VkCommandBuffer, 32> m_freeContextCmdBuffers[2];
-		CLib::Vector<VkCommandBuffer, 32> m_internalCmdBuffers;
+		CLib::Vector<CommandPoolInfo*, 4, 4> m_freeCommandPools;
+		// Each unique thread using a command buffer must have its own pool. Vulkan does not allow command buffers belonging to the same pool to be used on multiple threads.
+		std::unordered_map<std::thread::id, CommandPoolInfo*> m_liveCommandPools;
+		std::unordered_map<VkCommandBuffer, std::pair<std::thread::id, bool>> m_commandBufferThreads;
+		CLib::Vector<VkCommandBuffer, 16> m_internalCmdBuffers;
 		CLib::Vector<DeferredDeletion*, 16, 16> m_pendingDeletions;
 		std::mutex m_contextCmdAllocLock;
 		std::mutex m_contextCmdReturnLock;

@@ -9,35 +9,22 @@ namespace PB
 	{
 	public:
 
-		BufferDeferredDeletion(Device* device, VkBuffer buffer, PoolAllocator::PoolAllocation allocation, PB::EMemoryType memoryType) 
+		BufferDeferredDeletion(BufferObject* buffer)
 		{ 
-			m_device = device;
 			m_buffer = buffer;
-			m_allocation = allocation;
-			m_memoryType = memoryType;
 		}
 		~BufferDeferredDeletion() = default;
 
 		void OnDelete(CLib::Allocator& allocator) override
 		{
-			vkDestroyBuffer(m_device->GetHandle(), m_buffer, nullptr);
-			m_buffer = VK_NULL_HANDLE;
-
-			if (m_allocation.m_memoryHandle != VK_NULL_HANDLE)
-			{
-				m_device->GetBufferAllocator(m_memoryType).Free(m_allocation);
-				m_allocation.m_memoryHandle = VK_NULL_HANDLE;
-			}
-
+			m_buffer->Destroy();
+			allocator.Free(m_buffer);
 			allocator.Free(this);
 		}
 
 	private:
 
-		Device* m_device;
-		VkBuffer m_buffer;
-		PoolAllocator::PoolAllocation m_allocation;
-		PB::EMemoryType m_memoryType;
+		BufferObject* m_buffer = nullptr;
 	};
 
 	void BufferObject::Create(IRenderer* renderer, const BufferObjectDesc& desc)
@@ -50,6 +37,14 @@ namespace PB
 
 		if(!(desc.m_options & PB::EBufferOptions::POOL_PLACED))
 			InitializeMemory(desc, m_poolAllocation, m_memoryType);
+	}
+
+	void BufferObject::Release()
+	{
+		if (m_handle != VK_NULL_HANDLE)
+		{
+			m_renderer->AddDeferredDeletion(m_renderer->GetAllocator().Alloc<BufferDeferredDeletion>(this));
+		}
 	}
 
 	void BufferObject::Destroy()
@@ -73,7 +68,14 @@ namespace PB
 			}
 		
 			auto device = m_renderer->GetDevice();
-			m_renderer->AddDeferredDeletion(m_renderer->GetAllocator().Alloc<BufferDeferredDeletion>(device, m_handle, m_poolAllocation, m_memoryType));
+			vkDestroyBuffer(device->GetHandle(), m_handle, nullptr);
+			m_handle = VK_NULL_HANDLE;
+
+			if (m_poolAllocation.m_memoryHandle != VK_NULL_HANDLE)
+			{
+				device->GetBufferAllocator(m_memoryType).Free(m_poolAllocation);
+				m_poolAllocation.m_memoryHandle = VK_NULL_HANDLE;
+			}
 		}
 	}
 

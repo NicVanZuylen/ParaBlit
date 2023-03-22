@@ -14,7 +14,15 @@ namespace PB
 	{
 	public:
 
+		struct BufferViewOwnershipData
+		{
+			BufferViewDesc m_desc;
+			EBufferUsage m_type;
+		};
+
 		void Create(IRenderer* renderer, const BufferObjectDesc& desc) override;
+
+		void Release();
 
 		void Destroy();
 
@@ -57,12 +65,6 @@ namespace PB
 		BufferUsageFlags GetUsage() const;
 
 	private:
-
-		struct BufferViewOwnershipData
-		{
-			BufferViewDesc m_desc;
-			EBufferUsage m_type;
-		};
 
 		inline void CreateVkBuffer(const BufferObjectDesc& desc);
 

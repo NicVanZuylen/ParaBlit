@@ -2,6 +2,7 @@
 #include "Engine.ParaBlit/IRenderer.h"
 #include "Engine.ParaBlit/IResourcePool.h"
 #include "Engine.ParaBlit/ICommandContext.h"
+#include "Engine.AssetEncoder/AssetDatabaseReader.h"
 #include "ObjectDispatcher.h"
 #include "ManagedInstanceBuffer.h"
 #include "Bounds.h"
@@ -9,6 +10,8 @@
 namespace Eng
 {
 	class Mesh;
+	class AssetStreamer;
+	class StreamingBatch;
 
 	class VertexPool
 	{
@@ -35,12 +38,11 @@ namespace Eng
 
 		static constexpr const PB::u32 MaxObjects = 256;
 
-		using DrawBatchInstance = PB::u32;
-
 		struct CreateDesc
 		{
 			PB::IRenderer* m_renderer;
 			CLib::Allocator* m_allocator;
+			AssetStreamer* m_streamer;
 		};
 
 		DrawBatch(const CreateDesc& desc);
@@ -50,8 +52,7 @@ namespace Eng
 		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView);
 		void DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
 
-		DrawBatchInstance AddInstance(Eng::Mesh* mesh, const float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler);
-		void UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix);
+		void AddInstance(AssetEncoder::AssetID meshID, const float* modelMatrix, const Bounds& bounds, AssetEncoder::AssetID* textureIDs, uint32_t textureCount, PB::ResourceView sampler);
 
 		void FinalizeUpdates();
 		void UpdateIndices(PB::ICommandContext* cmdContext);
@@ -72,15 +73,14 @@ namespace Eng
 		static constexpr const PB::u32 MaxDrawCount = 8;
 
 		// Contains the formatted update information for a single drawbatch instance.
-		struct DynamicIndexUpdate
+		struct IndexUploadMetadata
 		{
-			PB::u32 m_inputIndexBufferIndex;
 			PB::u32 m_instanceIndex;
 			PB::u32 m_firstVertex;
 			PB::u32 m_startIndex;
 			PB::u32 m_indexCount;
 			PB::u32 m_workGroupCount;
-			PB::u32 pad[2];
+			PB::u32 m_pad[1];
 		};
 
 		struct DrawBatchInstanceData
@@ -91,9 +91,16 @@ namespace Eng
 			float m_modelMatrix[16];
 
 			// Textures are kept in instance data as a way to pass on per-object textures to the fragment shader via stage IO.
-			PB::ResourceView m_textures[MaxTextures];
-			PB::ResourceView m_vertexBuffer;
-			PB::ResourceView m_sampler;
+			union
+			{
+				struct
+				{
+					PB::ResourceView m_textures[MaxTextures];
+					PB::ResourceView m_vertexBuffer;
+					PB::ResourceView m_sampler;
+				};
+				PB::ResourceView m_bindings[MaxTextures + 2];
+			};
 		};
 		static_assert(sizeof(DrawBatchInstanceData) % 16 == 0);
 
@@ -128,16 +135,19 @@ namespace Eng
 		PB::Pipeline m_batchUpdatePipeline = 0;
 		PB::IRenderer* m_renderer = nullptr;
 		CLib::Allocator* m_allocator = nullptr;
-		PB::IBufferObject* m_dynamicIndexUpdateBuffer = nullptr;
-		PB::IBufferObject* m_dynamicIndexBuffer = nullptr;
+		AssetStreamer* m_streamer = nullptr;
+		PB::IBufferObject* m_batchIndexUploadBuffer = nullptr;
+		PB::IBufferObject* m_indexSrcViewBuffer = nullptr;
+		PB::IBufferObject* m_batchIndexBuffer = nullptr;
 		PB::IBufferObject* m_cullConstantsBuffer = nullptr;
 		PB::IBufferObject* m_drawParamsBuffer = nullptr;
 		ManagedInstanceBuffer<DrawBatchInstanceData, MaxObjects, MaxObjects> m_instanceBuffer;
 		uint32_t m_instanceCount = 0;
-		uint32_t m_totalIndexCount = 0;
 		Bounds m_bounds;
-		CLib::Vector<Bounds> m_instanceBoundData;
-		CLib::Vector<DynamicIndexUpdate> m_dynamicUpdateQueue;
+		StreamingBatch* m_indexSrcBufferBatch = nullptr;
+		CLib::Vector<StreamingBatch*, 0, 32> m_instanceStreamingBatches;
+		CLib::Vector<Bounds, 0, 32> m_instanceBoundData;
+		CLib::Vector<IndexUploadMetadata, 0, 32> m_indexUploadMetadata;
 	};
 
 };

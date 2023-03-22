@@ -18,9 +18,9 @@ namespace Eng
 {
 	AssetEncoder::AssetBinaryDatabaseReader Mesh::s_meshDatabaseLoader;
 
-	Mesh::Mesh(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool)
+	Mesh::Mesh(AssetEncoder::AssetID assetID, AssetEncoder::AssetBinaryDatabaseReader* databaseReader)
 	{
-		Init(renderer, filePath, vertexPool);
+		Init(assetID);
 	}
 
 	Mesh::~Mesh()
@@ -37,20 +37,21 @@ namespace Eng
 		}
 	}
 
-	void Mesh::Init(PB::IRenderer* renderer, const char* filePath, VertexPool* vertexPool)
+	void Mesh::Init(AssetEncoder::AssetID assetID, AssetEncoder::AssetBinaryDatabaseReader* databaseReader)
 	{
-		m_renderer = renderer;
-		m_filePath = filePath;
-		m_vertexPool = vertexPool;
+		m_assetID = assetID;
 
-		// Use the filename as the name.
-		std::string tmpName = filePath;
-		m_name = "|" + tmpName.substr(tmpName.find_last_of('/') + 1) + "|";
+		const AssetEncoder::AssetMeta& meta = databaseReader->GetAssetInfo(m_assetID);
+		MeshCacheData data;
+		databaseReader->GetAssetUserData(meta, &data);
 
-		Load(renderer, filePath);
+		m_totalVertexCount = data.m_vertexCount;
+		m_totalIndexCount = data.m_indexCount;
+		m_bounds.m_origin = data.m_boundOrigin;
+		m_bounds.m_extents = data.m_boundExtents;
 	}
 
-	void Mesh::Load(PB::IRenderer* renderer, AssetEncoder::AssetBinaryDatabaseReader* databaseReader, AssetEncoder::AssetID assetID)
+	void Mesh::Load(PB::IRenderer* renderer, AssetEncoder::AssetBinaryDatabaseReader* databaseReader)
 	{
 		m_renderer = renderer;
 
@@ -76,18 +77,12 @@ namespace Eng
 			s_meshDatabaseLoader.OpenFile(dbDir.c_str());
 		}
 
-		const AssetEncoder::AssetMeta& assetInfo = s_meshDatabaseLoader.GetAssetInfo(assetID);
+		const AssetEncoder::AssetMeta& assetInfo = s_meshDatabaseLoader.GetAssetInfo(m_assetID);
 		MeshCacheData cacheData;
-		s_meshDatabaseLoader.GetAssetBinaryRange(assetID, &cacheData, 0, sizeof(MeshCacheData));
-
-		m_totalVertexCount = cacheData.m_vertexCount;
-		m_totalIndexCount = cacheData.m_indexCount;
+		s_meshDatabaseLoader.GetAssetUserData(assetInfo, &cacheData);
 
 		size_t vertexBufferSize = cacheData.m_vertexCount * sizeof(Vertex);
 		size_t indexBufferSize = cacheData.m_indexCount * sizeof(MeshIndex);
-
-		m_bounds.m_origin = cacheData.m_boundOrigin;
-		m_bounds.m_extents = cacheData.m_boundExtents;
 
 		// Create vertex and index buffers...
 		PB::BufferObjectDesc vertexBufferDesc;
@@ -101,7 +96,7 @@ namespace Eng
 			m_vertexBuffer = m_renderer->AllocateBuffer(vertexBufferDesc);
 
 			PB::u8* vertexData = m_vertexBuffer->BeginPopulate();
-			s_meshDatabaseLoader.GetAssetBinaryRange(assetID, vertexData, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
+			s_meshDatabaseLoader.GetAssetBinaryRange(m_assetID, vertexData, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
 			m_vertexBuffer->EndPopulate();
 		}
 		else
@@ -129,7 +124,7 @@ namespace Eng
 			m_vertexPool->GetPool()->PlaceBuffer(m_vertexBuffer, placementLocation);
 			char* vertexAddress = reinterpret_cast<char*>(m_vertexBuffer->BeginPopulate());
 
-			s_meshDatabaseLoader.GetAssetBinaryRange(assetID, vertexAddress, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
+			s_meshDatabaseLoader.GetAssetBinaryRange(m_assetID, vertexAddress, cacheData.m_vertexDataOffset, cacheData.m_vertexDataOffset + vertexBufferSize);
 
 			m_vertexBuffer->EndPopulate();
 			m_firstVertexInPool = firstVertex;
@@ -142,18 +137,11 @@ namespace Eng
 		m_indexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
 
 		PB::u8* indexData = m_indexBuffer->BeginPopulate();
-		s_meshDatabaseLoader.GetAssetBinaryRange(assetID, indexData, cacheData.m_indexOffset, cacheData.m_indexOffset + indexBufferSize);
+		s_meshDatabaseLoader.GetAssetBinaryRange(m_assetID, indexData, cacheData.m_indexOffset, cacheData.m_indexOffset + indexBufferSize);
 		m_indexBuffer->EndPopulate();
 
 		m_empty = false;
-
-		printf("Mesh: Successfully loaded asset [%llx] (%u bytes) from database: %s\n", assetID, uint32_t(assetInfo.m_binarySize), MeshDatabaseDir);
-	}
-
-	void Mesh::Load(PB::IRenderer* renderer, const char* filePath)
-	{
-		AssetEncoder::AssetHandle handle(filePath);
-		Load(renderer, &s_meshDatabaseLoader, handle.GetID(&s_meshDatabaseLoader));
+		printf("Mesh: Successfully loaded asset [%u] (%u bytes) from database: %s\n", uint32_t(m_assetID), uint32_t(assetInfo.m_binarySize), MeshDatabaseDir);
 	}
 
 	uint32_t Mesh::VertexCount() const
@@ -169,11 +157,6 @@ namespace Eng
 	uint32_t Mesh::FirstVertex() const
 	{
 		return static_cast<uint32_t>(m_firstVertexInPool);
-	}
-
-	const std::string& Mesh::GetName() const
-	{
-		return m_name;
 	}
 
 	PB::IBufferObject* Mesh::GetVertexBuffer()
@@ -199,5 +182,11 @@ namespace Eng
 	const VertexPool* Mesh::GetVertexPool() const
 	{
 		return m_vertexPool;
+	}
+
+	void Mesh::GetMeshData(AssetEncoder::AssetID assetID, MeshCacheData* outData)
+	{
+		const auto& meta = s_meshDatabaseLoader.GetAssetInfo(assetID);
+		s_meshDatabaseLoader.GetAssetUserData(meta, outData);
 	}
 }

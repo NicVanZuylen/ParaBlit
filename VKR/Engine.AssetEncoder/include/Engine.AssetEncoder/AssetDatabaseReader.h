@@ -78,6 +78,7 @@ namespace AssetEncoder
 
 		ASSET_ENCODER_API void GetAssetUserData(const AssetMeta& asset, void* outData) const;
 
+		ASSET_ENCODER_API void GetAssetBinary(AssetID id, void* storage);
 		ASSET_ENCODER_API void GetAssetBinary(AssetHandle& handle, void* storage);
 
 		ASSET_ENCODER_API void GetAssetBinaryRange(AssetID id, void* storage, size_t beginBytes, size_t endBytes);

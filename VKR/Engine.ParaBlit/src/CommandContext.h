@@ -189,7 +189,7 @@ namespace PB
 	private:
 
 		Renderer* m_renderer = nullptr;
-		CommandContext* m_ptr;
+		CommandContext* m_ptr = nullptr;
 	};
 }
 

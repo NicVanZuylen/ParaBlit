@@ -2,6 +2,7 @@
 #include "Engine.ParaBlit/IBufferObject.h"
 #include "Resource/Mesh.h"
 #include "Resource/Shader.h"
+#include "Resource/AssetStreamer.h"
 
 namespace Eng
 {
@@ -40,13 +41,20 @@ namespace Eng
     {
         m_renderer = desc.m_renderer;
         m_allocator = desc.m_allocator;
+        m_streamer = desc.m_streamer;
         m_bounds = Bounds();
 
         PB::BufferObjectDesc indexUpdateBufferDesc;
-        indexUpdateBufferDesc.m_bufferSize = (sizeof(DynamicIndexUpdate) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch / IndexUpdatesPerInvocation) * sizeof(uint32_t));
+        indexUpdateBufferDesc.m_bufferSize = (sizeof(IndexUploadMetadata) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch / IndexUpdatesPerInvocation) * sizeof(uint32_t));
         indexUpdateBufferDesc.m_options = 0;
         indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
-        m_dynamicIndexUpdateBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
+        m_batchIndexUploadBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
+
+        indexUpdateBufferDesc.m_bufferSize = sizeof(PB::ResourceView) * MaxObjects;
+        m_indexSrcViewBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
+
+        m_indexSrcBufferBatch = m_streamer->AllocStreamingBatch();
+        m_indexSrcBufferBatch->SetOutputBindingLocation(m_indexSrcViewBuffer, 0);
 
         m_instanceBuffer.Init(m_renderer, PB::EBufferUsage::STORAGE);
 
@@ -72,12 +80,26 @@ namespace Eng
         for (auto& info : m_dispatchInfos)
             info.m_dispatchList->RemoveDispatchObject(info.m_dispatchHandle);
 
-        if (m_dynamicIndexBuffer)
+        if (m_batchIndexBuffer)
         {
-            m_renderer->FreeBuffer(m_dynamicIndexBuffer);
-            m_dynamicIndexBuffer = nullptr;
+            m_renderer->FreeBuffer(m_batchIndexBuffer);
+            m_batchIndexBuffer = nullptr;
         }
-        m_renderer->FreeBuffer(m_dynamicIndexUpdateBuffer);
+        if (m_batchIndexUploadBuffer)
+        {
+            m_renderer->FreeBuffer(m_batchIndexUploadBuffer);
+            m_batchIndexUploadBuffer = nullptr;
+        }
+        if (m_indexSrcBufferBatch)
+        {
+            m_indexSrcBufferBatch->EndStreamingAndDelete();
+            m_indexSrcBufferBatch = nullptr;
+        }
+        if (m_indexSrcViewBuffer)
+        {
+            m_renderer->FreeBuffer(m_indexSrcViewBuffer);
+            m_indexSrcViewBuffer = nullptr;
+        }
         
         m_renderer->FreeBuffer(m_cullConstantsBuffer);
         m_renderer->FreeBuffer(m_drawParamsBuffer);
@@ -109,7 +131,7 @@ namespace Eng
         }
         memcpy(&finalBindingLayout.m_resourceViews[bindings.m_resourceCount], batchResources, sizeof(PB::ResourceView) * _countof(batchResources));
 
-        auto dispatchHandle = list->AddObject(drawBatchPipeline, nullptr, m_dynamicIndexBuffer, finalBindingLayout, drawParams, nullptr);
+        auto dispatchHandle = list->AddObject(drawBatchPipeline, nullptr, m_batchIndexBuffer, finalBindingLayout, drawParams, nullptr);
         m_dispatchInfos.PushBack() = { list, dispatchHandle };
         m_allocator->Free(finalBindingLayout.m_resourceViews);
     }
@@ -152,6 +174,13 @@ namespace Eng
 
     void DrawBatch::DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings)
     {
+        for (StreamingBatch*& streamingBatch : m_instanceStreamingBatches)
+        {
+            streamingBatch->WaitStreamingComplete();
+            streamingBatch->EndStreamingAndDelete();
+        }
+        m_instanceStreamingBatches.Clear();
+
         PB::BindingLayout finalBindingLayout{};
         finalBindingLayout.m_uniformBuffers = bindings.m_uniformBuffers;
         finalBindingLayout.m_uniformBufferCount = bindings.m_uniformBufferCount;
@@ -164,38 +193,64 @@ namespace Eng
         finalBindingLayout.m_resourceViews = batchResources;
 
         cmdContext->CmdBindResources(finalBindingLayout);
-        cmdContext->CmdBindVertexBuffers(nullptr, 0, m_dynamicIndexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
+        cmdContext->CmdBindVertexBuffers(nullptr, 0, m_batchIndexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
         cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, sizeof(DrawParamsBuffer::m_drawIndexedParams), MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
     }
 
-    DrawBatch::DrawBatchInstance DrawBatch::AddInstance(Eng::Mesh* mesh, const float* modelMatrix, const Bounds& bounds, PB::ResourceView* textures, uint32_t textureCount, PB::ResourceView sampler)
+    void DrawBatch::AddInstance(AssetEncoder::AssetID meshID, const float* modelMatrix, const Bounds& bounds, AssetEncoder::AssetID* textureIDs, uint32_t textureCount, PB::ResourceView sampler)
     {
-        assert(mesh);
+        assert(meshID != ~AssetEncoder::AssetID(0));
         assert(modelMatrix);
-        assert(textures || textureCount == 0);
-        assert(textures || sampler == 0);
+        assert(textureIDs || textureCount == 0);
+        assert(textureIDs || sampler == 0);
+        assert(textureCount <= DrawBatchInstanceData::MaxTextures);
 
-        constexpr const PB::u32 WorkGroupIndexCount = WorkGroupSizeW * WorkGroupSizeH * IndexUpdatesPerInvocation;
+        // Setup drawbatch index buffer update.
+        {
+            constexpr const PB::u32 WorkGroupIndexCount = WorkGroupSizeW * WorkGroupSizeH * IndexUpdatesPerInvocation;
 
-        DynamicIndexUpdate& entry = m_dynamicUpdateQueue.PushBack();
-        entry.m_inputIndexBufferIndex = mesh->GetIndexBuffer()->GetViewAsStorageBuffer();
-        entry.m_instanceIndex = m_instanceCount;
-        entry.m_firstVertex = 0;
-        entry.m_startIndex = 0;
-        entry.m_indexCount = mesh->IndexCount();
-        entry.m_workGroupCount = (entry.m_indexCount / WorkGroupIndexCount) + ((entry.m_indexCount % WorkGroupIndexCount > 0) ? 1 : 0);
+            MeshCacheData meshData;
+            Mesh::GetMeshData(meshID, &meshData);
 
-        // Account for minimum work group count. This means workGroupCount isn't the actual work group count, but the amount of indices used for these work groups.
-        entry.m_workGroupCount = (entry.m_workGroupCount / MinWorkGroupsPerObject) + (entry.m_workGroupCount % MinWorkGroupsPerObject ? 1 : 0);
+            IndexUploadMetadata& entry = m_indexUploadMetadata.PushBack();
+            entry.m_instanceIndex = m_instanceCount;
+            entry.m_firstVertex = 0;
+            entry.m_startIndex = 0;
+            entry.m_indexCount = PB::u32(meshData.m_indexCount);
+            entry.m_workGroupCount = (entry.m_indexCount / WorkGroupIndexCount) + ((entry.m_indexCount % WorkGroupIndexCount > 0) ? 1 : 0);
+        }
 
-        DrawBatchInstanceData& instanceData = *reinterpret_cast<DrawBatchInstanceData*>(m_instanceBuffer.MapElement(entry.m_instanceIndex, 0, sizeof(DrawBatchInstanceData)));
+        // Setup index buffer streaming.
+        {
+            m_indexSrcBufferBatch->AddResource(StreamableHandle(meshID, EStreamableResourceType::MESH, StreamableHandle::EBindingType::STORAGE, 1));
+        }
+
+        // Setup instance streaming.
+        {
+            StreamingBatch* instanceTextureBatch = m_streamer->AllocStreamingBatch();
+
+            for (uint32_t i = 0; i < textureCount; ++i)
+            {
+                instanceTextureBatch->AddResource(StreamableHandle(textureIDs[i], EStreamableResourceType::TEXTURE, StreamableHandle::EBindingType::SRV));
+            }
+            instanceTextureBatch->SetOutputBindingLocation(m_instanceBuffer.GetBuffer(), (sizeof(DrawBatchInstanceData) * m_instanceCount) + offsetof(DrawBatchInstanceData, DrawBatchInstanceData::m_bindings));
+            instanceTextureBatch->BeginStreaming();
+            m_instanceStreamingBatches.PushBack(instanceTextureBatch);
+
+            // TODO: Add a way to add stride objects to output bindings, to prevent needing another streaming batch to stride.
+            StreamingBatch* instanceVertexBufferBatch = m_streamer->AllocStreamingBatch();
+            instanceVertexBufferBatch->AddResource(StreamableHandle(meshID, EStreamableResourceType::MESH, StreamableHandle::EBindingType::STORAGE, 0)); // Vertex buffer only.
+            instanceVertexBufferBatch->SetOutputBindingLocation(m_instanceBuffer.GetBuffer(), (sizeof(DrawBatchInstanceData) * m_instanceCount) + offsetof(DrawBatchInstanceData, DrawBatchInstanceData::m_vertexBuffer));
+            instanceVertexBufferBatch->BeginStreaming();
+            m_instanceStreamingBatches.PushBack(instanceVertexBufferBatch);
+        }
+
+        // Upload model matrix and sampler here. The texture and vertex buffer ids will be updated when those assets are streamed in.
+        DrawBatchInstanceData& instanceData = *reinterpret_cast<DrawBatchInstanceData*>(m_instanceBuffer.MapElement(m_instanceCount, 0, sizeof(DrawBatchInstanceData)));
         memcpy(instanceData.m_modelMatrix, modelMatrix, sizeof(instanceData.m_modelMatrix));
-        memcpy(instanceData.m_textures, textures, textureCount * sizeof(PB::ResourceView));
-        instanceData.m_vertexBuffer = mesh->GetVertexBuffer()->GetViewAsStorageBuffer();
         instanceData.m_sampler = sampler;
 
         m_instanceBoundData.PushBack(bounds);
-
         if (m_bounds.IsZero())
         {
             m_bounds = bounds;
@@ -205,16 +260,7 @@ namespace Eng
             m_bounds.Encapsulate(bounds);
         }
 
-        m_totalIndexCount += entry.m_indexCount;
-        return m_instanceCount++;
-    }
-
-    void DrawBatch::UpdateInstanceModelMatrix(DrawBatchInstance instance, float* modelMatrix)
-    {
-        assert(modelMatrix);
-
-        PB::u8* data = m_instanceBuffer.MapElement(m_dynamicUpdateQueue[instance].m_instanceIndex, 0, sizeof(float) * 16);
-        memcpy(data, modelMatrix, sizeof(float) * 16);
+        ++m_instanceCount;
     }
 
     void DrawBatch::FinalizeUpdates()
@@ -226,41 +272,46 @@ namespace Eng
     {
         assert(cmdContext);
 
-        if (m_dynamicIndexBuffer == nullptr)
-        {
-            PB::BufferObjectDesc indexBufferDesc;
-            indexBufferDesc.m_bufferSize = sizeof(PB::u32) * m_totalIndexCount;
-            indexBufferDesc.m_options = 0;
-            indexBufferDesc.m_usage = PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
-            m_dynamicIndexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
-        }
+        m_indexSrcBufferBatch->BeginStreaming();
+        m_indexSrcBufferBatch->WaitStreamingComplete();
+        m_indexSrcBufferBatch->EndStreamingAndDelete();
+        m_indexSrcBufferBatch = nullptr;
 
         FinalizeUpdates();
 
-        PB::u8* data = m_dynamicIndexUpdateBuffer->BeginPopulate();
+        PB::u8* data = m_batchIndexUploadBuffer->BeginPopulate();
 
         // Copy update data indices.
 
-        uint32_t* indicesStart = reinterpret_cast<uint32_t*>(&data[sizeof(DynamicIndexUpdate) * MaxObjects]);
+        uint32_t* indicesStart = reinterpret_cast<uint32_t*>(&data[sizeof(IndexUploadMetadata) * MaxObjects]);
         uint32_t totalWorkGroupIndex = 0;
         uint32_t totalIndexCount = 0;
-        for (uint32_t i = 0; i < m_dynamicUpdateQueue.Count(); ++i)
+        for (uint32_t i = 0; i < m_indexUploadMetadata.Count(); ++i)
         {
-            auto& updateData = m_dynamicUpdateQueue[i];
-            if (updateData.m_workGroupCount == WorkGroupCountInvalid) // Skip invalid entries.
+            auto& uploadData = m_indexUploadMetadata[i];
+            if (uploadData.m_workGroupCount == WorkGroupCountInvalid) // Skip invalid entries.
                 continue;
 
-            updateData.m_startIndex = totalIndexCount;
-            totalIndexCount += updateData.m_indexCount;
+            uploadData.m_startIndex = totalIndexCount;
+            totalIndexCount += uploadData.m_indexCount;
 
-            for (uint32_t j = 0; j < updateData.m_workGroupCount; ++j, ++totalWorkGroupIndex)
+            for (uint32_t j = 0; j < uploadData.m_workGroupCount; ++j, ++totalWorkGroupIndex)
                 indicesStart[totalWorkGroupIndex] = i;
         }
 
         // Copy update data.
-        memcpy(data, m_dynamicUpdateQueue.Data(), sizeof(DynamicIndexUpdate) * m_dynamicUpdateQueue.Count());
+        memcpy(data, m_indexUploadMetadata.Data(), sizeof(IndexUploadMetadata) * m_indexUploadMetadata.Count());
 
-        m_dynamicIndexUpdateBuffer->EndPopulate();
+        m_batchIndexUploadBuffer->EndPopulate();
+
+        if (m_batchIndexBuffer == nullptr)
+        {
+            PB::BufferObjectDesc indexBufferDesc;
+            indexBufferDesc.m_bufferSize = sizeof(PB::u32) * totalIndexCount;
+            indexBufferDesc.m_options = 0;
+            indexBufferDesc.m_usage = PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
+            m_batchIndexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
+        }
 
         // Update draw parameters with the new index count.
         PB::DrawIndexedIndirectParams drawParams{};
@@ -277,14 +328,21 @@ namespace Eng
 
         PB::ResourceView views[] =
         {
-            m_dynamicIndexUpdateBuffer->GetViewAsStorageBuffer(),
-            m_dynamicIndexBuffer->GetViewAsStorageBuffer()
+            m_indexSrcViewBuffer->GetViewAsStorageBuffer(),
+            m_batchIndexUploadBuffer->GetViewAsStorageBuffer(),
+            m_batchIndexBuffer->GetViewAsStorageBuffer()
         };
         updateBindingLayout.m_resourceCount = _countof(views);
         updateBindingLayout.m_resourceViews = views;
         cmdContext->CmdBindResources(updateBindingLayout);
 
         cmdContext->CmdDispatch(totalWorkGroupIndex * MinWorkGroupsPerObject, 1, 1);
+
+        // Free src buffers as they will no longer be needed.
+        m_renderer->FreeBuffer(m_batchIndexUploadBuffer);
+        m_batchIndexUploadBuffer = nullptr;
+        m_renderer->FreeBuffer(m_indexSrcViewBuffer);
+        m_indexSrcViewBuffer = nullptr;
     }
 
     void DrawBatch::UpdateCullParams()
@@ -293,9 +351,9 @@ namespace Eng
         memset(cullData, 0, sizeof(BatchCullConstants));
 
         uint32_t totalIndexCount = 0;
-        for (uint32_t i = 0; i < m_dynamicUpdateQueue.Count(); ++i)
+        for (uint32_t i = 0; i < m_indexUploadMetadata.Count(); ++i)
         {
-            auto& indexData = m_dynamicUpdateQueue[i];
+            auto& indexData = m_indexUploadMetadata[i];
             auto& bounds = m_instanceBoundData[i];
             auto& objectCullData = cullData->m_objects[i];
 

@@ -66,7 +66,7 @@ namespace Eng
 
 		InitResources();
 
-		m_hierarchy.Init(m_allocator, m_renderer);
+		m_hierarchy.Init(m_allocator, m_renderer, &m_assetStreamer);
 
 		m_renderGraph = CreateRenderGraph();
 		SetupDrawBatch();
@@ -234,6 +234,7 @@ namespace Eng
 		}
 		// ---------------------------------------------------------------------------------------------------------------
 
+		m_assetStreamer.NextFrame();
 		m_renderGraph->Execute();
 	}
 
@@ -326,57 +327,10 @@ namespace Eng
 			Eng::StreamableHandle::EBindingType::NONE
 		);
 
-		StreamingBatch* meshBatch = m_assetStreamer.AllocStreamingBatch();
-		meshBatch->AddResource(paintMeshHandle);
-		meshBatch->AddResource(detailsMeshHandle);
-		meshBatch->AddResource(glassMeshHandle);
-		meshBatch->AddResource(planeMeshHandle);
-
-		meshBatch->BeginStreaming(true);
-
 		m_paintMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(paintMeshHandle));
 		m_detailsMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(detailsMeshHandle));
 		m_glassMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(glassMeshHandle));
 		m_planeMesh = reinterpret_cast<Mesh*>(m_assetStreamer.GetResourceHandle(planeMeshHandle));
-
-		m_paintTextures[0] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_diffuse", true, false, true);
-		m_detailsTextures[0] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_diffuse", true, false, true);
-		m_glassTextures[0] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_diffuse", true, false, true);
-
-		m_paintTextures[1] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_normal", false, false, true);
-		m_detailsTextures[1] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_normal", false, false, true);
-		m_glassTextures[1] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_normal", false, false, true);
-
-		m_paintTextures[2] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_specular_v2", true, false, true);
-		m_detailsTextures[2] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_specular", true, false, true);
-		m_glassTextures[2] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_specular", true, false, true);
-
-		m_paintTextures[3] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/paint2048/m_spinner_paint_roughness", false, false, true);
-		m_detailsTextures[3] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_roughness", false, false, true);
-		m_glassTextures[3] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_roughness", false, false, true);
-
-		m_detailsTextures[4] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/details2048/m_spinner_details_emissive", true, false, true);
-		m_glassTextures[4] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Spinner/glass2048/m_spinner_glass_emissive", true, false, true);
-
-		m_metalTextures[0] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Metal/diffuse", true, false, true);
-		m_metalTextures[1] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Metal/normal", false, false, true);
-
-		m_debugTextures[0] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Debug/debug_albedo", true, false, true);
-		m_debugTextures[1] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Debug/debug_roughness", false, false, true);
-		m_debugTextures[2] = m_allocator->Alloc<Eng::Texture>(m_renderer, m_allocator, "Textures/Debug/debug_specular", true, false, true);
-
-		for (int i = 0; i < _countof(m_paintTextures); ++i)
-			m_paintViews[i] = m_paintTextures[i]->GetTexture()->GetDefaultSRV();
-		m_paintViews[4] = m_solidBlackTexture->GetDefaultSRV();
-
-		for (int i = 0; i < _countof(m_detailsTextures); ++i)
-			m_detailsViews[i] = m_detailsTextures[i]->GetTexture()->GetDefaultSRV();
-
-		for (int i = 0; i < _countof(m_glassTextures); ++i)
-			m_glassViews[i] = m_glassTextures[i]->GetTexture()->GetDefaultSRV();
-
-		for (int i = 0; i < _countof(m_debugTextures); ++i)
-			m_debugViews[i] = m_debugTextures[i]->GetTexture()->GetDefaultSRV();
 
 		const char* skyboxFilenames[6]
 		{
@@ -396,56 +350,53 @@ namespace Eng
 
 		m_fontTexture = m_allocator->Alloc<Eng::FontTexture>(m_renderer, "Assets/Fonts/arial.ttf", 32);
 
+		AssetEncoder::AssetID paintTextureIds[]
+		{
+			AssetEncoder::AssetHandle("Textures/Spinner/paint2048/m_spinner_paint_diffuse").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/paint2048/m_spinner_paint_normal").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/paint2048/m_spinner_paint_specular_v2").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/paint2048/m_spinner_paint_roughness").GetID(&Texture::s_textureDatabaseLoader),
+			StreamableSimple::SrvBlackHandle
+		};
+
+		AssetEncoder::AssetID detailsTextureIds[]
+		{
+			AssetEncoder::AssetHandle("Textures/Spinner/details2048/m_spinner_details_diffuse").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/details2048/m_spinner_details_normal").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/details2048/m_spinner_details_specular").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/details2048/m_spinner_details_roughness").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/details2048/m_spinner_details_emissive").GetID(&Texture::s_textureDatabaseLoader)
+		};
+
+		AssetEncoder::AssetID glassTextureIds[]
+		{
+			AssetEncoder::AssetHandle("Textures/Spinner/glass2048/m_spinner_glass_diffuse").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/glass2048/m_spinner_glass_normal").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/glass2048/m_spinner_glass_specular").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/glass2048/m_spinner_glass_roughness").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Spinner/glass2048/m_spinner_glass_emissive").GetID(&Texture::s_textureDatabaseLoader)
+		};
+
+		AssetEncoder::AssetID debugTextureIds[]
+		{
+			AssetEncoder::AssetHandle("Textures/Debug/debug_albedo").GetID(&Texture::s_textureDatabaseLoader),
+			StreamableSimple::SrvFlatNormalMapHandle,
+			AssetEncoder::AssetHandle("Textures/Debug/debug_specular").GetID(&Texture::s_textureDatabaseLoader),
+			AssetEncoder::AssetHandle("Textures/Debug/debug_roughness").GetID(&Texture::s_textureDatabaseLoader),
+			StreamableSimple::SrvBlackHandle
+		};
+
 		PB::SamplerDesc colorSamplerDesc;
 		colorSamplerDesc.m_anisotropyLevels = 1.0f;
 		colorSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
 		colorSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::REPEAT;
 		m_colorSampler = m_renderer->GetSampler(colorSamplerDesc);
 
-		PB::ITexture* paintTextures[5]
-		{
-			m_paintTextures[0]->GetTexture(),
-			m_paintTextures[1]->GetTexture(),
-			m_paintTextures[2]->GetTexture(),
-			m_paintTextures[3]->GetTexture(),
-			m_solidBlackTexture
-		};
-		m_spinnerMaterials[0] = m_allocator->Alloc<Eng::Material>(0, paintTextures, _countof(paintTextures), m_colorSampler);
-
-		PB::ITexture* detailsTextures[5]
-		{
-			m_detailsTextures[0]->GetTexture(),
-			m_detailsTextures[1]->GetTexture(),
-			m_detailsTextures[2]->GetTexture(),
-			m_detailsTextures[3]->GetTexture(),
-			m_detailsTextures[4]->GetTexture()
-		};
-		m_spinnerMaterials[1] = m_allocator->Alloc<Eng::Material>(0, detailsTextures, _countof(detailsTextures), m_colorSampler);
-
-		PB::ITexture* glassTextures[5]
-		{
-			m_glassTextures[0]->GetTexture(),
-			m_glassTextures[1]->GetTexture(),
-			m_glassTextures[2]->GetTexture(),
-			m_glassTextures[3]->GetTexture(),
-			m_glassTextures[4]->GetTexture()
-		};
-		m_spinnerMaterials[2] = m_allocator->Alloc<Eng::Material>(0, glassTextures, _countof(glassTextures), m_colorSampler);
-
-		PB::ITexture* planeTextures[5]
-		{
-			m_solidWhiteTexture,
-			m_flatNormalTexture,
-			m_solidBlackTexture,
-			m_solidWhiteTexture,
-			m_solidBlackTexture
-		};
-		m_planeMaterial = m_allocator->Alloc<Eng::Material>(0, planeTextures, _countof(planeTextures), m_colorSampler);
-
-		planeTextures[0] = m_debugTextures[0]->GetTexture();
-		planeTextures[2] = m_debugTextures[2]->GetTexture();
-		planeTextures[3] = m_debugTextures[1]->GetTexture();
-		m_debugMaterial = m_allocator->Alloc<Eng::Material>(0, planeTextures, _countof(planeTextures), m_colorSampler);
+		m_spinnerMaterials[0] = m_allocator->Alloc<Eng::Material>(0, paintTextureIds, _countof(paintTextureIds), m_colorSampler);
+		m_spinnerMaterials[1] = m_allocator->Alloc<Eng::Material>(0, detailsTextureIds, _countof(detailsTextureIds), m_colorSampler);
+		m_spinnerMaterials[2] = m_allocator->Alloc<Eng::Material>(0, glassTextureIds, _countof(glassTextureIds), m_colorSampler);
+		m_planeMaterial = m_allocator->Alloc<Eng::Material>(0, debugTextureIds, _countof(debugTextureIds), m_colorSampler);
+		m_debugMaterial = m_allocator->Alloc<Eng::Material>(0, debugTextureIds, _countof(debugTextureIds), m_colorSampler);
 	}
 
 	void ClientPlayground::DestroyResources()
@@ -459,32 +410,6 @@ namespace Eng
 		m_renderer->FreeTexture(m_solidWhiteTexture);
 		m_renderer->FreeTexture(m_solidBlackTexture);
 		m_renderer->FreeTexture(m_flatNormalTexture);
-
-		for (auto& tex : m_paintTextures)
-		{
-			m_allocator->Free(tex);
-			tex = nullptr;
-		}
-		for (auto& tex : m_detailsTextures)
-		{
-			m_allocator->Free(tex);
-			tex = nullptr;
-		}
-		for (auto& tex : m_glassTextures)
-		{
-			m_allocator->Free(tex);
-			tex = nullptr;
-		}
-		for (auto& tex : m_metalTextures)
-		{
-			m_allocator->Free(tex);
-			tex = nullptr;
-		}
-		for (auto& tex : m_debugTextures)
-		{
-			m_allocator->Free(tex);
-			tex = nullptr;
-		}
 
 		m_allocator->Free(m_hdrSkyTexture);
 		m_allocator->Free(m_skyIrradianceMap);
@@ -660,22 +585,10 @@ namespace Eng
 		glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
 		glm::mat4 spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
-		//PB::ResourceView plainViews[]
-		//{
-		//	m_solidWhiteTexture->GetDefaultSRV(),
-		//	m_flatNormalTexture->GetDefaultSRV(),
-		//	m_solidBlackTexture->GetDefaultSRV(),
-		//	m_solidWhiteTexture->GetDefaultSRV(),
-		//	m_solidBlackTexture->GetDefaultSRV()
-		//};
-
-		//PB::ResourceView plainViews[]
-		//{
-		//	m_metalTextures[0]->GetTexture()->GetDefaultSRV(),
-		//	m_metalTextures[1]->GetTexture()->GetDefaultSRV(),
-		//	m_solidBlackTexture->GetDefaultSRV(),
-		//	m_solidBlackTexture->GetDefaultSRV()
-		//};
+		AssetEncoder::AssetID paintMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_paint").GetID(&Mesh::s_meshDatabaseLoader);
+		AssetEncoder::AssetID detailsMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_details").GetID(&Mesh::s_meshDatabaseLoader);
+		AssetEncoder::AssetID glassMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader);
+		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
 
 		const uint32_t spinnerCount = 15;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
@@ -690,60 +603,38 @@ namespace Eng
 			}
 
 			glm::quat spinnerQuat = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-			//RenderBoundingVolumeHierarchy::ObjectData& paintObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
-			//paintObj.m_mesh = m_paintMesh;
-			//paintObj.m_material = m_spinnerMaterials[0];
-			//paintObj.m_transform = spinnerModelMat;
-			//
-			//RenderBoundingVolumeHierarchy::ObjectData& detailsObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
-			//detailsObj.m_mesh = m_detailsMesh;
-			//detailsObj.m_material = m_spinnerMaterials[1];
-			//detailsObj.m_transform = spinnerModelMat;
-			//
-			//RenderBoundingVolumeHierarchy::ObjectData& glassObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
-			//glassObj.m_mesh = m_glassMesh;
-			//glassObj.m_material = m_spinnerMaterials[2];
-			//glassObj.m_transform = spinnerModelMat;
 
 			Entity* paintEntity = m_hierarchy.AddEntity(pos);
 			Transform* paintTransform = paintEntity->GetComponent<Transform>();
 			paintTransform->SetPosition(pos);
 			paintTransform->SetRotation(spinnerQuat);
 			paintTransform->SetScale(glm::vec3(0.01f));
-			paintEntity->AddComponent<RenderDefinition>(m_paintMesh, m_spinnerMaterials[0]);
+			paintEntity->AddComponent<RenderDefinition>(paintMeshID, m_spinnerMaterials[0]);
 
 			Entity* detailsEntity = m_hierarchy.AddEntity(pos);
 			Transform* detailsTransform = detailsEntity->GetComponent<Transform>();
 			detailsTransform->SetPosition(pos);
 			detailsTransform->SetRotation(spinnerQuat);
 			detailsTransform->SetScale(glm::vec3(0.01f));
-			detailsEntity->AddComponent<RenderDefinition>(m_detailsMesh, m_spinnerMaterials[1]);
+			detailsEntity->AddComponent<RenderDefinition>(detailsMeshID, m_spinnerMaterials[1]);
 
 			Entity* glassEntity = m_hierarchy.AddEntity(pos);
 			Transform* glassTransform = glassEntity->GetComponent<Transform>();
 			glassTransform->SetPosition(pos);
 			glassTransform->SetRotation(spinnerQuat);
 			glassTransform->SetScale(glm::vec3(0.01f));
-			glassEntity->AddComponent<RenderDefinition>(m_glassMesh, m_spinnerMaterials[2]);
+			glassEntity->AddComponent<RenderDefinition>(glassMeshID, m_spinnerMaterials[2]);
 		}
 
 		modelMat = glm::identity<glm::mat4>();
 		glm::vec3 planeOffset = glm::vec3(0.0f, -0.2f, 0.0f);
 		modelMat = glm::translate(glm::mat4(), planeOffset);
 
-		//RenderBoundingVolumeHierarchy::ObjectData& planeObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
-		//planeObj.m_mesh = m_planeMesh;
-		//planeObj.m_material = m_planeMaterial;
-		//planeObj.m_transform = modelMat;
-
 		Entity* planeEntity = m_hierarchy.AddEntity(planeOffset);
 		Transform* planeTransform = planeEntity->GetComponent<Transform>();
 		planeTransform->SetPosition(planeOffset);
-		planeEntity->AddComponent<RenderDefinition>(m_planeMesh, m_planeMaterial);
+		planeEntity->AddComponent<RenderDefinition>(planeMeshID, m_planeMaterial);
 
-		//plainViews[0] = m_debugViews[0];
-		//plainViews[2] = m_debugViews[2];
-		//plainViews[3] = m_debugViews[1];
 
 		glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
 
@@ -752,19 +643,7 @@ namespace Eng
 		debugPlaneTransform->SetPosition(debugPlaneOffset);
 		debugPlaneTransform->RotateEulerZ(-45.0f);
 		debugPlaneTransform->SetScale(glm::vec3(0.2f));
-		debugPlaneEntity->AddComponent<RenderDefinition>(m_planeMesh, m_debugMaterial);
-
-		//RenderBoundingVolumeHierarchy::ObjectData& debugPlaneObj = *m_hierarchyObjectData.PushBack(m_allocator->Alloc<RenderBoundingVolumeHierarchy::ObjectData>());
-		//debugPlaneObj.m_mesh = m_planeMesh;
-		//debugPlaneObj.m_material = m_debugMaterial;
-		//debugPlaneObj.m_transform = modelMat;
-
-		//for (auto& objectData : m_hierarchyObjectData)
-		//{
-		//	objectData->m_bounds = objectData->m_mesh->GetBounds();
-		//	objectData->m_bounds.Transform(objectData->m_transform);
-		//	m_renderHierarchy->AddObject(objectData);
-		//}
+		debugPlaneEntity->AddComponent<RenderDefinition>(planeMeshID, m_debugMaterial);
 
 		m_hierarchy.BakeTrees();
 	}

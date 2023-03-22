@@ -110,6 +110,17 @@ namespace PB
 		// Contains uniform buffers.
 		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
 
+		// Null resources for deleted descriptors.
+		VkDeviceMemory m_nullResourceMemory = VK_NULL_HANDLE;
+		VkBuffer m_nullBuffer = VK_NULL_HANDLE;
+		VkImage m_nullImage = VK_NULL_HANDLE;
+		VkSampler m_nullSampler = VK_NULL_HANDLE;
+		VkImageView m_nullImageView = VK_NULL_HANDLE;
+
+		VkDescriptorImageInfo m_nullImageInfo{};
+		VkDescriptorImageInfo m_nullSamplerInfo{};
+		VkDescriptorBufferInfo m_nullBufferInfo{};
+
 		// Contains all Texture, Sampler etc. descriptors.
 		VkDescriptorSetLayout m_masterSetLayout = VK_NULL_HANDLE;
 		VkDescriptorSet m_masterSet = VK_NULL_HANDLE;
