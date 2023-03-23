@@ -44,17 +44,7 @@ namespace Eng
         m_streamer = desc.m_streamer;
         m_bounds = Bounds();
 
-        PB::BufferObjectDesc indexUpdateBufferDesc;
-        indexUpdateBufferDesc.m_bufferSize = (sizeof(IndexUploadMetadata) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch / IndexUpdatesPerInvocation) * sizeof(uint32_t));
-        indexUpdateBufferDesc.m_options = 0;
-        indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
-        m_batchIndexUploadBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
-
-        indexUpdateBufferDesc.m_bufferSize = sizeof(PB::ResourceView) * MaxObjects;
-        m_indexSrcViewBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
-
-        m_indexSrcBufferBatch = m_streamer->AllocStreamingBatch();
-        m_indexSrcBufferBatch->SetOutputBindingLocation(m_indexSrcViewBuffer, 0);
+        CreateUpdateResources();
 
         m_instanceBuffer.Init(m_renderer, PB::EBufferUsage::STORAGE);
 
@@ -197,6 +187,27 @@ namespace Eng
         cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, sizeof(DrawParamsBuffer::m_drawIndexedParams), MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
     }
 
+    void DrawBatch::CreateUpdateResources()
+    {
+        PB::BufferObjectDesc indexUpdateBufferDesc;
+        indexUpdateBufferDesc.m_bufferSize = (sizeof(IndexUploadMetadata) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch / IndexUpdatesPerInvocation) * sizeof(uint32_t));
+        indexUpdateBufferDesc.m_options = 0;
+        indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
+
+        if(m_batchIndexUploadBuffer == nullptr)
+            m_batchIndexUploadBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
+
+        indexUpdateBufferDesc.m_bufferSize = sizeof(PB::ResourceView) * MaxObjects;
+        if(m_indexSrcViewBuffer == nullptr)
+            m_indexSrcViewBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
+
+        if (m_indexSrcBufferBatch == nullptr)
+        {
+            m_indexSrcBufferBatch = m_streamer->AllocStreamingBatch();
+            m_indexSrcBufferBatch->SetOutputBindingLocation(m_indexSrcViewBuffer, 0);
+        }
+    }
+
     void DrawBatch::AddInstance(AssetEncoder::AssetID meshID, const float* modelMatrix, const Bounds& bounds, AssetEncoder::AssetID* textureIDs, uint32_t textureCount, PB::ResourceView sampler)
     {
         assert(meshID != ~AssetEncoder::AssetID(0));
@@ -204,6 +215,12 @@ namespace Eng
         assert(textureIDs || textureCount == 0);
         assert(textureIDs || sampler == 0);
         assert(textureCount <= DrawBatchInstanceData::MaxTextures);
+
+        if (m_indicesUpToDate == true)
+        {
+            CreateUpdateResources();
+            m_indicesUpToDate = false;
+        }
 
         // Setup drawbatch index buffer update.
         {
@@ -270,7 +287,11 @@ namespace Eng
 
     void DrawBatch::UpdateIndices(PB::ICommandContext* cmdContext)
     {
+        if (m_indicesUpToDate == true)
+            return;
+
         assert(cmdContext);
+        assert(m_indexSrcBufferBatch);
 
         m_indexSrcBufferBatch->BeginStreaming();
         m_indexSrcBufferBatch->WaitStreamingComplete();
@@ -343,6 +364,8 @@ namespace Eng
         m_batchIndexUploadBuffer = nullptr;
         m_renderer->FreeBuffer(m_indexSrcViewBuffer);
         m_indexSrcViewBuffer = nullptr;
+
+        m_indicesUpToDate = true;
     }
 
     void DrawBatch::UpdateCullParams()

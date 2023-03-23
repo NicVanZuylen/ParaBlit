@@ -109,6 +109,13 @@ namespace Eng
 		return bindingCount;
 	}
 
+	void StreamingBatch::Reset(AssetStreamer* streamer)
+	{
+		this->~StreamingBatch();
+		new(this) StreamingBatch(4);
+		m_streamer = streamer;
+	}
+
 	AssetStreamer::~AssetStreamer()
 	{
 	}
@@ -580,7 +587,14 @@ namespace Eng
 
 	StreamingBatch* AssetStreamer::AllocStreamingBatch(uint32_t reserveResourceCount)
 	{
-		StreamingBatch* batch = m_freeBatches.Count() > 0 ? m_freeBatches.PopBack() : m_streamingBatchAllocator.Alloc<StreamingBatch>();
+		if (m_freeBatches.Count() > 0)
+		{
+			StreamingBatch* batch = m_freeBatches.PopBack();
+			batch->Reset(this);
+			return batch;
+		}
+
+		StreamingBatch* batch = m_streamingBatchAllocator.Alloc<StreamingBatch>();
 		batch->m_streamer = this;
 
 		return batch;

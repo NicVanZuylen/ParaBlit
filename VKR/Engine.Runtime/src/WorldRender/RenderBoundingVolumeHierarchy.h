@@ -66,7 +66,7 @@ namespace Eng
 
 		struct PipelineDrawbatch
 		{
-			static constexpr uint32_t REMOVE_MaxObjects = 5;
+			static constexpr uint32_t REMOVE_MaxObjects = 256;
 
 			PB::Pipeline m_pipeline;
 			DrawBatch* m_batch;
@@ -79,40 +79,6 @@ namespace Eng
 			BuildNode* m_sourceNode = nullptr;
 			NodeDrawBatches m_drawBatches{};
 		};
-
-		/*using NodeChildren = CLib::Vector<BuildNode*, ChildSoftLimit>;
-		struct BuildNode
-		{
-			bool IsLeaf() { return m_children.Count() == 0; }
-			ProjectedRange GetRange(EProjectedAxis axis) const
-			{
-				switch (axis)
-				{
-				case RenderBoundingVolumeHierarchy::EProjectedAxis::X:
-					return { m_bounds.m_origin.x, m_bounds.MaxX() };
-					break;
-				case RenderBoundingVolumeHierarchy::EProjectedAxis::Y:
-					return { m_bounds.m_origin.y, m_bounds.MaxY() };
-					break;
-				case RenderBoundingVolumeHierarchy::EProjectedAxis::Z:
-					return { m_bounds.m_origin.z, m_bounds.MaxZ() };
-					break;
-				default:
-					return { m_bounds.m_origin.x, m_bounds.MaxX() };
-					break;
-				}
-			}
-			void RemoveChild(BuildNode* child);
-
-			Bounds m_bounds{};
-			ObjectData m_objectData{};
-			BuildNode* m_parent = nullptr;
-			BuildNode* m_sourceNode = nullptr;
-			NodeChildren m_children{};
-			NodeDrawBatches m_drawBatches{};
-			uint32_t m_depth = 0;
-			bool m_isObject = false;
-		};*/
 
 		using BakedNodes = std::vector<BakedNode>;
 		struct BatchHierarchy

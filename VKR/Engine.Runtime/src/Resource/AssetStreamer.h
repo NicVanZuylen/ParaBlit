@@ -155,6 +155,8 @@ namespace Eng
 		void WaitForFrames(int64_t waitFrameCount, size_t currentFrame);
 		bool IsWaitingDone(size_t currentFrame);
 
+		void Reset(AssetStreamer* streamer);
+
 		// Output location of loaded resource binding indices.
 		StreamingBatch* m_next = nullptr;
 		AssetStreamer* m_streamer = nullptr;

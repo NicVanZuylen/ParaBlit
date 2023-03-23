@@ -131,6 +131,9 @@ namespace Eng
 			ObjectDispatchList* m_dispatchList = nullptr;
 			ObjectDispatchList::DispatchObjectHandle m_dispatchHandle;
 		};
+
+		void CreateUpdateResources();
+
 		CLib::Vector<DispatchInfo> m_dispatchInfos;
 		PB::Pipeline m_batchUpdatePipeline = 0;
 		PB::IRenderer* m_renderer = nullptr;
@@ -143,6 +146,7 @@ namespace Eng
 		PB::IBufferObject* m_drawParamsBuffer = nullptr;
 		ManagedInstanceBuffer<DrawBatchInstanceData, MaxObjects, MaxObjects> m_instanceBuffer;
 		uint32_t m_instanceCount = 0;
+		bool m_indicesUpToDate = false;
 		Bounds m_bounds;
 		StreamingBatch* m_indexSrcBufferBatch = nullptr;
 		CLib::Vector<StreamingBatch*, 0, 32> m_instanceStreamingBatches;
