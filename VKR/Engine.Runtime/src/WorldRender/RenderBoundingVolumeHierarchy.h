@@ -38,6 +38,8 @@ namespace Eng
 
 		void Init(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc);
 
+		void Destroy() override;
+
 		void RebuildTest();
 
 		void BakeBatches(PB::ICommandContext* commandContext);

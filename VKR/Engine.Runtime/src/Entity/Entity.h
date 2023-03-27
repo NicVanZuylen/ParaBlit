@@ -12,11 +12,11 @@ namespace Eng
 	{
 	public:
 
-		virtual void OnConstruction() = 0;
+		virtual void OnConstruction() {}
 		virtual void OnDestruction() = 0;
 
 		Entity* GetHost() { return m_host; }
-		virtual void GetReflection(CLib::Reflector& outReflector) = 0;
+		virtual void GetReflection(CLib::Reflector& outReflector) {}
 
 		const Entity* GetHost() const { return m_host; }
 		size_t GetTypeHash() const { return m_typeHash; }

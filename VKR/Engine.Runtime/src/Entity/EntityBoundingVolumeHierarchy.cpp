@@ -15,7 +15,7 @@ namespace Eng
 
 	BoundingVolumeHierarchy::NodeData* EntityBoundingVolumeHierarchy::AllocateNodeData()
 	{
-		return reinterpret_cast<BoundingVolumeHierarchy::NodeData*>(m_allocator->Alloc<NodeData>());
+		return m_allocator->Alloc<NodeData>();
 	}
 
 	void EntityBoundingVolumeHierarchy::FreeNodeData(BoundingVolumeHierarchy::NodeData* data)

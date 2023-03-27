@@ -22,14 +22,15 @@ namespace Eng
 			s_entityComponentStorage.Free(component);
 		}
 
-		void OnConstruction() override;
-
 		void OnDestruction() override { ECDestroy(this); }
 
 		void GetReflection(CLib::Reflector& outReflector) override { outReflector.Init(this); }
 
 		const AssetEncoder::AssetID GetMeshID() const { return m_meshID; }
 		const Material* GetMaterial() const { return m_material; }
+		const Bounds& GetRenderBounds() { return m_objectData.m_bounds; }
+
+		void CommitStaticRenderEntity();
 
 	private:
 

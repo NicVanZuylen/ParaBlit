@@ -25,8 +25,16 @@ namespace Eng
 		}
 
 		inline RenderBoundingVolumeHierarchy& GetRenderHierarchy() { return m_renderHierarchy; }
+		inline EntityBoundingVolumeHierarchy& GetEntityBoundingVolumeHierarchy() { return m_entityBoundingVolumeHierarchy; }
+
+		/*
+		Description: Commit the entity at its current position with its current rendering properites to the scene as a static object.
+		*/
+		void CommitEntity(Entity* entity);
 
 		void BakeTrees();
+
+		void BuildEntityBVH() { m_entityBoundingVolumeHierarchy.Build(); }
 
 	private:
 
@@ -34,8 +42,9 @@ namespace Eng
 		PB::IRenderer* m_renderer = nullptr;
 		AssetStreamer* m_streamer = nullptr;
 		RenderBoundingVolumeHierarchy m_renderHierarchy;
-		EntityBoundingVolumeHierarchy m_entityHierarchy;
+		EntityBoundingVolumeHierarchy m_entityBoundingVolumeHierarchy;
 		CLib::FixedBlockAllocator m_entityAllocator{ sizeof(Entity), sizeof(Entity) * 512 };
 		CLib::Vector<Entity*, 64, 64> m_entityAllocations;
+
 	};
 }

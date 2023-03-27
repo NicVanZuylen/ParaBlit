@@ -228,7 +228,7 @@ namespace PB
 			struct { T r, g; };
 			struct { T x, y; };
 			struct { T u, v; };
-			float m_data[2];
+			float m_data[2]{};
 		};
 
 		TVec2() = default;

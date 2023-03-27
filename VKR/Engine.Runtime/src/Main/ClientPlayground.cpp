@@ -185,6 +185,11 @@ namespace Eng
 			initCmdContext->Return();
 		}
 
+		if (input->GetKey(GLFW_KEY_E, INPUTSTATE_CURRENT))
+		{
+			m_hierarchy.GetEntityBoundingVolumeHierarchy().DebugDraw(&m_camera, m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
+		}
+
 		// Update Camera -------------------------------------------------------------------------------------------------
 		{
 			constexpr float fov = 45.0f;
@@ -590,11 +595,11 @@ namespace Eng
 		AssetEncoder::AssetID glassMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
 
-		const uint32_t spinnerCount = 15;
+		const uint32_t spinnerCount = 5;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
-			glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
-			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
+			//glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+			glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
 
 			if (i == 1)
 			{
@@ -610,6 +615,7 @@ namespace Eng
 			paintTransform->SetRotation(spinnerQuat);
 			paintTransform->SetScale(glm::vec3(0.01f));
 			paintEntity->AddComponent<RenderDefinition>(paintMeshID, m_spinnerMaterials[0]);
+			m_hierarchy.CommitEntity(paintEntity);
 
 			Entity* detailsEntity = m_hierarchy.AddEntity(pos);
 			Transform* detailsTransform = detailsEntity->GetComponent<Transform>();
@@ -617,6 +623,7 @@ namespace Eng
 			detailsTransform->SetRotation(spinnerQuat);
 			detailsTransform->SetScale(glm::vec3(0.01f));
 			detailsEntity->AddComponent<RenderDefinition>(detailsMeshID, m_spinnerMaterials[1]);
+			m_hierarchy.CommitEntity(detailsEntity);
 
 			Entity* glassEntity = m_hierarchy.AddEntity(pos);
 			Transform* glassTransform = glassEntity->GetComponent<Transform>();
@@ -624,6 +631,7 @@ namespace Eng
 			glassTransform->SetRotation(spinnerQuat);
 			glassTransform->SetScale(glm::vec3(0.01f));
 			glassEntity->AddComponent<RenderDefinition>(glassMeshID, m_spinnerMaterials[2]);
+			m_hierarchy.CommitEntity(glassEntity);
 		}
 
 		modelMat = glm::identity<glm::mat4>();
@@ -634,7 +642,7 @@ namespace Eng
 		Transform* planeTransform = planeEntity->GetComponent<Transform>();
 		planeTransform->SetPosition(planeOffset);
 		planeEntity->AddComponent<RenderDefinition>(planeMeshID, m_planeMaterial);
-
+		m_hierarchy.CommitEntity(planeEntity);
 
 		glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
 
@@ -644,6 +652,7 @@ namespace Eng
 		debugPlaneTransform->RotateEulerZ(-45.0f);
 		debugPlaneTransform->SetScale(glm::vec3(0.2f));
 		debugPlaneEntity->AddComponent<RenderDefinition>(planeMeshID, m_debugMaterial);
+		m_hierarchy.CommitEntity(debugPlaneEntity);
 
 		m_hierarchy.BakeTrees();
 	}

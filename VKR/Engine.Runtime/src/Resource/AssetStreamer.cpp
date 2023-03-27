@@ -208,7 +208,10 @@ namespace Eng
 			}
 		}
 
-		m_resourceAllocator.DumpMemoryLeaks();
+		for (auto& indexUploadBuf : m_indexUploadSrcBuffers)
+		{
+			m_renderer->FreeBuffer(indexUploadBuf->m_buffer);
+		}
 
 		if (m_simpleBlackTexture)
 		{
@@ -230,6 +233,8 @@ namespace Eng
 			m_renderer->FreeTexture(m_simpleFlatNormalTexture);
 			m_simpleFlatNormalTexture = nullptr;
 		}
+
+		m_resourceAllocator.DumpMemoryLeaks();
 	}
 
 	void AssetStreamer::NextFrame()

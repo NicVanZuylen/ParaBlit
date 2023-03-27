@@ -19,11 +19,7 @@ namespace Eng
 
 	RenderBoundingVolumeHierarchy::~RenderBoundingVolumeHierarchy()
 	{
-		if (m_root != nullptr)
-		{
-			RecursiveFreeNode(m_root);
-			m_root = nullptr;
-		}
+
 	}
 
 	void RenderBoundingVolumeHierarchy::Init(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc)
@@ -32,6 +28,15 @@ namespace Eng
 
 		m_renderer = renderer;
 		m_streamer = streamer;
+	}
+
+	void RenderBoundingVolumeHierarchy::Destroy()
+	{
+		if (m_root != nullptr)
+		{
+			RecursiveFreeNode(m_root);
+			m_root = nullptr;
+		}
 	}
 
 	BoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::BuildBottomUp(InputObjects& objects)

@@ -10,7 +10,7 @@ namespace Eng
 
 		struct ObjectData : public BoundingVolumeHierarchy::ObjectData
 		{
-			Eng::Entity* m_entity = nullptr;
+			Entity* m_entity = nullptr;
 		};
 
 		EntityBoundingVolumeHierarchy() = default;
@@ -21,7 +21,7 @@ namespace Eng
 
 	private:
 
-		struct NodeData
+		struct NodeData : public BoundingVolumeHierarchy::NodeData
 		{
 
 		};

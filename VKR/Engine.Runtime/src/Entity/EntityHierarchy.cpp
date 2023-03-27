@@ -1,5 +1,6 @@
 #include "Entity/EntityHierarchy.h"
 #include "Entity/Component/Transform.h"
+#include "Entity/Component/StaticEntityTracker.h"
 
 #include "Engine.ParaBlit/ICommandContext.h"
 
@@ -38,7 +39,7 @@ namespace Eng
 			bvhDesc.m_toleranceStepY = 0.2f;
 
 			m_renderHierarchy.Init(renderer, allocator, m_streamer, bvhDesc);
-			m_entityHierarchy.Init(allocator, bvhDesc);
+			m_entityBoundingVolumeHierarchy.Init(allocator, bvhDesc);
 		}
 	}
 
@@ -49,6 +50,9 @@ namespace Eng
 			m_entityAllocator.Free(entity);
 		}
 		m_entityAllocations.Clear();
+
+		m_entityBoundingVolumeHierarchy.Destroy();
+		m_renderHierarchy.Destroy();
 	}
 
 	Entity* EntityHierarchy::AddEntity(const glm::vec3& position)
@@ -57,13 +61,24 @@ namespace Eng
 		Transform* transform = newEntity->AddComponent<Transform>();
 		transform->SetPosition(position);
 
+		newEntity->AddComponent<StaticEntityTracker>();
+
 		m_entityAllocations.PushBack(newEntity);
 		return newEntity;
 	}
 
+	void EntityHierarchy::CommitEntity(Entity* entity)
+	{
+		StaticEntityTracker* tracker = entity->GetComponent<StaticEntityTracker>();
+		if (tracker != nullptr)
+		{
+			tracker->CommitEntity();
+		}
+	}
+
 	void EntityHierarchy::BakeTrees()
 	{
-		//m_entityHierarchy.Build();
+		m_entityBoundingVolumeHierarchy.Build();
 		m_renderHierarchy.Build();
 
 		PB::CommandContextDesc contextDesc{};

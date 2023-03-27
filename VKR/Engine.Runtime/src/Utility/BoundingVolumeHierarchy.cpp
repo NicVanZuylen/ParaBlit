@@ -28,16 +28,21 @@ namespace Eng
 
 	BoundingVolumeHierarchy::~BoundingVolumeHierarchy()
 	{
-		if (m_root != nullptr)
-		{
-			RecursiveFreeNode(m_root);
-		}
+		
 	}
 
 	void BoundingVolumeHierarchy::Build()
 	{
 		m_root = this->BuildBottomUp(m_input);
 		m_input.Clear();
+	}
+
+	void BoundingVolumeHierarchy::Destroy()
+	{
+		if (m_root != nullptr)
+		{
+			RecursiveFreeNode(m_root);
+		}
 	}
 
 	void BoundingVolumeHierarchy::AddObject(const ObjectData* object)
@@ -220,131 +225,138 @@ namespace Eng
 
 		}
 
-		BuildNode* root = RecursiveBuildBottomUp(*deferredNodes[0].first, deferredNodes, 1, 0);
+		BuildNode* root = nullptr;
+		if(deferredNodes.Count() > 0)
+			root = RecursiveBuildBottomUp(*deferredNodes[0].first, deferredNodes, 1, 0);
+
 		for (NodeWave& wave : deferredNodes)
 		{
 			m_allocator->Free(wave.first);
 		}
 
-		AssignDepth(root, 0);
+		if(root)
+			AssignDepth(root, 0);
+
 		return root;
 	}
 
 	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::RecursiveBuildBottomUp(const CLib::Vector<BuildNode*>& nodes, CLib::Vector<NodeWave>& waves, uint32_t waveIdx, uint32_t passCount)
 	{
-		ClusterArray clusters{};
-
-		Cluster* startCluster = clusters.PushBack() = m_allocator->Alloc<Cluster>();
-		for (uint32_t i = 0; i < nodes.Count(); ++i)
-		{
-			startCluster->PushBack(nodes[i]);
-		}
-
-		// Increasing SplitPassCount will increase the amount of clusters produced.
-		// An odd split pass count will most likely result in clusters extending further on one axis, so an even number is recommended.
-		static constexpr uint32_t SplitPassCount = 2;
-
-		for (uint32_t i = 0; i < SplitPassCount; ++i)
-		{
-			AxisSplitClusters(clusters, EProjectedAxis::X);
-			AxisSplitClusters(clusters, EProjectedAxis::Y);
-			AxisSplitClusters(clusters, EProjectedAxis::Z);
-		}
-
 		CLib::Vector<BuildNode*> clusterNodes{};
-		clusterNodes.Reserve(clusters.Count());
-
-		auto volumeCompare = [=](const BuildNode* a, const BuildNode* b)
 		{
-			return a->m_bounds.Volume() > b->m_bounds.Volume();
-		};
+			ClusterArray clusters{};
 
-		float largestClusterVolume = 0.0f;
-		for (Cluster*& cluster : clusters)
-		{
-			if (cluster == nullptr)
-				continue;
-
-			std::sort(cluster->begin(), cluster->end(), volumeCompare);
-			if (cluster->Count() > 1)
+			Cluster* startCluster = clusters.PushBack() = m_allocator->Alloc<Cluster>();
+			for (uint32_t i = 0; i < nodes.Count(); ++i)
 			{
-				Cluster& c = *cluster;
+				startCluster->PushBack(nodes[i]);
+			}
 
-				uint32_t prevIdx = 0;
-				for (uint32_t i = 1; i < c.Count(); ++i)
+			// Increasing SplitPassCount will increase the amount of clusters produced.
+			// An odd split pass count will most likely result in clusters extending further on one axis, so an even number is recommended.
+			static constexpr uint32_t SplitPassCount = 2;
+
+			for (uint32_t i = 0; i < SplitPassCount; ++i)
+			{
+				AxisSplitClusters(clusters, EProjectedAxis::X);
+				AxisSplitClusters(clusters, EProjectedAxis::Y);
+				AxisSplitClusters(clusters, EProjectedAxis::Z);
+			}
+
+			clusterNodes.Reserve(clusters.Count());
+
+			auto volumeCompare = [=](const BuildNode* a, const BuildNode* b)
+			{
+				return a->m_bounds.Volume() > b->m_bounds.Volume();
+			};
+
+			float largestClusterVolume = 0.0f;
+			for (Cluster*& cluster : clusters)
+			{
+				if (cluster == nullptr)
+					continue;
+
+				std::sort(cluster->begin(), cluster->end(), volumeCompare);
+				if (cluster->Count() > 1)
 				{
-					BuildNode*& cur = c[i];
-					BuildNode*& prev = c[prevIdx];
-					if (cur->m_bounds.Encapsulates(prev->m_bounds))
+					Cluster& c = *cluster;
+
+					uint32_t prevIdx = 0;
+					for (uint32_t i = 1; i < c.Count(); ++i)
 					{
-						prev->m_parent = cur;
-						cur->m_children.PushBack(prev);
-						prevIdx = i;
-						prev = nullptr;
+						BuildNode*& cur = c[i];
+						BuildNode*& prev = c[prevIdx];
+						if (cur->m_bounds.Encapsulates(prev->m_bounds))
+						{
+							prev->m_parent = cur;
+							cur->m_children.PushBack(prev);
+							prevIdx = i;
+							prev = nullptr;
+						}
+						else if (prev->m_bounds.Encapsulates(cur->m_bounds))
+						{
+							cur->m_parent = prev;
+							prev->m_children.PushBack(cur);
+							cur = nullptr;
+						}
 					}
-					else if (prev->m_bounds.Encapsulates(cur->m_bounds))
+
+					auto cpy = c;
+					c.Clear();
+
+					for (auto& n : cpy)
 					{
-						cur->m_parent = prev;
-						prev->m_children.PushBack(cur);
-						cur = nullptr;
+						if (n != nullptr)
+							c.PushBack(n);
 					}
 				}
 
-				auto cpy = c;
-				c.Clear();
-
-				for (auto& n : cpy)
+				assert(cluster->Count() > 0);
+				if (cluster->Count() == 1)
 				{
-					if (n != nullptr)
-						c.PushBack(n);
+					// Cluster only has one node. Continue with the node as-is.
+					clusterNodes.PushBack(cluster->Front());
+					largestClusterVolume = glm::max<float>(largestClusterVolume, cluster->Front()->m_bounds.Volume());
 				}
-			}
-
-			assert(cluster->Count() > 0);
-			if (cluster->Count() == 1)
-			{
-				// Cluster only has one node. Continue with the node as-is.
-				clusterNodes.PushBack(cluster->Front());
-				largestClusterVolume = glm::max<float>(largestClusterVolume, cluster->Front()->m_bounds.Volume());
-			}
-			else if (cluster->Count() > 3 && passCount <= 1)
-			{
-				// Cluster has many nodes and we're deep in the tree. Add nodes as a child of the last node to reduce complexity.
-				BuildNode* last = clusterNodes.PushBack() = cluster->PopBack();
-
-				for (auto& child : *cluster)
+				else if (cluster->Count() > 3 && passCount <= 1)
 				{
-					child->m_parent = last;
-					last->m_bounds.Encapsulate(child->m_bounds);
-					last->m_children.PushBack(child);
+					// Cluster has many nodes and we're deep in the tree. Add nodes as a child of the last node to reduce complexity.
+					BuildNode* last = clusterNodes.PushBack() = cluster->PopBack();
+
+					for (auto& child : *cluster)
+					{
+						child->m_parent = last;
+						last->m_bounds.Encapsulate(child->m_bounds);
+						last->m_children.PushBack(child);
+					}
+
+					largestClusterVolume = glm::max<float>(largestClusterVolume, last->m_bounds.Volume());
 				}
-
-				largestClusterVolume = glm::max<float>(largestClusterVolume, last->m_bounds.Volume());
-			}
-			else
-			{
-				// Cluster has few nodes, or is otherwise higher up in the tree. Create a new node and add all cluster nodes as children.
-				BuildNode* newNode = clusterNodes.PushBack() = AllocateBuildNode();
-				newNode->m_bounds = cluster->Front()->m_bounds;
-
-				for (auto& child : *cluster)
+				else
 				{
-					child->m_parent = newNode;
-					newNode->m_bounds.Encapsulate(child->m_bounds);
-					newNode->m_children.PushBack(child);
+					// Cluster has few nodes, or is otherwise higher up in the tree. Create a new node and add all cluster nodes as children.
+					BuildNode* newNode = clusterNodes.PushBack() = AllocateBuildNode();
+					newNode->m_bounds = cluster->Front()->m_bounds;
+
+					for (auto& child : *cluster)
+					{
+						child->m_parent = newNode;
+						newNode->m_bounds.Encapsulate(child->m_bounds);
+						newNode->m_children.PushBack(child);
+					}
+
+					largestClusterVolume = glm::max<float>(largestClusterVolume, newNode->m_bounds.Volume());
 				}
 
-				largestClusterVolume = glm::max<float>(largestClusterVolume, newNode->m_bounds.Volume());
+				m_allocator->Free(cluster);
+				cluster = nullptr;
 			}
 
-			m_allocator->Free(cluster);
-			cluster = nullptr;
-		}
-
-		if (waveIdx < waves.Count() && (clusterNodes.Count() == 1 || largestClusterVolume >= waves[waveIdx].second))
-		{
-			clusterNodes += *waves[waveIdx].first;
-			++waveIdx;
+			if (waveIdx < waves.Count() && (clusterNodes.Count() == 1 || largestClusterVolume >= waves[waveIdx].second))
+			{
+				clusterNodes += *waves[waveIdx].first;
+				++waveIdx;
+			}
 		}
 
 		BuildNode* root = nullptr;

@@ -40,6 +40,8 @@ namespace Eng
 
 		void Init(CLib::Allocator* allocator, const CreateDesc& desc);
 
+		virtual void Destroy();
+
 		void Build();
 
 		void AddObject(const ObjectData* objectData);
@@ -73,7 +75,7 @@ namespace Eng
 
 		using Cluster = CLib::Vector<BuildNode*>;
 		using ClusterArray = CLib::Vector<Cluster*, 128, 64>;
-		using NodeWave = std::pair<CLib::Vector<BuildNode*>*, float>;
+		using NodeWave = std::pair<Cluster*, float>;
 
 		using NodeChildren = CLib::Vector<BuildNode*, ChildSoftLimit>;
 		struct BuildNode

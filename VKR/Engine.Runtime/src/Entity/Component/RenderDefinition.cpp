@@ -10,9 +10,8 @@ namespace Eng
 		m_material = material;
 	}
 
-	void RenderDefinition::OnConstruction()
+	void RenderDefinition::CommitStaticRenderEntity()
 	{
-		EntityHierarchy* hierarchy = m_host->GetHierarchy();
 		Transform* transform = m_host->GetComponent<Transform>();
 
 		m_objectData.m_meshID = m_meshID;
@@ -23,6 +22,7 @@ namespace Eng
 		m_objectData.m_bounds = Bounds(m_objectData.m_meshData.m_boundOrigin, m_objectData.m_meshData.m_boundExtents);
 		m_objectData.m_bounds.Transform(m_objectData.m_transform);
 
+		EntityHierarchy* hierarchy = m_host->GetHierarchy();
 		hierarchy->GetRenderHierarchy().AddObject(&m_objectData);
 	}
 }

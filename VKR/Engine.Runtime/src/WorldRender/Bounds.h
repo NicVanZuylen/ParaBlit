@@ -19,7 +19,7 @@ namespace Eng
 			m_extents = extents;
 		}
 
-		static const Bounds& Identity()
+		static const Bounds Identity()
 		{
 			return 
 			{ 
