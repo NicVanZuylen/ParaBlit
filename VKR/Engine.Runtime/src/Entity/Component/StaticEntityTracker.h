@@ -32,6 +32,13 @@ namespace Eng
 		*/
 		void CommitEntity();
 
+		void UncommitEntity();
+
+		/*
+		Description: Update the committed entity's transform.
+		*/
+		void UpdateEntity();
+
 	private:
 
 		EntityBoundingVolumeHierarchy::ObjectData m_entityObjectData;

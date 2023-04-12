@@ -39,9 +39,9 @@ namespace Eng
 		}
 	}
 
-	BoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::BuildBottomUp(InputObjects& objects)
+	BoundingVolumeHierarchy::BuildNode* RenderBoundingVolumeHierarchy::BuildBottomUp(InputObjects& objects, uint32_t baseDepth)
 	{
-		BuildNode* buildResult = BoundingVolumeHierarchy::BuildBottomUp(objects);
+		BuildNode* buildResult = BoundingVolumeHierarchy::BuildBottomUp(objects, baseDepth);
 
 		BatchMap batchMap;
 		std::set<PB::Pipeline> excludedPipelines;
@@ -69,7 +69,7 @@ namespace Eng
 		InputObjects objects;
 		BoundingVolumeHierarchy::RecursiveGetObjectData(objects, subtreeRoot);
 
-		BuildNode* newSubtree = BoundingVolumeHierarchy::BuildBottomUp(objects);
+		BuildNode* newSubtree = BoundingVolumeHierarchy::BuildBottomUp(objects, subtreeRoot->m_depth);
 		newSubtree->m_parent = subtreeRoot->m_parent;
 
 		// Replace old subtree with new one in parent.
@@ -84,6 +84,11 @@ namespace Eng
 					break;
 				}
 			}
+		}
+		else
+		{
+			assert(newSubtree->m_depth == 0);
+			m_root = newSubtree;
 		}
 
 		// With the new subtree linked, we can now build or rebuild any necessary draw batches.

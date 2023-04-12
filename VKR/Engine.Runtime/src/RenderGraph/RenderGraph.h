@@ -161,7 +161,7 @@ namespace Eng
 		// Tracks the usage of attachments through multiple passes.
 		struct TextureUsageData
 		{
-			CLib::String<8, char> m_name;
+			CLib::String m_name;
 			PB::ITexture* m_texture = nullptr;
 			uint32_t m_firstPassIndex = ~0u;			// Index of the first pass where this texture is used.
 			uint32_t m_mostRecentPassIndex = ~0u;		// Index of the most recent pass this texture is used in so far (during build step).

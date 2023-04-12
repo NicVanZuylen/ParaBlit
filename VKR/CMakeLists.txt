@@ -15,7 +15,7 @@ set(LIBRARY_CLIB_CMAKE_LIBRARY_NAME CLib)
 set(_EXTERNAL_DIR_ "${CMAKE_SOURCE_DIR}/External")
 set(_BUILD_DIR_ "${CMAKE_SOURCE_DIR}/build")
 
-set(_VK_VERSION_ 1.2.198.1)
+set(_VK_VERSION_ 1.3.243.0)
 
 # External
 add_subdirectory(${_EXTERNAL_DIR_})

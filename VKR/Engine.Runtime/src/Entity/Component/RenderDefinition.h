@@ -31,6 +31,8 @@ namespace Eng
 		const Bounds& GetRenderBounds() { return m_objectData.m_bounds; }
 
 		void CommitStaticRenderEntity();
+		void UpdateStaticRenderEntity();
+		void UncommitStaticRenderEntity();
 
 	private:
 

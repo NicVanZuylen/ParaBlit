@@ -3,6 +3,8 @@
 #include "Camera.h"
 #include "Bounds.h"
 
+#include <unordered_map>
+
 class DebugLinePass;
 
 namespace Eng
@@ -25,9 +27,15 @@ namespace Eng
 		};
 
 		class BuildNode;
-		
+
+		struct NodeHandle
+		{
+			BuildNode* m_node = nullptr;
+		};
+
 		struct ObjectData
 		{
+			NodeHandle m_handle;
 			Bounds m_bounds;
 		};
 
@@ -44,11 +52,24 @@ namespace Eng
 
 		void Build();
 
+		/*
+		Description: Add an object to be built into the BVH. The provided pointer is expected to point to a persistent external allocation, and the pointer itself will be used as a handle for further modifications.
+		Param:
+			const ObjectData* objectData: Provided object data & handle. ObjectData instance is expected to be a persistent external allocation until it is removed from the BVH.
+		*/
 		void AddObject(const ObjectData* objectData);
+
+		void UpdateObject(const ObjectData* objectData);
+
+		void RemoveObject(const ObjectData* objectData);
+
+		void UpdateTree();
 
 		void DebugDraw(const Camera* camera, DebugLinePass* lines, uint32_t depth, bool drawObjectBounds) const;
 
 		Bounds GetBounds() const { return m_root ? m_root->m_bounds : Bounds(); }
+
+		const ObjectData* RaycastGetObjectData(DebugLinePass* lines, const glm::vec3& rayOrigin, const glm::vec3& rayDirection);
 
 	protected:
 
@@ -122,7 +143,7 @@ namespace Eng
 
 		float GetClusterScore(const BuildNode* a, std::vector<BuildNode*>& pool);
 
-		virtual BuildNode* BuildBottomUp(InputObjects& objects);
+		virtual BuildNode* BuildBottomUp(InputObjects& objects, uint32_t baseDepth);
 
 		virtual void RebuildSubTree(BuildNode* subtreeRoot);
 
@@ -136,7 +157,17 @@ namespace Eng
 
 		void AssignDepth(BuildNode* node, uint32_t depth);
 
+		// Find the deepest parent node which encapsulates the provided object.
+		BuildNode* FindNewObjectParent(const ObjectData* object);
+
+		std::pair<BuildNode*, BuildNode*> RebuildOneOrBoth(BuildNode* a, BuildNode* b);
+
+		// Get all build nodes which need rebuilding from a list of moved/removed/transformed objects.
+		void GetRebuildCandidates(CLib::Vector<BuildNode*>& outNodes, InputObjects& objects, InputObjects& erasureObjects);
+
 		void RecursiveGetObjectData(CLib::Vector<const ObjectData*>& outObjectData, BuildNode* node);
+
+		std::pair<BuildNode*, float> RecursiveObjectRayIntersection(BuildNode* node, const glm::vec3& rayOrigin, const glm::vec3& rayDirection);
 
 		void RecursiveFreeNode(BuildNode* node);
 
@@ -155,6 +186,8 @@ namespace Eng
 		float m_toleranceDistance[uint32_t(EProjectedAxis::Z) + 1]{};
 		float m_toleranceStep[uint32_t(EProjectedAxis::Z) + 1]{};
 		InputObjects m_input;
+		InputObjects m_erasureObjects;
+		std::unordered_map<const ObjectData*, BuildNode*> m_objectNodeMap;
 	};
 
 };

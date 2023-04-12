@@ -49,22 +49,29 @@ namespace Eng
 		{
 			m_entityAllocator.Free(entity);
 		}
-		m_entityAllocations.Clear();
+		m_entityAllocations.clear();
 
 		m_entityBoundingVolumeHierarchy.Destroy();
 		m_renderHierarchy.Destroy();
 	}
 
-	Entity* EntityHierarchy::AddEntity(const glm::vec3& position)
+	Entity* EntityHierarchy::AddEntity(const glm::vec3& position, const char* name)
 	{
-		Entity* newEntity = m_entityAllocator.Alloc<Entity>(this);
+		Entity* newEntity = m_entityAllocator.Alloc<Entity>(this, name);
 		Transform* transform = newEntity->AddComponent<Transform>();
 		transform->SetPosition(position);
 
 		newEntity->AddComponent<StaticEntityTracker>();
 
-		m_entityAllocations.PushBack(newEntity);
+		m_entityAllocations.insert(newEntity);
 		return newEntity;
+	}
+
+	void EntityHierarchy::DestroyEntity(Entity* entity)
+	{
+		entity->GetComponent<StaticEntityTracker>()->UncommitEntity();
+
+		UpdateTrees();
 	}
 
 	void EntityHierarchy::CommitEntity(Entity* entity)
@@ -74,6 +81,26 @@ namespace Eng
 		{
 			tracker->CommitEntity();
 		}
+	}
+
+	void EntityHierarchy::UpdateTrees()
+	{
+		m_entityBoundingVolumeHierarchy.UpdateTree();
+		m_renderHierarchy.UpdateTree();
+
+		PB::CommandContextDesc contextDesc{};
+		contextDesc.m_renderer = m_renderer;
+		contextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
+		contextDesc.m_flags = PB::ECommandContextFlags::PRIORITY;
+
+		PB::SCommandContext initCmdContext(m_renderer);
+		initCmdContext->Init(contextDesc);
+		initCmdContext->Begin();
+
+		m_renderHierarchy.BakeBatches(initCmdContext.GetContext());
+
+		initCmdContext->End();
+		initCmdContext->Return();
 	}
 
 	void EntityHierarchy::BakeTrees()
@@ -94,5 +121,15 @@ namespace Eng
 
 		initCmdContext->End();
 		initCmdContext->Return();
+	}
+
+	void EntityHierarchy::UpdateBVHTest(Entity* entityToMove)
+	{
+		printf_s("Moving Entity: %s\n", entityToMove->GetName());
+
+		entityToMove->GetComponent<Transform>()->Translate(glm::vec3(1.0f, 0.0f, 0.0f));
+		entityToMove->GetComponent<StaticEntityTracker>()->UpdateEntity();
+
+		UpdateTrees();
 	}
 }

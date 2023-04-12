@@ -165,29 +165,46 @@ namespace Eng
 			m_shadowmapPass[i]->Update();
 		}
 
-		if (!input->GetKey(GLFW_KEY_R, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_R, INPUTSTATE_PREVIOUS))
+		if (!input->GetKey(GLFW_KEY_R, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_R, INPUTSTATE_PREVIOUS) && m_selectedEntity != nullptr)
 		{
 			std::cout << "BVH: Rebuilding subtree experiment... \n";
 
-			PB::CommandContextDesc contextDesc{};
-			contextDesc.m_renderer = m_renderer;
-			contextDesc.m_usage = PB::ECommandContextUsage::COMPUTE;
-			contextDesc.m_flags = PB::ECommandContextFlags::PRIORITY;
+			m_hierarchy.UpdateBVHTest(m_selectedEntity);
+		}
 
-			PB::SCommandContext initCmdContext(m_renderer);
-			initCmdContext->Init(contextDesc);
-			initCmdContext->Begin();
+		if (!input->GetKey(GLFW_KEY_DELETE, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_DELETE, INPUTSTATE_PREVIOUS) && m_selectedEntity != nullptr)
+		{
+			printf_s("Destroying Entity: %s\n", m_selectedEntity->GetName());
 
-			m_hierarchy.GetRenderHierarchy().RebuildTest();
-			m_hierarchy.GetRenderHierarchy().BakeBatches(initCmdContext.GetContext());
-
-			initCmdContext->End();
-			initCmdContext->Return();
+			m_hierarchy.DestroyEntity(m_selectedEntity);
+			m_selectedEntity = nullptr;
 		}
 
 		if (input->GetKey(GLFW_KEY_E, INPUTSTATE_CURRENT))
 		{
 			m_hierarchy.GetEntityBoundingVolumeHierarchy().DebugDraw(&m_camera, m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
+		}
+
+		if (input->GetMouseButton(MOUSEBUTTON_LEFT, INPUTSTATE_PREVIOUS) && !input->GetMouseButton(MOUSEBUTTON_LEFT, INPUTSTATE_CURRENT))
+		{
+			glm::vec4 cursorScreenPos = glm::vec4(0.0f, 0.0f, 1.0f, 0.2f);
+			cursorScreenPos.x = input->GetCursorX(INPUTSTATE_CURRENT) / m_swapchain->GetWidth();
+			cursorScreenPos.y = input->GetCursorY(INPUTSTATE_CURRENT) / m_swapchain->GetHeight();
+
+			glm::vec3 cursorFarPlanePos = m_camera.GetCursorFarPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
+			glm::vec3 cursorNearPlanePos = m_camera.GetCursorNearPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
+			glm::vec3 rayDirection = cursorFarPlanePos - cursorNearPlanePos;
+
+			auto* selectedEntityData = m_hierarchy.GetEntityBoundingVolumeHierarchy().RaycastGetObjectData(m_debugLinePass, glm::vec3(cursorNearPlanePos), rayDirection);
+			if (selectedEntityData)
+			{
+				m_selectedEntity = reinterpret_cast<const EntityBoundingVolumeHierarchy::ObjectData*>(selectedEntityData)->m_entity;
+				printf_s("Selected Entity: %s\n", m_selectedEntity->GetName());
+			}
+			else
+			{
+				printf_s("No Entity Selected.\n");
+			}
 		}
 
 		// Update Camera -------------------------------------------------------------------------------------------------
@@ -595,7 +612,7 @@ namespace Eng
 		AssetEncoder::AssetID glassMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
 
-		const uint32_t spinnerCount = 5;
+		const uint32_t spinnerCount = 2;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
 			//glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
@@ -609,7 +626,7 @@ namespace Eng
 
 			glm::quat spinnerQuat = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-			Entity* paintEntity = m_hierarchy.AddEntity(pos);
+			Entity* paintEntity = m_hierarchy.AddEntity(pos, "spinner_paint");
 			Transform* paintTransform = paintEntity->GetComponent<Transform>();
 			paintTransform->SetPosition(pos);
 			paintTransform->SetRotation(spinnerQuat);
@@ -617,7 +634,7 @@ namespace Eng
 			paintEntity->AddComponent<RenderDefinition>(paintMeshID, m_spinnerMaterials[0]);
 			m_hierarchy.CommitEntity(paintEntity);
 
-			Entity* detailsEntity = m_hierarchy.AddEntity(pos);
+			Entity* detailsEntity = m_hierarchy.AddEntity(pos, "spinner_details");
 			Transform* detailsTransform = detailsEntity->GetComponent<Transform>();
 			detailsTransform->SetPosition(pos);
 			detailsTransform->SetRotation(spinnerQuat);
@@ -625,7 +642,7 @@ namespace Eng
 			detailsEntity->AddComponent<RenderDefinition>(detailsMeshID, m_spinnerMaterials[1]);
 			m_hierarchy.CommitEntity(detailsEntity);
 
-			Entity* glassEntity = m_hierarchy.AddEntity(pos);
+			Entity* glassEntity = m_hierarchy.AddEntity(pos, "spinner_glass");
 			Transform* glassTransform = glassEntity->GetComponent<Transform>();
 			glassTransform->SetPosition(pos);
 			glassTransform->SetRotation(spinnerQuat);
@@ -638,7 +655,7 @@ namespace Eng
 		glm::vec3 planeOffset = glm::vec3(0.0f, -0.2f, 0.0f);
 		modelMat = glm::translate(glm::mat4(), planeOffset);
 
-		Entity* planeEntity = m_hierarchy.AddEntity(planeOffset);
+		Entity* planeEntity = m_hierarchy.AddEntity(planeOffset, "plane");
 		Transform* planeTransform = planeEntity->GetComponent<Transform>();
 		planeTransform->SetPosition(planeOffset);
 		planeEntity->AddComponent<RenderDefinition>(planeMeshID, m_planeMaterial);
@@ -646,7 +663,7 @@ namespace Eng
 
 		glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
 
-		Entity* debugPlaneEntity = m_hierarchy.AddEntity(debugPlaneOffset);
+		Entity* debugPlaneEntity = m_hierarchy.AddEntity(debugPlaneOffset, "debug_plane");
 		Transform* debugPlaneTransform = debugPlaneEntity->GetComponent<Transform>();
 		debugPlaneTransform->SetPosition(debugPlaneOffset);
 		debugPlaneTransform->RotateEulerZ(-45.0f);

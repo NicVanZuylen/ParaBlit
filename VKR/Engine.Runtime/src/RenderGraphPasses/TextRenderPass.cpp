@@ -94,11 +94,13 @@ namespace Eng
 		if (m_pendingInstanceCopies.Count() > 0)
 		{
 			info.m_commandContext->CmdCopyBufferToBuffer(m_localCharInstanceBuffer, m_charInstanceBuffer, m_pendingInstanceCopies.Data(), m_pendingInstanceCopies.Count());
+			m_pendingInstanceCopies.Clear();
 		}
 
 		if (m_pendingFontDataCopies.Count() > 0)
 		{
 			info.m_commandContext->CmdCopyBufferToBuffer(m_localFontDataBuffer, m_fontDataBuffer, m_pendingFontDataCopies.Data(), m_pendingFontDataCopies.Count());
+			m_pendingFontDataCopies.Clear();
 		}
 	}
 

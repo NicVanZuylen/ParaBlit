@@ -90,7 +90,7 @@ namespace Eng
 			BakedNodes m_bakedNodes{};
 		};
 
-		BuildNode* BuildBottomUp(InputObjects& objects) override;
+		BuildNode* BuildBottomUp(InputObjects& objects, uint32_t baseDepth) override;
 
 		void RebuildSubTree(BuildNode* subtreeRoot) override;
 

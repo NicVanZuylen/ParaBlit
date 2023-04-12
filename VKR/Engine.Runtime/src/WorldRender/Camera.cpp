@@ -139,6 +139,30 @@ namespace Eng
 		return axisCorrection * glm::perspectiveFov<float>(m_fovY, m_width, m_height, m_zNear, m_zFar);
 	}
 
+	glm::vec3 Camera::GetCursorNearPlaneWorldPosition(glm::vec2 cursorCoords)
+	{
+		float right = 1.0f - cursorCoords.x;
+		float up = 1.0f - cursorCoords.y;
+
+		glm::vec3 nearCornerDiff = m_frustrum.m_nearBottomRight - m_frustrum.m_nearTopLeft;
+		glm::vec3 nearPos = m_frustrum.m_nearTopLeft + (glm::dot(nearCornerDiff, Right()) * Right() * right);
+		nearPos += (glm::dot(nearCornerDiff, Up()) * Up() * up);
+
+		return nearPos;
+	}
+
+	glm::vec3 Camera::GetCursorFarPlaneWorldPosition(glm::vec2 cursorCoords)
+	{
+		float right = 1.0f - cursorCoords.x;
+		float up = 1.0f - cursorCoords.y;
+
+		glm::vec3 farCornerDiff = m_frustrum.m_farBottomRight - m_frustrum.m_farTopLeft;
+		glm::vec3 farPos = m_frustrum.m_farTopLeft + (glm::dot(farCornerDiff, Right()) * Right() * right);
+		farPos += (glm::dot(farCornerDiff, Up()) * Up() * up);
+
+		return farPos;
+	}
+
 	void Camera::GetFrustrumSection(CameraFrustrum& outFrustrum, float nearDistance, float farDistance) const
 	{
 		const glm::vec3 nearCentre = Position() + (Forward() * nearDistance);

@@ -28,12 +28,12 @@ namespace Eng
 
 	BoundingVolumeHierarchy::~BoundingVolumeHierarchy()
 	{
-		
+
 	}
 
 	void BoundingVolumeHierarchy::Build()
 	{
-		m_root = this->BuildBottomUp(m_input);
+		m_root = this->BuildBottomUp(m_input, 0);
 		m_input.Clear();
 	}
 
@@ -45,12 +45,42 @@ namespace Eng
 		}
 	}
 
-	void BoundingVolumeHierarchy::AddObject(const ObjectData* object)
+	const BoundingVolumeHierarchy::ObjectData* BoundingVolumeHierarchy::RaycastGetObjectData(DebugLinePass* lines, const glm::vec3& rayOrigin, const glm::vec3& rayDirection)
 	{
-		m_input.PushBack(object);
+		BuildNode* result = RecursiveObjectRayIntersection(m_root, rayOrigin, rayDirection).first;
+		if (result)
+		{
+			auto* data = result->m_objectData;
+			DebugDrawCube(lines, data->m_bounds.m_origin, data->m_bounds.m_extents, glm::vec3(0.0f, 1.0f, 0.0f));
+			return data;
+		}
+		return nullptr;
 	}
 
-	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::BuildBottomUp(CLib::Vector<const ObjectData*>& objects)
+	void BoundingVolumeHierarchy::AddObject(const ObjectData* objectData)
+	{
+		assert(m_objectNodeMap.find(objectData) == m_objectNodeMap.end());
+
+		m_input.PushBack(objectData);
+		m_objectNodeMap.insert({objectData, nullptr});
+	}
+
+	void BoundingVolumeHierarchy::UpdateObject(const ObjectData* objectData)
+	{
+		assert(m_objectNodeMap.find(objectData) != m_objectNodeMap.end() && m_objectNodeMap[objectData] != nullptr);
+		m_input.PushBack(objectData);
+	}
+
+	void BoundingVolumeHierarchy::RemoveObject(const ObjectData* objectData)
+	{
+		auto it = m_objectNodeMap.find(objectData);
+		if (it != m_objectNodeMap.end())
+		{
+			m_erasureObjects.PushBack(objectData);
+		}
+	}
+
+	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::BuildBottomUp(CLib::Vector<const ObjectData*>& objects, uint32_t baseDepth)
 	{
 		CLib::Vector<BuildNode*> nodes;
 		nodes.Reserve(objects.Count());
@@ -62,6 +92,8 @@ namespace Eng
 			nodes.PushBack(n);
 			BuildNode& node = *n;
 
+			m_objectNodeMap[obj] = n;
+
 			node.m_parent = nullptr;
 			node.m_bounds = obj->m_bounds;
 			node.m_objectData = obj;
@@ -69,7 +101,10 @@ namespace Eng
 			node.m_isObject = true;
 		}
 
-		return BuildBottomUpInternal(nodes);
+		BuildNode* result = BuildBottomUpInternal(nodes);
+		AssignDepth(result, baseDepth);
+
+		return result;
 	}
 
 	void BoundingVolumeHierarchy::RebuildSubTree(BuildNode* subtreeRoot)
@@ -77,7 +112,7 @@ namespace Eng
 		CLib::Vector<const ObjectData*> objects;
 		RecursiveGetObjectData(objects, subtreeRoot);
 
-		BuildNode* newSubtree = BuildBottomUp(objects);
+		BuildNode* newSubtree = this->BuildBottomUp(objects, subtreeRoot->m_depth);
 		newSubtree->m_parent = subtreeRoot->m_parent;
 
 		// Replace old subtree with new one in parent.
@@ -92,6 +127,43 @@ namespace Eng
 					break;
 				}
 			}
+		}
+		else
+		{
+			// New subtree is not a subtree. The whole tree has been rebuilt and it is the new root.
+			assert(newSubtree->m_depth == 0);
+			m_root = newSubtree;
+		}
+
+		// Free old subtree.
+		RecursiveFreeNode(subtreeRoot);
+	}
+
+	void BoundingVolumeHierarchy::UpdateTree()
+	{
+		if (m_input.Count() == 0 && m_erasureObjects.Count() == 0)
+			return;
+
+		CLib::Vector<BuildNode*> subtreesToRebuild;
+		GetRebuildCandidates(subtreesToRebuild, m_input, m_erasureObjects);
+		m_input.Clear();
+
+		for (auto& erasureObj : m_erasureObjects)
+		{
+			auto it = m_objectNodeMap.find(erasureObj);
+			assert(it != m_objectNodeMap.end());
+
+			// No longer treating the node as an object node will prevent it from being included in any subtree rebuild.
+			BuildNode* erasureNode = it->second;
+			erasureNode->m_isObject = false;
+
+			m_objectNodeMap.erase(it);
+		}
+		m_erasureObjects.Clear();
+
+		for (auto& subtree : subtreesToRebuild)
+		{
+			RebuildSubTree(subtree);
 		}
 	}
 
@@ -126,7 +198,7 @@ namespace Eng
 
 	void BoundingVolumeHierarchy::GenClusters(CLib::Vector<BuildNode*>& nodes, CLib::Vector<Cluster*>& outClusters, EProjectedAxis axis)
 	{
-		auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
+		const auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
 		{
 			return a->GetRange(axis).m_min < b->GetRange(axis).m_min;
 		};
@@ -135,7 +207,7 @@ namespace Eng
 
 	void BoundingVolumeHierarchy::AxisSplitClusters(ClusterArray& clusters, EProjectedAxis axis)
 	{
-		auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
+		const auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
 		{
 			return a->GetRange(axis).m_min < b->GetRange(axis).m_min;
 		};
@@ -187,7 +259,7 @@ namespace Eng
 
 	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::BuildBottomUpInternal(CLib::Vector<BuildNode*>& nodes)
 	{
-		auto compare = [=](const BuildNode* a, const BuildNode* b)
+		const auto compare = [=](const BuildNode* a, const BuildNode* b)
 		{
 			return a->m_bounds.Volume() < b->m_bounds.Volume();
 		};
@@ -234,9 +306,6 @@ namespace Eng
 			m_allocator->Free(wave.first);
 		}
 
-		if(root)
-			AssignDepth(root, 0);
-
 		return root;
 	}
 
@@ -265,7 +334,7 @@ namespace Eng
 
 			clusterNodes.Reserve(clusters.Count());
 
-			auto volumeCompare = [=](const BuildNode* a, const BuildNode* b)
+			const auto volumeCompare = [=](const BuildNode* a, const BuildNode* b)
 			{
 				return a->m_bounds.Volume() > b->m_bounds.Volume();
 			};
@@ -318,7 +387,7 @@ namespace Eng
 					clusterNodes.PushBack(cluster->Front());
 					largestClusterVolume = glm::max<float>(largestClusterVolume, cluster->Front()->m_bounds.Volume());
 				}
-				else if (cluster->Count() > 3 && passCount <= 1)
+				else if (cluster->Count() >= ChildSoftLimit && passCount <= 1)
 				{
 					// Cluster has many nodes and we're deep in the tree. Add nodes as a child of the last node to reduce complexity.
 					BuildNode* last = clusterNodes.PushBack() = cluster->PopBack();
@@ -396,6 +465,131 @@ namespace Eng
 			AssignDepth(n, depth + 1);
 	}
 
+	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::FindNewObjectParent(const ObjectData* object)
+	{
+		m_root->m_bounds.Encapsulate(object->m_bounds);
+		BuildNode* encapsulatingParent = m_root;
+		bool foundNewParent = true;
+		while (foundNewParent)
+		{
+			foundNewParent = false;
+			for (auto& child : encapsulatingParent->m_children)
+			{
+				if (child->m_bounds.Encapsulates(object->m_bounds))
+				{
+					encapsulatingParent = child;
+					foundNewParent = true;
+					break;
+				}
+			}
+		}
+
+		return encapsulatingParent;
+	}
+
+	std::pair<BoundingVolumeHierarchy::BuildNode*, BoundingVolumeHierarchy::BuildNode*> BoundingVolumeHierarchy::RebuildOneOrBoth(BuildNode* a, BuildNode* b)
+	{
+		if (a == b)
+		{
+			// Object has not changed parents. Only rebuild the one parent.
+			return { a, nullptr };
+		}
+		else
+		{
+			if (a->m_depth == b->m_depth)
+			{
+				// Object changed parents but the depth is the same, meaning the object has changed branches in the tree.
+				// Rebuild both parents.
+				return { a, b };
+			}
+			else
+			{
+				// 1. Find which of the two parents is deeper in the tree and which is shallower.
+				// 2. Traverse up from the deeper node until the depth of the shallower node is reached.
+				// 3. If the node at the shallower node's depth is not the shallower node, rebuild both. Otherwise rebuild just the shallower node.
+
+				BuildNode* shallowestNode = nullptr;
+				BuildNode* deepestNode = nullptr;
+				if (a->m_depth > b->m_depth)
+				{
+					deepestNode = a;
+					shallowestNode = b;
+				}
+				else
+				{
+					deepestNode = b;
+					shallowestNode = a;
+				}
+
+				BuildNode* currentNode = deepestNode;
+				while (currentNode->m_depth > shallowestNode->m_depth)
+				{
+					currentNode = currentNode->m_parent;
+				}
+
+				if (currentNode == shallowestNode)
+				{
+					return { currentNode, nullptr };
+				}
+				else
+				{
+					return { shallowestNode, currentNode };
+				}
+			}
+		}
+	}
+
+	void BoundingVolumeHierarchy::GetRebuildCandidates(CLib::Vector<BuildNode*>& outNodes, InputObjects& objects, InputObjects& erasureObjects)
+	{
+		CLib::Vector<BuildNode*, 16, 16> rebuildCandidates;
+		for (auto& obj : objects)
+		{
+			auto it = m_objectNodeMap.find(obj);
+			bool isNew = it == m_objectNodeMap.end();
+
+			BuildNode* newParent = FindNewObjectParent(obj);
+			if (isNew == false)
+			{
+				BuildNode* oldParent = it->second->m_parent;
+				auto [a, b] = RebuildOneOrBoth(newParent, oldParent);
+				rebuildCandidates.PushBack(a);
+				if (b != nullptr)
+				{
+					rebuildCandidates.PushBack(b);
+				}
+			}
+			else
+			{
+				rebuildCandidates.PushBack(newParent);
+			}
+		}
+
+		for (auto& obj : erasureObjects)
+		{
+			rebuildCandidates.PushBack(m_objectNodeMap[obj]->m_parent);
+		}
+
+		// Eliminate redundant rebuild candidates.
+		for (uint32_t i = 0; i < rebuildCandidates.Count();)
+		{
+			if (i >= rebuildCandidates.Count() - 1)
+			{
+				outNodes.PushBack(rebuildCandidates.Back());
+				break;
+			}
+
+			BuildNode*& current = rebuildCandidates[i];
+			BuildNode*& next = rebuildCandidates[i + 1];
+
+			auto [a, b] = RebuildOneOrBoth(current, next);
+			outNodes.PushBack(a);
+			
+			i += b != nullptr ? 1 : 2;
+		}
+		
+		// All of the nodes in outNodes should be possible to rebuild individually (possibly in parallel) without conflict.
+	}
+
 	void BoundingVolumeHierarchy::RecursiveGetObjectData(InputObjects& outObjectData, BuildNode* node)
 	{
 		if (node->m_isObject)
@@ -438,6 +632,69 @@ namespace Eng
 			&& IsInFrontOfPlane(frustrum.m_top, bounds)
 			&& IsInFrontOfPlane(frustrum.m_bottom, bounds)
 			&& IsInFrontOfPlane(frustrum.m_far, bounds);
+	}
+
+	std::pair<BoundingVolumeHierarchy::BuildNode*, float> BoundingVolumeHierarchy::RecursiveObjectRayIntersection(BuildNode* node, const glm::vec3& rayOrigin, const glm::vec3& rayDirection)
+	{
+		using Hit = std::pair<BuildNode*, float>;
+		static const Hit NoHit = { nullptr, INFINITY };
+
+		assert(node->m_isObject == false);
+
+		// Search node children for any ray hits.
+		Hit closestHit = NoHit;						// Track closest hit to narrow search.
+		CLib::Vector<Hit, 8> intersectingChildren;	// Track all child hits in case the closest one does not yield an object hit.
+		{
+			for (BuildNode*& child : node->m_children)
+			{
+				float dist;
+				if (child->m_bounds.IsIntersectingWithRay(rayOrigin, rayDirection, dist))
+				{
+					if (dist < closestHit.second)
+						closestHit = { child, dist };
+
+					intersectingChildren.PushBack({ child, dist });
+				}
+			}
+		}
+
+		if (closestHit != NoHit)
+		{
+			// If the closest hit is an object. Return it.
+			if (closestHit.first->m_isObject)
+				return closestHit;
+
+			// If the closest hit is a parent node, find the closest child object the ray hits (if any), and return it.
+			Hit hitObject = RecursiveObjectRayIntersection(closestHit.first, rayOrigin, rayDirection);
+			if (hitObject.first != nullptr)
+			{
+				assert(hitObject.first->m_isObject == true);
+				return hitObject;
+			}
+
+			// If no object under the closest node was hit, search other hit children from closest to furthest.
+			static constexpr auto distanceCompare = [](const Hit& a, const Hit& b)
+			{
+				return a.second < b.second;
+			};
+			std::sort(intersectingChildren.begin(), intersectingChildren.end(), distanceCompare);
+
+			for (Hit& childHit : intersectingChildren)
+			{
+				if (childHit.first->m_isObject)
+					hitObject = childHit;
+				else
+					hitObject = RecursiveObjectRayIntersection(childHit.first, rayOrigin, rayDirection);
+
+				if (hitObject.first != nullptr)
+				{
+					assert(hitObject.first->m_isObject == true);
+					return hitObject;
+				}
+			}
+		}
+
+		return NoHit;
 	}
 
 	void BoundingVolumeHierarchy::RecursiveDebugDrawNode(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, BuildNode* node, uint32_t depth, bool drawObjectBounds) const

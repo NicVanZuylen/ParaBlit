@@ -112,6 +112,9 @@ namespace Eng
 
 		const CameraFrustrum& GetFrustrum() const { return m_frustrum; }
 
+		glm::vec3 GetCursorNearPlaneWorldPosition(glm::vec2 cursorCoords);
+		glm::vec3 GetCursorFarPlaneWorldPosition(glm::vec2 cursorCoords);
+
 		void GetFrustrumSection(CameraFrustrum& outFrustrum, float nearDistance, float farDistance) const;
 
 		static void GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, glm::vec3 position, glm::vec3 forward, float leftBound, float rightBound, float bottomBound, float topBound, float nearDistance, float farDistance);

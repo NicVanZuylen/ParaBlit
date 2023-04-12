@@ -1,5 +1,6 @@
 #pragma once
 #include <CLib/Vector.h>
+#include <CLib/String.h>
 #include <CLib/Allocator.h>
 #include <Clib/Reflection.h>
 
@@ -42,10 +43,13 @@ namespace Eng
 	{
 	public:
 
-		Entity(EntityHierarchy* hierarchy)
+		Entity(EntityHierarchy* hierarchy, const char* name = nullptr)
 			: m_hierarchy(hierarchy)
 		{
-
+			if (name != nullptr)
+				m_name = name;
+			else
+				m_name = "UNNAMED_ENTITY";
 		}
 
 		~Entity();
@@ -156,8 +160,11 @@ namespace Eng
 
 		inline EntityHierarchy* GetHierarchy() { return m_hierarchy; }
 
+		inline const char* GetName() const { return m_name; }
+
 	private:
 
+		CLib::String m_name;
 		EntityHierarchy* m_hierarchy;
 		CLib::Vector<Entity*, 4, 4> m_children;
 		CLib::Vector<EntityComponent*, 4, 4> m_components;

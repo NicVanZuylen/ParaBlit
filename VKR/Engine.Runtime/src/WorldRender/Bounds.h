@@ -125,5 +125,30 @@ namespace Eng
 			m_extents = newExtents;
 			m_extents -= m_origin;
 		}
+
+		inline bool IsIntersectingWithRay(const glm::vec3& rayOrigin, const glm::vec3& rayDirection, float& outDistance)
+		{
+			// Cyrus-Beck clipping method, where t = ray distance.
+
+			float tMinX = (m_origin.x - rayOrigin.x) / rayDirection.x;
+			float tMaxX = (MaxX() - rayOrigin.x) / rayDirection.x;
+			float tMinY = (m_origin.y - rayOrigin.y) / rayDirection.y;
+			float tMaxY = (MaxY() - rayOrigin.y) / rayDirection.y;
+			float tMinZ = (m_origin.z - rayOrigin.z) / rayDirection.z;
+			float tMaxZ = (MaxZ() - rayOrigin.z) / rayDirection.z;
+
+			float tMin = glm::max(glm::max(glm::min(tMinX, tMaxX), glm::min(tMinY, tMaxY)), glm::min(tMinZ, tMaxZ));
+			float tMax = glm::min(glm::min(glm::max(tMinX, tMaxX), glm::max(tMinY, tMaxY)), glm::max(tMinZ, tMaxZ));
+
+			outDistance = glm::max(tMin, tMax);
+
+			if (tMax < 0.0f)
+				return false;
+
+			if (tMin > tMax)
+				return false;
+
+			return true;
+		}
 	};
 };

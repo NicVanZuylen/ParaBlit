@@ -157,6 +157,7 @@ namespace Eng
 		// Entities
 
 		EntityHierarchy m_hierarchy;
+		Entity* m_selectedEntity = nullptr;
 
 		// -------------------------------------------------------------------------
 	};
