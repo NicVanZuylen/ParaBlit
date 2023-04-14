@@ -27,16 +27,14 @@ namespace Eng
 		// Initialize bounding volume hierarchies.
 		{
 			BoundingVolumeHierarchy::CreateDesc bvhDesc{};
-			bvhDesc.m_desiredMaxDepth = 50;
 
-			bvhDesc.m_toleranceDistanceX = 0.05f;
-			bvhDesc.m_toleranceDistanceY = 0.05f;
+			bvhDesc.m_toleranceDistanceX = 0.5f;
+			bvhDesc.m_toleranceDistanceZ = 0.5f;
+			bvhDesc.m_toleranceDistanceY = 1.0f;
 
-			bvhDesc.m_toleranceStepX = 0.05f;
-			bvhDesc.m_toleranceStepZ = 0.05f;
-
-			bvhDesc.m_toleranceDistanceY = 0.2f;
-			bvhDesc.m_toleranceStepY = 0.2f;
+			bvhDesc.m_toleranceStepX = 0.5f;
+			bvhDesc.m_toleranceStepZ = 0.5f;
+			bvhDesc.m_toleranceStepY = 1.0f;
 
 			m_renderHierarchy.Init(renderer, allocator, m_streamer, bvhDesc);
 			m_entityBoundingVolumeHierarchy.Init(allocator, bvhDesc);

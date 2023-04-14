@@ -15,11 +15,9 @@ namespace Eng
 	{
 		m_allocator = allocator;
 
-		m_desiredMaxDepth = desc.m_desiredMaxDepth;
-
-		m_toleranceDistance[0] = desc.m_toleranceDistanceX;
-		m_toleranceDistance[1] = desc.m_toleranceDistanceY;
-		m_toleranceDistance[2] = desc.m_toleranceDistanceZ;
+		m_origToleranceDistance[0] = m_toleranceDistance[0] = desc.m_toleranceDistanceX;
+		m_origToleranceDistance[1] = m_toleranceDistance[1] = desc.m_toleranceDistanceY;
+		m_origToleranceDistance[2] = m_toleranceDistance[2] = desc.m_toleranceDistanceZ;
 
 		m_toleranceStep[0] = desc.m_toleranceStepX;
 		m_toleranceStep[1] = desc.m_toleranceStepY;
@@ -112,6 +110,7 @@ namespace Eng
 		CLib::Vector<const ObjectData*> objects;
 		RecursiveGetObjectData(objects, subtreeRoot);
 
+		printf_s("Rebuilding subtree at depth: %u\n", subtreeRoot->m_depth);
 		BuildNode* newSubtree = this->BuildBottomUp(objects, subtreeRoot->m_depth);
 		newSubtree->m_parent = subtreeRoot->m_parent;
 
@@ -151,7 +150,8 @@ namespace Eng
 		for (auto& erasureObj : m_erasureObjects)
 		{
 			auto it = m_objectNodeMap.find(erasureObj);
-			assert(it != m_objectNodeMap.end());
+			if(it == m_objectNodeMap.end())
+				continue;
 
 			// No longer treating the node as an object node will prevent it from being included in any subtree rebuild.
 			BuildNode* erasureNode = it->second;
@@ -196,15 +196,6 @@ namespace Eng
 		return total - GetScore(a->m_bounds);
 	}
 
-	void BoundingVolumeHierarchy::GenClusters(CLib::Vector<BuildNode*>& nodes, CLib::Vector<Cluster*>& outClusters, EProjectedAxis axis)
-	{
-		const auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
-		{
-			return a->GetRange(axis).m_min < b->GetRange(axis).m_min;
-		};
-		std::sort(nodes.begin(), nodes.end(), rangeCompare);
-	}
-
 	void BoundingVolumeHierarchy::AxisSplitClusters(ClusterArray& clusters, EProjectedAxis axis)
 	{
 		const auto rangeCompare = [=](const BuildNode* a, const BuildNode* b) -> bool
@@ -212,46 +203,52 @@ namespace Eng
 			return a->GetRange(axis).m_min < b->GetRange(axis).m_min;
 		};
 
+		// For each cluster, split any nodes within which are too far apart on the provided axis into new clusters.
 		CLib::Vector<Cluster*, 32, 32> newClusters;
 		for (Cluster* c : clusters)
 		{
-			Cluster& cluster = *c;
+			Cluster& srcClusterToSplit = *c;
+			std::sort(srcClusterToSplit.begin(), srcClusterToSplit.end(), rangeCompare);
+			Cluster* currentCluster = c;
 
-			std::sort(cluster.begin(), cluster.end(), rangeCompare);
-
-			Cluster* lastCluster = &cluster;
-			ProjectedRange prevNodeRange = cluster[0]->GetRange(axis);
-			for (uint32_t i = 1; i < cluster.Count(); ++i)
+			uint32_t srcSplitCount = srcClusterToSplit.Count();
+			ProjectedRange currentClusterRange = srcClusterToSplit[0]->GetRange(axis);
+			for (uint32_t i = 1; i < srcClusterToSplit.Count(); ++i)
 			{
-				ProjectedRange nodeRange = cluster[i]->GetRange(axis);
+				BuildNode* currentNode = srcClusterToSplit[i];
+				ProjectedRange nodeRange = currentNode->GetRange(axis);
+				assert(nodeRange.m_min >= currentClusterRange.m_min);
 
-				if (nodeRange.m_min <= prevNodeRange.m_max || (nodeRange.m_min - prevNodeRange.m_max) <= m_toleranceDistance[uint32_t(axis)])
+				float gap = nodeRange.m_min - currentClusterRange.m_max;
+				bool acceptableGap = gap <= m_toleranceDistance[uint32_t(axis)] && currentCluster->Count() < ChildSoftLimit;
+				bool overlap = nodeRange.m_min <= currentClusterRange.m_max && nodeRange.m_max >= currentClusterRange.m_min;
+
+				if (overlap || acceptableGap)
 				{
-					if (lastCluster != &cluster)
-					{
-						lastCluster->PushBack(cluster[i]);
-						cluster[i] = nullptr;
-					}
+					// Do not split as the range is close enough to the cluster to remain within it.
+					// If the current cluster is the source cluster. Leave it rather than adding the node twice.
+					if(currentCluster != c)
+						currentCluster->PushBack(currentNode);
+
+					currentClusterRange.m_max = glm::max<float>(currentClusterRange.m_max, nodeRange.m_max);
 				}
 				else
 				{
-					lastCluster = newClusters.PushBack() = m_allocator->Alloc<Cluster>();
+					// If the current cluster is the source cluster, we will set its count to contain only the nodes which were not split off.
+					if (currentCluster == c)
+					{
+						srcSplitCount = i;
+					}
 
-					lastCluster->PushBack(cluster[i]);
-					cluster[i] = nullptr;
+					// Split current node into a new cluster.
+					currentCluster = newClusters.PushBack() = m_allocator->Alloc<Cluster>();
+					currentCluster->PushBack(currentNode);
+
+					currentClusterRange = currentNode->GetRange(axis);
 				}
-
-				prevNodeRange = nodeRange;
 			}
 
-			auto clusterCpy = cluster;
-			cluster.Clear();
-
-			for (auto& node : clusterCpy)
-			{
-				if (node != nullptr)
-					cluster.PushBack(node);
-			}
+			srcClusterToSplit.SetCount(srcSplitCount);
 		}
 
 		clusters += newClusters;
@@ -259,49 +256,58 @@ namespace Eng
 
 	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::BuildBottomUpInternal(CLib::Vector<BuildNode*>& nodes)
 	{
-		const auto compare = [=](const BuildNode* a, const BuildNode* b)
+		// The tree is built using "waves" which are vectors of nodes which are built in separate recursive passes.
+		// The idea is to prevent nodes with large differences in scale from being clustered together.
+		// Nodes from a wave which have been clustered will then be moved to the next cluster with nodes of a similar scale to be clustered with them.
+		// Which wave a node belongs to is determined by its largest scale relative to other nodes.
+		CLib::Vector<NodeWave> waves(nodes.Count());
+
+		// Create waves...
 		{
-			return a->m_bounds.Volume() < b->m_bounds.Volume();
-		};
-		std::sort(nodes.begin(), nodes.end(), compare);
-
-		// Represents nodes who's insertion/cluster detection has been deferred to higher up the tree
-		// due to large size relative to previous nodes.
-		//
-		// deferredNodes is a 2D array of nodes, where each array contains nodes X% larger volume than the previous arrays's largest node.
-		CLib::Vector<NodeWave> deferredNodes(nodes.Count());
-
-		const float percentageThreshold = 20.0f / 100.0f;
-		float prevVolume = 0.0f;
-		Cluster* currentGroup = nullptr;
-		for (auto& n : nodes)
-		{
-			float volume = n->m_bounds.Volume();
-
-			if (volume - prevVolume > (prevVolume * percentageThreshold))
+			// Sort by largest scale on any axis from smallest node to largest.
+			const auto scaleCompare = [=](const BuildNode* a, const BuildNode* b)
 			{
-				NodeWave& newWave = deferredNodes.PushBack();
-				newWave.second = volume;
+				return a->GetLargestScale() < b->GetLargestScale();
+			};
+			std::sort(nodes.begin(), nodes.end(), scaleCompare);
 
-				currentGroup = newWave.first = m_allocator->Alloc<Cluster>(32);
-				currentGroup->PushBack(n);
-				n = nullptr;
-
-				prevVolume = volume;
-			}
-			else if (currentGroup != nullptr)
+			float prevScale = 0.0f;
+			Cluster* currentGroup = nullptr;
+			for (auto& n : nodes)
 			{
-				currentGroup->PushBack(n);
-				n = nullptr;
-			}
+				float scale = n->GetLargestScale();
 
+				if (scale - prevScale > (prevScale * WaveScalePercentageThreshold) || currentGroup == nullptr)
+				{
+					NodeWave& newWave = waves.PushBack();
+					newWave.second = scale;
+
+					currentGroup = newWave.first = m_allocator->Alloc<Cluster>(32);
+					currentGroup->PushBack(n);
+					n = nullptr;
+
+					prevScale = scale;
+				}
+				else if (currentGroup != nullptr)
+				{
+					currentGroup->PushBack(n);
+					n = nullptr;
+				}
+			}
 		}
 
-		BuildNode* root = nullptr;
-		if(deferredNodes.Count() > 0)
-			root = RecursiveBuildBottomUp(*deferredNodes[0].first, deferredNodes, 1, 0);
+		// Reverse waves to order them from largest wave scale to smallest. Each pass in the recursive algorithm will pop a wave from the back of the vector to cluster.
+		assert(waves.Count() > 0);
+		std::reverse(waves.begin(), waves.end());
 
-		for (NodeWave& wave : deferredNodes)
+		BuildNode* root = nullptr;
+		root = RecursiveBuildBottomUp(waves);
+
+		m_toleranceDistance[0] = m_origToleranceDistance[0];
+		m_toleranceDistance[1] = m_origToleranceDistance[1];
+		m_toleranceDistance[2] = m_origToleranceDistance[2];
+
+		for (NodeWave& wave : waves)
 		{
 			m_allocator->Free(wave.first);
 		}
@@ -309,16 +315,18 @@ namespace Eng
 		return root;
 	}
 
-	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::RecursiveBuildBottomUp(const CLib::Vector<BuildNode*>& nodes, CLib::Vector<NodeWave>& waves, uint32_t waveIdx, uint32_t passCount)
+	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::RecursiveBuildBottomUp(CLib::Vector<NodeWave>& waves, uint32_t passCount)
 	{
-		CLib::Vector<BuildNode*> clusterNodes{};
+		NodeWave wave = waves.PopBack();
+		Cluster& waveCluster = *wave.first;
 		{
 			ClusterArray clusters{};
 
+			// Place all nodes in one cluster to begin with.
 			Cluster* startCluster = clusters.PushBack() = m_allocator->Alloc<Cluster>();
-			for (uint32_t i = 0; i < nodes.Count(); ++i)
+			for (uint32_t i = 0; i < waveCluster.Count(); ++i)
 			{
-				startCluster->PushBack(nodes[i]);
+				startCluster->PushBack(waveCluster[i]);
 			}
 
 			// Increasing SplitPassCount will increase the amount of clusters produced.
@@ -332,80 +340,27 @@ namespace Eng
 				AxisSplitClusters(clusters, EProjectedAxis::Z);
 			}
 
-			clusterNodes.Reserve(clusters.Count());
+			Cluster* clusterNodes = m_allocator->Alloc<Cluster>();
+			clusterNodes->Reserve(clusters.Count());
 
-			const auto volumeCompare = [=](const BuildNode* a, const BuildNode* b)
-			{
-				return a->m_bounds.Volume() > b->m_bounds.Volume();
-			};
-
-			float largestClusterVolume = 0.0f;
+			// Convert clusters to nodes...
+			float largestClusterScale = 0.0f;
 			for (Cluster*& cluster : clusters)
 			{
 				if (cluster == nullptr)
 					continue;
 
-				std::sort(cluster->begin(), cluster->end(), volumeCompare);
-				if (cluster->Count() > 1)
-				{
-					Cluster& c = *cluster;
-
-					uint32_t prevIdx = 0;
-					for (uint32_t i = 1; i < c.Count(); ++i)
-					{
-						BuildNode*& cur = c[i];
-						BuildNode*& prev = c[prevIdx];
-						if (cur->m_bounds.Encapsulates(prev->m_bounds))
-						{
-							prev->m_parent = cur;
-							cur->m_children.PushBack(prev);
-							prevIdx = i;
-							prev = nullptr;
-						}
-						else if (prev->m_bounds.Encapsulates(cur->m_bounds))
-						{
-							cur->m_parent = prev;
-							prev->m_children.PushBack(cur);
-							cur = nullptr;
-						}
-					}
-
-					auto cpy = c;
-					c.Clear();
-
-					for (auto& n : cpy)
-					{
-						if (n != nullptr)
-							c.PushBack(n);
-					}
-				}
-
 				assert(cluster->Count() > 0);
 				if (cluster->Count() == 1)
 				{
 					// Cluster only has one node. Continue with the node as-is.
-					clusterNodes.PushBack(cluster->Front());
-					largestClusterVolume = glm::max<float>(largestClusterVolume, cluster->Front()->m_bounds.Volume());
-				}
-				else if (cluster->Count() >= ChildSoftLimit && passCount <= 1)
-				{
-					// Cluster has many nodes and we're deep in the tree. Add nodes as a child of the last node to reduce complexity.
-					BuildNode* last = clusterNodes.PushBack() = cluster->PopBack();
-
-					for (auto& child : *cluster)
-					{
-						child->m_parent = last;
-						last->m_bounds.Encapsulate(child->m_bounds);
-						last->m_children.PushBack(child);
-					}
-
-					largestClusterVolume = glm::max<float>(largestClusterVolume, last->m_bounds.Volume());
+					clusterNodes->PushBack(cluster->Front());
 				}
 				else
 				{
-					// Cluster has few nodes, or is otherwise higher up in the tree. Create a new node and add all cluster nodes as children.
-					BuildNode* newNode = clusterNodes.PushBack() = AllocateBuildNode();
-					newNode->m_bounds = cluster->Front()->m_bounds;
+					// Cluster has multiple nodes. Place them under a new parent node, and continue with the parent.
+					BuildNode* newNode = clusterNodes->PushBack() = AllocateBuildNode();
+					newNode->m_bounds = (*cluster)[0]->m_bounds;
 
 					for (auto& child : *cluster)
 					{
@@ -413,45 +368,77 @@ namespace Eng
 						newNode->m_bounds.Encapsulate(child->m_bounds);
 						newNode->m_children.PushBack(child);
 					}
-
-					largestClusterVolume = glm::max<float>(largestClusterVolume, newNode->m_bounds.Volume());
 				}
 
 				m_allocator->Free(cluster);
 				cluster = nullptr;
+
+				BuildNode& convertedCluster = *clusterNodes->Back();
+				const float largestScale = convertedCluster.GetLargestScale();
+				largestClusterScale = glm::max<float>(largestClusterScale, largestScale);
 			}
 
-			if (waveIdx < waves.Count() && (clusterNodes.Count() == 1 || largestClusterVolume >= waves[waveIdx].second))
+			if (waves.Count() > 0)
 			{
-				clusterNodes += *waves[waveIdx].first;
-				++waveIdx;
+				// Insert nodes into an appropriate wave, based on scale.
+				bool foundWave = false;
+				for (NodeWave& wave : waves)
+				{
+					if (largestClusterScale - wave.second <= (wave.second * WaveScalePercentageThreshold))
+					{
+						*wave.first += *clusterNodes;
+						foundWave = true;
+						break;
+					}
+				}
+
+				if (foundWave == false)
+				{
+					*waves.Back().first += *clusterNodes;
+				}
+
+				m_allocator->Free(clusterNodes);
+			}
+			else
+			{
+				// If there are no waves left, make one.
+				waves.PushBack({ clusterNodes, largestClusterScale });
 			}
 		}
+		m_allocator->Free(wave.first);
 
 		BuildNode* root = nullptr;
 
-		if ((clusterNodes.Count() > 1 || passCount < waves.Count() - 1) && passCount < 500)
+		printf("Pass Count: %u\n", passCount);
+		assert(waves.Count() > 0);
+
+		// Finish condition is one wave remaining with one node (the root) inside.
+		bool finished = waves.Count() == 1 && waves.Front().first->Count() == 1;
+		if (finished == false && passCount < 300)
 		{
 			m_toleranceDistance[0] += m_toleranceStep[0];
 			m_toleranceDistance[1] += m_toleranceStep[1];
 			m_toleranceDistance[2] += m_toleranceStep[2];
 
-			root = RecursiveBuildBottomUp(clusterNodes, waves, waveIdx, passCount + 1);
+			root = RecursiveBuildBottomUp(waves, passCount + 1);
 		}
-		else if (clusterNodes.Count() > 1)
+		else if (finished == false)
 		{
 			root = AllocateBuildNode();
 
-			for (auto& child : clusterNodes)
+			for (auto& wave : waves)
 			{
-				child->m_parent = root;
-				root->m_bounds.Encapsulate(child->m_bounds);
-				root->m_children.PushBack(child);
+				for (auto& waveNode : *wave.first)
+				{
+					waveNode->m_parent = root;
+					root->m_bounds.Encapsulate(waveNode->m_bounds);
+					root->m_children.PushBack(waveNode);
+				}
 			}
 		}
 		else
 		{
-			root = clusterNodes[0];
+			root = waves.Front().first->Front();
 		}
 
 		return root;
@@ -782,6 +769,15 @@ namespace Eng
 			glm::abs(bounds.m_origin.z - bounds.MaxZ())
 		);
 		return uint64_t(dimensions.x * dimensions.y * dimensions.z);
+	}
+
+	float BoundingVolumeHierarchy::BuildNode::GetLargestScale() const
+	{
+		const float scaleX = m_bounds.m_extents.x;
+		const float scaleY = m_bounds.m_extents.y;
+		const float scaleZ = m_bounds.m_extents.z;
+
+		return glm::max<float>(glm::max<float>(scaleX, scaleY), scaleZ);
 	}
 
 	void BoundingVolumeHierarchy::BuildNode::RemoveChild(BuildNode* child)

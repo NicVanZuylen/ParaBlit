@@ -120,6 +120,7 @@ namespace Eng
 		Eng::FontTexture* m_fontTexture = nullptr;
 		void* m_cpuTimeText = nullptr;
 		void* m_fpsText = nullptr;
+		void* m_selectedEntityText = nullptr;
 
 		PB::ResourceView m_paintViews[5]{};
 		PB::ResourceView m_detailsViews[5]{};

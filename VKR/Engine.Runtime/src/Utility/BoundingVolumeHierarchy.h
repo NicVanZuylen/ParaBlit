@@ -15,8 +15,6 @@ namespace Eng
 
 		struct CreateDesc
 		{
-			uint32_t m_desiredMaxDepth = 0;
-
 			float m_toleranceDistanceX = 0.1f;
 			float m_toleranceDistanceY = 0.1f;
 			float m_toleranceDistanceZ = 0.1f;
@@ -74,6 +72,7 @@ namespace Eng
 	protected:
 
 		static constexpr const uint32_t ChildSoftLimit = 4;
+		static constexpr const float WaveScalePercentageThreshold = 0.2f;
 		static_assert(ChildSoftLimit > 1);
 
 		struct ProjectedRange
@@ -116,10 +115,12 @@ namespace Eng
 					return { m_bounds.m_origin.z, m_bounds.MaxZ() };
 					break;
 				default:
+					assert(false && "BVH: Invalid axis.");
 					return { m_bounds.m_origin.x, m_bounds.MaxX() };
 					break;
 				}
 			}
+			float GetLargestScale() const;
 			void RemoveChild(BuildNode* child);
 
 			Bounds m_bounds{};
@@ -147,13 +148,11 @@ namespace Eng
 
 		virtual void RebuildSubTree(BuildNode* subtreeRoot);
 
-		void GenClusters(CLib::Vector<BuildNode*>& nodes, CLib::Vector<Cluster*>& outClusters, EProjectedAxis axis);
-
 		void AxisSplitClusters(ClusterArray& clusters, EProjectedAxis axis);
 
 		BuildNode* BuildBottomUpInternal(CLib::Vector<BuildNode*>& nodes);
 
-		BuildNode* RecursiveBuildBottomUp(const CLib::Vector<BuildNode*>& nodes, CLib::Vector<NodeWave>& waves, uint32_t waveIdx, uint32_t passCount);
+		BuildNode* RecursiveBuildBottomUp(CLib::Vector<NodeWave>& waves, uint32_t passCount = 0);
 
 		void AssignDepth(BuildNode* node, uint32_t depth);
 
@@ -181,8 +180,8 @@ namespace Eng
 
 		CLib::Allocator* m_allocator = nullptr;
 		BuildNode* m_root = nullptr;
-		uint32_t m_desiredMaxDepth = 0;
 		uint32_t m_totalNodeCount = 0;
+		float m_origToleranceDistance[uint32_t(EProjectedAxis::Z) + 1]{};
 		float m_toleranceDistance[uint32_t(EProjectedAxis::Z) + 1]{};
 		float m_toleranceStep[uint32_t(EProjectedAxis::Z) + 1]{};
 		InputObjects m_input;

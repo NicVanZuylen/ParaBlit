@@ -123,6 +123,15 @@ namespace Eng
 				str << "FPS: " << (1.0f / deltaTime);
 
 				m_textPass->TextReplace(m_fpsText, str.str().c_str(), PB::Float2(anchorPos.x, anchorHeight - fontHeightf));
+
+				str = std::ostringstream();
+				str << "Selected Entity: ";
+				if (m_selectedEntity != nullptr)
+					str << m_selectedEntity->GetName();
+				else
+					str << "None";
+
+				m_textPass->TextReplace(m_selectedEntityText, str.str().c_str(), PB::Float2(anchorPos.x, anchorHeight - (fontHeightf * 2.0f)));
 			}
 		}
 
@@ -205,6 +214,11 @@ namespace Eng
 			{
 				printf_s("No Entity Selected.\n");
 			}
+		}
+
+		if (m_selectedEntity != nullptr)
+		{
+
 		}
 
 		// Update Camera -------------------------------------------------------------------------------------------------
@@ -577,6 +591,7 @@ namespace Eng
 		{
 			m_cpuTimeText = m_textPass->AddText("CPU Time: 000000ms", m_fontTexture, PB::Float2(0.0f, 0.0f));
 			m_fpsText = m_textPass->AddText("FPS: 000000", m_fontTexture, PB::Float2(0.0f, float(m_fontTexture->GetFontHeight())));
+			m_selectedEntityText = m_textPass->AddText("Selected Entity: None", m_fontTexture, PB::Float2(0.0f, 2.0f * float(m_fontTexture->GetFontHeight())));
 		}
 
 		// Set up lighting
@@ -612,11 +627,11 @@ namespace Eng
 		AssetEncoder::AssetID glassMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
 
-		const uint32_t spinnerCount = 2;
+		const uint32_t spinnerCount = 15;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
-			//glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
-			glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
+			glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
 
 			if (i == 1)
 			{
