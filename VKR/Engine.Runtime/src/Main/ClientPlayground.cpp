@@ -157,6 +157,12 @@ namespace Eng
 			std::cout << "BVH: Drawing whole tree: " << (m_drawEntireRenderHierarchy ? "true" : "false") << "\n";
 		}
 
+		if (!input->GetKey(GLFW_KEY_INSERT, INPUTSTATE_CURRENT) && input->GetKey(GLFW_KEY_INSERT, INPUTSTATE_PREVIOUS))
+		{
+			m_renderHierarchyDrawDebugDepth = m_renderHierarchyDrawDebugDepth == ~uint32_t(0) ? 0 : ~uint32_t(0);
+			std::cout << "BVH: Drawing whole tree: " << (m_drawEntireRenderHierarchy ? "true" : "false") << "\n";
+		}
+
 		if (m_drawEntireRenderHierarchy)
 			m_hierarchy.GetRenderHierarchy().DebugDraw(&m_camera, m_debugLinePass, m_renderHierarchyDrawDebugDepth, true);
 
@@ -167,7 +173,7 @@ namespace Eng
 		}
 
 		if (m_drawRenderHierarchyPipelineTree)
-			m_hierarchy.GetRenderHierarchy().DebugDrawBatchTree(&m_camera, m_debugLinePass);
+			m_hierarchy.GetRenderHierarchy().DebugDrawBatchTree(&m_camera, m_debugLinePass, m_renderHierarchyDrawDebugDepth);
 
 		for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
 		{
@@ -627,11 +633,11 @@ namespace Eng
 		AssetEncoder::AssetID glassMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
 
-		const uint32_t spinnerCount = 15;
+		const uint32_t spinnerCount = 2;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
-			glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
-			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
+			//glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+			glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
 
 			if (i == 1)
 			{

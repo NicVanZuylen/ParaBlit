@@ -187,10 +187,35 @@ namespace Eng
         cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, sizeof(DrawParamsBuffer::m_drawIndexedParams), MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
     }
 
+    void DrawBatch::DrawAllGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings)
+    {
+        for (StreamingBatch*& streamingBatch : m_instanceStreamingBatches)
+        {
+            streamingBatch->WaitStreamingComplete();
+            streamingBatch->EndStreamingAndDelete();
+        }
+        m_instanceStreamingBatches.Clear();
+
+        PB::BindingLayout finalBindingLayout{};
+        finalBindingLayout.m_uniformBuffers = bindings.m_uniformBuffers;
+        finalBindingLayout.m_uniformBufferCount = bindings.m_uniformBufferCount;
+
+        PB::ResourceView batchResources[] =
+        {
+            m_instanceBuffer.GetBuffer()->GetViewAsStorageBuffer()
+        };
+        finalBindingLayout.m_resourceCount = _countof(batchResources);
+        finalBindingLayout.m_resourceViews = batchResources;
+
+        cmdContext->CmdBindResources(finalBindingLayout);
+        cmdContext->CmdBindVertexBuffers(nullptr, 0, m_batchIndexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
+        cmdContext->CmdDrawIndexed(m_batchIndexCount, m_batchInstanceCount);
+    }
+
     void DrawBatch::CreateUpdateResources()
     {
         PB::BufferObjectDesc indexUpdateBufferDesc;
-        indexUpdateBufferDesc.m_bufferSize = (sizeof(IndexUploadMetadata) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch / IndexUpdatesPerInvocation) * sizeof(uint32_t));
+        indexUpdateBufferDesc.m_bufferSize = (sizeof(IndexUploadMetadata) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch * IndexUpdatesPerInvocation) * sizeof(uint32_t));
         indexUpdateBufferDesc.m_options = 0;
         indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
 
@@ -230,11 +255,13 @@ namespace Eng
             Mesh::GetMeshData(meshID, &meshData);
 
             IndexUploadMetadata& entry = m_indexUploadMetadata.PushBack();
-            entry.m_instanceIndex = m_instanceCount;
+            entry.m_instanceIndex = m_batchInstanceCount;
             entry.m_firstVertex = 0;
             entry.m_startIndex = 0;
             entry.m_indexCount = PB::u32(meshData.m_indexCount);
             entry.m_workGroupCount = (entry.m_indexCount / WorkGroupIndexCount) + ((entry.m_indexCount % WorkGroupIndexCount > 0) ? 1 : 0);
+
+            m_batchIndexCount += entry.m_indexCount;
         }
 
         // Setup index buffer streaming.
@@ -250,25 +277,25 @@ namespace Eng
             {
                 instanceTextureBatch->AddResource(StreamableHandle(textureIDs[i], EStreamableResourceType::TEXTURE, StreamableHandle::EBindingType::SRV));
             }
-            instanceTextureBatch->SetOutputBindingLocation(m_instanceBuffer.GetBuffer(), (sizeof(DrawBatchInstanceData) * m_instanceCount) + offsetof(DrawBatchInstanceData, DrawBatchInstanceData::m_bindings));
+            instanceTextureBatch->SetOutputBindingLocation(m_instanceBuffer.GetBuffer(), (sizeof(DrawBatchInstanceData) * m_batchInstanceCount) + offsetof(DrawBatchInstanceData, DrawBatchInstanceData::m_bindings));
             instanceTextureBatch->BeginStreaming();
             m_instanceStreamingBatches.PushBack(instanceTextureBatch);
 
             // TODO: Add a way to add stride objects to output bindings, to prevent needing another streaming batch to stride.
             StreamingBatch* instanceVertexBufferBatch = m_streamer->AllocStreamingBatch();
             instanceVertexBufferBatch->AddResource(StreamableHandle(meshID, EStreamableResourceType::MESH, StreamableHandle::EBindingType::STORAGE, 0)); // Vertex buffer only.
-            instanceVertexBufferBatch->SetOutputBindingLocation(m_instanceBuffer.GetBuffer(), (sizeof(DrawBatchInstanceData) * m_instanceCount) + offsetof(DrawBatchInstanceData, DrawBatchInstanceData::m_vertexBuffer));
+            instanceVertexBufferBatch->SetOutputBindingLocation(m_instanceBuffer.GetBuffer(), (sizeof(DrawBatchInstanceData) * m_batchInstanceCount) + offsetof(DrawBatchInstanceData, DrawBatchInstanceData::m_vertexBuffer));
             instanceVertexBufferBatch->BeginStreaming();
             m_instanceStreamingBatches.PushBack(instanceVertexBufferBatch);
         }
 
         // Upload model matrix and sampler here. The texture and vertex buffer ids will be updated when those assets are streamed in.
-        DrawBatchInstanceData& instanceData = *reinterpret_cast<DrawBatchInstanceData*>(m_instanceBuffer.MapElement(m_instanceCount, 0, sizeof(DrawBatchInstanceData)));
+        DrawBatchInstanceData& instanceData = *reinterpret_cast<DrawBatchInstanceData*>(m_instanceBuffer.MapElement(m_batchInstanceCount, 0, sizeof(DrawBatchInstanceData)));
         memcpy(instanceData.m_modelMatrix, modelMatrix, sizeof(instanceData.m_modelMatrix));
         instanceData.m_sampler = sampler;
 
         m_instanceBoundData.PushBack(bounds);
-        if (m_bounds.IsZero())
+        if (m_bounds.IsIdentity())
         {
             m_bounds = bounds;
         }
@@ -277,7 +304,7 @@ namespace Eng
             m_bounds.Encapsulate(bounds);
         }
 
-        ++m_instanceCount;
+        ++m_batchInstanceCount;
     }
 
     void DrawBatch::FinalizeUpdates()

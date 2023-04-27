@@ -561,13 +561,16 @@ namespace Eng
 
 	PB::ResourceView* AssetStreamer::AllocateIndexUpload(PB::IBufferObject* dstBuffer, uint32_t dstOffset, uint32_t indexCount)
 	{
+		static constexpr uint32_t MaxUploadRegionCount = 64;
+
 		if (indexCount == 0)
 			return nullptr;
 
 		if (m_indexUploadSrcBuffers.Count() > 0)
 		{
 			auto* uploadBuffer = m_indexUploadSrcBuffers.Back();
-			if (uploadBuffer->m_maxIndexCount - uploadBuffer->m_allocatedIndexCount < indexCount)
+			if (uploadBuffer->m_maxIndexCount - uploadBuffer->m_allocatedIndexCount < indexCount
+				|| m_indexUploadMap[{ uploadBuffer->m_buffer, dstBuffer }].Count() >= MaxUploadRegionCount)
 			{
 				AllocateNewUploadBuffer();
 			}

@@ -51,6 +51,7 @@ namespace Eng
 		void AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings);
 		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView);
 		void DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
+		void DrawAllGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
 
 		void AddInstance(AssetEncoder::AssetID meshID, const float* modelMatrix, const Bounds& bounds, AssetEncoder::AssetID* textureIDs, uint32_t textureCount, PB::ResourceView sampler);
 
@@ -69,7 +70,7 @@ namespace Eng
 		static constexpr const PB::u32 WorkGroupSizeH = 1;
 		static constexpr const PB::u32 IndexUpdatesPerInvocation = 16; // The amount of indices updating by a single compute shader invocation.
 		static constexpr const PB::u32 MinWorkGroupsPerObject = 16; // Minimum workgroups assigned to updating a single object/mesh's indices.
-		static constexpr const PB::u32 MaxUpdateWorkGroupsPerBatch = 4096 * 2; // Maximum workgroups allowed in a single update dispatch.
+		static constexpr const PB::u32 MaxUpdateWorkGroupsPerBatch = 4096; // Maximum workgroups allowed in a single update dispatch.
 		static constexpr const PB::u32 MaxDrawCount = 8;
 
 		// Contains the formatted update information for a single drawbatch instance.
@@ -145,7 +146,8 @@ namespace Eng
 		PB::IBufferObject* m_cullConstantsBuffer = nullptr;
 		PB::IBufferObject* m_drawParamsBuffer = nullptr;
 		ManagedInstanceBuffer<DrawBatchInstanceData, MaxObjects, MaxObjects> m_instanceBuffer;
-		uint32_t m_instanceCount = 0;
+		uint32_t m_batchIndexCount = 0;
+		uint32_t m_batchInstanceCount = 0;
 		bool m_indicesUpToDate = false;
 		Bounds m_bounds;
 		StreamingBatch* m_indexSrcBufferBatch = nullptr;

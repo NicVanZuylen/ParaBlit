@@ -10,10 +10,11 @@
 namespace Eng
 {
 
-	RenderBoundingVolumeHierarchy::RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc)
-		: BoundingVolumeHierarchy(allocator, desc)
+	RenderBoundingVolumeHierarchy::RenderBoundingVolumeHierarchy(PB::IRenderer* renderer, CLib::Allocator* extAllocator, AssetStreamer* streamer, const CreateDesc& desc)
+		: BoundingVolumeHierarchy(desc)
 	{
 		m_renderer = renderer;
+		m_extAllocator = extAllocator;
 		m_streamer = streamer;
 	}
 
@@ -22,11 +23,14 @@ namespace Eng
 
 	}
 
-	void RenderBoundingVolumeHierarchy::Init(PB::IRenderer* renderer, CLib::Allocator* allocator, AssetStreamer* streamer, const CreateDesc& desc)
+	void RenderBoundingVolumeHierarchy::Init(PB::IRenderer* renderer, CLib::Allocator* extAllocator, AssetStreamer* streamer, const CreateDesc& desc)
 	{
-		BoundingVolumeHierarchy::Init(allocator, desc);
+		m_nodeAllocator = new CLib::FixedBlockAllocator(sizeof(BuildNode) + sizeof(RenderBoundingVolumeHierarchy::NodeData));
+
+		BoundingVolumeHierarchy::Init(desc);
 
 		m_renderer = renderer;
+		m_extAllocator = extAllocator;
 		m_streamer = streamer;
 	}
 
@@ -36,6 +40,11 @@ namespace Eng
 		{
 			RecursiveFreeNode(m_root);
 			m_root = nullptr;
+		}
+
+		if (m_nodeAllocator != nullptr)
+		{
+			delete m_nodeAllocator;
 		}
 	}
 
@@ -47,13 +56,6 @@ namespace Eng
 		std::set<PB::Pipeline> excludedPipelines;
 		BuildDrawBatchesExclusive(buildResult, batchMap, excludedPipelines);
 
-		BuildNode* pipelineSubtree = BuildBottomUpInternal(m_globalBatchHierarchy.m_buildNodes);
-		m_globalBatchHierarchy.m_buildNodes.Clear();
-
-		RecursiveBakeHierarchy(m_globalBatchHierarchy.m_bakedNodes, pipelineSubtree, ~size_t(0));
-		RecursiveFreeNode(pipelineSubtree, true);
-
-		m_globalBatchHierarchy.m_bakedNodeUpdateIndices.PushBack(0);
 		return buildResult;
 	}
 
@@ -94,20 +96,20 @@ namespace Eng
 		// With the new subtree linked, we can now build or rebuild any necessary draw batches.
 		RebuildDrawBatchesForSubtree(newSubtree, subtreeRoot, objects);
 
-		// Free old subtree.
-		RecursiveFreeNode(subtreeRoot, true);
+		// Free old subtree including its batches.
+		RecursiveFreeNode(subtreeRoot, false);
 	}
 
 	void RenderBoundingVolumeHierarchy::BakeBatches(PB::ICommandContext* commandContext)
 	{
-		for (const size_t& updateIndex : m_globalBatchHierarchy.m_bakedNodeUpdateIndices)
+		for (auto& batch : m_drawBatchesToUpdate)
 		{
-			RecursiveBakeBatches(commandContext, m_globalBatchHierarchy.m_bakedNodes[updateIndex]);
+			batch->UpdateIndices(commandContext);
 		}
-		m_globalBatchHierarchy.m_bakedNodeUpdateIndices.Clear();
+		m_drawBatchesToUpdate.Clear();
 	}
 
-	void RenderBoundingVolumeHierarchy::DebugDrawBatchTree(const Camera* camera, DebugLinePass* lines)
+	void RenderBoundingVolumeHierarchy::DebugDrawBatchTree(const Camera* camera, DebugLinePass* lines, uint32_t desiredDepth)
 	{
 		Camera::CameraFrustrum frustrum;
 		if (camera != nullptr)
@@ -117,22 +119,21 @@ namespace Eng
 			Camera::DrawFrustrum(lines, frustrum, frustrumColor);
 		}
 
-		RecursiveDebugDrawBakedTree(lines, frustrum, m_globalBatchHierarchy.m_bakedNodes.front());
+		RecursiveDebugDrawBatches(lines, frustrum, m_root, desiredDepth);
 	}
 
 	void RenderBoundingVolumeHierarchy::BuildDrawBatch(PB::Pipeline pipeline, BuildNode* node, BatchObjects& objects)
 	{
-		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+		NodeData* nodeData = node->GetData<NodeData>();
 
 		PipelineDrawbatch& pipelineBatch = nodeData->m_drawBatches.PushBack();
 		pipelineBatch.m_pipeline = pipeline;
-		pipelineBatch.m_bakedNodeIndex = ~size_t(0);
 
 		DrawBatch::CreateDesc drawBatchDesc;
 		drawBatchDesc.m_renderer = m_renderer;
-		drawBatchDesc.m_allocator = m_allocator;
+		drawBatchDesc.m_allocator = m_extAllocator;
 		drawBatchDesc.m_streamer = m_streamer;
-		pipelineBatch.m_batch = m_allocator->Alloc<DrawBatch>(drawBatchDesc);
+		pipelineBatch.m_batch = m_extAllocator->Alloc<DrawBatch>(drawBatchDesc);
 
 		for (auto& node : objects)
 		{
@@ -143,30 +144,28 @@ namespace Eng
 		pipelineBatch.m_batch->UpdateCullParams();
 	}
 
-	void RenderBoundingVolumeHierarchy::RecursiveSearchDownForDrawbatches(BuildNode* node, size_t& highestBakedNodeIndex)
+	void RenderBoundingVolumeHierarchy::RecursiveSearchDownForDrawbatches(BuildNode* node, std::set<PB::Pipeline>& pipelinesToFind)
 	{
-		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
-		for (auto& pipelineBatch : nodeData->m_drawBatches)
+		NodeData* nodeData = node->GetData<NodeData>();
+		if (nodeData->m_drawBatches.Count() > 0)
 		{
-			highestBakedNodeIndex = std::min<size_t>(highestBakedNodeIndex, pipelineBatch.m_bakedNodeIndex);
+			for (auto& pipelineBatch : nodeData->m_drawBatches)
+			{
+				auto it = pipelinesToFind.find(pipelineBatch.m_pipeline);
+				if (it != pipelinesToFind.end())
+				{
+					pipelinesToFind.erase(it);
+				}
+			}
+		}		
 
-			// This batch will be replaced.
-			m_allocator->Free(pipelineBatch.m_batch);
-
-			BakedNode& baked = m_globalBatchHierarchy.m_bakedNodes[pipelineBatch.m_bakedNodeIndex];
-			baked.m_batch = nullptr;
-		}
-		nodeData->m_drawBatches.Clear();
-
-		for (auto& child : node->m_children)
-		{
-			RecursiveSearchDownForDrawbatches(child, highestBakedNodeIndex);
-		}
+		for(auto& child : node->m_children)
+			RecursiveSearchDownForDrawbatches(child, pipelinesToFind);
 	}
 
-	void RenderBoundingVolumeHierarchy::RecursiveSearchUpForDrawbatches(BuildNode* node, BuildNode*& highestFound, std::set<PB::Pipeline>& pipelinesToFind, size_t& highestBakedNodeIndex)
+	void RenderBoundingVolumeHierarchy::RecursiveSearchUpForDrawbatches(BuildNode* node, BuildNode*& highestBatchNode, std::set<PB::Pipeline>& pipelinesToFind)
 	{
-		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+		NodeData* nodeData = node->GetData<NodeData>();
 		if(nodeData->m_drawBatches.Count() > 0)
 		{
 			NodeDrawBatches newBatches{};
@@ -176,14 +175,11 @@ namespace Eng
 				if(it != pipelinesToFind.end())
 				{
 					pipelinesToFind.erase(it);
-					highestBakedNodeIndex = std::min<size_t>(highestBakedNodeIndex, pipelineBatch.m_bakedNodeIndex);
-					highestFound = node;
 
-					// This batch will be replaced.
-					m_allocator->Free(pipelineBatch.m_batch);
+					// Batch will be replaced.
+					m_extAllocator->Free(pipelineBatch.m_batch);
 
-					BakedNode& baked = m_globalBatchHierarchy.m_bakedNodes[pipelineBatch.m_bakedNodeIndex];
-					baked.m_batch = nullptr;
+					highestBatchNode = node;
 				}
 				else
 				{
@@ -195,7 +191,7 @@ namespace Eng
 
 		if (node->m_parent != nullptr && pipelinesToFind.empty() == false)
 		{
-			RecursiveSearchUpForDrawbatches(node->m_parent, highestFound, pipelinesToFind, highestBakedNodeIndex);
+			RecursiveSearchUpForDrawbatches(node->m_parent, highestBatchNode, pipelinesToFind);
 		}
 	}
 
@@ -210,62 +206,61 @@ namespace Eng
 			if (pipelinesToFind.contains(pipeline) == false)
 				pipelinesToFind.insert(pipeline);
 		}
-		std::set<PB::Pipeline> pipelinesToRebuild = pipelinesToFind;
 
-		size_t highestBakedNodeIndex = ~size_t(0);
-		RecursiveSearchDownForDrawbatches(oldSubtree, highestBakedNodeIndex);
+		// Eliminate pipelines for searching up by searching down first.
+		RecursiveSearchDownForDrawbatches(oldSubtree, pipelinesToFind);
 
+		// Search above the rebuilt subtree for any batch nodes which need to be updated. Rebuild batches from there.
 		BuildNode* highestBatchNode = subtree;
-		RecursiveSearchUpForDrawbatches(subtree, highestBatchNode, pipelinesToFind, highestBakedNodeIndex);
+		RecursiveSearchUpForDrawbatches(subtree, highestBatchNode, pipelinesToFind);
+		assert(highestBatchNode != nullptr);
+		assert(pipelinesToFind.empty());
 
-		BakedNodes& finalBakedNodes = m_globalBatchHierarchy.m_bakedNodes;
-		BakedNode updateRoot = finalBakedNodes[highestBakedNodeIndex];
-		if (updateRoot.m_parentIndex != ~size_t(0))
-		{
-			highestBakedNodeIndex = updateRoot.m_parentIndex;
-			updateRoot = finalBakedNodes[updateRoot.m_parentIndex];
-		}
-
-		// Now we've found the highest node covering all draw batches which need rebuilding. Build draw batches from here and create build nodes for them.
+		// Rebuild all drawbatches under the highest batch node we're updating from.
 		BatchMap batchMap;
-		RebuildDrawBatchesInclusive(highestBatchNode, batchMap, pipelinesToRebuild);
+		std::set<PB::Pipeline> excludedPipelines;
+		RebuildDrawBatchesExclusive(highestBatchNode, batchMap, excludedPipelines);
 
-		// Create build nodes from existing baked node's drawbatches below highestBakedNodeIndex.
-		GetBakedBatchBuildNodes(m_globalBatchHierarchy.m_bakedNodes[highestBakedNodeIndex]);
+		//// Build a BVH of the drawbatch nodes to later bake into the new set of baked nodes.
+		//BuildNode* batchSubtree = BuildBottomUpInternal(m_globalBatchHierarchy.m_buildNodes);
+		//m_globalBatchHierarchy.m_buildNodes.Clear();
 
-		BuildNode* batchSubtree = BuildBottomUpInternal(m_globalBatchHierarchy.m_buildNodes);
-		BakedNodes newBakedNodes{};
-		RecursiveBakeHierarchy(newBakedNodes, batchSubtree, ~size_t(0), highestBakedNodeIndex);
-		m_globalBatchHierarchy.m_buildNodes.Clear();
+		//// Find the corresponding range of baked nodes (parent and children) to the old drawbatches which need to be removed.
+		//// This range will be replaced with the baked nodes of the new batches.
+		//CLib::Vector<BakedNode*> correspondingBakedNodes;
+		//FindCorrespondingBakedNodes(correspondingBakedNodes, m_globalBatchHierarchy.m_bakedNodes.front(), *batchSubtree);
+		//BakedNode* updateRoot = correspondingBakedNodes[0];
+		//size_t updateRootIndex = updateRoot - m_globalBatchHierarchy.m_bakedNodes.data();
+		//size_t updateRootParentIndex = m_globalBatchHierarchy.m_bakedNodes[updateRootIndex].m_parentIndex;
+		//assert(correspondingBakedNodes.Count() == 1);
 
-		// Clear build resources.
-		RecursiveFreeNode(batchSubtree, true);
+		//BakedNodes newBakedNodes;
+		//RecursiveBakeHierarchy(newBakedNodes, batchSubtree, updateRootParentIndex, updateRootIndex);
+		//RecursiveFreeNode(batchSubtree, true);
 
-		int64_t parentStrideDiff = int64_t(newBakedNodes.size()) - updateRoot.m_strideToNext;
-		finalBakedNodes.erase
-		(
-			finalBakedNodes.begin() + highestBakedNodeIndex,
-			finalBakedNodes.begin() + highestBakedNodeIndex + updateRoot.m_strideToNext
-		);
+		//int64_t parentStrideDiff = int64_t(newBakedNodes.size()) - updateRoot->m_strideToNext;
+		//BakedNodes& finalBakedNodes = m_globalBatchHierarchy.m_bakedNodes;
+		//finalBakedNodes.erase
+		//(
+		//	finalBakedNodes.begin() + updateRootIndex,
+		//	finalBakedNodes.begin() + updateRootIndex + updateRoot->m_strideToNext
+		//);
 
-		finalBakedNodes.insert(finalBakedNodes.begin() + highestBakedNodeIndex, newBakedNodes.begin(), newBakedNodes.end());
+		//finalBakedNodes.insert(finalBakedNodes.begin() + updateRootIndex, newBakedNodes.begin(), newBakedNodes.end());
 
-		// Update strides of all parent nodes up the tree.
-		if (parentStrideDiff != 0)
-		{
-			size_t parentIndex = highestBakedNodeIndex;
-			while (parentIndex != ~size_t(0))
-			{
-				BakedNode& parent = finalBakedNodes[parentIndex];
-				parent.m_strideToNext += parentStrideDiff;
+		//if (parentStrideDiff != 0)
+		//{
+		//	size_t parentIndex = updateRootParentIndex;
+		//	while (parentIndex != ~size_t(0))
+		//	{
+		//		BakedNode& parent = finalBakedNodes[parentIndex];
+		//		parent.m_strideToNext += parentStrideDiff;
 
-				parentIndex = parent.m_parentIndex;
-			}
-		}
+		//		parentIndex = parent.m_parentIndex;
+		//	}
+		//}
 
-		printf_s("\nBaked Node Count: %u\n", uint32_t(finalBakedNodes.size()));
-
-		m_globalBatchHierarchy.m_bakedNodeUpdateIndices.PushBack(highestBakedNodeIndex);
+		//m_globalBatchHierarchy.m_bakedNodeUpdateIndices.PushBack(updateRootIndex);
 	}
 
 	void RenderBoundingVolumeHierarchy::BuildDrawBatchesExclusive(BuildNode* root, BatchMap& batchMap, std::set<PB::Pipeline>& excludedPipelines)
@@ -284,22 +279,15 @@ namespace Eng
 			if (excludedPipelines.find(pair.first) != excludedPipelines.end())
 				continue;
 
-			if (pair.second.Count() <= PipelineDrawbatch::REMOVE_MaxObjects)
+			if (pair.second.Count() <= DrawBatch::MaxObjects)
 			{
 				BuildDrawBatch(pair.first, root, pair.second);
 				newlyExcludedPipelines.insert(pair.first);
 
-				NodeData* rootData = reinterpret_cast<NodeData*>(root->m_data);
+				NodeData* rootData = root->GetData<NodeData>();
 				PipelineDrawbatch& pipelineBatch = rootData->m_drawBatches.Back();
 
-				BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(AllocateBuildNode());
-				newBuildNode->m_bounds = pipelineBatch.m_batch->GetBounds();
-				newBuildNode->m_objectData = nullptr;
-				newBuildNode->m_isObject = true;
-
-				NodeData* nodeData = reinterpret_cast<NodeData*>(newBuildNode->m_data);
-				nodeData->m_sourceNode = root;
-				nodeData->m_drawBatches.PushBack(pipelineBatch);
+				m_drawBatchesToUpdate.PushBack(pipelineBatch.m_batch);
 			}
 			else
 			{
@@ -316,70 +304,36 @@ namespace Eng
 		}
 	}
 
-	void RenderBoundingVolumeHierarchy::RebuildDrawBatchesInclusive(BuildNode* root, BatchMap& batchMap, std::set<PB::Pipeline> includedPipelines)
+	void RenderBoundingVolumeHierarchy::RebuildDrawBatchesExclusive(BuildNode* root, BatchMap& batchMap, std::set<PB::Pipeline> excludedPipelines)
 	{
 		batchMap.clear();
 		GetBatchCandidates(batchMap, root);
 
+		// Clear old drawbatches
+		NodeData* nodeData = root->GetData<NodeData>();
+		for (auto& pipelineBatch : nodeData->m_drawBatches)
+		{
+			m_extAllocator->Free(pipelineBatch.m_batch);
+		}
+		nodeData->m_drawBatches.Clear();
+
 		for (auto pair : batchMap)
 		{
-			auto pipelineIt = includedPipelines.find(pair.first);
-			if (pipelineIt == includedPipelines.end())
-				continue;
-
-			if (pair.second.Count() <= PipelineDrawbatch::REMOVE_MaxObjects)
+			if (pair.second.Count() <= DrawBatch::MaxObjects && excludedPipelines.contains(pair.first) == false)
 			{
 				BuildDrawBatch(pair.first, root, pair.second);
-				includedPipelines.erase(pipelineIt);
+				excludedPipelines.insert(pair.first);
 
-				NodeData* rootData = reinterpret_cast<NodeData*>(root->m_data);
+				NodeData* rootData = root->GetData<NodeData>();
 				PipelineDrawbatch& pipelineBatch = rootData->m_drawBatches.Back();
 
-				BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(AllocateBuildNode());
-				newBuildNode->m_bounds = pipelineBatch.m_batch->GetBounds();
-				newBuildNode->m_objectData = nullptr;
-				newBuildNode->m_isObject = true;
-
-				NodeData* nodeData = reinterpret_cast<NodeData*>(newBuildNode->m_data);
-				nodeData->m_sourceNode = root;
-				nodeData->m_drawBatches.PushBack(pipelineBatch);
+				m_drawBatchesToUpdate.PushBack(pipelineBatch.m_batch);
 			}
 		}
 
-		if (includedPipelines.empty() == false)
+		for (auto* child : root->m_children)
 		{
-			for (auto* child : root->m_children)
-			{
-				RebuildDrawBatchesInclusive(child, batchMap, includedPipelines);
-			}
-		}
-	}
-
-	void RenderBoundingVolumeHierarchy::GetBakedBatchBuildNodes(const BakedNode& node)
-	{
-		if (node.m_batch != nullptr)
-		{
-			PipelineDrawbatch batch;
-			batch.m_bakedNodeIndex = ~size_t(0);
-			batch.m_batch = node.m_batch;
-			batch.m_pipeline = 0;
-
-			BuildNode* newBuildNode = m_globalBatchHierarchy.m_buildNodes.PushBack(AllocateBuildNode());
-			newBuildNode->m_bounds = batch.m_batch->GetBounds();
-			newBuildNode->m_objectData = nullptr;
-			newBuildNode->m_isObject = true;
-
-			NodeData* nodeData = reinterpret_cast<NodeData*>(newBuildNode->m_data);
-			nodeData->m_sourceNode = nullptr;
-			nodeData->m_drawBatches.PushBack(batch);
-		}
-
-		const uint32_t& childCount = node.m_childCount;
-		const BakedNode* child = reinterpret_cast<const BakedNode*>(&node + 1);
-		for (uint32_t i = 0; i < childCount; ++i)
-		{
-			GetBakedBatchBuildNodes(*child);
-			child = child->NextSibling();
+			RebuildDrawBatchesExclusive(child, batchMap, excludedPipelines);
 		}
 	}
 
@@ -423,122 +377,69 @@ namespace Eng
 
 		if (keepBatches == false)
 		{
-			NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
+			NodeData* nodeData = node->GetData<NodeData>();
 			for (auto& pipelineBatch : nodeData->m_drawBatches)
 			{
-				m_allocator->Free(pipelineBatch.m_batch);
+				m_extAllocator->Free(pipelineBatch.m_batch);
 			}
 		}
 
 		FreeBuildNode(node);
 	}
 
-	void RenderBoundingVolumeHierarchy::BakeHierarchies(BuildNode* start)
+	void RenderBoundingVolumeHierarchy::RecursiveCullBatchesByNode(BatchDispatcher* dispatcher, const PB::BindingLayout& globalBindings, const Camera::CameraFrustrum& frustrum, const BuildNode* node) const
 	{
-		CLib::Vector<BuildNode> batchNodes;
+		if (FrustrumTest(frustrum, node->m_bounds))
+		{
+			const NodeData* data = node->GetData<NodeData>();
+			for (auto& batch : data->m_drawBatches)
+			{
+				dispatcher->AddBatch(batch.m_batch, batch.m_pipeline, globalBindings);
+			}
+
+			for (const BuildNode* child : node->m_children)
+			{
+				RecursiveCullBatchesByNode(dispatcher, globalBindings, frustrum, child);
+			}
+		}
 	}
 
-	void RenderBoundingVolumeHierarchy::RecursiveBakeHierarchy(BakedNodes& bakedNodes, BuildNode* node, size_t parentIndex, size_t baseIndex)
+	void RenderBoundingVolumeHierarchy::RecursiveDebugDrawBatches(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, const BuildNode* node, uint32_t desiredDepth, uint32_t depth)
 	{
-		NodeData* nodeData = reinterpret_cast<NodeData*>(node->m_data);
-		assert(nodeData->m_drawBatches.Count() <= 1);
-
-		size_t index = bakedNodes.size();
-
+		if (FrustrumTest(frustrum, node->m_bounds))
 		{
-			PipelineDrawbatch* nodeBatch = nodeData->m_drawBatches.Count() > 0 ? &nodeData->m_drawBatches.Front() : nullptr;
-
-			BakedNode& baked = bakedNodes.emplace_back();
-			baked.m_bounds = node->m_bounds;
-			baked.m_childCount = node->m_children.Count();
-			baked.m_parentIndex = parentIndex;
-			baked.m_batch = nodeBatch ? nodeBatch->m_batch : nullptr;
-			baked.m_batchPipeline = nodeBatch ? nodeBatch->m_pipeline : 0;
-
-			if (nodeData->m_sourceNode != nullptr)
+			for (const BuildNode* child : node->m_children)
 			{
-				NodeData* sourceNodeData = reinterpret_cast<NodeData*>(nodeData->m_sourceNode->m_data);
-				NodeDrawBatches& sourceBatches = sourceNodeData->m_drawBatches;
-				for (auto& pipelineBatch : sourceBatches)
+				RecursiveDebugDrawBatches(lines, frustrum, child, desiredDepth, depth + 1);
+			}
+
+			if (depth == desiredDepth || desiredDepth == ~uint32_t(0))
+			{
+				const NodeData* data = node->GetData<NodeData>();
+				for (auto& pipelineBatch : data->m_drawBatches)
 				{
-					if (pipelineBatch.m_batch == baked.m_batch)
-					{
-						pipelineBatch.m_bakedNodeIndex = baseIndex + index;
-						break;
-					}
+					const Bounds& batchBounds = pipelineBatch.m_batch->GetBounds();
+					DebugDrawCube(lines, batchBounds.m_origin, batchBounds.m_extents, glm::vec3(1.0f, 0.0f, 0.0f));
 				}
-			}
-		}
 
-		for (BuildNode* n : node->m_children)
-		{
-			RecursiveBakeHierarchy(bakedNodes, n, index, baseIndex);
-		}
-		bakedNodes[index].m_strideToNext = uint32_t(bakedNodes.size() - index);
-	}
-
-	void RenderBoundingVolumeHierarchy::RecursiveBakeBatches(PB::ICommandContext* cmdContext, BakedNode& node)
-	{
-		if (node.m_batch != nullptr)
-		{
-			node.m_batch->UpdateIndices(cmdContext);
-		}
-
-		const uint32_t& childCount = node.m_childCount;
-		BakedNode* child = reinterpret_cast<BakedNode*>(&node + 1);
-		for (uint32_t i = 0; i < childCount; ++i)
-		{
-			RecursiveBakeBatches(cmdContext, *child);
-			child = child->NextSibling();
-		}
-	}
-
-	void RenderBoundingVolumeHierarchy::RecursiveCullBatches(BatchDispatcher* dispatcher, const PB::BindingLayout& globalBindings, const Camera::CameraFrustrum& frustrum, const BakedNode& node) const
-	{
-		if (FrustrumTest(frustrum, node.m_bounds))
-		{
-			if (node.m_batch != nullptr)
-				dispatcher->AddBatch(node.m_batch, node.m_batchPipeline, globalBindings);
-
-			const uint32_t& childCount = node.m_childCount;
-			const BakedNode* child = reinterpret_cast<const BakedNode*>(&node + 1);
-			for (uint32_t i = 0; i < childCount; ++i)
-			{
-				RecursiveCullBatches(dispatcher, globalBindings, frustrum, *child);
-				child = child->NextSibling();
-			}
-		}
-	}
-
-	void RenderBoundingVolumeHierarchy::RecursiveDebugDrawBakedTree(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, const BakedNode& node)
-	{
-		if (FrustrumTest(frustrum, node.m_bounds))
-		{
-			glm::vec3 color = node.m_batch != nullptr ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-			DebugDrawCube(lines, node.m_bounds.m_origin, node.m_bounds.m_extents, color);
-
-			const uint32_t& childCount = node.m_childCount;
-			const BakedNode* child = reinterpret_cast<const BakedNode*>(&node + 1);
-			for (uint32_t i = 0; i < childCount; ++i)
-			{
-				RecursiveDebugDrawBakedTree(lines, frustrum, *child);
-				child = child->NextSibling();
+				if (data->m_drawBatches.Count() == 0)
+					DebugDrawCube(lines, node->m_bounds.m_origin, node->m_bounds.m_extents, glm::vec3(0.0f, 1.0f, 0.0f));
 			}
 		}
 	}
 
 	void RenderBoundingVolumeHierarchy::CullBatches(const Camera::CameraFrustrum& cameraFrustrum, BatchDispatcher* dispatcher, const PB::BindingLayout& globalBindings) const
 	{
-		RecursiveCullBatches(dispatcher, globalBindings, cameraFrustrum, m_globalBatchHierarchy.m_bakedNodes.front());
+		RecursiveCullBatchesByNode(dispatcher, globalBindings, cameraFrustrum, m_root);
 	}
 
-	BoundingVolumeHierarchy::NodeData* RenderBoundingVolumeHierarchy::AllocateNodeData()
+	void RenderBoundingVolumeHierarchy::AllocateNodeData(BuildNode* node)
 	{
-		return m_allocator->Alloc<NodeData>();
+		new (node + 1) NodeData;
 	}
 
-	void RenderBoundingVolumeHierarchy::FreeNodeData(BoundingVolumeHierarchy::NodeData* data)
+	void RenderBoundingVolumeHierarchy::FreeNodeData(BuildNode* node)
 	{
-		m_allocator->Free(reinterpret_cast<NodeData*>(data));
+		reinterpret_cast<NodeData*>(node + 1)->~NodeData();
 	}
 };

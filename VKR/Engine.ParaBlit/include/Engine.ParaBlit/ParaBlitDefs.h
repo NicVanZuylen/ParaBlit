@@ -209,7 +209,7 @@ namespace PB
 			struct { T r, g, b; };
 			struct { T x, y, z; };
 			struct { T u, v; };
-			float m_data[3];
+			float m_data[3]{};
 		};
 
 		TVec3() = default;

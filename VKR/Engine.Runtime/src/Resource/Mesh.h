@@ -23,10 +23,10 @@ namespace Eng
 
 	struct MeshCacheData
 	{
-		uint64_t m_vertexCount;
-		uint64_t m_indexCount;
-		size_t m_vertexDataOffset;
-		size_t m_indexOffset;
+		uint64_t m_vertexCount = 0;
+		uint64_t m_indexCount = 0;
+		size_t m_vertexDataOffset = 0;
+		size_t m_indexOffset = 0;
 		glm::vec4 m_boundOrigin;
 		glm::vec4 m_boundExtents;
 	};

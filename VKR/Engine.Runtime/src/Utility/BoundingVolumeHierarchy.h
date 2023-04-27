@@ -1,5 +1,5 @@
 #pragma once
-#include "CLib/Allocator.h"
+#include "CLib/FixedBlockAllocator.h"
 #include "Camera.h"
 #include "Bounds.h"
 
@@ -40,11 +40,11 @@ namespace Eng
 		using InputObjects = CLib::Vector<const ObjectData*>;
 
 		BoundingVolumeHierarchy() = default;
-		BoundingVolumeHierarchy(CLib::Allocator* allocator, const CreateDesc& desc);
+		BoundingVolumeHierarchy(const CreateDesc& desc);
 
 		~BoundingVolumeHierarchy();
 
-		void Init(CLib::Allocator* allocator, const CreateDesc& desc);
+		void Init(const CreateDesc& desc);
 
 		virtual void Destroy();
 
@@ -120,21 +120,28 @@ namespace Eng
 					break;
 				}
 			}
+
 			float GetLargestScale() const;
+
 			void RemoveChild(BuildNode* child);
+
+			template<typename T>
+			T* GetData() { return reinterpret_cast<T*>(this + 1); }
+
+			template<typename T>
+			const T* GetData() const { return reinterpret_cast<const T*>(this + 1); }
 
 			Bounds m_bounds{};
 			BuildNode* m_parent = nullptr;
 			NodeChildren m_children{};
 			const ObjectData* m_objectData = nullptr;
-			NodeData* m_data = nullptr;
 			uint32_t m_depth = 0;
 			bool m_isObject = false;
 		};
 
-		virtual NodeData* AllocateNodeData() = 0;
+		virtual void AllocateNodeData(BuildNode* node) = 0;
 
-		virtual void FreeNodeData(NodeData* data) = 0;
+		virtual void FreeNodeData(BuildNode* node) = 0;
 
 		BuildNode* AllocateBuildNode();
 
@@ -178,7 +185,7 @@ namespace Eng
 
 		void DebugDrawCube(DebugLinePass* lines, const glm::vec3& origin, const glm::vec3& extents, const glm::vec3& lineColor) const;
 
-		CLib::Allocator* m_allocator = nullptr;
+		CLib::FixedBlockAllocator* m_nodeAllocator = nullptr;
 		BuildNode* m_root = nullptr;
 		uint32_t m_totalNodeCount = 0;
 		float m_origToleranceDistance[uint32_t(EProjectedAxis::Z) + 1]{};

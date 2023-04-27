@@ -14,10 +14,10 @@ namespace Eng
 		};
 
 		EntityBoundingVolumeHierarchy() = default;
-		EntityBoundingVolumeHierarchy(CLib::Allocator* allocator, const CreateDesc& desc);
+		EntityBoundingVolumeHierarchy(const CreateDesc& desc);
 		~EntityBoundingVolumeHierarchy() = default;
 
-		void Init(CLib::Allocator* allocator, const CreateDesc& desc);
+		void Init(const CreateDesc& desc);
 
 	private:
 
@@ -26,8 +26,8 @@ namespace Eng
 
 		};
 
-		BoundingVolumeHierarchy::NodeData* AllocateNodeData() override;
+		void AllocateNodeData(BuildNode* node) override;
 
-		void FreeNodeData(BoundingVolumeHierarchy::NodeData* data) override;
+		void FreeNodeData(BuildNode* node) override;
 	};
 }

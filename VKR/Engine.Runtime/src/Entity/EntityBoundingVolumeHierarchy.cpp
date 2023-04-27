@@ -2,24 +2,24 @@
 
 namespace Eng
 {
-	EntityBoundingVolumeHierarchy::EntityBoundingVolumeHierarchy(CLib::Allocator* allocator, const CreateDesc& desc)
-		: BoundingVolumeHierarchy(allocator, desc)
+	EntityBoundingVolumeHierarchy::EntityBoundingVolumeHierarchy(const CreateDesc& desc)
+		: BoundingVolumeHierarchy(desc)
 	{
 
 	}
 
-	void EntityBoundingVolumeHierarchy::Init(CLib::Allocator* allocator, const CreateDesc& desc)
+	void EntityBoundingVolumeHierarchy::Init(const CreateDesc& desc)
 	{
-		BoundingVolumeHierarchy::Init(allocator, desc);
+		BoundingVolumeHierarchy::Init(desc);
 	}
 
-	BoundingVolumeHierarchy::NodeData* EntityBoundingVolumeHierarchy::AllocateNodeData()
+	void EntityBoundingVolumeHierarchy::AllocateNodeData(BuildNode* node)
 	{
-		return m_allocator->Alloc<NodeData>();
+		new (node + 1) NodeData;
 	}
 
-	void EntityBoundingVolumeHierarchy::FreeNodeData(BoundingVolumeHierarchy::NodeData* data)
+	void EntityBoundingVolumeHierarchy::FreeNodeData(BuildNode* node)
 	{
-		m_allocator->Free(reinterpret_cast<NodeData*>(data));
+		reinterpret_cast<NodeData*>(node + 1)->~NodeData();
 	};
 }

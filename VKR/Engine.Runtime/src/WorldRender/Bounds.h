@@ -33,6 +33,10 @@ namespace Eng
 		}
 
 		inline bool IsZero() const { return m_origin + m_extents == glm::vec3(0.0f); }
+		inline bool IsIdentity() const 
+		{ 
+			return m_origin == glm::vec3(0.0f) && m_extents == glm::vec3(1.0f);
+		}
 
 		inline float MaxX() const { return m_origin.x + m_extents.x; }
 		inline float MaxY() const { return m_origin.y + m_extents.y; }
@@ -46,6 +50,22 @@ namespace Eng
 		inline float Volume() const
 		{
 			return m_extents.x * m_extents.y * m_extents.z;
+		}
+
+		inline bool operator == (const Bounds& other) const
+		{
+			return m_origin == other.m_origin && m_extents == other.m_extents;
+		}
+
+		inline bool RoughlyEquals(const Bounds& other) const
+		{
+			static constexpr float Tolerance = 0.00001f;
+
+			glm::vec3 diffOrigin = glm::abs(m_origin - other.m_origin);
+			glm::vec3 diffExtents = glm::abs(m_extents - other.m_extents);
+
+			return diffOrigin.x <= Tolerance && diffOrigin.y <= Tolerance && diffOrigin.z <= Tolerance 
+				&& diffExtents.x <= Tolerance && diffExtents.y <= Tolerance && diffExtents.z <= Tolerance;
 		}
 
 		inline bool IntersectsWith(const Bounds& other) const

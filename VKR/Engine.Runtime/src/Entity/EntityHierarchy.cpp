@@ -37,7 +37,7 @@ namespace Eng
 			bvhDesc.m_toleranceStepY = 1.0f;
 
 			m_renderHierarchy.Init(renderer, allocator, m_streamer, bvhDesc);
-			m_entityBoundingVolumeHierarchy.Init(allocator, bvhDesc);
+			m_entityBoundingVolumeHierarchy.Init(bvhDesc);
 		}
 	}
 

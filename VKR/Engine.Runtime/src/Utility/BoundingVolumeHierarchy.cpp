@@ -6,14 +6,15 @@
 
 namespace Eng
 {
-	BoundingVolumeHierarchy::BoundingVolumeHierarchy(CLib::Allocator* allocator, const CreateDesc& desc)
+	BoundingVolumeHierarchy::BoundingVolumeHierarchy(const CreateDesc& desc)
 	{
-		Init(allocator, desc);
+		Init(desc);
 	}
 
-	void BoundingVolumeHierarchy::Init(CLib::Allocator* allocator, const CreateDesc& desc)
+	void BoundingVolumeHierarchy::Init(const CreateDesc& desc)
 	{
-		m_allocator = allocator;
+		if (m_nodeAllocator == nullptr)
+			m_nodeAllocator = new CLib::FixedBlockAllocator(sizeof(BuildNode) + sizeof(NodeData));
 
 		m_origToleranceDistance[0] = m_toleranceDistance[0] = desc.m_toleranceDistanceX;
 		m_origToleranceDistance[1] = m_toleranceDistance[1] = desc.m_toleranceDistanceY;
@@ -40,6 +41,11 @@ namespace Eng
 		if (m_root != nullptr)
 		{
 			RecursiveFreeNode(m_root);
+		}
+
+		if (m_nodeAllocator != nullptr)
+		{
+			delete m_nodeAllocator;
 		}
 	}
 
@@ -241,7 +247,7 @@ namespace Eng
 					}
 
 					// Split current node into a new cluster.
-					currentCluster = newClusters.PushBack() = m_allocator->Alloc<Cluster>();
+					currentCluster = newClusters.PushBack() = m_nodeAllocator->Alloc<Cluster>();
 					currentCluster->PushBack(currentNode);
 
 					currentClusterRange = currentNode->GetRange(axis);
@@ -282,7 +288,7 @@ namespace Eng
 					NodeWave& newWave = waves.PushBack();
 					newWave.second = scale;
 
-					currentGroup = newWave.first = m_allocator->Alloc<Cluster>(32);
+					currentGroup = newWave.first = m_nodeAllocator->Alloc<Cluster>(32);
 					currentGroup->PushBack(n);
 					n = nullptr;
 
@@ -309,7 +315,7 @@ namespace Eng
 
 		for (NodeWave& wave : waves)
 		{
-			m_allocator->Free(wave.first);
+			m_nodeAllocator->Free(wave.first);
 		}
 
 		return root;
@@ -323,7 +329,7 @@ namespace Eng
 			ClusterArray clusters{};
 
 			// Place all nodes in one cluster to begin with.
-			Cluster* startCluster = clusters.PushBack() = m_allocator->Alloc<Cluster>();
+			Cluster* startCluster = clusters.PushBack() = m_nodeAllocator->Alloc<Cluster>();
 			for (uint32_t i = 0; i < waveCluster.Count(); ++i)
 			{
 				startCluster->PushBack(waveCluster[i]);
@@ -340,7 +346,7 @@ namespace Eng
 				AxisSplitClusters(clusters, EProjectedAxis::Z);
 			}
 
-			Cluster* clusterNodes = m_allocator->Alloc<Cluster>();
+			Cluster* clusterNodes = m_nodeAllocator->Alloc<Cluster>();
 			clusterNodes->Reserve(clusters.Count());
 
 			// Convert clusters to nodes...
@@ -370,7 +376,7 @@ namespace Eng
 					}
 				}
 
-				m_allocator->Free(cluster);
+				m_nodeAllocator->Free(cluster);
 				cluster = nullptr;
 
 				BuildNode& convertedCluster = *clusterNodes->Back();
@@ -397,7 +403,7 @@ namespace Eng
 					*waves.Back().first += *clusterNodes;
 				}
 
-				m_allocator->Free(clusterNodes);
+				m_nodeAllocator->Free(clusterNodes);
 			}
 			else
 			{
@@ -405,7 +411,7 @@ namespace Eng
 				waves.PushBack({ clusterNodes, largestClusterScale });
 			}
 		}
-		m_allocator->Free(wave.first);
+		m_nodeAllocator->Free(wave.first);
 
 		BuildNode* root = nullptr;
 
@@ -706,15 +712,15 @@ namespace Eng
 			return;
 		}
 
-		if ((node->m_depth == depth && !node->IsLeaf()) || node->m_depth == (depth + 1) || depth == ~uint32_t(0))
-		{
-			DebugDrawCube(lines, origin, extents, lineColor);
-		}
-
 		if (node->m_depth <= depth)
 		{
 			for (BuildNode* n : node->m_children)
 				RecursiveDebugDrawNode(lines, frustrum, n, depth, drawObjectBounds);
+		}
+
+		if ((node->m_depth == depth && !node->IsLeaf()) || node->m_depth == (depth + 1) || depth == ~uint32_t(0))
+		{
+			DebugDrawCube(lines, origin, extents, lineColor);
 		}
 	}
 
@@ -743,18 +749,15 @@ namespace Eng
 
 	BoundingVolumeHierarchy::BuildNode* BoundingVolumeHierarchy::AllocateBuildNode()
 	{
-		BuildNode* newNode = m_allocator->Alloc<BuildNode>();
-		newNode->m_data = AllocateNodeData();
+		BuildNode* newNode = m_nodeAllocator->Alloc<BuildNode>();
+		AllocateNodeData(newNode);
 		return newNode;
 	}
 
 	void BoundingVolumeHierarchy::FreeBuildNode(BuildNode* node)
 	{
-		if (node->m_data)
-		{
-			FreeNodeData(node->m_data);
-		}
-		m_allocator->Free(node);
+		FreeNodeData(node);
+		m_nodeAllocator->Free(node);
 	}
 
 	uint64_t BoundingVolumeHierarchy::GetScore(const Bounds& bounds)
