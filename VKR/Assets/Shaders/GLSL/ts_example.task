@@ -1,0 +1,39 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_EXT_mesh_shader : require
+
+#define TASK_GROUP_SIZE 32
+layout (local_size_x = TASK_GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+struct MeshletBoundData
+{
+    vec3 origin;
+    uint indexOffset; // Index offset of the meshlet.
+    vec3 extents;
+    uint pad;
+};
+
+struct TASK_PAYLOAD
+{
+    // Pack meshlet buffer index in last 8 bits. First 24 for meshlet index in the buffer.
+    uint passingMeshletIndices[TASK_GROUP_SIZE];
+};
+
+// One per set of mesh shader workgroups dispatched by a single task shader workgroup.
+taskPayloadSharedEXT TASK_PAYLOAD payloadOut;
+
+void main()
+{
+    // Perhaps dispatch a task workgroup to process culling of a meshlet on each invocation.
+    // For a Drawbatch, dispatch (totalMeshletCount / local_size_x) (+1 for tail) task workgroups to cull all meshlets in a single drawbatch.
+    // Each passing meshlet will emit a single mesh task. In the mesh task the normal vertex shader logic will be run.
+
+    // NOTE: NVIDIA GPUs prefer smaller workgroup sizes. The ideal size is 32 (WARP size).
+
+    MeshletBoundData data;
+
+    payloadOut.passingMeshletIndices[gl_LocalInvocationID.x] = data.indexOffset;
+
+    // Amount of mesh shader workgroups to dispatch.
+    EmitMeshTasksEXT(2, 1, 1);
+}

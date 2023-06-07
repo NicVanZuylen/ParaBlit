@@ -10,8 +10,10 @@ namespace Eng
 
 		PB::ComputePipelineDesc cullPipelineDesc{};
 		cullPipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull", allocator, true).GetModule();
-
 		m_batchCullPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
+
+		cullPipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull_tasks", allocator, true).GetModule();
+		m_batchCullTasksPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
 	}
 
 	BatchDispatcher::~BatchDispatcher()
@@ -36,7 +38,7 @@ namespace Eng
 		m_state = EDispatcherState::CLEAR;
 	}
 
-	void BatchDispatcher::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView)
+	void BatchDispatcher::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView, bool cullMeshlets)
 	{
 		if (m_batches.empty())
 			return;
@@ -44,12 +46,12 @@ namespace Eng
 		assert(m_state == EDispatcherState::PRE_CULL);
 
 		// Dispatch frustrum cull for all batches.
-		cmdContext->CmdBindPipeline(m_batchCullPipeline);
+		cmdContext->CmdBindPipeline(cullMeshlets ? m_batchCullTasksPipeline : m_batchCullPipeline);
 		for (auto& pipelineBatches : m_batches)
 		{
 			for (auto& batchState : pipelineBatches.second)
 			{
-				batchState.batch->DispatchFrustrumCull(cmdContext, viewConstantsView);
+				batchState.batch->DispatchFrustrumCull(cmdContext, viewConstantsView, cullMeshlets);
 			}
 		}
 
@@ -58,7 +60,7 @@ namespace Eng
 		m_state = EDispatcherState::PRE_DRAW;
 	}
 
-	void BatchDispatcher::DrawBatches(PB::ICommandContext* cmdContext, PB::Pipeline overridePipeline)
+	void BatchDispatcher::DrawBatches(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView, PB::Pipeline overridePipeline, bool drawExperimental)
 	{
 		if (m_batches.empty())
 			return;
@@ -77,7 +79,12 @@ namespace Eng
 
 			for (auto& batchState : pipelineBatches.second)
 			{
-				batchState.batch->DrawCulledGeometry(cmdContext, batchState.batchBindings);
+				if(drawExperimental == false)
+					batchState.batch->DrawCulledGeometry(cmdContext, batchState.batchBindings);
+				else
+				{
+					batchState.batch->EXPERIMENTAL_DrawAllMeshShader(cmdContext, batchState.batchBindings, viewConstantsView);
+				}
 			}
 		}
 

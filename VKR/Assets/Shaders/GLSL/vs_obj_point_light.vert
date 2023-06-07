@@ -38,7 +38,7 @@ layout(set = 1, binding = 0) uniform PointLightBuffer
     PointLight m_lights[512];
 } pointLightBuffer[];
 
-layout (location = 0) out VS_OUT vsOutput;
+//layout (location = 0) out VS_OUT vsOutput;
 layout (location = 1) flat out int instanceIndex;
 
 void main() 
@@ -50,7 +50,8 @@ void main()
 
     vec3 finalPos = (inPosition * light.radius) + light.position.xyz;
 
-    vsOutput.worldPos = vec4(finalPos, 1.0);
-    gl_Position = proj * view * vsOutput.worldPos;
+    //vsOutput.worldPos = vec4(finalPos, 1.0);
+    //gl_Position = proj * view * vsOutput.worldPos;
+    gl_Position = proj * view * vec4(finalPos, 1.0);
     instanceIndex = gl_InstanceIndex;
 }

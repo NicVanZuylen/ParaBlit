@@ -60,6 +60,11 @@ namespace Eng
 		m_camera = Camera(cameraDesc);
 		m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
+		cameraDesc.m_width = cameraDesc.m_height / 2;
+		cameraDesc.m_position = glm::vec3(-4.0f, 1.0f, 4.0f);
+		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, -55.0f, 0.0f));
+		m_frustrumTestCamera = Camera(cameraDesc);
+
 		std::string dbDir = std::filesystem::current_path().string();
 		std::string databasePath = dbDir + "/Assets/build";
 		m_assetStreamer.Init(m_renderer, databasePath.c_str());
@@ -222,9 +227,11 @@ namespace Eng
 			}
 		}
 
-		if (m_selectedEntity != nullptr)
+		if (input->GetKey(GLFW_KEY_M, EInputState::INPUTSTATE_CURRENT))
 		{
-
+			m_frustrumTestCamera.Rotate(glm::radians(glm::vec3(0.0f, deltaTime * 45.0f, 0.0f)));
+			//m_frustrumTestCamera.UpdateFreeCam(deltaTime, input, window);
+			m_frustrumTestCamera.Update();
 		}
 
 		// Update Camera -------------------------------------------------------------------------------------------------
@@ -262,6 +269,21 @@ namespace Eng
 			bufferMatrices->m_mainFrustrumPlanes[5] = frustrum.m_far;
 
 			m_mvpBuffer->EndPopulate();
+
+			ViewConstantsBuffer* testViewConstants = (ViewConstantsBuffer*)m_frustrumTestBuffer->BeginPopulate();
+
+			const Camera::CameraFrustrum& testFrustrum = m_frustrumTestCamera.GetFrustrum();
+			Camera::DrawFrustrum(m_debugLinePass, testFrustrum, glm::vec3(1.0f, 0.0f, 1.0f));
+
+			testViewConstants->m_mainFrustrumPlanes[0] = testFrustrum.m_near;
+			testViewConstants->m_mainFrustrumPlanes[1] = testFrustrum.m_left;
+			testViewConstants->m_mainFrustrumPlanes[2] = testFrustrum.m_right;
+			testViewConstants->m_mainFrustrumPlanes[3] = testFrustrum.m_top;
+			testViewConstants->m_mainFrustrumPlanes[4] = testFrustrum.m_bottom;
+			testViewConstants->m_mainFrustrumPlanes[5] = testFrustrum.m_far;
+			testViewConstants->m_camPos = glm::vec4(m_frustrumTestCamera.Position(), 1.0f);
+
+			m_frustrumTestBuffer->EndPopulate();
 		}
 		// ---------------------------------------------------------------------------------------------------------------
 
@@ -300,6 +322,7 @@ namespace Eng
 		mvpBufferDesc.m_options = PB::EBufferOptions::ZERO_INITIALIZE;
 		mvpBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::UNIFORM;
 		m_mvpBuffer = m_renderer->AllocateBuffer(mvpBufferDesc);
+		m_frustrumTestBuffer = m_renderer->AllocateBuffer(mvpBufferDesc);
 
 		// Basic textures
 		PB::u8 texData[4] = { 255, 255, 255, 255 };
@@ -331,6 +354,8 @@ namespace Eng
 
 		// Shaders
 		m_shadowVertShader = m_allocator->Alloc<Eng::Shader>(m_renderer, "Shaders/GLSL/vs_obj_shad_batch", m_allocator, true);
+
+		PB::GraphicsPipelineDesc meshShaderPipelineTest{};
 
 		// Vertex pool
 		m_vertexPool = m_allocator->Alloc<VertexPool>(m_renderer, uint32_t(sizeof(Eng::Vertex) * 1000000), uint32_t(sizeof(Eng::Vertex)));
@@ -466,6 +491,7 @@ namespace Eng
 
 		m_allocator->Free(m_vertexPool);
 
+		m_renderer->FreeBuffer(m_frustrumTestBuffer);
 		m_renderer->FreeBuffer(m_mvpBuffer);
 		m_mvpBuffer = nullptr;
 	}
@@ -473,10 +499,12 @@ namespace Eng
 	inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	{
 		uint32_t frustrumPlanesOffset = offsetof(ViewConstantsBuffer, ViewConstantsBuffer::m_mainFrustrumPlanes);
-		uint32_t frustrumPlanesSize = sizeof(ViewConstantsBuffer::m_mainFrustrumPlanes);
+		uint32_t frustrumPlanesSize = sizeof(ViewConstantsBuffer::m_mainFrustrumPlanes) + sizeof(ViewConstantsBuffer::m_camPos);
+
+		PB::IBufferObject* viewBuffer = m_frustrumTestBuffer;
 
 		PB::BufferViewDesc viewPlanesDesc;
-		viewPlanesDesc.m_buffer = m_mvpBuffer;
+		viewPlanesDesc.m_buffer = viewBuffer;
 		viewPlanesDesc.m_offset = frustrumPlanesOffset;
 		viewPlanesDesc.m_size = frustrumPlanesSize;
 
@@ -510,7 +538,7 @@ namespace Eng
 			// GBuffer pass
 			{
 				if (!m_gBufferPass)
-					m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), m_mvpBuffer->GetViewAsUniformBuffer(viewPlanesDesc), &m_camera, &m_hierarchy.GetRenderHierarchy());
+					m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), viewBuffer->GetViewAsUniformBuffer(viewPlanesDesc), &m_camera, &m_hierarchy.GetRenderHierarchy());
 				m_gBufferPass->AddToRenderGraph(&rgBuilder);
 			}
 
@@ -626,18 +654,18 @@ namespace Eng
 		PB::UniformBufferView mvpView = m_mvpBuffer->GetViewAsUniformBuffer();
 
 		glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
-		glm::mat4 spinnerModelMat = glm::scale(modelMat, glm::vec3(0.01f)); // Convert cm to m.
 
 		AssetEncoder::AssetID paintMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_paint").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID detailsMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_details").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID glassMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
+		AssetEncoder::AssetID bunnyMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Stanford/Bunny").GetID(&Mesh::s_meshDatabaseLoader);
 
-		const uint32_t spinnerCount = 2;
+		const uint32_t spinnerCount = 64;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
-			//glm::vec3 pos = glm::vec3(4.0f * (i / 10), 0.0f, -7.0f * (i % 10));
-			glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
+			glm::vec3 pos = glm::vec3(8.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
 
 			if (i == 1)
 			{
@@ -651,7 +679,6 @@ namespace Eng
 			Transform* paintTransform = paintEntity->GetComponent<Transform>();
 			paintTransform->SetPosition(pos);
 			paintTransform->SetRotation(spinnerQuat);
-			paintTransform->SetScale(glm::vec3(0.01f));
 			paintEntity->AddComponent<RenderDefinition>(paintMeshID, m_spinnerMaterials[0]);
 			m_hierarchy.CommitEntity(paintEntity);
 
@@ -659,7 +686,6 @@ namespace Eng
 			Transform* detailsTransform = detailsEntity->GetComponent<Transform>();
 			detailsTransform->SetPosition(pos);
 			detailsTransform->SetRotation(spinnerQuat);
-			detailsTransform->SetScale(glm::vec3(0.01f));
 			detailsEntity->AddComponent<RenderDefinition>(detailsMeshID, m_spinnerMaterials[1]);
 			m_hierarchy.CommitEntity(detailsEntity);
 
@@ -667,7 +693,6 @@ namespace Eng
 			Transform* glassTransform = glassEntity->GetComponent<Transform>();
 			glassTransform->SetPosition(pos);
 			glassTransform->SetRotation(spinnerQuat);
-			glassTransform->SetScale(glm::vec3(0.01f));
 			glassEntity->AddComponent<RenderDefinition>(glassMeshID, m_spinnerMaterials[2]);
 			m_hierarchy.CommitEntity(glassEntity);
 		}
@@ -691,6 +716,14 @@ namespace Eng
 		debugPlaneTransform->SetScale(glm::vec3(0.2f));
 		debugPlaneEntity->AddComponent<RenderDefinition>(planeMeshID, m_debugMaterial);
 		m_hierarchy.CommitEntity(debugPlaneEntity);
+
+		glm::vec3 bunnyOffset = glm::vec3(3.0f, 0.5f, 0.0f);
+		Entity* bunnyEntity = m_hierarchy.AddEntity(bunnyOffset, "bunny");
+		Transform* bunnyTransform = bunnyEntity->GetComponent<Transform>();
+		bunnyTransform->SetPosition(bunnyOffset);
+		bunnyTransform->SetScale(glm::vec3(0.3f));
+		bunnyEntity->AddComponent<RenderDefinition>(bunnyMeshID, m_debugMaterial);
+		m_hierarchy.CommitEntity(bunnyEntity);
 
 		m_hierarchy.BakeTrees();
 	}

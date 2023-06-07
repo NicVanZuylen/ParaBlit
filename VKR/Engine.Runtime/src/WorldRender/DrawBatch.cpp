@@ -60,9 +60,21 @@ namespace Eng
         drawParamsBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::INDIRECT_PARAMS;
         m_drawParamsBuffer = m_renderer->AllocateBuffer(drawParamsBufferDesc);
 
+        drawParamsBufferDesc.m_bufferSize = sizeof(MeshletDrawParamsBuffer);
+        m_drawMeshletParamsBuffer = m_renderer->AllocateBuffer(drawParamsBufferDesc);
+
+        PB::BufferObjectDesc drawRangesBufferDesc;
+        drawRangesBufferDesc.m_bufferSize = sizeof(MeshletDrawRangesBuffer);
+        drawRangesBufferDesc.m_options = 0;
+        drawRangesBufferDesc.m_usage = PB::EBufferUsage::STORAGE;
+        m_drawRangesBuffer = m_renderer->AllocateBuffer(drawRangesBufferDesc);
+
         PB::ComputePipelineDesc updatePipelineDesc;
         updatePipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_populate_indices", m_allocator, true);
-        m_batchUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
+        m_batchIndexUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
+
+        updatePipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_populate_meshlets", m_allocator, true);
+        m_batchMeshletUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
     }
 
     DrawBatch::~DrawBatch()
@@ -90,9 +102,32 @@ namespace Eng
             m_renderer->FreeBuffer(m_indexSrcViewBuffer);
             m_indexSrcViewBuffer = nullptr;
         }
+
+        if (m_batchMeshletBuffer)
+        {
+            m_renderer->FreeBuffer(m_batchMeshletBuffer);
+            m_batchMeshletBuffer = nullptr;
+        }
+        if (m_batchMeshletUploadBuffer)
+        {
+            m_renderer->FreeBuffer(m_batchMeshletUploadBuffer);
+            m_batchMeshletUploadBuffer = nullptr;
+        }
+        if (m_meshletSrcBufferBatch)
+        {
+            m_meshletSrcBufferBatch->EndStreamingAndDelete();
+            m_meshletSrcBufferBatch = nullptr;
+        }
+        if (m_meshletSrcViewBuffer)
+        {
+            m_renderer->FreeBuffer(m_meshletSrcViewBuffer);
+            m_meshletSrcViewBuffer = nullptr;
+        }
         
         m_renderer->FreeBuffer(m_cullConstantsBuffer);
+        m_renderer->FreeBuffer(m_drawMeshletParamsBuffer);
         m_renderer->FreeBuffer(m_drawParamsBuffer);
+        m_renderer->FreeBuffer(m_drawRangesBuffer);
     }
 
     void DrawBatch::AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings)
@@ -126,7 +161,7 @@ namespace Eng
         m_allocator->Free(finalBindingLayout.m_resourceViews);
     }
 
-    void DrawBatch::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView)
+    void DrawBatch::DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView, bool cullTasks)
     {
         PB::UniformBufferView constants[]
         {
@@ -137,29 +172,59 @@ namespace Eng
         PB::ResourceView drawCountView;
 
         PB::BufferViewDesc drawViewDesc{};
-        drawViewDesc.m_buffer = m_drawParamsBuffer;
-        drawViewDesc.m_offset = 0;
-        drawViewDesc.m_size = sizeof(DrawParamsBuffer::m_drawIndexedParams);
-        drawParamsView = m_drawParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
-
-        drawViewDesc.m_offset = drawViewDesc.m_size;
-        drawViewDesc.m_size = sizeof(DrawParamsBuffer::m_drawCount);
-        drawCountView = m_drawParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
-
-        PB::ResourceView resources[]
+        if (cullTasks == true)
         {
-            m_cullConstantsBuffer->GetViewAsStorageBuffer(),
-            drawParamsView,
-            drawCountView
-        };
+            drawViewDesc.m_buffer = m_drawMeshletParamsBuffer;
+            drawViewDesc.m_offset = offsetof(MeshletDrawParamsBuffer, MeshletDrawParamsBuffer::m_drawMeshTasksParams);;
+            drawViewDesc.m_size = sizeof(MeshletDrawParamsBuffer::m_drawMeshTasksParams);
+            drawParamsView = m_drawMeshletParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
 
-        PB::BindingLayout bindings;
-        bindings.m_uniformBufferCount = _countof(constants);
-        bindings.m_uniformBuffers = constants;
-        bindings.m_resourceCount = _countof(resources);
-        bindings.m_resourceViews = resources;
-        cmdContext->CmdBindResources(bindings);
-        cmdContext->CmdDispatch(1, 1, 1);
+            drawViewDesc.m_offset = offsetof(MeshletDrawParamsBuffer, MeshletDrawParamsBuffer::m_drawCount);
+            drawViewDesc.m_size = sizeof(MeshletDrawParamsBuffer::m_drawCount);
+            drawCountView = m_drawMeshletParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
+
+            PB::ResourceView resources[]
+            {
+                m_cullConstantsBuffer->GetViewAsStorageBuffer(),
+                m_drawRangesBuffer->GetViewAsStorageBuffer(),
+                drawParamsView,
+                drawCountView
+            };
+
+            PB::BindingLayout bindings;
+            bindings.m_uniformBufferCount = _countof(constants);
+            bindings.m_uniformBuffers = constants;
+            bindings.m_resourceCount = _countof(resources);
+            bindings.m_resourceViews = resources;
+            cmdContext->CmdBindResources(bindings);
+            cmdContext->CmdDispatch(1, 1, 1);
+        }
+        else
+        {
+            drawViewDesc.m_buffer = m_drawParamsBuffer;
+            drawViewDesc.m_offset = 0;
+            drawViewDesc.m_size = sizeof(DrawParamsBuffer);
+            drawParamsView = m_drawParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
+
+            drawViewDesc.m_offset = offsetof(DrawParamsBuffer, DrawParamsBuffer::m_drawCount);
+            drawViewDesc.m_size = sizeof(DrawParamsBuffer::m_drawCount);
+            drawCountView = m_drawParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
+
+            PB::ResourceView resources[]
+            {
+                m_cullConstantsBuffer->GetViewAsStorageBuffer(),
+                drawParamsView,
+                drawCountView
+            };
+
+            PB::BindingLayout bindings;
+            bindings.m_uniformBufferCount = _countof(constants);
+            bindings.m_uniformBuffers = constants;
+            bindings.m_resourceCount = _countof(resources);
+            bindings.m_resourceViews = resources;
+            cmdContext->CmdBindResources(bindings);
+            cmdContext->CmdDispatch(1, 1, 1);
+        }
     }
 
     void DrawBatch::DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings)
@@ -212,24 +277,87 @@ namespace Eng
         cmdContext->CmdDrawIndexed(m_batchIndexCount, m_batchInstanceCount);
     }
 
+    void DrawBatch::EXPERIMENTAL_DrawAllMeshShader(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings, PB::UniformBufferView viewConstantsView)
+    {
+        for (StreamingBatch*& streamingBatch : m_instanceStreamingBatches)
+        {
+            streamingBatch->WaitStreamingComplete();
+            streamingBatch->EndStreamingAndDelete();
+        }
+        m_instanceStreamingBatches.Clear();
+
+        CLib::Vector<PB::UniformBufferView, 8, 8> uniformBindings = { viewConstantsView };
+
+        for (uint32_t i = 0; i < bindings.m_uniformBufferCount; ++i)
+            uniformBindings.PushBack(bindings.m_uniformBuffers[i]);
+
+        PB::BindingLayout finalBindingLayout{};
+        finalBindingLayout.m_uniformBuffers = uniformBindings.Data();
+        finalBindingLayout.m_uniformBufferCount = uniformBindings.Count();
+
+        PB::ResourceView batchResources[] =
+        {
+            m_batchIndexBuffer->GetViewAsStorageBuffer(),
+            m_drawRangesBuffer->GetViewAsStorageBuffer(),
+            m_batchMeshletBuffer->GetViewAsStorageBuffer(),
+            m_instanceBuffer.GetBuffer()->GetViewAsStorageBuffer()
+        };
+        finalBindingLayout.m_resourceCount = _countof(batchResources);
+        finalBindingLayout.m_resourceViews = batchResources;
+
+        constexpr uint32_t TaskWorkGroupMeshletCount = 32;
+        constexpr uint32_t IndicesPerTaskWorkgroup = TaskWorkGroupMeshletCount * MeshletIndexCount;
+
+        uint32_t taskWorkgroupCount = m_batchIndexCount / IndicesPerTaskWorkgroup;
+        taskWorkgroupCount += (m_batchIndexCount % IndicesPerTaskWorkgroup > 0) ? 1 : 0;
+
+        cmdContext->CmdBindResources(finalBindingLayout);
+        //cmdContext->CmdDrawMeshTasks(taskWorkgroupCount, 1, 1);
+        cmdContext->CmdDrawMeshTasksIndirectCount(m_drawMeshletParamsBuffer, 0, m_drawMeshletParamsBuffer, offsetof(MeshletDrawParamsBuffer, MeshletDrawParamsBuffer::m_drawCount), MaxDrawCount, sizeof(PB::DrawMeshTasksIndirectParams));
+    }
+
     void DrawBatch::CreateUpdateResources()
     {
-        PB::BufferObjectDesc indexUpdateBufferDesc;
-        indexUpdateBufferDesc.m_bufferSize = (sizeof(IndexUploadMetadata) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch * IndexUpdatesPerInvocation) * sizeof(uint32_t));
-        indexUpdateBufferDesc.m_options = 0;
-        indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
-
-        if(m_batchIndexUploadBuffer == nullptr)
-            m_batchIndexUploadBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
-
-        indexUpdateBufferDesc.m_bufferSize = sizeof(PB::ResourceView) * MaxObjects;
-        if(m_indexSrcViewBuffer == nullptr)
-            m_indexSrcViewBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
-
-        if (m_indexSrcBufferBatch == nullptr)
+        // Index updates
         {
-            m_indexSrcBufferBatch = m_streamer->AllocStreamingBatch();
-            m_indexSrcBufferBatch->SetOutputBindingLocation(m_indexSrcViewBuffer, 0);
+            PB::BufferObjectDesc indexUpdateBufferDesc;
+            indexUpdateBufferDesc.m_bufferSize = (sizeof(IndexUploadMetadata) * MaxObjects) + ((MaxUpdateWorkGroupsPerBatch * IndexUpdatesPerInvocation) * sizeof(uint32_t));
+            indexUpdateBufferDesc.m_options = 0;
+            indexUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
+
+            if (m_batchIndexUploadBuffer == nullptr)
+                m_batchIndexUploadBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
+
+            indexUpdateBufferDesc.m_bufferSize = sizeof(PB::ResourceView) * MaxObjects;
+            if (m_indexSrcViewBuffer == nullptr)
+                m_indexSrcViewBuffer = m_renderer->AllocateBuffer(indexUpdateBufferDesc);
+
+            if (m_indexSrcBufferBatch == nullptr)
+            {
+                m_indexSrcBufferBatch = m_streamer->AllocStreamingBatch();
+                m_indexSrcBufferBatch->SetOutputBindingLocation(m_indexSrcViewBuffer, 0);
+            }
+        }
+
+        // Meshlet updates
+        {
+            PB::BufferObjectDesc meshletUpdateBufferDesc;
+            meshletUpdateBufferDesc.m_bufferSize = (sizeof(MeshletUploadMetadata) * MaxObjects) + (MaxUpdateWorkGroupsPerBatch * MeshletsPerUploadWorkgroup * sizeof(uint32_t));
+            meshletUpdateBufferDesc.m_options = 0;
+            meshletUpdateBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::COPY_DST;
+
+            if (m_batchMeshletUploadBuffer == nullptr)
+                m_batchMeshletUploadBuffer = m_renderer->AllocateBuffer(meshletUpdateBufferDesc);
+
+            meshletUpdateBufferDesc.m_bufferSize = sizeof(PB::ResourceView) * MaxObjects;
+            if (m_meshletSrcViewBuffer == nullptr)
+                m_meshletSrcViewBuffer = m_renderer->AllocateBuffer(meshletUpdateBufferDesc);
+
+            if (m_meshletSrcBufferBatch == nullptr)
+            {
+                m_meshletSrcBufferBatch = m_streamer->AllocStreamingBatch();
+                m_meshletSrcBufferBatch->SetOutputBindingLocation(m_meshletSrcViewBuffer, 0);
+            }
         }
     }
 
@@ -254,19 +382,32 @@ namespace Eng
             MeshCacheData meshData;
             Mesh::GetMeshData(meshID, &meshData);
 
-            IndexUploadMetadata& entry = m_indexUploadMetadata.PushBack();
-            entry.m_instanceIndex = m_batchInstanceCount;
-            entry.m_firstVertex = 0;
-            entry.m_startIndex = 0;
-            entry.m_indexCount = PB::u32(meshData.m_indexCount);
-            entry.m_workGroupCount = (entry.m_indexCount / WorkGroupIndexCount) + ((entry.m_indexCount % WorkGroupIndexCount > 0) ? 1 : 0);
+            IndexUploadMetadata& indexEntry = m_indexUploadMetadata.PushBack();
+            indexEntry.m_instanceIndex = m_batchInstanceCount;
+            indexEntry.m_firstVertex = 0;
+            indexEntry.m_startIndex = 0;
+            indexEntry.m_indexCount = PB::u32(meshData.m_indexCount);
+            indexEntry.m_workGroupCount = (indexEntry.m_indexCount / WorkGroupIndexCount) + ((indexEntry.m_indexCount % WorkGroupIndexCount > 0) ? 1 : 0);
 
-            m_batchIndexCount += entry.m_indexCount;
+            MeshletUploadMetadata& meshletEntry = m_meshletUploadMetadata.PushBack();
+            memcpy(meshletEntry.m_meshletTransform, modelMatrix, sizeof(float) * 16);
+            meshletEntry.m_meshletCount = meshData.m_meshletCount;
+            meshletEntry.m_firstWorkgroup = m_meshletWorkgroupCount;
+            meshletEntry.m_workgroupCount = meshletEntry.m_meshletCount / MeshletsPerUploadWorkgroup;
+            meshletEntry.m_workgroupCount += (meshletEntry.m_meshletCount % MeshletsPerUploadWorkgroup > 0) ? 1 : 0;
+
+            m_batchIndexCount += indexEntry.m_indexCount;
+            m_meshletWorkgroupCount += meshletEntry.m_workgroupCount;
         }
 
         // Setup index buffer streaming.
         {
             m_indexSrcBufferBatch->AddResource(StreamableHandle(meshID, EStreamableResourceType::MESH, StreamableHandle::EBindingType::STORAGE, 1));
+        }
+
+        // Setup meshlet buffer streaming.
+        {
+            m_meshletSrcBufferBatch->AddResource(StreamableHandle(meshID, EStreamableResourceType::MESH, StreamableHandle::EBindingType::STORAGE, 2));
         }
 
         // Setup instance streaming.
@@ -325,72 +466,136 @@ namespace Eng
         m_indexSrcBufferBatch->EndStreamingAndDelete();
         m_indexSrcBufferBatch = nullptr;
 
+        m_meshletSrcBufferBatch->BeginStreaming();
+        m_meshletSrcBufferBatch->WaitStreamingComplete();
+        m_meshletSrcBufferBatch->EndStreamingAndDelete();
+        m_meshletSrcBufferBatch = nullptr;
+
         FinalizeUpdates();
 
-        PB::u8* data = m_batchIndexUploadBuffer->BeginPopulate();
-
-        // Copy update data indices.
-
-        uint32_t* indicesStart = reinterpret_cast<uint32_t*>(&data[sizeof(IndexUploadMetadata) * MaxObjects]);
-        uint32_t totalWorkGroupIndex = 0;
+        // Index upload data
         uint32_t totalIndexCount = 0;
-        for (uint32_t i = 0; i < m_indexUploadMetadata.Count(); ++i)
         {
-            auto& uploadData = m_indexUploadMetadata[i];
-            if (uploadData.m_workGroupCount == WorkGroupCountInvalid) // Skip invalid entries.
-                continue;
+            uint32_t totalWorkGroupIndex = 0;
+            PB::u8* data = m_batchIndexUploadBuffer->BeginPopulate();
 
-            uploadData.m_startIndex = totalIndexCount;
-            totalIndexCount += uploadData.m_indexCount;
+            // Copy update data indices.
 
-            for (uint32_t j = 0; j < uploadData.m_workGroupCount; ++j, ++totalWorkGroupIndex)
-                indicesStart[totalWorkGroupIndex] = i;
+            uint32_t* indicesStart = reinterpret_cast<uint32_t*>(&data[sizeof(IndexUploadMetadata) * MaxObjects]);
+            for (uint32_t i = 0; i < m_indexUploadMetadata.Count(); ++i)
+            {
+                auto& uploadData = m_indexUploadMetadata[i];
+                if (uploadData.m_workGroupCount == WorkGroupCountInvalid) // Skip invalid entries.
+                    continue;
+
+                uploadData.m_startIndex = totalIndexCount;
+                totalIndexCount += uploadData.m_indexCount;
+
+                for (uint32_t j = 0; j < uploadData.m_workGroupCount; ++j, ++totalWorkGroupIndex)
+                    indicesStart[totalWorkGroupIndex] = i;
+            }
+
+            // Copy update data.
+            memcpy(data, m_indexUploadMetadata.Data(), sizeof(IndexUploadMetadata) * m_indexUploadMetadata.Count());
+
+            m_batchIndexUploadBuffer->EndPopulate();
+
+            if (m_batchIndexBuffer == nullptr)
+            {
+                PB::BufferObjectDesc indexBufferDesc;
+                indexBufferDesc.m_bufferSize = sizeof(PB::u32) * totalIndexCount;
+                indexBufferDesc.m_options = 0;
+                indexBufferDesc.m_usage = PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
+                m_batchIndexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
+            }
+
+            cmdContext->CmdBindPipeline(m_batchIndexUpdatePipeline);
+
+            PB::BindingLayout updateBindingLayout;
+            updateBindingLayout.m_uniformBufferCount = 0;
+            updateBindingLayout.m_uniformBuffers = nullptr;
+
+            PB::ResourceView views[] =
+            {
+                m_indexSrcViewBuffer->GetViewAsStorageBuffer(),
+                m_batchIndexUploadBuffer->GetViewAsStorageBuffer(),
+                m_batchIndexBuffer->GetViewAsStorageBuffer()
+            };
+            updateBindingLayout.m_resourceCount = _countof(views);
+            updateBindingLayout.m_resourceViews = views;
+            cmdContext->CmdBindResources(updateBindingLayout);
+
+            cmdContext->CmdDispatch(totalWorkGroupIndex * MinWorkGroupsPerObject, 1, 1);
+
+            // Free src buffers as they will no longer be needed.
+            m_renderer->FreeBuffer(m_batchIndexUploadBuffer);
+            m_batchIndexUploadBuffer = nullptr;
+            m_renderer->FreeBuffer(m_indexSrcViewBuffer);
+            m_indexSrcViewBuffer = nullptr;
         }
 
-        // Copy update data.
-        memcpy(data, m_indexUploadMetadata.Data(), sizeof(IndexUploadMetadata) * m_indexUploadMetadata.Count());
-
-        m_batchIndexUploadBuffer->EndPopulate();
-
-        if (m_batchIndexBuffer == nullptr)
+        // Meshlet upload data
         {
-            PB::BufferObjectDesc indexBufferDesc;
-            indexBufferDesc.m_bufferSize = sizeof(PB::u32) * totalIndexCount;
-            indexBufferDesc.m_options = 0;
-            indexBufferDesc.m_usage = PB::EBufferUsage::INDEX | PB::EBufferUsage::STORAGE;
-            m_batchIndexBuffer = m_renderer->AllocateBuffer(indexBufferDesc);
+            uint32_t totalMeshletWorkgroupIndex = 0;
+            uint32_t totalMeshletCount = 0;
+            PB::u8* data = m_batchMeshletUploadBuffer->BeginPopulate();
+
+            uint32_t* indicesStart = reinterpret_cast<uint32_t*>(&data[sizeof(MeshletUploadMetadata) * MaxObjects]);
+            for (uint32_t i = 0; i < m_meshletUploadMetadata.Count(); ++i)
+            {
+                auto& uploadData = m_meshletUploadMetadata[i];
+
+                uploadData.m_startIndex = totalMeshletCount;
+                totalMeshletCount += uploadData.m_meshletCount;
+
+                for (uint32_t j = 0; j < uploadData.m_workgroupCount; ++j, ++totalMeshletWorkgroupIndex)
+                    indicesStart[totalMeshletWorkgroupIndex] = i;
+            }
+
+            // Copy update data.
+            memcpy(data, m_meshletUploadMetadata.Data(), sizeof(MeshletUploadMetadata) * m_meshletUploadMetadata.Count());
+
+            m_batchMeshletUploadBuffer->EndPopulate();
+
+            if (m_batchMeshletBuffer == nullptr)
+            {
+                PB::BufferObjectDesc meshletBufferDesc;
+                meshletBufferDesc.m_bufferSize = sizeof(MeshletBoundData) * totalMeshletCount;
+                meshletBufferDesc.m_options = 0;
+                meshletBufferDesc.m_usage = PB::EBufferUsage::STORAGE;
+                m_batchMeshletBuffer = m_renderer->AllocateBuffer(meshletBufferDesc);
+            }
+
+            cmdContext->CmdBindPipeline(m_batchMeshletUpdatePipeline);
+
+            PB::BindingLayout updateBindingLayout;
+            updateBindingLayout.m_uniformBufferCount = 0;
+            updateBindingLayout.m_uniformBuffers = nullptr;
+
+            PB::ResourceView views[] =
+            {
+                m_meshletSrcViewBuffer->GetViewAsStorageBuffer(),
+                m_batchMeshletUploadBuffer->GetViewAsStorageBuffer(),
+                m_batchMeshletBuffer->GetViewAsStorageBuffer()
+            };
+            updateBindingLayout.m_resourceCount = _countof(views);
+            updateBindingLayout.m_resourceViews = views;
+            cmdContext->CmdBindResources(updateBindingLayout);
+
+            cmdContext->CmdDispatch(m_meshletWorkgroupCount, 1, 1);
+
+            m_renderer->FreeBuffer(m_batchMeshletUploadBuffer);
+            m_batchMeshletUploadBuffer = nullptr;
+            m_renderer->FreeBuffer(m_meshletSrcViewBuffer);
+            m_meshletSrcViewBuffer = nullptr;
         }
 
         // Update draw parameters with the new index count.
         PB::DrawIndexedIndirectParams drawParams{};
-        drawParams.indexCount = totalIndexCount;
-        drawParams.instanceCount = 1;
+        drawParams.m_indexCount = totalIndexCount;
+        drawParams.m_instanceCount = 1;
         for (auto& info : m_dispatchInfos)
             info.m_dispatchList->SetIndirectParams(info.m_dispatchHandle, drawParams);
-
-        cmdContext->CmdBindPipeline(m_batchUpdatePipeline);
-
-        PB::BindingLayout updateBindingLayout;
-        updateBindingLayout.m_uniformBufferCount = 0;
-        updateBindingLayout.m_uniformBuffers = nullptr;
-
-        PB::ResourceView views[] =
-        {
-            m_indexSrcViewBuffer->GetViewAsStorageBuffer(),
-            m_batchIndexUploadBuffer->GetViewAsStorageBuffer(),
-            m_batchIndexBuffer->GetViewAsStorageBuffer()
-        };
-        updateBindingLayout.m_resourceCount = _countof(views);
-        updateBindingLayout.m_resourceViews = views;
-        cmdContext->CmdBindResources(updateBindingLayout);
-
-        cmdContext->CmdDispatch(totalWorkGroupIndex * MinWorkGroupsPerObject, 1, 1);
-
-        // Free src buffers as they will no longer be needed.
-        m_renderer->FreeBuffer(m_batchIndexUploadBuffer);
-        m_batchIndexUploadBuffer = nullptr;
-        m_renderer->FreeBuffer(m_indexSrcViewBuffer);
-        m_indexSrcViewBuffer = nullptr;
 
         m_indicesUpToDate = true;
     }
@@ -411,6 +616,9 @@ namespace Eng
             objectCullData.m_boundExtents = bounds.m_extents;
             objectCullData.m_drawRange[0] = totalIndexCount;
             objectCullData.m_drawRange[1] = totalIndexCount + indexData.m_indexCount;
+
+            assert(objectCullData.m_drawRange[0] % MeshletIndexCount == 0);
+            assert(objectCullData.m_drawRange[1] % MeshletIndexCount == 0);
 
             totalIndexCount += indexData.m_indexCount;
         }

@@ -21,12 +21,25 @@ namespace Eng
 	};
 	static_assert(sizeof(Vertex) == 32);
 
+	struct Meshlet
+	{
+		glm::vec3 m_origin;
+		uint32_t m_index;
+		glm::vec3 m_extents;
+		uint8_t m_normalX;
+		uint8_t m_normalY;
+		uint8_t m_normalZ;
+		uint8_t m_normalTolerance;
+	};
+
 	struct MeshCacheData
 	{
-		uint64_t m_vertexCount = 0;
-		uint64_t m_indexCount = 0;
-		size_t m_vertexDataOffset = 0;
-		size_t m_indexOffset = 0;
+		uint64_t m_vertexCount		= 0;
+		uint64_t m_indexCount		= 0;
+		uint64_t m_meshletCount		= 0;
+		size_t m_vertexDataOffset	= 0;
+		size_t m_indexOffset		= 0;
+		size_t m_meshletDataOffset	= 0;
 		glm::vec4 m_boundOrigin;
 		glm::vec4 m_boundExtents;
 	};
@@ -95,6 +108,12 @@ namespace Eng
 		PB::IBufferObject* GetIndexBuffer();
 
 		/*
+		Description: Get the meshlet buffer of this mesh.
+		Return Type: const PB::IBufferObject*
+		*/
+		PB::IBufferObject* GetMeshletBuffer();
+
+		/*
 		Description: Get the mesh vertex buffer.
 		Return Type: const PB::IBufferObject*
 		*/
@@ -105,6 +124,12 @@ namespace Eng
 		Return Type: const PB::IBufferObject*
 		*/
 		const PB::IBufferObject* GetIndexBuffer() const;
+
+		/*
+		Description: Get the meshlet buffer of this mesh.
+		Return Type: const PB::IBufferObject*
+		*/
+		const PB::IBufferObject* GetMeshletBuffer() const;
 
 		/*
 		Description: Get the axis-aligned bounding box which fully encapsulates the mesh at identity transform.
@@ -126,6 +151,7 @@ namespace Eng
 		PB::IRenderer* m_renderer = nullptr;
 		PB::IBufferObject* m_vertexBuffer = nullptr;
 		PB::IBufferObject* m_indexBuffer = nullptr;
+		PB::IBufferObject* m_meshletBuffer = nullptr;
 		uint64_t m_totalVertexCount = 0;
 		uint64_t m_totalIndexCount = 0;
 		Bounds m_bounds;

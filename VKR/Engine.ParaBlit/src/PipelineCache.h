@@ -20,6 +20,7 @@ namespace PB
 		VkPipelineLayout m_layout = VK_NULL_HANDLE;
 		VkPipeline m_pipeline = VK_NULL_HANDLE;
 		bool m_isCompute = false;
+		bool m_hasMeshShader = false;
 	};
 
 	class PipelineCache : public IPipelineCache
@@ -46,6 +47,7 @@ namespace PB
 		VkDescriptorSetLayout m_masterSetLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
 		VkPipelineLayout m_commonGraphicsPipelineLayout = VK_NULL_HANDLE;
+		VkPipelineLayout m_commonGraphicsMeshShaderPipelineLayout = VK_NULL_HANDLE;
 		VkPipelineLayout m_commonComputePipelineLayout = VK_NULL_HANDLE;
 		std::unordered_map<GraphicsPipelineDesc, PipelineData, PipelineDescHasher> m_graphicsPipelineCache;
 		std::unordered_map<ComputePipelineDesc, PipelineData, PipelineDescHasher> m_computePipelineCache;

@@ -468,10 +468,12 @@ namespace PB
         {
         case EGraphicsShaderStage::VERTEX:
             return VK_SHADER_STAGE_VERTEX_BIT;
-            break;
+        case EGraphicsShaderStage::TASK:
+            return VK_SHADER_STAGE_TASK_BIT_EXT;
+        case EGraphicsShaderStage::MESH:
+            return VK_SHADER_STAGE_MESH_BIT_EXT;
         case EGraphicsShaderStage::FRAGMENT:
             return VK_SHADER_STAGE_FRAGMENT_BIT;
-            break;
         case EGraphicsShaderStage::GRAPHICS_STAGE_COUNT:
             PB_NOT_IMPLEMENTED;
             break;

@@ -493,6 +493,8 @@ namespace Eng
 					*outputBinding = mesh->GetVertexBuffer()->GetViewAsStorageBuffer();
 				else if (handle.m_bindingSubresource == 1)
 					*outputBinding = mesh->GetIndexBuffer()->GetViewAsStorageBuffer();
+				else if (handle.m_bindingSubresource == 2)
+					*outputBinding = mesh->GetMeshletBuffer()->GetViewAsStorageBuffer();
 				else
 				{
 					outputBinding[0] = mesh->GetVertexBuffer()->GetViewAsStorageBuffer();

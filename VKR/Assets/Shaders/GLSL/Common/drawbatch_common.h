@@ -1,0 +1,1 @@
+#define DEFINE_REQUIRED_UNIFORM_BINDINGS uint cullConstantsIndex; uint viewConstIndex  

@@ -213,14 +213,6 @@ void main()
 
         float normalDotLight = max(dot(normal, normLightDir), 0.0);
 
-        // float orenNayar = OrenNayarDiff(normal, normLightDir, dirToCam, roughness);
-        // vec3 cookTorrence = CookTorrenceSpec(normal, normLightDir, dirToCam, normalDotLight, roughness, specular);
-
-        // vec3 diffuse = orenNayar * light.color.rgb;
-        // vec3 spec = cookTorrence * light.color.rgb;
-
-        // Lo += vec4(((diffuse * color) + spec) * shadow, 0.0);
-
         vec3 radiance = light.color.xyz;
         vec3 kS;
         vec3 bdrfSpecular = CookTorranceDirect(normal, dirToCam, normLightDir, specular, kS, roughness, normalDotLight);

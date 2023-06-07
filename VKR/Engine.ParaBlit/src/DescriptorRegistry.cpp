@@ -331,7 +331,7 @@ namespace PB
 		CLib::Vector<VkDescriptorBindingFlags, 3> bindingFlags;
 
 		// TODO: Should we really have one pair of descriptor sets to share across all shader stages? What is the performance impact of this?
-		VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+		VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
 		VkDescriptorBindingFlags commonBindingFlags
 		{

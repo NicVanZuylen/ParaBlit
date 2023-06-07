@@ -80,6 +80,7 @@ namespace Eng
 		CLib::Allocator* m_allocator = nullptr;
 		RenderGraph* m_renderGraph = nullptr;
 		Camera m_camera;
+		Camera m_frustrumTestCamera;
 
 		// -------------------------------------------------------------------------
 		// Render Graph
@@ -99,6 +100,7 @@ namespace Eng
 		// -------------------------------------------------------------------------
 		// Resources
 		PB::IBufferObject* m_mvpBuffer = nullptr;
+		PB::IBufferObject* m_frustrumTestBuffer = nullptr;
 
 		Eng::Mesh* m_paintMesh = nullptr;
 		Eng::Mesh* m_detailsMesh = nullptr;
@@ -147,7 +149,6 @@ namespace Eng
 		uint32_t m_renderHierarchyDrawDebugDepth = 0;
 		bool m_drawEntireRenderHierarchy = false;
 		bool m_drawRenderHierarchyPipelineTree = false;
-
 
 		// -------------------------------------------------------------------------
 		// Resources

@@ -1,4 +1,6 @@
 #include "MeshEncoder.h"
+#include "../Bounds.h"
+#include "../MeshletOctree.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../TinyObjLoader/tiny_obj_loader.h"
@@ -19,15 +21,26 @@ namespace AssetPipeline
 
 		for (auto& asset : assetStatus)
 		{
+			Ctrl::IConfigFile* propertyFile = Ctrl::IConfigFile::Create(asset.m_propertyFilePath.c_str(), Ctrl::IConfigFile::EOpenMode::OPEN_READ_WRITE);
+			auto* data = propertyFile->GetData();
+			if (asset.m_hasPropertyFile == false)
+			{
+				data->SetBooleanValue("Mesh.ConvertCmToM", false);
+				data->SetBooleanValue("Mesh.GenerateMeshlets", true);
+				propertyFile->WriteData();
+			}
+
 			if (asset.m_outdated)
 			{
-				BuildMesh(asset);
+				BuildMesh(asset, data);
 				FlagAsModified();
 			}
 			else
 			{
 				WriteUnmodifiedAsset(asset);
 			}
+
+			Ctrl::IConfigFile::Destroy(propertyFile);
 		}
 	}
 
@@ -78,7 +91,7 @@ namespace AssetPipeline
 		}
 	}
 
-	void MeshEncoder::LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, glm::vec3& outOrigin, glm::vec3& outExtents, const char* path)
+	void MeshEncoder::LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, glm::vec3& outOrigin, glm::vec3& outExtents, const char* path, bool cmToM)
 	{
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -119,6 +132,7 @@ namespace AssetPipeline
 
 		SinglePrecisionTexCoords texCoords{};
 
+		float cmToMMultiplier = cmToM ? 0.01f : 1.0f;
 		for (uint32_t i = 0; i < chunkCount; ++i)
 		{
 			tinyobj::shape_t& shape = shapes[i];
@@ -158,7 +172,7 @@ namespace AssetPipeline
 
 				// Copy attributes...
 				if (shape.mesh.positions.size())
-					chunkVertices[j].m_position = glm::vec3(shape.mesh.positions[nIndex], shape.mesh.positions[nIndex + 1], shape.mesh.positions[nIndex + 2]);
+					chunkVertices[j].m_position = glm::vec3(shape.mesh.positions[nIndex], shape.mesh.positions[nIndex + 1], shape.mesh.positions[nIndex + 2]) * cmToMMultiplier;
 				else
 					chunkVertices[j].m_position = glm::vec3(0.0f, 0.0f, 0.0f);
 
@@ -201,35 +215,147 @@ namespace AssetPipeline
 		outExtents = outExtents - outOrigin;
 	}
 
-	inline void MeshEncoder::BuildMesh(const AssetStatus& asset)
+	inline void MeshEncoder::BuildMesh(const AssetStatus& asset, const Ctrl::IDataContainer* properties)
 	{
 		// Array of all vertices of all mesh chunks, for a single mesh VBO.
 		VertexBuffer wholeMeshVertices;
 		IndexBuffer wholeMeshIndices;
+		MeshletBuffer meshlets;
 
 		glm::vec3 meshBoundOrigin;
 		glm::vec3 meshBoundExtents;
-		LoadOBJ(wholeMeshVertices, wholeMeshIndices, meshBoundOrigin, meshBoundExtents, asset.m_fullPath.c_str());
+		LoadOBJ(wholeMeshVertices, wholeMeshIndices, meshBoundOrigin, meshBoundExtents, asset.m_fullPath.c_str(), properties->GetBooleanValue("Mesh.ConvertCmToM"));
+
+		if (properties->GetBooleanValue("Mesh.GenerateMeshlets"))
+		{
+			// Calculate meshlets...
+			{
+				Bounds meshBounds(meshBoundOrigin, meshBoundExtents);
+				auto maxExtent = glm::max(glm::max(meshBoundExtents.x, meshBoundExtents.y), meshBoundExtents.z);
+
+				glm::vec3 meshCenter = meshBounds.Center();
+
+				Bounds meshletTreeBounds;
+				meshletTreeBounds.m_extents = glm::vec3(maxExtent) * 1.001f; // Expand extents by 1 mm to account for precision error.
+				meshletTreeBounds.m_origin = meshCenter - (meshletTreeBounds.m_extents * 0.5f);
+
+				assert(meshletTreeBounds.Encapsulates(meshBounds));
+				MeshletOctree meshletOctree(meshletTreeBounds, &wholeMeshVertices);
+
+				uint32_t origIndexCount = wholeMeshIndices.Count();
+				for (uint32_t i = 0; i < origIndexCount; i += 3)
+				{
+					meshletOctree.AddTriangle({ glm::uvec3(wholeMeshIndices[i], wholeMeshIndices[i + 1], wholeMeshIndices[i + 2]) });
+				}
+				wholeMeshIndices.Clear();
+
+				meshletOctree.OutputIndexBuffer(wholeMeshIndices);
+				assert(wholeMeshIndices.Count() >= origIndexCount);
+
+				// If the index buffer is not divisible by meshlet size, pad it with invisible point triangles using the last index in the buffer.
+				uint32_t meshletModulo = wholeMeshIndices.Count() % MeshletOctree::MeshletIndexSize;
+				if (meshletModulo > 0)
+				{
+					uint32_t oldCount = wholeMeshIndices.Count();
+					uint32_t newCount = oldCount + (MeshletOctree::MeshletIndexSize - meshletModulo);
+
+					MeshIndex lastIndex = wholeMeshIndices.Back();
+					for (uint32_t i = 0; i < (newCount - oldCount); ++i)
+					{
+						wholeMeshIndices.PushBack(lastIndex);
+					}
+				}
+			}
+
+			// Gen meshlet data...
+			{
+				uint32_t meshletCount = wholeMeshIndices.Count() / MeshletOctree::MeshletIndexSize;
+				for (uint32_t i = 0; i < meshletCount; ++i)
+				{
+					Meshlet& meshlet = meshlets.PushBack();
+
+					uint32_t meshletIndexOffset = i * MeshletOctree::MeshletIndexSize;
+					Bounds meshletBounds;
+
+					CLib::Vector<glm::vec3, MeshletOctree::MeshletIndexSize> triNormals;
+					for (uint32_t j = 0; j < MeshletOctree::MeshletIndexSize; j += 3)
+					{
+						uint32_t index0 = wholeMeshIndices[meshletIndexOffset + j];
+						uint32_t index1 = wholeMeshIndices[meshletIndexOffset + j + 1];
+						uint32_t index2 = wholeMeshIndices[meshletIndexOffset + j + 2];
+
+						if (index0 + index1 + index2 == 0)
+							break;
+
+						Vertex& vertA = wholeMeshVertices[index0];
+						Vertex& vertB = wholeMeshVertices[index1];
+						Vertex& vertC = wholeMeshVertices[index2];
+
+						if (j == 0)
+						{
+							meshletBounds.m_origin = vertA.m_position;
+							meshletBounds.m_extents = glm::vec3(0.0f);
+						}
+						else
+						{
+							meshletBounds.Encapsulate(vertA.m_position);
+						}
+
+						meshletBounds.Encapsulate(vertB.m_position);
+						meshletBounds.Encapsulate(vertC.m_position);
+
+						triNormals.PushBack(glm::vec3(vertA.m_normal.Unpack()));
+						triNormals.PushBack(glm::vec3(vertB.m_normal.Unpack()));
+						triNormals.PushBack(glm::vec3(vertC.m_normal.Unpack()));
+					}
+
+					meshlet.m_origin = meshletBounds.m_origin;
+					meshlet.m_extents = meshletBounds.m_extents;
+
+					glm::vec3 averageNormal(0.0f);
+					for (const glm::vec3& normal : triNormals)
+					{
+						averageNormal += normal;
+					}
+					averageNormal = glm::normalize(averageNormal);
+
+					float angularSpan = 0.0f;
+					for (const glm::vec3& normal : triNormals)
+					{
+						float dot = glm::dot(averageNormal, normal);
+						angularSpan = glm::max(angularSpan, glm::acos(dot));
+					}
+
+					//meshlet.m_normal = Vec4PackedSnorm(glm::vec4(averageNormal, normalTolerance));
+					meshlet.m_normalPacked0 = Vec2PackedHalfFloat(averageNormal.x, averageNormal.y);
+					meshlet.m_normalPacked1 = Vec2PackedHalfFloat(averageNormal.z, angularSpan);
+				}
+			}
+		}
 
 		uint64_t vertexBufferSize = wholeMeshVertices.Count() * sizeof(Vertex);
 		uint64_t indexBufferSize = wholeMeshIndices.Count() * sizeof(MeshIndex);
+		uint64_t meshletBufferSize = meshlets.Count() * sizeof(Meshlet);
 
 		uint32_t totalVertexCount = wholeMeshVertices.Count();
 		uint32_t totalIndexCount = wholeMeshIndices.Count();
 
 		MeshCacheData* outCacheData;
-		size_t totalSize = vertexBufferSize + indexBufferSize;
+		size_t totalSize = vertexBufferSize + indexBufferSize + meshletBufferSize;
 		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), sizeof(MeshCacheData), totalSize, asset.m_lastModifiedTime, reinterpret_cast<char**>(&outCacheData)));
 
 		outCacheData->m_vertexCount = wholeMeshVertices.Count();
 		outCacheData->m_indexCount = wholeMeshIndices.Count();
+		outCacheData->m_meshletCount = meshlets.Count();
 		outCacheData->m_vertexDataOffset = 0;
 		outCacheData->m_indexOffset = outCacheData->m_vertexDataOffset + vertexBufferSize;
+		outCacheData->m_meshletDataOffset = outCacheData->m_indexOffset + indexBufferSize;
 		outCacheData->m_boundOrigin = glm::vec4(meshBoundOrigin, 0.0f);
 		outCacheData->m_boundExtents = glm::vec4(meshBoundExtents, 0.0f);
 
 		memcpy(data, wholeMeshVertices.Data(), vertexBufferSize);
 		memcpy(&data[outCacheData->m_indexOffset], wholeMeshIndices.Data(), indexBufferSize);
+		memcpy(&data[outCacheData->m_meshletDataOffset], meshlets.Data(), meshletBufferSize);
 
 		printf("%s: Stored encoded mesh %s in database: %s at location: %s\n", m_name.c_str(), asset.m_fullPath.c_str(), m_dbName.c_str(), asset.m_dbPath.c_str());
 	}

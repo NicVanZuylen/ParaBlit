@@ -273,6 +273,8 @@ namespace PB
 	enum EGraphicsShaderStage : u32
 	{
 		VERTEX,
+		TASK,
+		MESH,
 		FRAGMENT,
 		GRAPHICS_STAGE_COUNT
 	};
@@ -334,11 +336,18 @@ namespace PB
 
 	struct DrawIndexedIndirectParams
 	{
-		u32 offset = 0;
-		u32 indexCount = 0;
-		u32 instanceCount = 0;
-		u32 firstIndex = 0;
-		u32 vertexOffset = 0;
-		u32 firstInstance = 0;
+		u32 m_offset = 0;
+		u32 m_indexCount = 0;
+		u32 m_instanceCount = 0;
+		u32 m_firstIndex = 0;
+		u32 m_vertexOffset = 0;
+		u32 m_firstInstance = 0;
+	};
+
+	struct DrawMeshTasksIndirectParams
+	{
+		u32 m_workGroupX = 0;
+		u32 m_workGroupY = 0;
+		u32 m_workGroupZ = 0;
 	};
 }

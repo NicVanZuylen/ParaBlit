@@ -174,14 +174,14 @@ namespace PB
 
 	void BufferObject::PopulateWithDrawIndexedIndirectParams(u8* location, const DrawIndexedIndirectParams& params)
 	{
-		PB_ASSERT_MSG(params.offset + sizeof(VkDrawIndexedIndirectCommand) <= m_poolAllocation.m_size, "Provided offset would extend the parameters past the end of the buffer.");
+		PB_ASSERT_MSG(params.m_offset + sizeof(VkDrawIndexedIndirectCommand) <= m_poolAllocation.m_size, "Provided offset would extend the parameters past the end of the buffer.");
 		PB_ASSERT(location);
 		VkDrawIndexedIndirectCommand& data = *reinterpret_cast<VkDrawIndexedIndirectCommand*>(location);
-		data.indexCount = params.indexCount;
-		data.instanceCount = params.instanceCount;
-		data.firstIndex = params.firstIndex;
-		data.vertexOffset = params.vertexOffset;
-		data.firstInstance = params.firstInstance;
+		data.indexCount = params.m_indexCount;
+		data.instanceCount = params.m_instanceCount;
+		data.firstIndex = params.m_firstIndex;
+		data.vertexOffset = params.m_vertexOffset;
+		data.firstInstance = params.m_firstInstance;
 	}
 
 	u32 BufferObject::GetDrawIndexedIndirectParamsSize()

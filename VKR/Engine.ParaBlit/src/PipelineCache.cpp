@@ -56,7 +56,8 @@ namespace PB
 	{
 		for (auto& pipeline : m_graphicsPipelineCache)
 		{
-			if(pipeline.second.m_layout != m_commonGraphicsPipelineLayout)
+			if(pipeline.second.m_layout != m_commonGraphicsPipelineLayout
+				&& pipeline.second.m_layout != m_commonGraphicsMeshShaderPipelineLayout)
 				vkDestroyPipelineLayout(m_device->GetHandle(), pipeline.second.m_layout, nullptr);
 			vkDestroyPipeline(m_device->GetHandle(), pipeline.second.m_pipeline, nullptr);
 		}
@@ -69,9 +70,10 @@ namespace PB
 		}
 
 		vkDestroyPipelineLayout(m_device->GetHandle(), m_commonGraphicsPipelineLayout, nullptr);
-		vkDestroyPipelineLayout(m_device->GetHandle(), m_commonComputePipelineLayout, nullptr);
-
 		m_commonGraphicsPipelineLayout = VK_NULL_HANDLE;
+		vkDestroyPipelineLayout(m_device->GetHandle(), m_commonGraphicsMeshShaderPipelineLayout, nullptr);
+		m_commonGraphicsMeshShaderPipelineLayout = VK_NULL_HANDLE;
+		vkDestroyPipelineLayout(m_device->GetHandle(), m_commonComputePipelineLayout, nullptr);
 		m_commonComputePipelineLayout = VK_NULL_HANDLE;
 
 		m_masterSetLayout = VK_NULL_HANDLE;
@@ -122,6 +124,11 @@ namespace PB
 		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &m_commonGraphicsPipelineLayout));
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(m_commonGraphicsPipelineLayout);
+
+		pushConstant.stageFlags = VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT;
+		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &m_commonGraphicsMeshShaderPipelineLayout));
+		PB_BREAK_ON_ERROR;
+		PB_ASSERT(m_commonGraphicsMeshShaderPipelineLayout);
 
 		pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 		PB_ERROR_CHECK(vkCreatePipelineLayout(m_device->GetHandle(), &layoutInfo, nullptr, &m_commonComputePipelineLayout));
@@ -329,10 +336,25 @@ namespace PB
 		dynamicStatesInfo.pDynamicStates = dynamicStates;
 
 		CLib::Vector<VkPipelineShaderStageCreateInfo, static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT)> shaderStages;
+		bool hasVertexShader = true;
+		bool hasMeshShader = false;
 		for (u32 i = 0; i < static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT); ++i)
 		{
 			if (!desc.m_shaderModules[i])
+			{
+				if (i == u32(EGraphicsShaderStage::VERTEX))
+					hasVertexShader = false;
+
 				continue;
+			}
+			else if (i == u32(EGraphicsShaderStage::MESH))
+			{
+				hasMeshShader = true;
+			}
+
+			PB_ASSERT_MSG(i != u32(EGraphicsShaderStage::MESH) && i != u32(EGraphicsShaderStage::TASK)
+				|| (hasVertexShader == false || desc.m_shaderModules[i] == 0)
+				, "Graphics pipeline cannot have a both vertex and mesh/task shader stages. They are mutually exclusive.");
 
 			VkPipelineShaderStageCreateInfo stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr };
 			stage.flags = 0;
@@ -349,11 +371,11 @@ namespace PB
 		pipelineInfo.subpass = static_cast<u32>(desc.m_subpass);
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineInfo.basePipelineIndex = 0;
-		pipelineInfo.layout = m_commonGraphicsPipelineLayout;
+		pipelineInfo.layout = hasMeshShader ? m_commonGraphicsMeshShaderPipelineLayout : m_commonGraphicsPipelineLayout;
 		pipelineInfo.pViewportState = &viewportState;
 		pipelineInfo.pDynamicState = (desc.m_renderArea.w * desc.m_renderArea.h > 0) ? nullptr : &dynamicStatesInfo;
-		pipelineInfo.pVertexInputState = &vertexInputState;
-		pipelineInfo.pInputAssemblyState = &inputAssemblyState;
+		pipelineInfo.pVertexInputState = hasMeshShader == false ? &vertexInputState : nullptr;
+		pipelineInfo.pInputAssemblyState = hasMeshShader == false ? &inputAssemblyState : nullptr;
 		pipelineInfo.pTessellationState = nullptr;
 		pipelineInfo.pMultisampleState = &multisampleState;
 		pipelineInfo.pRasterizationState = &rasterState;
@@ -382,7 +404,7 @@ namespace PB
 		PB_ERROR_CHECK(vkCreateGraphicsPipelines(m_device->GetHandle(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline));
 		PB_BREAK_ON_ERROR;
 		PB_ASSERT(newPipeline);
-		return { m_commonGraphicsPipelineLayout, newPipeline, false };
+		return { pipelineInfo.layout, newPipeline, false, hasMeshShader };
 	}
 
 	PipelineData PipelineCache::CreateComputePipeline(const ComputePipelineDesc& desc)

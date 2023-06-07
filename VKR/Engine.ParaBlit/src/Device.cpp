@@ -176,17 +176,24 @@ namespace PB
 			// Get device features & properties, used to calculate a suitablility score.
 			VkPhysicalDeviceFeatures2 deviceFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 			m_physDeviceDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+			m_physDeviceVulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 			m_physDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+			m_physDeviceMeshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
 
 			deviceFeatures.pNext = &m_physDeviceDynamicRenderingFeatures;
-			m_physDeviceDynamicRenderingFeatures.pNext = &m_physDeviceVulkan12Features;
+			m_physDeviceDynamicRenderingFeatures.pNext = &m_physDeviceVulkan11Features;
+			m_physDeviceVulkan11Features.pNext = &m_physDeviceVulkan12Features;
+			m_physDeviceVulkan12Features.pNext = &m_physDeviceMeshShaderFeatures;
 
 			vkGetPhysicalDeviceFeatures(device, &deviceFeatures.features);
 			vkGetPhysicalDeviceFeatures2(device, &deviceFeatures);
 
 			VkPhysicalDeviceProperties2 deviceProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 			m_physDeviceDescIndexingProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+			m_physDeviceMeshShaderProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT;
+
 			deviceProperties.pNext = &m_physDeviceDescIndexingProps;
+			m_physDeviceDescIndexingProps.pNext = &m_physDeviceMeshShaderProperties;
 			vkGetPhysicalDeviceProperties(device, &deviceProperties.properties);
 			vkGetPhysicalDeviceProperties2(device, &deviceProperties);
 
@@ -304,6 +311,7 @@ namespace PB
 		// Descriptor indexing is in the core, but this will shut up validation which complains about shaders requiring it.
 		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), "Could not enable descriptor indexing extension.");
 
+		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME), "Could not enable mesh shaders extension.");
 		// Can be used to create dynamic render passes which do not include subpasses and the caveats of tile-based rendering approaches.
 		// Currently disabled while VK_KHR_DYNAMIC_RENDERING is still in development.
 		//PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME), "Could not enable dynamic rendering extension.");
@@ -321,6 +329,9 @@ namespace PB
 		m_physDeviceFeatures.features.multiViewport = VK_FALSE;
 		m_physDeviceFeatures.features.pipelineStatisticsQuery = VK_FALSE;
 
+		// Used to enable DrawID/InstanceID parameters in shaders.
+		m_physDeviceVulkan11Features.shaderDrawParameters = VK_TRUE;
+
 		m_physDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
 		m_physDeviceVulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
 		m_physDeviceVulkan12Features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
@@ -329,10 +340,9 @@ namespace PB
 		m_physDeviceVulkan12Features.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceVulkan12Features.descriptorBindingUpdateUnusedWhilePending = VK_FALSE;
 
-		m_physDeviceVulkan12Features.drawIndirectCount = VK_TRUE; // For experimental GPU-driven frustrum culling.
+		m_physDeviceVulkan12Features.drawIndirectCount = VK_TRUE; // For GPU-driven frustrum culling.
 
 		m_physDeviceDynamicRenderingFeatures.dynamicRendering = VK_FALSE; // TODO: Try this out when Vk_KHR_dynamic_rendering extension is complete.
-
 	}
 
 	void Device::CreateLogicalDevice(bool enableSwapchainExtension)

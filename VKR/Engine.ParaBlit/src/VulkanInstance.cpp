@@ -77,7 +77,7 @@ namespace PB
 	void VulkanInstance::Create(const char** requiredExtensions, uint32_t extCount)
 	{
 		VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO, nullptr };
-		appInfo.apiVersion = VK_MAKE_VERSION(1, 2, VK_HEADER_VERSION);
+		appInfo.apiVersion = VK_HEADER_VERSION_COMPLETE;
 		appInfo.applicationVersion = 1;
 		appInfo.engineVersion = 1;
 		appInfo.pApplicationName = "ParaBlitClient_debug";

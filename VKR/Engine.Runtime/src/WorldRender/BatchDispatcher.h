@@ -19,9 +19,9 @@ namespace Eng
 
 		void Reset();
 
-		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView);
+		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView, bool cullMeshlets = false);
 
-		void DrawBatches(PB::ICommandContext* cmdContext, PB::Pipeline overridePipeline = 0);
+		void DrawBatches(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView, PB::Pipeline overridePipeline = 0, bool drawExperimental = false);
 
 	private:
 
@@ -42,6 +42,7 @@ namespace Eng
 		CLib::Vector<const PB::IBufferObject*, 64, 64> m_batchDrawParamQueue;
 		PB::IRenderer* m_renderer = nullptr;
 		PB::Pipeline m_batchCullPipeline = 0;
+		PB::Pipeline m_batchCullTasksPipeline = 0;
 		EDispatcherState m_state = EDispatcherState::CLEAR;
 	};
 

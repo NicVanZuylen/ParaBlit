@@ -32,8 +32,14 @@ namespace Eng
 			if(m_vertexBuffer)
 				m_renderer->FreeBuffer(m_vertexBuffer);
 			m_vertexBuffer = nullptr;
-			m_renderer->FreeBuffer(m_indexBuffer);
+
+			if(m_indexBuffer)
+				m_renderer->FreeBuffer(m_indexBuffer);
 			m_indexBuffer = nullptr;
+
+			if (m_meshletBuffer)
+				m_renderer->FreeBuffer(m_meshletBuffer);
+			m_meshletBuffer = nullptr;
 		}
 	}
 
@@ -83,6 +89,7 @@ namespace Eng
 
 		size_t vertexBufferSize = cacheData.m_vertexCount * sizeof(Vertex);
 		size_t indexBufferSize = cacheData.m_indexCount * sizeof(MeshIndex);
+		size_t meshletBufferSize = cacheData.m_meshletCount * sizeof(Meshlet);
 
 		// Create vertex and index buffers...
 		PB::BufferObjectDesc vertexBufferDesc;
@@ -140,6 +147,19 @@ namespace Eng
 		s_meshDatabaseLoader.GetAssetBinaryRange(m_assetID, indexData, cacheData.m_indexOffset, cacheData.m_indexOffset + indexBufferSize);
 		m_indexBuffer->EndPopulate();
 
+		if (meshletBufferSize > 0)
+		{
+			PB::BufferObjectDesc meshletBufferDesc;
+			meshletBufferDesc.m_bufferSize = static_cast<PB::u32>(meshletBufferSize);
+			meshletBufferDesc.m_options = 0;
+			meshletBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::STORAGE;
+			m_meshletBuffer = m_renderer->AllocateBuffer(meshletBufferDesc);
+
+			PB::u8* meshletData = m_meshletBuffer->BeginPopulate();
+			s_meshDatabaseLoader.GetAssetBinaryRange(m_assetID, meshletData, cacheData.m_meshletDataOffset, cacheData.m_meshletDataOffset + meshletBufferSize);
+			m_meshletBuffer->EndPopulate();
+		}
+
 		m_empty = false;
 		printf("Mesh: Successfully loaded asset [%u] (%u bytes) from database: %s\n", uint32_t(m_assetID), uint32_t(assetInfo.m_binarySize), MeshDatabaseDir);
 	}
@@ -169,6 +189,11 @@ namespace Eng
 		return m_indexBuffer;
 	}
 
+	PB::IBufferObject* Mesh::GetMeshletBuffer()
+	{
+		return m_meshletBuffer;
+	}
+
 	const PB::IBufferObject* Mesh::GetVertexBuffer() const
 	{
 		return m_vertexBuffer;
@@ -177,6 +202,11 @@ namespace Eng
 	const PB::IBufferObject* Mesh::GetIndexBuffer() const
 	{
 		return m_indexBuffer;
+	}
+
+	const PB::IBufferObject* Mesh::GetMeshletBuffer() const
+	{
+		return m_meshletBuffer;
 	}
 
 	const VertexPool* Mesh::GetVertexPool() const

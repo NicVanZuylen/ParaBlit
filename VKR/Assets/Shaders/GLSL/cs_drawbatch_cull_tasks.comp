@@ -1,0 +1,229 @@
+#version 450
+#include "Common/pb_common.h"
+#include "Common/view_constants.h"
+#include "Common/culling_common.h"
+
+#define WORKGROUP_SIZE_X 256
+#define WORKGROUP_SIZE_Y 1
+layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
+
+#define MAX_DRAW_COUNT 8
+#define TASK_GROUP_SIZE 32
+#define MESHLET_INDEX_COUNT 32 * 3
+
+layout(push_constant) uniform Bindings
+{
+    uint viewPlanesIndex;
+    uint batchConstantsIndex;
+    uint drawRangesBufferIndex;
+    uint drawParamsBufferIndex;
+    uint drawCountBufferIndex;
+} PB_BINDINGS_NAME;
+
+DEFINE_CULL_VIEW_CONSTANTS_UBO(viewPlanes);                  
+#define VIEW_PLANES PB_UBO(viewPlanes, viewPlanesIndex)
+
+struct ObjectData
+{
+    vec3 origin;
+    vec3 extents;
+    uvec2 drawRange;
+};
+
+layout(set = 0, binding = 2, std430) readonly buffer BatchConstants
+{
+    ObjectData objects[256];
+} batchConstants[];
+#define BATCH_CONST PB_UBO(batchConstants, batchConstantsIndex)
+
+struct IndirectDrawMeshTasksParams
+{
+	uint workgroupX;
+    uint workgroupY;
+    uint workgroupZ;
+};
+
+layout(set = 0, binding = 2) buffer DrawRangesBuffer
+{
+    uvec2 drawRanges[MAX_DRAW_COUNT];
+} drawRangesBuffer[];
+#define DRAW_RANGES drawRangesBuffer[PB_BINDINGS_NAME.drawRangesBufferIndex].drawRanges
+
+layout(set = 0, binding = 2) buffer DrawParamsBuffer
+{
+    IndirectDrawMeshTasksParams drawParams[MAX_DRAW_COUNT];
+} drawParamsBuffer[];
+#define DRAW_PARAMS drawParamsBuffer[PB_BINDINGS_NAME.drawParamsBufferIndex].drawParams
+
+layout(set = 0, binding = 2) buffer DrawCountBuffer
+{
+    uint drawCount;
+} drawCounts[];
+#define DRAW_COUNT drawCounts[PB_BINDINGS_NAME.drawCountBufferIndex].drawCount
+
+layout(set = 0, binding = 2) buffer DebugOutputRangeBuffer
+{
+    uvec2 outputRanges[WORKGROUP_SIZE_X];
+} debugOutputRangeBuffer[];
+
+#define RANGE_STRIDE 2
+#define PARTITION_RANGE_COUNT (WORKGROUP_SIZE_X / MAX_DRAW_COUNT) / RANGE_STRIDE
+
+shared uvec2 drawRanges[WORKGROUP_SIZE_X];
+shared uvec2 contigousRanges[PARTITION_RANGE_COUNT][MAX_DRAW_COUNT];
+shared uint partitionContigousRangeCount[MAX_DRAW_COUNT];
+
+bool RangeIsValid(in vec2 range)
+{
+    return range[1] > range[0];
+}
+
+uvec2 CombineRanges(uvec2 a, uvec2 b)
+{
+    return uvec2(min(a.x, b.x), max(a.y, b.y));
+}
+
+uint GetMeshletRangeWorkgroupCount(uvec2 range)
+{
+    uint meshletCount = range[1] - range[0];
+    uint tailWorkgroup = (meshletCount % TASK_GROUP_SIZE > 0) ? 1 : 0;
+    return (meshletCount / TASK_GROUP_SIZE) + tailWorkgroup;
+}
+
+#define INVALID_RANGE uvec2(~uint(0), 0)
+
+void main()
+{
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Shared Memory Initialization
+
+    contigousRanges[gl_LocalInvocationID.x / MAX_DRAW_COUNT][gl_LocalInvocationID.x / (WORKGROUP_SIZE_X / MAX_DRAW_COUNT)] = INVALID_RANGE;
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Frustrum Test
+
+    ObjectData objectData = BATCH_CONST.objects[gl_LocalInvocationID.x];
+
+    bool pass = IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[0], objectData.origin, objectData.extents)    // Near
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[1], objectData.origin, objectData.extents)     // Left
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[2], objectData.origin, objectData.extents)     // Right
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[3], objectData.origin, objectData.extents)     // Top
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[4], objectData.origin, objectData.extents)     // Bottom
+            && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[5], objectData.origin, objectData.extents);    // Far
+
+    // Since a meshlet really is just MESHLET_INDEX_COUNT indices and the draw ranges are expected to be divisible by that number,
+    // We can just divide by it change the range units to represent meshlets instead of indices.
+    drawRanges[gl_LocalInvocationID.x] = pass ? objectData.drawRange : INVALID_RANGE;
+    drawRanges[gl_LocalInvocationID.x] /= MESHLET_INDEX_COUNT;
+
+    memoryBarrierShared();
+    barrier();
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Pair Combination
+
+    // This simple step combines every pair of draw ranges. Halving the total amount of ranges we need to traverse.
+    if(gl_LocalInvocationID.x < WORKGROUP_SIZE_X / RANGE_STRIDE)
+    {
+        uint pair = gl_LocalInvocationID.x * RANGE_STRIDE;
+        drawRanges[gl_LocalInvocationID.x] = CombineRanges(drawRanges[pair], drawRanges[pair + 1]);
+    }
+
+    memoryBarrierShared();
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Contigous Range Detection
+
+    // Here we partition the remaining draw ranges into MAX_DRAW_COUNT amount of even-sized partitions.
+    // Each partition is processed on a different invocation. Within each invocation the partition is
+    // looped through and valid contigous ranges are moved to the 'contigousRanges' array for that partition.
+    if(gl_LocalInvocationID.x < MAX_DRAW_COUNT)
+    {
+        uint off = gl_LocalInvocationID.x * PARTITION_RANGE_COUNT;
+
+        uint curContigRange = 0;
+        contigousRanges[0][gl_LocalInvocationID.x] = INVALID_RANGE;
+        for(uint i = 0; i < PARTITION_RANGE_COUNT; ++i)
+        {
+            uvec2 range = drawRanges[off + i];
+            if(!RangeIsValid(contigousRanges[curContigRange][gl_LocalInvocationID.x]))
+            {
+                contigousRanges[curContigRange][gl_LocalInvocationID.x] = range;
+            }
+            else if(range.x == contigousRanges[curContigRange][gl_LocalInvocationID.x].y)
+            {
+                contigousRanges[curContigRange][gl_LocalInvocationID.x].y = range.y;
+            }
+            else
+            {
+                contigousRanges[++curContigRange][gl_LocalInvocationID.x] = range;
+            }
+        }
+
+        partitionContigousRangeCount[gl_LocalInvocationID.x] = curContigRange + uint(RangeIsValid(contigousRanges[curContigRange][gl_LocalInvocationID.x]));
+    }
+
+    memoryBarrierShared();
+
+    // -----------------------------------------------------------------------------------------------------------------------------------
+    // Draw Call Setup
+
+    if(gl_LocalInvocationID.x > 0)
+        return;
+
+    // On a single invocation we traverse all contigous ranges (there's typically no more than MAX_DRAW_COUNT * 2 of them)
+    // and detect continuity between partitions, and use the final contigous ranges to set up the draw call index ranges for the batch.
+    // If there are more contigous ranges than MAX_DRAW_COUNT, further ranges will be forcefully combined with the last range under MAX_DRAW_COUNT
+    // to ensure they are drawn, but this worst-case scenario does introduce wastage as vertices that would be culled are still drawn.
+    int currentDrawCall = -1;
+    int rangeIndex = -1;
+    uvec2 lastValidRange = INVALID_RANGE;
+    uvec2 finalRanges[MAX_DRAW_COUNT];
+    for(uint i = 0; i < MAX_DRAW_COUNT; ++i)
+    {
+        for(uint j = 0; j < partitionContigousRangeCount[i]; ++j)
+        {
+            uvec2 range = contigousRanges[j][i];
+            if(RangeIsValid(range) == false)
+            {
+               continue;
+            }
+
+            if(currentDrawCall == -1 || range[0] > lastValidRange[1] + 1)
+            {
+                ++rangeIndex;
+                currentDrawCall = min(currentDrawCall + 1, MAX_DRAW_COUNT - 1);
+
+                if(rangeIndex < MAX_DRAW_COUNT)
+                {
+                    DRAW_PARAMS[currentDrawCall].workgroupY = 1;
+                    DRAW_PARAMS[currentDrawCall].workgroupZ = 1;
+                    finalRanges[currentDrawCall] = uvec2(range[0]);
+                }
+            }
+
+            if(rangeIndex < MAX_DRAW_COUNT)
+            {
+                finalRanges[currentDrawCall][1] += range[1] - range[0];
+            }
+            else
+            {
+                finalRanges[currentDrawCall][1] += range[1] - lastValidRange[1];
+            }
+        
+            lastValidRange = range;
+        }
+    }
+
+    uint drawCount = currentDrawCall + 1;
+
+    // Finalize draw calls.
+    for(int i = 0; i < drawCount; ++i)
+    {
+        DRAW_PARAMS[i].workgroupX = GetMeshletRangeWorkgroupCount(finalRanges[i]);
+        DRAW_RANGES[i] = finalRanges[i];
+    }
+
+    DRAW_COUNT = drawCount;
+    // -----------------------------------------------------------------------------------------------------------------------------------
+}

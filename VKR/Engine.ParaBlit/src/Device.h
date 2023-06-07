@@ -51,7 +51,7 @@ namespace PB
 		Param:
 			EMemoryType memoryType: The memory type used to get the correct allocator.
 		*/
-		PoolAllocator& GetBufferAllocator(EMemoryType memoryType) 
+		PoolAllocator& GetBufferAllocator(EMemoryType memoryType)
 		{
 			switch (memoryType)
 			{
@@ -145,10 +145,13 @@ namespace PB
 		Renderer* m_renderer = nullptr;
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 		VkPhysicalDeviceFeatures2 m_physDeviceFeatures = {};
+		VkPhysicalDeviceVulkan11Features m_physDeviceVulkan11Features = {};
 		VkPhysicalDeviceVulkan12Features m_physDeviceVulkan12Features = {};
 		VkPhysicalDeviceDynamicRenderingFeaturesKHR m_physDeviceDynamicRenderingFeatures = {};
+		VkPhysicalDeviceMeshShaderFeaturesEXT m_physDeviceMeshShaderFeatures = {};
 		VkPhysicalDeviceProperties2 m_physDeviceProperties = {};
 		VkPhysicalDeviceDescriptorIndexingProperties m_physDeviceDescIndexingProps = {};
+		VkPhysicalDeviceMeshShaderPropertiesEXT m_physDeviceMeshShaderProperties = {};
 		VkPhysicalDeviceMemoryProperties m_memoryProperties = {};
 		VkDevice m_device = VK_NULL_HANDLE;
 

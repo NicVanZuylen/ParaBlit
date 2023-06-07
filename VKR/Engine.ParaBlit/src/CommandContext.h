@@ -72,6 +72,9 @@ namespace PB
 		void CmdDrawIndexed(u32 indexCount, u32 instanceCount) override;
 		void CmdDrawIndexedIndirect(IBufferObject* paramsBuffer, u32 offset) override;
 		void CmdDrawIndexedIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride) override;
+		void CmdDrawMeshTasks(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) override;
+		void CmdDrawMeshTasksIndirect(IBufferObject* paramsBuffer, u32 offset) override;
+		void CmdDrawMeshTasksIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride) override;
 		void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) override;
 		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) override;
 		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) override;
@@ -103,10 +106,13 @@ namespace PB
 
 		static PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHRFunc;
 		static PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHRFunc;
+		static PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXTFunc;
+		static PFN_vkCmdDrawMeshTasksIndirectEXT vkCmdDrawMeshTasksIndirectEXTFunc;
+		static PFN_vkCmdDrawMeshTasksIndirectCountEXT vkCmdDrawMeshTasksIndirectCountEXTFunc;
 
 		inline void ValidateRecordingState();
 
-		inline void ValidatePipelineState(bool computeFunction);
+		inline void ValidatePipelineState(bool computeFunction, bool meshFunction);
 
 		static constexpr const u32 MaxPushConstantBytes = 128; // Vulkan spec requirement, all Vulkan compatible hardware will support 128 bytes for push constants.
 
@@ -142,6 +148,7 @@ namespace PB
 				bool m_activeRenderpass : 1;
 				bool m_activeRenderPassIsDynamic : 1;
 				bool m_activePipelineIsCompute : 1;
+				bool m_activePipelineHasMeshShader : 1;
 				bool m_reusable : 1;
 				bool m_reusableForRenderPass : 1;
 			};

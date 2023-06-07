@@ -607,7 +607,7 @@ namespace PB
 		uboLayoutBinding.descriptorCount = m_device.GetDescriptorIndexingProperties()->maxPerStageDescriptorUpdateAfterBindUniformBuffers - 1;
 		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		uboLayoutBinding.pImmutableSamplers = nullptr;
-		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
 
 		// UBO sets may only be partially bound.
 		VkDescriptorBindingFlags uboBindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;

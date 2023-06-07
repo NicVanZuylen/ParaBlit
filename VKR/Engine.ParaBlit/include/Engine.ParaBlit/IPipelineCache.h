@@ -126,7 +126,7 @@ namespace PB
 		EPrimitiveTopologyType m_topology = EPrimitiveTopologyType::TRIANGLE_LIST;
 		u8 m_pad0 = 0;
 		float m_lineThickness = 1.0f;
-		u32 m_pad1[3];
+		u32 m_pad1[2];
 
 		bool operator == (const GraphicsPipelineDesc& other) const;
 	};

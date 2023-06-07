@@ -126,6 +126,12 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdDrawIndexedIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride) = 0;
 
+		PARABLIT_INTERFACE void CmdDrawMeshTasks(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) = 0;
+
+		PARABLIT_INTERFACE void CmdDrawMeshTasksIndirect(IBufferObject* paramsBuffer, u32 offset) = 0;
+
+		PARABLIT_INTERFACE void CmdDrawMeshTasksIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride) = 0;
+
 		PARABLIT_INTERFACE void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) = 0;
 
 		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) = 0;

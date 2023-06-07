@@ -89,11 +89,11 @@ namespace Eng
 
 			PB::u8* mappedPtr = m_pointLightIndirectParamsBuffer->BeginPopulate();
 			PB::DrawIndexedIndirectParams indirectParams{};
-			indirectParams.offset = 0;
-			indirectParams.firstIndex = 0;
-			indirectParams.indexCount = m_pointLightVolumeMesh.IndexCount();
-			indirectParams.instanceCount = m_pointLightCount;
-			indirectParams.vertexOffset = 0;
+			indirectParams.m_offset = 0;
+			indirectParams.m_firstIndex = 0;
+			indirectParams.m_indexCount = m_pointLightVolumeMesh.IndexCount();
+			indirectParams.m_instanceCount = m_pointLightCount;
+			indirectParams.m_vertexOffset = 0;
 			m_pointLightIndirectParamsBuffer->PopulateWithDrawIndexedIndirectParams(mappedPtr, indirectParams);
 			m_pointLightIndirectParamsBuffer->EndPopulate();
 		}

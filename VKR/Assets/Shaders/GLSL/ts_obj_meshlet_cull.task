@@ -1,0 +1,99 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_EXT_mesh_shader : require
+
+#include "Common/pb_common.h"
+#include "Common/drawbatch_common.h"
+#include "Common/culling_common.h"
+
+#define MAX_DRAW_COUNT 8
+
+#define TASK_GROUP_SIZE 32
+layout (local_size_x = TASK_GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform Bindings
+{
+    DEFINE_REQUIRED_UNIFORM_BINDINGS;
+    uint indexBufferIndex;
+    uint drawRangeBufferIndex;
+    uint meshetDataBufferIndex;
+    uint instanceBufferIndex;
+} PB_BINDINGS_NAME;
+
+DEFINE_CULL_VIEW_CONSTANTS_UBO(cullConstants);                  
+#define CULL_CONSTANTS PB_UBO(cullConstants, cullConstantsIndex)
+
+layout(set = 0, binding = 2) readonly buffer DrawRangesBuffer
+{
+    uvec2 ranges[MAX_DRAW_COUNT];
+} drawRangesBuffer[];
+#define DRAW_RANGES PB_STORAGE_BUFFER(drawRangesBuffer, drawRangeBufferIndex).ranges
+
+layout(set = 0, binding = 2) readonly buffer MeshletDataBuffer
+{
+    MeshletBoundData data[];
+} meshletDataBuffer[];
+#define MESHLET_DATA PB_STORAGE_BUFFER(meshletDataBuffer, meshetDataBufferIndex)
+
+struct TASK_PAYLOAD
+{
+    // Indices of meshlets which pass culling tests. Only these meshlets will be processed in the mesh shader.
+    uint passingMeshletIndices[TASK_GROUP_SIZE];
+    uint meshletCount;
+};
+
+// One per set of mesh shader workgroups dispatched by a single task shader workgroup.
+taskPayloadSharedEXT TASK_PAYLOAD payloadOut;
+
+shared uint passingMeshletCount;
+
+const float halfPi = 1.57079632679;
+
+bool isFrontFaceVisible(in vec3 meshletOrigin, in vec3 meshletExtents, vec3 meanNormal, in float angularSpan)
+{
+    vec3 meshletCenter = meshletOrigin + (meshletExtents * 0.5);
+    vec3 centreDir = normalize(meshletCenter - CULL_CONSTANTS.cameraOrigin.xyz);
+
+    float sinConeAngle = sin(min(angularSpan, halfPi));
+    return dot(meanNormal, centreDir) < sinConeAngle;
+}
+
+void main()
+{
+    if(gl_LocalInvocationID.x == 0)
+        passingMeshletCount = 0;
+
+    barrier();
+
+    uvec2 range = DRAW_RANGES[gl_DrawID];
+    uint rangeOffset = range[0] + gl_GlobalInvocationID.x;
+    MeshletBoundData meshletData = MESHLET_DATA.data[rangeOffset];
+
+    // Frustrum intersection test.
+    bool pass = IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[0], meshletData.origin, meshletData.extents)     // Near
+		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[1], meshletData.origin, meshletData.extents)  // Left
+		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[2], meshletData.origin, meshletData.extents)  // Right
+		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[3], meshletData.origin, meshletData.extents)  // Top
+		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[4], meshletData.origin, meshletData.extents)  // Bottom
+                && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[5], meshletData.origin, meshletData.extents); // Far
+
+    // Mask out meshlets outside of the range.
+    pass = pass && rangeOffset < range[1];
+
+    vec4 normalUnpacked = vec4(unpackHalf2x16(meshletData.normalDataPacked0), unpackHalf2x16(meshletData.normalDataPacked1));
+    float normalTolerance = normalUnpacked.w;
+
+    pass = pass && isFrontFaceVisible(meshletData.origin, meshletData.extents, normalUnpacked.xyz, normalTolerance);
+
+    if (pass == true)
+    {
+        // Atomic increment the passing meshlet count for a invocation-unique index to write out passing meshlet's index to.
+        uint outputIndex = atomicAdd(passingMeshletCount, 1);
+        payloadOut.passingMeshletIndices[outputIndex] = rangeOffset;
+    }
+
+    payloadOut.meshletCount = gl_NumWorkGroups.x * TASK_GROUP_SIZE;
+
+    // Amount of mesh shader workgroups to dispatch.
+    EmitMeshTasksEXT(passingMeshletCount, 1, 1);
+}

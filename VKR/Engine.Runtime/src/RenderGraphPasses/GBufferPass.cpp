@@ -34,14 +34,17 @@ namespace Eng
 		if (m_drawbatchPipeline == 0)
 		{
 			PB::GraphicsPipelineDesc pipelineDesc = GetBasePipelineDesc();
-			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_obj_def_batch", m_allocator, true).GetModule();
-			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_batch", m_allocator, true).GetModule();
+			//pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_obj_def_batch", m_allocator, true).GetModule();
+			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::TASK] = Eng::Shader(m_renderer, "Shaders/GLSL/ts_obj_meshlet_cull", m_allocator, true).GetModule();
+			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::MESH] = Eng::Shader(m_renderer, "Shaders/GLSL/ms_obj_task_batch", m_allocator, true).GetModule();
+			//pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_mesh_batch", m_allocator, true).GetModule();
+			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_mesh_batch", m_allocator, true).GetModule();
 
 			m_drawbatchPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 		}
 
 		m_rbvh->CullBatches(m_camera->GetFrustrum(), m_batchDispatcher, m_batchBindings);
-		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView);
+		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView, true);
 	}
 
 	void GBufferPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -52,7 +55,7 @@ namespace Eng
 		info.m_commandContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
 		info.m_commandContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 
-		m_batchDispatcher->DrawBatches(info.m_commandContext, m_drawbatchPipeline);
+		m_batchDispatcher->DrawBatches(info.m_commandContext, m_viewPlanesView, m_drawbatchPipeline, true);
 	}
 
 	void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)

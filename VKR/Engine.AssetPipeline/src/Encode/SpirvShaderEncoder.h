@@ -30,7 +30,6 @@ namespace AssetPipeline
 			CLib::Allocator* m_allocator = nullptr;
 			const AssetStatus* m_asset = nullptr;
 			IncludeData* m_includeData = nullptr;
-			void* m_includeResult = nullptr;
 		};
 
 		struct ShaderAssetIncludeInfo

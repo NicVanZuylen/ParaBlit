@@ -1,0 +1,86 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+#include "Common/pb_common.h"
+#include "Common/culling_common.h"
+
+#define WORKGROUP_SIZE_X 128
+layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = 1, local_size_z = 1) in;
+
+#define MAX_OBJECTS_PER_BATCH 256
+
+layout(push_constant) uniform Bindings
+{
+    uint srcMeshletBufferBindingsIndex;
+    uint uploadMetaIndex;
+    uint outputBufferIndex;
+} PB_BINDINGS_NAME;
+
+struct MeshletUploadMetadata
+{
+    mat4 meshletTransform;
+    uint firstWorkgroup;
+    uint workgroupCount;
+    uint meshletCount;
+    uint startIndex;
+};
+
+layout(set = 0, binding = 2) buffer MeshletSrcBuffers
+{
+    uint views[];
+} viewBuffers[];
+
+layout(set = 0, binding = 2) buffer MeshletOutputBuffer
+{
+    MeshletBoundData meshlets[];
+} meshletOutputBuffer[];
+
+layout(set = 0, binding = 2) buffer InputMeshletBuffers
+{
+    MeshletData meshlets[];
+} inputMeshletBuffers[];
+
+layout(set = 0, binding = 2) buffer MeshletBufferDataArray
+{
+    MeshletUploadMetadata data[MAX_OBJECTS_PER_BATCH];
+    uint workgroupDataIndices[];
+} meshletUploadDataBuffers[];
+
+void main() 
+{
+    uint objectIndex = PB_STORAGE_BUFFER(meshletUploadDataBuffers, uploadMetaIndex).workgroupDataIndices[gl_WorkGroupID.x];
+    MeshletUploadMetadata data = PB_STORAGE_BUFFER(meshletUploadDataBuffers, uploadMetaIndex).data[objectIndex];
+
+    uint srcMeshletIndex = (gl_WorkGroupID.x - data.firstWorkgroup) * WORKGROUP_SIZE_X;
+    srcMeshletIndex += gl_LocalInvocationID.x;
+
+    if(srcMeshletIndex >= data.meshletCount)
+        return;
+
+    uint srcView = PB_STORAGE_BUFFER(viewBuffers, srcMeshletBufferBindingsIndex).views[objectIndex];
+    MeshletData srcMeshlet = inputMeshletBuffers[srcView].meshlets[srcMeshletIndex];
+
+    mat4 transformMat = data.meshletTransform;
+    vec3 origin = srcMeshlet.origin;
+    vec3 extents = srcMeshlet.extents;
+    TransformBounds(transformMat, origin, extents);
+
+    //vec4 normalUnpacked = unpackSnorm4x8(srcMeshlet.normalDataPacked);
+    vec4 normalUnpacked = vec4(unpackHalf2x16(srcMeshlet.normalDataPacked0), unpackHalf2x16(srcMeshlet.normalDataPacked1));
+    float normalTolerance = normalUnpacked.w;
+    normalUnpacked.w = 0.0;
+
+    vec4 transformedNormal = transformMat * normalUnpacked;
+    transformedNormal.w = normalTolerance;
+
+    MeshletBoundData dstMeshlet;
+    dstMeshlet.origin = origin;
+    //dstMeshlet.index = objectIndex;
+    dstMeshlet.extents = extents;
+    //dstMeshlet.normalDataPacked = packSnorm4x8(vec4(transformedNormal.xyz, 0.0));
+    dstMeshlet.normalDataPacked0 = packHalf2x16(transformedNormal.xy);
+    dstMeshlet.normalDataPacked1 = packHalf2x16(transformedNormal.zw);
+
+    uint dstMeshletIndex = data.startIndex + srcMeshletIndex;
+    PB_STORAGE_BUFFER(meshletOutputBuffer, outputBufferIndex).meshlets[dstMeshletIndex] = dstMeshlet;
+}

@@ -18,12 +18,20 @@ namespace PB
 
 	PFN_vkCmdBeginRenderingKHR CommandContext::vkCmdBeginRenderingKHRFunc;
 	PFN_vkCmdEndRenderingKHR CommandContext::vkCmdEndRenderingKHRFunc;
+	PFN_vkCmdDrawMeshTasksEXT CommandContext::vkCmdDrawMeshTasksEXTFunc;
+	PFN_vkCmdDrawMeshTasksIndirectEXT CommandContext::vkCmdDrawMeshTasksIndirectEXTFunc;
+	PFN_vkCmdDrawMeshTasksIndirectCountEXT CommandContext::vkCmdDrawMeshTasksIndirectCountEXTFunc;
 
 	void CommandContext::GetExtensionFunctions(VkInstance instance)
 	{
 		// From VK_KHR_dynamic_rendering:
 		vkCmdBeginRenderingKHRFunc = (PFN_vkCmdBeginRenderingKHR)vkGetInstanceProcAddr(instance, "vkCmdBeginRenderingKHR");
 		vkCmdEndRenderingKHRFunc = (PFN_vkCmdEndRenderingKHR)vkGetInstanceProcAddr(instance, "vkCmdEndRenderingKHR");
+
+		// From VK_EXT_mesh_shaders:
+		vkCmdDrawMeshTasksEXTFunc = (PFN_vkCmdDrawMeshTasksEXT)vkGetInstanceProcAddr(instance, "vkCmdDrawMeshTasksEXT");
+		vkCmdDrawMeshTasksIndirectEXTFunc = (PFN_vkCmdDrawMeshTasksIndirectEXT)vkGetInstanceProcAddr(instance, "vkCmdDrawMeshTasksIndirectEXT");
+		vkCmdDrawMeshTasksIndirectCountEXTFunc = (PFN_vkCmdDrawMeshTasksIndirectCountEXT)vkGetInstanceProcAddr(instance, "vkCmdDrawMeshTasksIndirectCountEXT");
 	}
 
 	CommandContext::CommandContext()
@@ -32,6 +40,7 @@ namespace PB
 		m_isInternal = false;
 		m_activeRenderpass = false;
 		m_activePipelineIsCompute = false;
+		m_activePipelineHasMeshShader = false;
 		m_reusable = false;
 	}
 
@@ -433,6 +442,8 @@ namespace PB
 
 		PipelineData* pipelineData = reinterpret_cast<PipelineData*>(pipeline);
 		m_activePipelineIsCompute = pipelineData->m_isCompute;
+		m_activePipelineHasMeshShader = pipelineData->m_hasMeshShader;
+
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true) || (m_reusable == true && m_activePipelineIsCompute));
 		VkPipelineBindPoint bindPoint = !m_activePipelineIsCompute ? VK_PIPELINE_BIND_POINT_GRAPHICS : VK_PIPELINE_BIND_POINT_COMPUTE;
 
@@ -468,7 +479,7 @@ namespace PB
 	void CommandContext::CmdBindVertexBuffer(const IBufferObject* vertexBuffer, const IBufferObject* indexBuffer, EIndexType indexType)
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
-		ValidatePipelineState(false);
+		ValidatePipelineState(false, false);
 		CmdBindVertexBuffers(&vertexBuffer, 1, indexBuffer, indexType);
 	}
 
@@ -476,7 +487,7 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
-		ValidatePipelineState(false);
+		ValidatePipelineState(false, false);
 
 		const BufferObject** internalVBuffers = reinterpret_cast<const BufferObject**>(vertexBuffers);
 
@@ -524,7 +535,7 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
-		ValidatePipelineState(false);
+		ValidatePipelineState(false, false);
 		vkCmdDraw(m_cmdBuffer, vertexCount, instanceCount, 0, 0);
 	}
 
@@ -532,7 +543,7 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
-		ValidatePipelineState(false);
+		ValidatePipelineState(false, false);
 		vkCmdDrawIndexed(m_cmdBuffer, indexCount, 1, 0, 0, 0);
 	}
 
@@ -540,7 +551,7 @@ namespace PB
 	{
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		ValidateRecordingState();
-		ValidatePipelineState(false);
+		ValidatePipelineState(false, false);
 		vkCmdDrawIndexedIndirect(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), offset, 1, sizeof(VkDrawIndexedIndirectCommand));
 	}
 
@@ -549,15 +560,36 @@ namespace PB
 		PB_ASSERT(m_reusable == false || (m_reusable == true && m_reusableForRenderPass == true));
 		PB_ASSERT(m_device->GetVulkan12Features()->drawIndirectCount == VK_TRUE);
 		ValidateRecordingState();
-		ValidatePipelineState(false);
+		ValidatePipelineState(false, false);
 		vkCmdDrawIndexedIndirectCount(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), paramsOffset, reinterpret_cast<BufferObject*>(drawCountBuffer)->GetHandle(), drawCountOffset, maxDrawCount, paramStride);
+	}
+
+	void CommandContext::CmdDrawMeshTasks(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ)
+	{
+		ValidateRecordingState();
+		ValidatePipelineState(false, true);
+		vkCmdDrawMeshTasksEXTFunc(m_cmdBuffer, threadGroupX, threadGroupY, threadGroupZ);
+	}
+
+	void CommandContext::CmdDrawMeshTasksIndirect(IBufferObject* paramsBuffer, u32 offset)
+	{
+		ValidateRecordingState();
+		ValidatePipelineState(false, true);
+		vkCmdDrawMeshTasksIndirectEXTFunc(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), offset, 1, sizeof(VkDrawMeshTasksIndirectCommandEXT));
+	}
+
+	void CommandContext::CmdDrawMeshTasksIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride)
+	{
+		ValidateRecordingState();
+		ValidatePipelineState(false, true);
+		vkCmdDrawMeshTasksIndirectCountEXTFunc(m_cmdBuffer, reinterpret_cast<BufferObject*>(paramsBuffer)->GetHandle(), paramsOffset, reinterpret_cast<BufferObject*>(drawCountBuffer)->GetHandle(), drawCountOffset, maxDrawCount, paramStride);
 	}
 
 	void CommandContext::CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ)
 	{
 		ValidateRecordingState();
 		PB_ASSERT_MSG(m_activeRenderpass == false, "Dispatch commands cannot be issued during a render pass.");
-		ValidatePipelineState(true);
+		ValidatePipelineState(true, false);
 		vkCmdDispatch(m_cmdBuffer, threadGroupX, threadGroupY, threadGroupZ);
 	}
 
@@ -591,7 +623,7 @@ namespace PB
 	void CommandContext::CmdBindResources(const BindingLayout& layout)
 	{
 		ValidateRecordingState();
-		ValidatePipelineState(m_activePipelineIsCompute); // This command function supports both compute and graphics.
+		ValidatePipelineState(m_activePipelineIsCompute, m_activePipelineHasMeshShader); // This command function supports both compute and graphics.
 
 		static constexpr const u32 MaxBindings = MaxPushConstantBytes / sizeof(u32);
 
@@ -663,8 +695,16 @@ namespace PB
 		memcpy(&dynamicIndices[offset], layout.m_resourceViews, layout.m_resourceCount * sizeof(u32));
 		offset += layout.m_resourceCount;
 
+		VkShaderStageFlags stageFlags;
+		if (m_activePipelineIsCompute == true)
+			stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		else if (m_activePipelineHasMeshShader == true)
+			stageFlags = VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT;
+		else
+			stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
 		// Dynamic indices are assigned, so they can be pushed.
-		vkCmdPushConstants(m_cmdBuffer, m_curPipelineLayout, m_activePipelineIsCompute ? VK_SHADER_STAGE_COMPUTE_BIT : (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), 0, offset * sizeof(u32), dynamicIndices);
+		vkCmdPushConstants(m_cmdBuffer, m_curPipelineLayout, stageFlags, 0, offset * sizeof(u32), dynamicIndices);
 	}
 
 	void CommandContext::CmdBindResources(const IBindingCache* layout)
@@ -837,9 +877,12 @@ namespace PB
 		PB_ASSERT(m_cmdBuffer != VK_NULL_HANDLE);
 	}
 
-	inline void CommandContext::ValidatePipelineState(bool computeFunction)
+	inline void CommandContext::ValidatePipelineState(bool computeFunction, bool meshFunction)
 	{
-		PB_ASSERT(m_curPipelineLayout != VK_NULL_HANDLE && m_activePipelineIsCompute == computeFunction);
+		PB_ASSERT_MSG(m_curPipelineLayout != VK_NULL_HANDLE, "No pipeline is bound where one is expected.");
+		PB_ASSERT(m_activePipelineIsCompute == computeFunction);
+		PB_ASSERT_MSG(m_activePipelineHasMeshShader == meshFunction,
+			meshFunction ? "Bound pipeline is expecting a Mesh Shader stage but does not contain one." : "Bound pipeline is not expecting a Mesh Shader stage but is provided with one.");
 	}
 
 	CommandContext* ThreadCommandContext::Get(Renderer* renderer)

@@ -78,7 +78,7 @@ namespace Eng
 		info.m_commandContext->CmdSetViewport({ 0, 0, m_shadowmapResolution, m_shadowmapResolution }, 0.0f, 1.0f);
 		info.m_commandContext->CmdSetScissor({ 0, 0, m_shadowmapResolution, m_shadowmapResolution });
 
-		m_batchDispatcher->DrawBatches(info.m_commandContext, m_shadowPipeline);
+		m_batchDispatcher->DrawBatches(info.m_commandContext, m_viewPlanesView, m_shadowPipeline);
 	}
 
 	void ShadowMapPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)

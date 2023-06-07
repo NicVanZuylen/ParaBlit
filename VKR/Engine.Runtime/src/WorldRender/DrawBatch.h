@@ -49,9 +49,10 @@ namespace Eng
 		~DrawBatch();
 
 		void AddToDispatchList(ObjectDispatchList* list, PB::Pipeline drawBatchPipeline, PB::BindingLayout bindings);
-		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView);
+		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView, bool cullTasks);
 		void DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
 		void DrawAllGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
+		void EXPERIMENTAL_DrawAllMeshShader(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings, PB::UniformBufferView viewConstantsView);
 
 		void AddInstance(AssetEncoder::AssetID meshID, const float* modelMatrix, const Bounds& bounds, AssetEncoder::AssetID* textureIDs, uint32_t textureCount, PB::ResourceView sampler);
 
@@ -72,6 +73,8 @@ namespace Eng
 		static constexpr const PB::u32 MinWorkGroupsPerObject = 16; // Minimum workgroups assigned to updating a single object/mesh's indices.
 		static constexpr const PB::u32 MaxUpdateWorkGroupsPerBatch = 4096; // Maximum workgroups allowed in a single update dispatch.
 		static constexpr const PB::u32 MaxDrawCount = 8;
+		static constexpr const PB::u32 MeshletIndexCount = 32 * 3;
+		static constexpr const PB::u32 MeshletsPerUploadWorkgroup = 128;
 
 		// Contains the formatted update information for a single drawbatch instance.
 		struct IndexUploadMetadata
@@ -82,6 +85,15 @@ namespace Eng
 			PB::u32 m_indexCount;
 			PB::u32 m_workGroupCount;
 			PB::u32 m_pad[1];
+		};
+
+		struct MeshletUploadMetadata
+		{
+			float m_meshletTransform[16];
+			uint32_t m_firstWorkgroup;
+			uint32_t m_workgroupCount;
+			uint32_t m_meshletCount;
+			uint32_t m_startIndex;
 		};
 
 		struct DrawBatchInstanceData
@@ -105,6 +117,15 @@ namespace Eng
 		};
 		static_assert(sizeof(DrawBatchInstanceData) % 16 == 0);
 
+		struct MeshletBoundData
+		{
+			glm::vec4 m_normal;
+			glm::vec3 m_origin;
+			uint32_t m_index;
+			glm::vec3 m_extents;
+			uint32_t m_normalDataPacked;
+		};
+
 		// Per-instance data used for GPU-driven frustrum culling.
 		struct CullObjectData
 		{
@@ -127,6 +148,17 @@ namespace Eng
 			uint32_t m_drawCount;
 		};
 
+		struct MeshletDrawParamsBuffer
+		{
+			PB::DrawMeshTasksIndirectParams m_drawMeshTasksParams[MaxDrawCount];
+			uint32_t m_drawCount;
+		};
+
+		struct MeshletDrawRangesBuffer
+		{
+			glm::uvec2 m_drawRanges[MaxDrawCount];
+		};
+
 		struct DispatchInfo
 		{
 			ObjectDispatchList* m_dispatchList = nullptr;
@@ -136,24 +168,49 @@ namespace Eng
 		void CreateUpdateResources();
 
 		CLib::Vector<DispatchInfo> m_dispatchInfos;
-		PB::Pipeline m_batchUpdatePipeline = 0;
+
 		PB::IRenderer* m_renderer = nullptr;
 		CLib::Allocator* m_allocator = nullptr;
 		AssetStreamer* m_streamer = nullptr;
+
+		// ----------------------------------------------------------------------------------------
+		// Compute uploads
+
+		PB::Pipeline m_batchIndexUpdatePipeline = 0;
+		PB::Pipeline m_batchMeshletUpdatePipeline = 0;
+
+		// Indices
 		PB::IBufferObject* m_batchIndexUploadBuffer = nullptr;
 		PB::IBufferObject* m_indexSrcViewBuffer = nullptr;
 		PB::IBufferObject* m_batchIndexBuffer = nullptr;
+
+		StreamingBatch* m_indexSrcBufferBatch = nullptr;
+
+		// Meshlets
+		PB::IBufferObject* m_batchMeshletUploadBuffer = nullptr;
+		PB::IBufferObject* m_meshletSrcViewBuffer = nullptr;
+		PB::IBufferObject* m_batchMeshletBuffer = nullptr;
+
 		PB::IBufferObject* m_cullConstantsBuffer = nullptr;
 		PB::IBufferObject* m_drawParamsBuffer = nullptr;
+		PB::IBufferObject* m_drawMeshletParamsBuffer = nullptr;
+		PB::IBufferObject* m_drawRangesBuffer = nullptr;
+
+		StreamingBatch* m_meshletSrcBufferBatch = nullptr;
+
+		// ----------------------------------------------------------------------------------------
+
 		ManagedInstanceBuffer<DrawBatchInstanceData, MaxObjects, MaxObjects> m_instanceBuffer;
 		uint32_t m_batchIndexCount = 0;
 		uint32_t m_batchInstanceCount = 0;
+		uint32_t m_meshletWorkgroupCount = 0;
 		bool m_indicesUpToDate = false;
 		Bounds m_bounds;
-		StreamingBatch* m_indexSrcBufferBatch = nullptr;
+
 		CLib::Vector<StreamingBatch*, 0, 32> m_instanceStreamingBatches;
 		CLib::Vector<Bounds, 0, 32> m_instanceBoundData;
 		CLib::Vector<IndexUploadMetadata, 0, 32> m_indexUploadMetadata;
+		CLib::Vector<MeshletUploadMetadata, 0, 32> m_meshletUploadMetadata;
 	};
 
 };

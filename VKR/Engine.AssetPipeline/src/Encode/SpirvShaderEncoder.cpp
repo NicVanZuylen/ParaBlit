@@ -18,6 +18,8 @@ namespace AssetPipeline
 		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".vert");
 		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".frag");
 		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".comp");
+		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".task");
+		RecursiveSearchDirectoryForExtension(assetDirectory, shaderFileInfos, ".mesh");
 		
 		std::vector<AssetStatus> shaderAssetStatus;
 		GetAssetStatus("Shaders", shaderFileInfos, shaderAssetStatus);
@@ -74,7 +76,6 @@ namespace AssetPipeline
 		assert(content);
 
 		shaderc_include_result* res = data->m_allocator->Alloc<shaderc_include_result>();
-		data->m_includeResult = res;
 
 		res->source_name = pathCString;
 		res->source_name_length = pathString.size();
@@ -89,7 +90,7 @@ namespace AssetPipeline
 	{
 		auto* data = reinterpret_cast<SpirvShaderEncoder::IncludeUserData*>(user_data);
 		data->m_allocator->Free(const_cast<char*>(include_result->source_name));
-		data->m_allocator->Free(include_result);
+		//data->m_allocator->Free(include_result);
 	}
 
 	bool SpirvShaderEncoder::CheckShaderIncludes(const CLib::Vector<char>& glsl, std::filesystem::path filePath, uint64_t lastBuildTime)
@@ -183,6 +184,10 @@ namespace AssetPipeline
 			stage = shaderc_shader_kind::shaderc_fragment_shader;
 		else if (asset.m_extension == ".comp")
 			stage = shaderc_shader_kind::shaderc_compute_shader;
+		if (asset.m_extension == ".task")
+			stage = shaderc_shader_kind::shaderc_task_shader;
+		else if (asset.m_extension == ".mesh")
+			stage = shaderc_shader_kind::shaderc_mesh_shader;
 
 		IncludeUserData includeUserData{};
 		includeUserData.m_allocator = &m_allocator;
@@ -191,25 +196,37 @@ namespace AssetPipeline
 
 		// Generate options and set optimization level.
 		shaderc_compile_options_t options = shaderc_compile_options_initialize();
+		shaderc_compile_options_set_target_spirv(options, shaderc_spirv_version_1_4);
+		shaderc_compile_options_set_target_env(options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
 		shaderc_compile_options_set_optimization_level(options, shaderc_optimization_level_performance);
 		shaderc_compile_options_set_include_callbacks(options, IncludeResolveCallback, IncludeResultReleaseCallback, &includeUserData);
 
 		shaderc_compiler_t compiler = shaderc_compiler_initialize();
 		shaderc_compilation_result_t result = shaderc_compile_into_spv(compiler, buf.Data(), fileSize, stage, asset.m_fullPath.c_str(), "main", options);
 		size_t errorCount = shaderc_result_get_num_errors(result);
-		if (errorCount)
+		size_t warningCount = shaderc_result_get_num_warnings(result);
+		shaderc_compilation_status status = shaderc_result_get_compilation_status(result);
+		if (errorCount > 0)
 		{
 			printf("%s: shaderc error: %s\n", m_name.c_str(), shaderc_result_get_error_message(result));
 		}
+		else if (status != shaderc_compilation_status_success)
+		{
+			printf("%s: shaderc error: %s\n", m_name.c_str(), "Unknown error.");
+		}
 		else
 		{
-			printf("%s: Successfully compiled shader: %s\n", m_name.c_str(), asset.m_fullPath.c_str());
+			if(warningCount > 0)
+				printf("%s: Successfully compiled shader: %s with %u warnings.\n", m_name.c_str(), asset.m_fullPath.c_str(), uint32_t(warningCount));
+			else
+				printf("%s: Successfully compiled shader: %s\n", m_name.c_str(), asset.m_fullPath.c_str());
 		}
 
-		assert(errorCount == 0);
+		assert(errorCount == 0 && status == shaderc_compilation_status_success);
 		size_t binarySize = shaderc_result_get_length(result);
+		const char* shaderBytes = shaderc_result_get_bytes(result);
 		void* dstStorage = m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), 0, binarySize, asset.m_lastModifiedTime);
-		memcpy(dstStorage, shaderc_result_get_bytes(result), binarySize);
+		memcpy(dstStorage, shaderBytes, binarySize);
 
 		if constexpr(GetAssembly)
 		{
@@ -227,8 +244,5 @@ namespace AssetPipeline
 		// Release resources.
 		shaderc_compile_options_release(options);
 		shaderc_compiler_release(compiler);
-
-		if(includeUserData.m_includeResult)
-			m_allocator.Free(reinterpret_cast<shaderc_include_result*>(includeUserData.m_includeResult));
 	}
 }
