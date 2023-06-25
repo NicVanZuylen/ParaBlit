@@ -204,6 +204,7 @@ namespace Eng
 		uint32_t m_batchIndexCount = 0;
 		uint32_t m_batchInstanceCount = 0;
 		uint32_t m_meshletWorkgroupCount = 0;
+		bool m_useMeshShaders = false;
 		bool m_indicesUpToDate = false;
 		Bounds m_bounds;
 

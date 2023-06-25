@@ -120,7 +120,7 @@ namespace AssetPipeline
 				}
 
 				// Check include files included by this header.
-				std::ifstream glslFile(includePath, std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::_Noreplace | std::ios::in);
+				std::ifstream glslFile(includePath, std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::in);
 				auto fileExceptions = glslFile.exceptions();
 				assert(glslFile.good() && !fileExceptions);
 
@@ -149,7 +149,7 @@ namespace AssetPipeline
 	{
 		static constexpr bool GetAssembly = false;
 
-		std::ifstream glslFile(asset.m_fullPath.c_str(), std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::_Noreplace | std::ios::in);
+		std::ifstream glslFile(asset.m_fullPath.c_str(), std::ios::ate | std::ios::_Nocreate | std::ios::binary | std::ios::in);
 		auto fileExceptions = glslFile.exceptions();
 		assert(glslFile.good() && !fileExceptions);
 

@@ -61,7 +61,7 @@ namespace Eng
 		m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
 		cameraDesc.m_width = cameraDesc.m_height / 2;
-		cameraDesc.m_position = glm::vec3(-4.0f, 1.0f, 4.0f);
+		cameraDesc.m_position = glm::vec3(-16.0f, 1.0f, 16.0f);
 		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, -55.0f, 0.0f));
 		m_frustrumTestCamera = Camera(cameraDesc);
 
@@ -258,30 +258,34 @@ namespace Eng
 			bufferMatrices->m_aspectRatio = float(m_swapchain->GetWidth()) / m_swapchain->GetHeight();
 			bufferMatrices->m_tanHalfFOV = glm::tan(fovRadians / 2);
 
-			// Frustrum
-			const Camera::CameraFrustrum& frustrum = m_camera.GetFrustrum();
-
-			bufferMatrices->m_mainFrustrumPlanes[0] = frustrum.m_near;
-			bufferMatrices->m_mainFrustrumPlanes[1] = frustrum.m_left;
-			bufferMatrices->m_mainFrustrumPlanes[2] = frustrum.m_right;
-			bufferMatrices->m_mainFrustrumPlanes[3] = frustrum.m_top;
-			bufferMatrices->m_mainFrustrumPlanes[4] = frustrum.m_bottom;
-			bufferMatrices->m_mainFrustrumPlanes[5] = frustrum.m_far;
-
 			m_mvpBuffer->EndPopulate();
 
-			ViewConstantsBuffer* testViewConstants = (ViewConstantsBuffer*)m_frustrumTestBuffer->BeginPopulate();
+			// Frustrum
+			FrustrumPlanesBuffer* frustrumPlanes = (FrustrumPlanesBuffer*)m_frustrumPlanesBuffer->BeginPopulate();
+			const Camera::CameraFrustrum& frustrum = m_camera.GetFrustrum();
+
+			frustrumPlanes->m_planes[0] = frustrum.m_near;
+			frustrumPlanes->m_planes[1] = frustrum.m_left;
+			frustrumPlanes->m_planes[2] = frustrum.m_right;
+			frustrumPlanes->m_planes[3] = frustrum.m_top;
+			frustrumPlanes->m_planes[4] = frustrum.m_bottom;
+			frustrumPlanes->m_planes[5] = frustrum.m_far;
+			frustrumPlanes->m_camPos = glm::vec4(m_camera.Position(), 1.0f);
+
+			m_frustrumPlanesBuffer->EndPopulate();
+
+			FrustrumPlanesBuffer* testFrustrumPlanes = (FrustrumPlanesBuffer*)m_frustrumTestBuffer->BeginPopulate();
 
 			const Camera::CameraFrustrum& testFrustrum = m_frustrumTestCamera.GetFrustrum();
 			Camera::DrawFrustrum(m_debugLinePass, testFrustrum, glm::vec3(1.0f, 0.0f, 1.0f));
 
-			testViewConstants->m_mainFrustrumPlanes[0] = testFrustrum.m_near;
-			testViewConstants->m_mainFrustrumPlanes[1] = testFrustrum.m_left;
-			testViewConstants->m_mainFrustrumPlanes[2] = testFrustrum.m_right;
-			testViewConstants->m_mainFrustrumPlanes[3] = testFrustrum.m_top;
-			testViewConstants->m_mainFrustrumPlanes[4] = testFrustrum.m_bottom;
-			testViewConstants->m_mainFrustrumPlanes[5] = testFrustrum.m_far;
-			testViewConstants->m_camPos = glm::vec4(m_frustrumTestCamera.Position(), 1.0f);
+			testFrustrumPlanes->m_planes[0] = testFrustrum.m_near;
+			testFrustrumPlanes->m_planes[1] = testFrustrum.m_left;
+			testFrustrumPlanes->m_planes[2] = testFrustrum.m_right;
+			testFrustrumPlanes->m_planes[3] = testFrustrum.m_top;
+			testFrustrumPlanes->m_planes[4] = testFrustrum.m_bottom;
+			testFrustrumPlanes->m_planes[5] = testFrustrum.m_far;
+			testFrustrumPlanes->m_camPos = glm::vec4(m_frustrumTestCamera.Position(), 1.0f);
 
 			m_frustrumTestBuffer->EndPopulate();
 		}
@@ -322,6 +326,10 @@ namespace Eng
 		mvpBufferDesc.m_options = PB::EBufferOptions::ZERO_INITIALIZE;
 		mvpBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::UNIFORM;
 		m_mvpBuffer = m_renderer->AllocateBuffer(mvpBufferDesc);
+
+		mvpBufferDesc.m_bufferSize = sizeof(FrustrumPlanesBuffer);
+		mvpBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::UNIFORM;
+		m_frustrumPlanesBuffer = m_renderer->AllocateBuffer(mvpBufferDesc);
 		m_frustrumTestBuffer = m_renderer->AllocateBuffer(mvpBufferDesc);
 
 		// Basic textures
@@ -482,31 +490,19 @@ namespace Eng
 		m_allocator->Free(m_skyIrradianceMap);
 		m_allocator->Free(m_skyPrefilterMap);
 
-		//m_allocator->Free(m_paintMesh);
-		//m_allocator->Free(m_detailsMesh);
-		//m_allocator->Free(m_glassMesh);
-		//m_allocator->Free(m_planeMesh);
-
 		m_allocator->Free(m_shadowVertShader);
 
 		m_allocator->Free(m_vertexPool);
 
 		m_renderer->FreeBuffer(m_frustrumTestBuffer);
+		m_renderer->FreeBuffer(m_frustrumPlanesBuffer);
 		m_renderer->FreeBuffer(m_mvpBuffer);
 		m_mvpBuffer = nullptr;
 	}
 
 	inline RenderGraph* ClientPlayground::CreateRenderGraph()
 	{
-		uint32_t frustrumPlanesOffset = offsetof(ViewConstantsBuffer, ViewConstantsBuffer::m_mainFrustrumPlanes);
-		uint32_t frustrumPlanesSize = sizeof(ViewConstantsBuffer::m_mainFrustrumPlanes) + sizeof(ViewConstantsBuffer::m_camPos);
-
 		PB::IBufferObject* viewBuffer = m_frustrumTestBuffer;
-
-		PB::BufferViewDesc viewPlanesDesc;
-		viewPlanesDesc.m_buffer = viewBuffer;
-		viewPlanesDesc.m_offset = frustrumPlanesOffset;
-		viewPlanesDesc.m_size = frustrumPlanesSize;
 
 		glm::vec3 sunDir = glm::normalize(glm::vec3(1.0f, 2.0f, 1.0f));
 
@@ -538,7 +534,7 @@ namespace Eng
 			// GBuffer pass
 			{
 				if (!m_gBufferPass)
-					m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), viewBuffer->GetViewAsUniformBuffer(viewPlanesDesc), &m_camera, &m_hierarchy.GetRenderHierarchy());
+					m_gBufferPass = m_allocator->Alloc<GBufferPass>(m_renderer, m_allocator, m_mvpBuffer->GetViewAsUniformBuffer(), viewBuffer->GetViewAsUniformBuffer(), &m_camera, &m_hierarchy.GetRenderHierarchy());
 				m_gBufferPass->AddToRenderGraph(&rgBuilder);
 			}
 
@@ -661,7 +657,7 @@ namespace Eng
 		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID bunnyMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Stanford/Bunny").GetID(&Mesh::s_meshDatabaseLoader);
 
-		const uint32_t spinnerCount = 64;
+		const uint32_t spinnerCount = 2;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
 			glm::vec3 pos = glm::vec3(8.0f * (i / 10), 0.0f, -7.0f * (i % 10));

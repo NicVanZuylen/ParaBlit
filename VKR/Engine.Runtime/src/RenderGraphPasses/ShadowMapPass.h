@@ -59,16 +59,21 @@ namespace Eng
 		struct ShadowConstants
 		{
 			glm::mat4 m_viewProjectionMatrix;
-			glm::vec4 m_shadowFrustrumPlanes[6];
 			glm::vec4 m_shadowViewDirection;
 			glm::vec2 m_cascadeRange;
 			float m_shadowPenumbraDistance;
 			float m_shadowBiasMultiplier;
 		} m_localShadowConstants{};
 
+		struct ShadowPlaneConstants
+		{
+			glm::vec4 m_shadowFrustrumPlanes[6];
+		} m_localShadowPlaneConstants{};
+
 		PB::Pipeline m_shadowPipeline = 0;
 		BatchDispatcher* m_batchDispatcher = nullptr;
 		PB::IBufferObject* m_shadowViewBuffer = nullptr;
+		PB::IBufferObject* m_shadowPlanesBuffer = nullptr;
 		PB::UniformBufferView m_shadowConstantsView = 0;
 		PB::UniformBufferView m_viewPlanesView = nullptr;
 		PB::BindingLayout m_batchBindings{};

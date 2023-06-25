@@ -7,11 +7,17 @@ layout(set = 1, binding = 0) uniform ViewConstants  \
     mat4 proj;                                      \
     mat4 invView;                                   \
     mat4 invProj;                                   \
-    vec4 mainFrustrumPlanes[6];                     \
     vec4 cameraPosition;                            \
     float aspectRatio;                              \
     float tanHalfFOV;                               \
 } name[]                                            \
+
+#define DEFINE_VIEW_PLANE_CONSTANTS(name)               \
+layout(set = 1, binding = 0) uniform ViewPlaneConstants \
+{                                                       \
+    vec4 mainFrustrumPlanes[6];                         \
+    vec4 cameraPosition;                                \
+} name[]                                                \
 
 float ReconstructViewZFromDepth(float depth, in mat4 proj)
 {

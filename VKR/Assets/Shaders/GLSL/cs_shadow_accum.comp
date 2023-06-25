@@ -1,5 +1,6 @@
 #version 450
 #include "Common/pb_common.h"
+#include "Common/view_constants.h"
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_samplerless_texture_functions : require
 
@@ -22,15 +23,7 @@ layout(push_constant) uniform Bindings
     uint rotationSamplerIdx;
 } pb_bindings;
 
-layout(set = 1, binding = 0) uniform MVP
-{
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-    mat4 invView;
-    mat4 invProj;
-    vec4 cameraPosition;
-} mvp[];
+DEFINE_VIEW_CONSTANTS(mvp);
 
 layout(set = 1, binding = 0) uniform ShadowConstants
 {
@@ -57,7 +50,6 @@ float SampleShadowmapDepth(vec2 sampleCoord)
 {
     return texture
     (
-        //sampler2D(textures[nonuniformEXT(bindings.shadowmapIndex)], samplers[nonuniformEXT(bindings.shadowSamplerIdx)]), 
         PB_BUILD_SAMPLER(shadowmapIndex, shadowSamplerIdx),
         sampleCoord
     ).r;
@@ -72,7 +64,6 @@ vec4 SampleShadowmap4(vec2 sampleCoord, float refDepth)
 {
     vec4 depths = textureGather
     (
-        //sampler2D(textures[nonuniformEXT(bindings.shadowmapIdx)], samplers[nonuniformEXT(bindings.shadowSamplerIdx)]), 
         PB_BUILD_SAMPLER(shadowmapIndex, shadowSamplerIdx),
         sampleCoord
     );
@@ -227,9 +218,8 @@ void main()
 
     float biasMult = 1.0;
     float shadowBias = max((0.003 * biasMult) * (1.0 - normalDotLight), (0.0015 * biasMult));
-    //float shadow = float(shadowmapScreenPos.z < shadowmapDepth);
     float shadowPenumbraDistance = SHAD_CONST.shadowPenumbraDistance;
-    //float shadowBias = 0.003;
+
     float blockAvg = 0.0;
     float shadowMask = ShadowPCSS(shadowmapScreenPos, shadowBias, shadowPenumbraDistance, blockAvg);
     imageStore(PB_STORAGE_IMAGE(outputImageIndex), pixelLocation, vec4(shadowMask));

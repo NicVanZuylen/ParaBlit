@@ -30,11 +30,12 @@ namespace Eng
 		m_shadowViewBuffer = m_renderer->AllocateBuffer(shadowViewDesc);
 		m_shadowConstantsView = m_shadowViewBuffer->GetViewAsUniformBuffer();
 
-		PB::BufferViewDesc viewPlanesDesc;
-		viewPlanesDesc.m_buffer = m_shadowViewBuffer;
-		viewPlanesDesc.m_offset = offsetof(ShadowConstants, ShadowConstants::m_shadowFrustrumPlanes);
-		viewPlanesDesc.m_size = sizeof(ShadowConstants::m_shadowFrustrumPlanes);
-		m_viewPlanesView = m_shadowViewBuffer->GetViewAsUniformBuffer(viewPlanesDesc);
+		PB::BufferObjectDesc shadowPlanesViewDesc;
+		shadowPlanesViewDesc.m_bufferSize = sizeof(ShadowPlaneConstants);
+		shadowPlanesViewDesc.m_options = 0;
+		shadowPlanesViewDesc.m_usage = PB::EBufferUsage::UNIFORM | PB::EBufferUsage::COPY_DST;
+		m_shadowPlanesBuffer = m_renderer->AllocateBuffer(shadowPlanesViewDesc);
+		m_viewPlanesView = m_shadowPlanesBuffer->GetViewAsUniformBuffer();
 
 		m_batchBindings.m_uniformBufferCount = 1;
 		m_batchBindings.m_uniformBuffers = &m_shadowConstantsView;
@@ -50,6 +51,8 @@ namespace Eng
 
 		m_renderer->FreeBuffer(m_shadowViewBuffer);
 		m_shadowViewBuffer = nullptr;
+		m_renderer->FreeBuffer(m_shadowPlanesBuffer);
+		m_shadowPlanesBuffer = nullptr;
 	}
 
 	void ShadowMapPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -72,6 +75,9 @@ namespace Eng
 		{
 			memcpy(m_shadowViewBuffer->BeginPopulate(), &m_localShadowConstants, sizeof(ShadowConstants));
 			m_shadowViewBuffer->EndPopulate();
+
+			memcpy(m_shadowPlanesBuffer->BeginPopulate(), &m_localShadowPlaneConstants, sizeof(ShadowPlaneConstants));
+			m_shadowPlanesBuffer->EndPopulate();
 			m_shadowConstantsRequireUpdate = false;
 		}
 
@@ -167,12 +173,12 @@ namespace Eng
 		m_localShadowConstants.m_viewProjectionMatrix = proj * viewMat;
 		Camera::GetShadowCascadeFrustrum(m_shadowCascadeFrustrum, eye, normalizedViewDir, minWidth, maxWidth, minHeight, maxHeight, 1.0f, farDistance);
 
-		m_localShadowConstants.m_shadowFrustrumPlanes[0] = m_shadowCascadeFrustrum.m_near;
-		m_localShadowConstants.m_shadowFrustrumPlanes[1] = m_shadowCascadeFrustrum.m_left;
-		m_localShadowConstants.m_shadowFrustrumPlanes[2] = m_shadowCascadeFrustrum.m_right;
-		m_localShadowConstants.m_shadowFrustrumPlanes[3] = m_shadowCascadeFrustrum.m_top;
-		m_localShadowConstants.m_shadowFrustrumPlanes[4] = m_shadowCascadeFrustrum.m_bottom;
-		m_localShadowConstants.m_shadowFrustrumPlanes[5] = m_shadowCascadeFrustrum.m_far;
+		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[0] = m_shadowCascadeFrustrum.m_near;
+		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[1] = m_shadowCascadeFrustrum.m_left;
+		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[2] = m_shadowCascadeFrustrum.m_right;
+		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[3] = m_shadowCascadeFrustrum.m_top;
+		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[4] = m_shadowCascadeFrustrum.m_bottom;
+		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[5] = m_shadowCascadeFrustrum.m_far;
 
 		m_localShadowConstants.m_cascadeRange = glm::vec2(m_frustrumSectionNear, m_frustrumSectionFar);
 

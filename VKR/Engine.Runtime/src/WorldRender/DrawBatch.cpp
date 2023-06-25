@@ -42,6 +42,7 @@ namespace Eng
         m_renderer = desc.m_renderer;
         m_allocator = desc.m_allocator;
         m_streamer = desc.m_streamer;
+        m_useMeshShaders = m_renderer->GetDeviceLimitations()->m_supportMeshShader;
         m_bounds = Bounds();
 
         CreateUpdateResources();
@@ -60,8 +61,11 @@ namespace Eng
         drawParamsBufferDesc.m_usage = PB::EBufferUsage::STORAGE | PB::EBufferUsage::INDIRECT_PARAMS;
         m_drawParamsBuffer = m_renderer->AllocateBuffer(drawParamsBufferDesc);
 
-        drawParamsBufferDesc.m_bufferSize = sizeof(MeshletDrawParamsBuffer);
-        m_drawMeshletParamsBuffer = m_renderer->AllocateBuffer(drawParamsBufferDesc);
+        if (m_useMeshShaders == true)
+        {
+            drawParamsBufferDesc.m_bufferSize = sizeof(MeshletDrawParamsBuffer);
+            m_drawMeshletParamsBuffer = m_renderer->AllocateBuffer(drawParamsBufferDesc);
+        }
 
         PB::BufferObjectDesc drawRangesBufferDesc;
         drawRangesBufferDesc.m_bufferSize = sizeof(MeshletDrawRangesBuffer);
@@ -73,8 +77,11 @@ namespace Eng
         updatePipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_populate_indices", m_allocator, true);
         m_batchIndexUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
 
-        updatePipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_populate_meshlets", m_allocator, true);
-        m_batchMeshletUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
+        if (m_useMeshShaders == true)
+        {
+            updatePipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_populate_meshlets", m_allocator, true);
+            m_batchMeshletUpdatePipeline = m_renderer->GetPipelineCache()->GetPipeline(updatePipelineDesc);
+        }
     }
 
     DrawBatch::~DrawBatch()
@@ -123,9 +130,12 @@ namespace Eng
             m_renderer->FreeBuffer(m_meshletSrcViewBuffer);
             m_meshletSrcViewBuffer = nullptr;
         }
+        if (m_drawMeshletParamsBuffer != nullptr)
+        {
+            m_renderer->FreeBuffer(m_drawMeshletParamsBuffer);
+        }
         
         m_renderer->FreeBuffer(m_cullConstantsBuffer);
-        m_renderer->FreeBuffer(m_drawMeshletParamsBuffer);
         m_renderer->FreeBuffer(m_drawParamsBuffer);
         m_renderer->FreeBuffer(m_drawRangesBuffer);
     }
@@ -172,7 +182,7 @@ namespace Eng
         PB::ResourceView drawCountView;
 
         PB::BufferViewDesc drawViewDesc{};
-        if (cullTasks == true)
+        if (cullTasks == true && m_useMeshShaders == true)
         {
             drawViewDesc.m_buffer = m_drawMeshletParamsBuffer;
             drawViewDesc.m_offset = offsetof(MeshletDrawParamsBuffer, MeshletDrawParamsBuffer::m_drawMeshTasksParams);;
@@ -203,7 +213,7 @@ namespace Eng
         {
             drawViewDesc.m_buffer = m_drawParamsBuffer;
             drawViewDesc.m_offset = 0;
-            drawViewDesc.m_size = sizeof(DrawParamsBuffer);
+            drawViewDesc.m_size = sizeof(DrawParamsBuffer::m_drawIndexedParams);
             drawParamsView = m_drawParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
 
             drawViewDesc.m_offset = offsetof(DrawParamsBuffer, DrawParamsBuffer::m_drawCount);
@@ -229,6 +239,8 @@ namespace Eng
 
     void DrawBatch::DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings)
     {
+        constexpr uint32_t DrawCountOffset = offsetof(DrawParamsBuffer, DrawParamsBuffer::m_drawCount);
+
         for (StreamingBatch*& streamingBatch : m_instanceStreamingBatches)
         {
             streamingBatch->WaitStreamingComplete();
@@ -249,7 +261,7 @@ namespace Eng
 
         cmdContext->CmdBindResources(finalBindingLayout);
         cmdContext->CmdBindVertexBuffers(nullptr, 0, m_batchIndexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
-        cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, sizeof(DrawParamsBuffer::m_drawIndexedParams), MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
+        cmdContext->CmdDrawIndexedIndirectCount(m_drawParamsBuffer, 0, m_drawParamsBuffer, DrawCountOffset, MaxDrawCount, sizeof(PB::DrawIndexedIndirectParams) - sizeof(uint32_t));
     }
 
     void DrawBatch::DrawAllGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings)
@@ -279,6 +291,8 @@ namespace Eng
 
     void DrawBatch::EXPERIMENTAL_DrawAllMeshShader(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings, PB::UniformBufferView viewConstantsView)
     {
+        assert(m_useMeshShaders == true);
+
         for (StreamingBatch*& streamingBatch : m_instanceStreamingBatches)
         {
             streamingBatch->WaitStreamingComplete();
@@ -535,6 +549,7 @@ namespace Eng
         }
 
         // Meshlet upload data
+        if(m_useMeshShaders == true)
         {
             uint32_t totalMeshletWorkgroupIndex = 0;
             uint32_t totalMeshletCount = 0;

@@ -75,6 +75,8 @@ namespace PB
 
 		ISwapChain* GetSwapchain() override;
 
+		const DeviceLimitations* GetDeviceLimitations() const override;
+
 		bool HasValidSwapchain() override;
 
 		PARABLIT_API IShaderModuleCache* GetShaderModuleCache() override;

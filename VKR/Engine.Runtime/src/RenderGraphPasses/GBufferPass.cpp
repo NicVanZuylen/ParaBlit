@@ -33,12 +33,20 @@ namespace Eng
 	{
 		if (m_drawbatchPipeline == 0)
 		{
+			bool supportMeshShaders = m_renderer->GetDeviceLimitations()->m_supportMeshShader;
+
 			PB::GraphicsPipelineDesc pipelineDesc = GetBasePipelineDesc();
-			//pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_obj_def_batch", m_allocator, true).GetModule();
-			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::TASK] = Eng::Shader(m_renderer, "Shaders/GLSL/ts_obj_meshlet_cull", m_allocator, true).GetModule();
-			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::MESH] = Eng::Shader(m_renderer, "Shaders/GLSL/ms_obj_task_batch", m_allocator, true).GetModule();
-			//pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_mesh_batch", m_allocator, true).GetModule();
-			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_mesh_batch", m_allocator, true).GetModule();
+			if (supportMeshShaders)
+			{
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::TASK] = Eng::Shader(m_renderer, "Shaders/GLSL/ts_obj_meshlet_cull", m_allocator, true).GetModule();
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::MESH] = Eng::Shader(m_renderer, "Shaders/GLSL/ms_obj_task_batch", m_allocator, true).GetModule();
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_mesh_batch", m_allocator, true).GetModule();
+			}
+			else
+			{
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_obj_def_batch", m_allocator, true).GetModule();
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_obj_def_batch", m_allocator, true).GetModule();
+			}
 
 			m_drawbatchPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 		}

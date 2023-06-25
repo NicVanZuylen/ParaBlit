@@ -44,6 +44,7 @@ namespace Eng
 		PB::Pipeline m_batchCullPipeline = 0;
 		PB::Pipeline m_batchCullTasksPipeline = 0;
 		EDispatcherState m_state = EDispatcherState::CLEAR;
+		bool m_useMeshShaders = false;
 	};
 
 };

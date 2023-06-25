@@ -12,8 +12,12 @@ namespace Eng
 		cullPipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull", allocator, true).GetModule();
 		m_batchCullPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
 
-		cullPipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull_tasks", allocator, true).GetModule();
-		m_batchCullTasksPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
+		m_useMeshShaders = m_renderer->GetDeviceLimitations()->m_supportMeshShader;
+		if (m_useMeshShaders == true)
+		{
+			cullPipelineDesc.m_computeModule = Eng::Shader(m_renderer, "Shaders/GLSL/cs_drawbatch_cull_tasks", allocator, true).GetModule();
+			m_batchCullTasksPipeline = m_renderer->GetPipelineCache()->GetPipeline(cullPipelineDesc);
+		}
 	}
 
 	BatchDispatcher::~BatchDispatcher()
@@ -46,12 +50,12 @@ namespace Eng
 		assert(m_state == EDispatcherState::PRE_CULL);
 
 		// Dispatch frustrum cull for all batches.
-		cmdContext->CmdBindPipeline(cullMeshlets ? m_batchCullTasksPipeline : m_batchCullPipeline);
+		cmdContext->CmdBindPipeline(cullMeshlets && m_useMeshShaders ? m_batchCullTasksPipeline : m_batchCullPipeline);
 		for (auto& pipelineBatches : m_batches)
 		{
 			for (auto& batchState : pipelineBatches.second)
 			{
-				batchState.batch->DispatchFrustrumCull(cmdContext, viewConstantsView, cullMeshlets);
+				batchState.batch->DispatchFrustrumCull(cmdContext, viewConstantsView, cullMeshlets && m_useMeshShaders);
 			}
 		}
 
@@ -79,7 +83,7 @@ namespace Eng
 
 			for (auto& batchState : pipelineBatches.second)
 			{
-				if(drawExperimental == false)
+				if(drawExperimental == false || m_useMeshShaders == false)
 					batchState.batch->DrawCulledGeometry(cmdContext, batchState.batchBindings);
 				else
 				{

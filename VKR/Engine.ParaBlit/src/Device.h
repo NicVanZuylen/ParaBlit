@@ -96,6 +96,12 @@ namespace PB
 		TempBufferAllocator& GetTempBufferAllocator();
 
 		/*
+		Description: Get information on device feature limitations.
+		Return Type: const DeviceLimitations*
+		*/
+		const DeviceLimitations* GetDeviceLimitations() const { return &m_limitations; };
+
+		/*
 		Description: Gets the limits structure of this device.
 		Return Type const VkPhysicalDeviceLimits*
 		*/
@@ -162,5 +168,7 @@ namespace PB
 		PoolAllocator m_deviceTextureAllocator;
 		PoolAllocator m_hostTextureAllocator;
 		TempBufferAllocator m_tempStagingBufferAllocator;
+
+		DeviceLimitations m_limitations;
 	};
 }

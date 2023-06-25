@@ -868,7 +868,8 @@ namespace AssetPipeline
 			CMP_CompressOptions compressOptions{};
 			compressOptions.dwSize = sizeof(CMP_CompressOptions);
 			compressOptions.fquality = 0.05f;
-			compressOptions.dwnumThreads = 16;
+			compressOptions.dwnumThreads = 4;
+			compressOptions.nCompressionSpeed = CMP_Speed_SuperFast;
 
 			for (uint32_t face = 0; face < 6; ++face)
 			{

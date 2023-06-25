@@ -65,11 +65,16 @@ namespace Eng
 			glm::mat4 m_proj;
 			glm::mat4 m_invView;
 			glm::mat4 m_invProj;
-			glm::vec4 m_mainFrustrumPlanes[6];
 			glm::vec4 m_camPos;
 			float m_aspectRatio;
 			float m_tanHalfFOV;
 			float m_pad[2];
+		};
+
+		struct FrustrumPlanesBuffer
+		{
+			glm::vec4 m_planes[6];
+			glm::vec4 m_camPos;
 		};
 		// -------------------------------------------------------------------------
 
@@ -100,6 +105,7 @@ namespace Eng
 		// -------------------------------------------------------------------------
 		// Resources
 		PB::IBufferObject* m_mvpBuffer = nullptr;
+		PB::IBufferObject* m_frustrumPlanesBuffer = nullptr;
 		PB::IBufferObject* m_frustrumTestBuffer = nullptr;
 
 		Eng::Mesh* m_paintMesh = nullptr;

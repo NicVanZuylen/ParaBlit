@@ -311,7 +311,8 @@ namespace PB
 		// Descriptor indexing is in the core, but this will shut up validation which complains about shaders requiring it.
 		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME), "Could not enable descriptor indexing extension.");
 
-		PB_ASSERT_MSG(extManager.EnableExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME), "Could not enable mesh shaders extension.");
+		m_limitations.m_supportMeshShader = extManager.EnableExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+		//PB_ASSERT_MSG(m_capabilities.m_supportMeshShader == true, "Could not enable mesh shaders extension.");
 		// Can be used to create dynamic render passes which do not include subpasses and the caveats of tile-based rendering approaches.
 		// Currently disabled while VK_KHR_DYNAMIC_RENDERING is still in development.
 		//PB_ASSERT_MSG(extManager.EnableExtension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME), "Could not enable dynamic rendering extension.");

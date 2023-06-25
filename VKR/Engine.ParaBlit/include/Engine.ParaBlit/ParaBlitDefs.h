@@ -350,4 +350,9 @@ namespace PB
 		u32 m_workGroupY = 0;
 		u32 m_workGroupZ = 0;
 	};
+
+	struct DeviceLimitations
+	{
+		bool m_supportMeshShader = false;
+	};
 }

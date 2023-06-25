@@ -85,6 +85,7 @@ namespace PB
 		PARABLIT_INTERFACE ICommandContext* GetThreadUploadContext() = 0;
 
 		PARABLIT_INTERFACE ISwapChain* GetSwapchain() = 0;
+		PARABLIT_INTERFACE const DeviceLimitations* GetDeviceLimitations() const = 0;
 		PARABLIT_INTERFACE bool HasValidSwapchain() = 0;
 		PARABLIT_INTERFACE IRenderPassCache* GetRenderPassCache() = 0;;
 		PARABLIT_INTERFACE IShaderModuleCache* GetShaderModuleCache() = 0;

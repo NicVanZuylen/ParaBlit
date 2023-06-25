@@ -172,6 +172,11 @@ namespace PB
 		return &m_swapchain;
 	}
 
+	const DeviceLimitations* Renderer::GetDeviceLimitations() const
+	{
+		return m_device.GetDeviceLimitations();
+	}
+
 	bool Renderer::HasValidSwapchain()
 	{
 		return m_swapchain.GetHandle() != VK_NULL_HANDLE;

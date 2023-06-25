@@ -30,7 +30,6 @@ DEFINE_VIEW_CONSTANTS(mvp);
 layout(set = 1, binding = 0) uniform ShadowConstants
 {
     mat4 viewProj;
-    vec4 shadowFrustrumPlanes[6];
     vec4 shadowViewDirection;
     vec2 cascadeRange;
     float shadowPenumbraDistance;
