@@ -1,12 +1,19 @@
 #pragma once
 #include "Engine.AssetEncoder/EncoderBase.h"
 #include "Engine.Control/ISettingsParsers.h"
+#include <Engine.ParaBlit/ParaBlitDefs.h>
 
 #pragma warning(push, 0)
 #define GLM_FORCE_CTOR_INIT // Required to ensure glm constructors actually initialize vectors/matrices etc.
 #include "glm/glm.hpp"
 #include "glm/gtc/packing.hpp"
 #pragma warning(pop)
+
+
+namespace PB
+{
+	class IRenderer;
+}
 
 namespace AssetPipeline
 {
@@ -119,7 +126,7 @@ namespace AssetPipeline
 		typedef CLib::Vector<Meshlet, 1, 256> MeshletBuffer;
 		typedef CLib::Vector<glm::vec2, 1, 1024> SinglePrecisionTexCoords;
 
-		MeshEncoder(const char* name, const char* dbName, const char* assetDirectory);
+		MeshEncoder(const char* name, const char* dbName, const char* assetDirectory, PB::IRenderer* renderer);
 
 		~MeshEncoder();
 
@@ -130,5 +137,10 @@ namespace AssetPipeline
 		inline void LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, glm::vec3& outOrigin, glm::vec3& outExtents, const char* path, bool cmToM);
 
 		inline void BuildMesh(const AssetStatus& asset, const Ctrl::IDataContainer* properties);
+
+		PB::IRenderer* m_renderer = nullptr;
+		AssetEncoder::AssetBinaryDatabaseReader* m_pipelineDBReader = nullptr;
+		PB::ShaderModule m_previewVSModule{};
+		PB::ShaderModule m_previewFSModule{};
 	};
 }

@@ -1,18 +1,25 @@
 #include "MeshEncoder.h"
 #include "../Bounds.h"
 #include "../MeshletOctree.h"
+#include "../PipelineShader.h"
+
+#include <Engine.ParaBlit/IRenderer.h>
+#include <Engine.ParaBlit/ICommandContext.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../TinyObjLoader/tiny_obj_loader.h"
 
 #include <chrono>
 #include <cassert>
+#include <random>
 
 namespace AssetPipeline
 {
-	MeshEncoder::MeshEncoder(const char* name, const char* dbName, const char* assetDirectory)
+	MeshEncoder::MeshEncoder(const char* name, const char* dbName, const char* assetDirectory, PB::IRenderer* renderer)
 		: EncoderBase(name, dbName, assetDirectory)
 	{
+		m_renderer = renderer;
+
 		std::vector<AssetEncoder::FileInfo> fileInfos;
 		RecursiveSearchDirectoryForExtension(assetDirectory, fileInfos, ".obj");
 
@@ -176,13 +183,13 @@ namespace AssetPipeline
 				else
 					chunkVertices[j].m_position = glm::vec3(0.0f, 0.0f, 0.0f);
 
-				outOrigin.x = glm::min(outOrigin.x, chunkVertices[j].m_position.x);
-				outOrigin.y = glm::min(outOrigin.y, chunkVertices[j].m_position.y);
-				outOrigin.z = glm::min(outOrigin.z, chunkVertices[j].m_position.z);
+				outOrigin.x = glm::min<float>(outOrigin.x, chunkVertices[j].m_position.x);
+				outOrigin.y = glm::min<float>(outOrigin.y, chunkVertices[j].m_position.y);
+				outOrigin.z = glm::min<float>(outOrigin.z, chunkVertices[j].m_position.z);
 
-				outExtents.x = glm::max(outExtents.x, chunkVertices[j].m_position.x);
-				outExtents.y = glm::max(outExtents.y, chunkVertices[j].m_position.y);
-				outExtents.z = glm::max(outExtents.z, chunkVertices[j].m_position.z);
+				outExtents.x = glm::min<float>(outExtents.x, chunkVertices[j].m_position.x);
+				outExtents.y = glm::min<float>(outExtents.y, chunkVertices[j].m_position.y);
+				outExtents.z = glm::min<float>(outExtents.z, chunkVertices[j].m_position.z);
 
 				if (shape.mesh.normals.size())
 					chunkVertices[j].m_normal = Vec4PackedHalfFloat(shape.mesh.normals[nIndex], shape.mesh.normals[nIndex + 1], shape.mesh.normals[nIndex + 2], 1.0f);
@@ -231,7 +238,7 @@ namespace AssetPipeline
 			// Calculate meshlets...
 			{
 				Bounds meshBounds(meshBoundOrigin, meshBoundExtents);
-				auto maxExtent = glm::max(glm::max(meshBoundExtents.x, meshBoundExtents.y), meshBoundExtents.z);
+				auto maxExtent = glm::min<float>(glm::min<float>(meshBoundExtents.x, meshBoundExtents.y), meshBoundExtents.z);
 
 				glm::vec3 meshCenter = meshBounds.Center();
 
@@ -323,7 +330,7 @@ namespace AssetPipeline
 					for (const glm::vec3& normal : triNormals)
 					{
 						float dot = glm::dot(averageNormal, normal);
-						angularSpan = glm::max(angularSpan, glm::acos(dot));
+						angularSpan = glm::min<float>(angularSpan, glm::acos(dot));
 					}
 
 					//meshlet.m_normal = Vec4PackedSnorm(glm::vec4(averageNormal, normalTolerance));
@@ -339,6 +346,102 @@ namespace AssetPipeline
 
 		uint32_t totalVertexCount = wholeMeshVertices.Count();
 		uint32_t totalIndexCount = wholeMeshIndices.Count();
+
+		// Preview meshlets...
+		if (m_renderer->HasValidSwapchain() && meshlets.Count() > 0)
+		{
+			struct PreviewVertex
+			{
+				glm::vec4 m_position;
+				glm::vec4 m_color;
+			};
+
+			std::default_random_engine randEng{};
+			std::uniform_real_distribution<float> distrib{ 0.0f, 1.0f };
+			CLib::Vector<PreviewVertex> previewVertices(wholeMeshVertices.Count());
+			for (auto& vertex : wholeMeshVertices)
+			{
+				glm::vec4 randomColor(distrib(randEng), distrib(randEng), distrib(randEng), 1.0f);
+				previewVertices.PushBack({ glm::vec4(vertex.m_position, 1.0f), randomColor });
+			}
+
+			PB::BufferObjectDesc vbDesc{};
+			vbDesc.m_bufferSize = sizeof(PreviewVertex) * previewVertices.Count();
+			vbDesc.m_options = 0;
+			vbDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::VERTEX;
+			PB::IBufferObject* vertexBuffer = m_renderer->AllocateBuffer(vbDesc);
+
+			PB::u8* data = vertexBuffer->BeginPopulate();
+			memcpy(data, previewVertices.Data(), previewVertices.Count() * sizeof(PreviewVertex));
+			vertexBuffer->EndPopulate();
+
+			PB::BufferObjectDesc ibDesc{};
+			ibDesc.m_bufferSize = sizeof(MeshIndex) * wholeMeshIndices.Count();
+			ibDesc.m_options = 0;
+			ibDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::INDEX;
+			PB::IBufferObject* indexBuffer = m_renderer->AllocateBuffer(ibDesc);
+
+			data = indexBuffer->BeginPopulate();
+			memcpy(data, wholeMeshIndices.Data(), wholeMeshIndices.Count() * sizeof(MeshIndex));
+			indexBuffer->EndPopulate();
+
+			PB::RenderPass previewRP = 0;
+			{
+				PB::RenderPassDesc rpDesc{};
+
+				PB::AttachmentDesc& attachDesc = rpDesc.m_attachments[0] = PB::AttachmentDesc();
+				attachDesc.m_expectedState = PB::ETextureState::COLORTARGET;
+				attachDesc.m_finalState = PB::ETextureState::PRESENT;
+				attachDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+				attachDesc.m_loadAction = PB::EAttachmentAction::NONE;
+				attachDesc.m_keepContents = true;
+
+				PB::SubpassDesc& subpassDesc = rpDesc.m_subpasses[0] = PB::SubpassDesc();
+				subpassDesc.m_attachments[0].m_attachmentIdx = 0;
+				subpassDesc.m_attachments[0].m_attachmentFormat = attachDesc.m_format;
+				subpassDesc.m_attachments[0].m_usage = PB::EAttachmentUsage::COLOR;
+
+				rpDesc.m_attachmentCount = 1;
+				rpDesc.m_subpassCount = 1;
+
+			}
+
+			PB::Pipeline previewPipeline = 0;
+			{
+				if (!m_previewVSModule)
+					m_previewVSModule = Shader(m_renderer, m_pipelineDBReader, "Shaders/vs_meshPreview").GetModule();
+
+				if (!m_previewFSModule)
+					m_previewFSModule = Shader(m_renderer, m_pipelineDBReader, "Shaders/fs_meshPreview").GetModule();
+
+				PB::GraphicsPipelineDesc previewPipelineDesc{};
+				previewPipelineDesc.m_attachmentCount = 1;
+				previewPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS;
+				previewPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
+				previewPipelineDesc.m_stencilTestEnable = false;
+				previewPipelineDesc.m_cullMode = PB::EFaceCullMode::NONE;
+				previewPipelineDesc.m_subpass = 0;
+				previewPipelineDesc.m_renderPass = previewRP;
+				previewPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = m_previewVSModule;
+				previewPipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = m_previewFSModule;
+				previewPipelineDesc.m_colorBlendStates[0].m_enableBlending = false;
+
+				previewPipeline = m_renderer->GetPipelineCache()->GetPipeline(previewPipelineDesc);
+			}
+
+			PB::CommandContextDesc cmdContextDesc{};
+			cmdContextDesc.m_usage = PB::ECommandContextUsage::GRAPHICS;
+			cmdContextDesc.m_renderer = m_renderer;
+			PB::SCommandContext cmdContext(m_renderer);
+			cmdContext->Init(cmdContextDesc);
+			cmdContext->Begin();
+
+			cmdContext->CmdBindVertexBuffer(vertexBuffer, indexBuffer, PB::EIndexType::PB_INDEX_TYPE_UINT32);
+			cmdContext->CmdDrawIndexed(wholeMeshIndices.Count(), 1);
+
+			cmdContext->End();
+			cmdContext->Return();
+		}
 
 		MeshCacheData* outCacheData;
 		size_t totalSize = vertexBufferSize + indexBufferSize + meshletBufferSize;
