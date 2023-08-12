@@ -60,7 +60,7 @@ namespace Eng
 		m_camera = Camera(cameraDesc);
 		m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
-		cameraDesc.m_width = cameraDesc.m_height / 4;
+		cameraDesc.m_width = cameraDesc.m_height / 2;
 		cameraDesc.m_position = glm::vec3(-16.0f, 1.0f, 16.0f);
 		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, -55.0f, 0.0f));
 		m_frustrumTestCamera = Camera(cameraDesc);
@@ -271,7 +271,7 @@ namespace Eng
 			frustrumPlanes->m_planes[4] = frustrum.m_bottom;
 			frustrumPlanes->m_planes[5] = frustrum.m_far;
 			frustrumPlanes->m_camPos = glm::vec4(m_camera.Position(), 1.0f);
-			frustrumPlanes->m_isOrthographic = false;
+			frustrumPlanes->m_isOrthographic = 0;
 
 			m_frustrumPlanesBuffer->EndPopulate();
 
@@ -287,7 +287,7 @@ namespace Eng
 			testFrustrumPlanes->m_planes[4] = testFrustrum.m_bottom;
 			testFrustrumPlanes->m_planes[5] = testFrustrum.m_far;
 			testFrustrumPlanes->m_camPos = glm::vec4(m_frustrumTestCamera.Position(), 1.0f);
-			testFrustrumPlanes->m_isOrthographic = false;
+			testFrustrumPlanes->m_isOrthographic = 0;
 
 			m_frustrumTestBuffer->EndPopulate();
 		}

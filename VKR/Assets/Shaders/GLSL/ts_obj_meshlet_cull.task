@@ -51,9 +51,8 @@ const float halfPi = 1.57079632679; // 90 degrees.
 
 bool IsFrontFaceVisible(in vec3 meshletOrigin, in vec3 meshletExtents, vec3 meanNormal, in float angularSpan)
 {
-    bool isOrthographic = CULL_CONSTANTS.isOrthographic;
     float sinConeAngle = sin(min(angularSpan, halfPi)); // Max 90 degrees.
-    if(isOrthographic == true)
+    if(CULL_CONSTANTS.isOrthographic > 0)
     {
         vec3 camForward = CULL_CONSTANTS.mainFrustrumPlanes[0].xyz; // Use the camera's forward vector instead (near plane vector), due to the parallel nature of orthographic projection.
         return dot(meanNormal, camForward) < sinConeAngle;
@@ -71,6 +70,7 @@ void main()
         passingMeshletCount = 0;
 
     barrier();
+    memoryBarrierShared();
 
     uvec2 range = DRAW_RANGES[gl_DrawID];
     uint rangeOffset = range[0] + gl_GlobalInvocationID.x;

@@ -3,7 +3,7 @@ layout(set = 1, binding = 0) uniform CullingConstants       \
 {                                                           \
     vec4 mainFrustrumPlanes[6];                             \
 	vec3 cameraOrigin;										\
-	bool isOrthographic;									\
+	uint isOrthographic;									\
 } name[]                                                    \
 
 #define DEFINE_CULL_VIEW_CONSTANTS_STORAGE_BUFFER(name)         \
@@ -11,7 +11,7 @@ layout(set = 0, binding = 2) readonly buffer CullingConstants   \
 {                                                               \
     vec4 mainFrustrumPlanes[6];                                 \
 	vec3 cameraOrigin;											\
-	bool isOrthographic;										\
+	uint isOrthographic;										\
 } name[]                                                        \
 
 struct MeshletData

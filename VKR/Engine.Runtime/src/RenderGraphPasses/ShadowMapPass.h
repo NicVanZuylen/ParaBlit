@@ -69,8 +69,7 @@ namespace Eng
 		{
 			glm::vec4 m_shadowFrustrumPlanes[6];
 			glm::vec3 m_cameraOrigin;
-			bool m_isOrthographic = true;
-			bool m_pad[3];
+			uint32_t m_isOrthographic = 1;
 		} m_localShadowPlaneConstants{};
 
 		PB::Pipeline m_shadowPipeline = 0;

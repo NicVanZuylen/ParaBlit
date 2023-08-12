@@ -75,8 +75,7 @@ namespace Eng
 		{
 			glm::vec4 m_planes[6];
 			glm::vec3 m_camPos;
-			bool m_isOrthographic = false;
-			bool m_pad[3];
+			uint32_t m_isOrthographic = 0;
 		};
 		// -------------------------------------------------------------------------
 

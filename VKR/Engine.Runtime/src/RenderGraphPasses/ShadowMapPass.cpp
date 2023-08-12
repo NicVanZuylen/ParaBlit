@@ -190,7 +190,7 @@ namespace Eng
 		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[4] = m_shadowCascadeFrustrum.m_bottom;
 		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[5] = m_shadowCascadeFrustrum.m_far;
 		m_localShadowPlaneConstants.m_cameraOrigin = eye;
-		m_localShadowPlaneConstants.m_isOrthographic = true;
+		m_localShadowPlaneConstants.m_isOrthographic = 1;
 
 		m_localShadowConstants.m_cascadeRange = glm::vec2(m_frustrumSectionNear, m_frustrumSectionFar);
 
