@@ -60,7 +60,7 @@ namespace Eng
 		m_camera = Camera(cameraDesc);
 		m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
-		cameraDesc.m_width = cameraDesc.m_height / 2;
+		cameraDesc.m_width = cameraDesc.m_height / 4;
 		cameraDesc.m_position = glm::vec3(-16.0f, 1.0f, 16.0f);
 		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, -55.0f, 0.0f));
 		m_frustrumTestCamera = Camera(cameraDesc);
@@ -271,6 +271,7 @@ namespace Eng
 			frustrumPlanes->m_planes[4] = frustrum.m_bottom;
 			frustrumPlanes->m_planes[5] = frustrum.m_far;
 			frustrumPlanes->m_camPos = glm::vec4(m_camera.Position(), 1.0f);
+			frustrumPlanes->m_isOrthographic = false;
 
 			m_frustrumPlanesBuffer->EndPopulate();
 
@@ -286,6 +287,7 @@ namespace Eng
 			testFrustrumPlanes->m_planes[4] = testFrustrum.m_bottom;
 			testFrustrumPlanes->m_planes[5] = testFrustrum.m_far;
 			testFrustrumPlanes->m_camPos = glm::vec4(m_frustrumTestCamera.Position(), 1.0f);
+			testFrustrumPlanes->m_isOrthographic = false;
 
 			m_frustrumTestBuffer->EndPopulate();
 		}
@@ -657,34 +659,36 @@ namespace Eng
 		AssetEncoder::AssetID planeMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/plane").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID bunnyMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Stanford/Bunny").GetID(&Mesh::s_meshDatabaseLoader);
 
+		AssetEncoder::AssetID deathMeshID = AssetEncoder::AssetHandle("Meshes/Primitives/12mILL").GetID(&Mesh::s_meshDatabaseLoader);
+
 		const uint32_t spinnerCount = 2;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
 			glm::vec3 pos = glm::vec3(8.0f * (i / 10), 0.0f, -7.0f * (i % 10));
 			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
-
+		
 			if (i == 1)
 			{
 				pos.y = 5.0f;
 				pos.z += 2.5f;
 			}
-
+		
 			glm::quat spinnerQuat = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
+		
 			Entity* paintEntity = m_hierarchy.AddEntity(pos, "spinner_paint");
 			Transform* paintTransform = paintEntity->GetComponent<Transform>();
 			paintTransform->SetPosition(pos);
 			paintTransform->SetRotation(spinnerQuat);
 			paintEntity->AddComponent<RenderDefinition>(paintMeshID, m_spinnerMaterials[0]);
 			m_hierarchy.CommitEntity(paintEntity);
-
+		
 			Entity* detailsEntity = m_hierarchy.AddEntity(pos, "spinner_details");
 			Transform* detailsTransform = detailsEntity->GetComponent<Transform>();
 			detailsTransform->SetPosition(pos);
 			detailsTransform->SetRotation(spinnerQuat);
 			detailsEntity->AddComponent<RenderDefinition>(detailsMeshID, m_spinnerMaterials[1]);
 			m_hierarchy.CommitEntity(detailsEntity);
-
+		
 			Entity* glassEntity = m_hierarchy.AddEntity(pos, "spinner_glass");
 			Transform* glassTransform = glassEntity->GetComponent<Transform>();
 			glassTransform->SetPosition(pos);
@@ -692,19 +696,28 @@ namespace Eng
 			glassEntity->AddComponent<RenderDefinition>(glassMeshID, m_spinnerMaterials[2]);
 			m_hierarchy.CommitEntity(glassEntity);
 		}
-
+		
 		modelMat = glm::identity<glm::mat4>();
 		glm::vec3 planeOffset = glm::vec3(0.0f, -0.2f, 0.0f);
 		modelMat = glm::translate(glm::mat4(), planeOffset);
-
+		
 		Entity* planeEntity = m_hierarchy.AddEntity(planeOffset, "plane");
 		Transform* planeTransform = planeEntity->GetComponent<Transform>();
 		planeTransform->SetPosition(planeOffset);
 		planeEntity->AddComponent<RenderDefinition>(planeMeshID, m_planeMaterial);
 		m_hierarchy.CommitEntity(planeEntity);
 
-		glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
+		glm::vec3 thescythe = glm::vec3(4.0f, 2.0f, -4.0f);
+		
+		Entity* deathEntity = m_hierarchy.AddEntity(thescythe, "death");
+		Transform* whyamIdoingthis = deathEntity->GetComponent<Transform>();
+		whyamIdoingthis->SetPosition(thescythe);
+		deathEntity->AddComponent<RenderDefinition>(deathMeshID, m_planeMaterial);
+		m_hierarchy.CommitEntity(deathEntity); // Sweet jeebus save me...
 
+		
+		glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
+		
 		Entity* debugPlaneEntity = m_hierarchy.AddEntity(debugPlaneOffset, "debug_plane");
 		Transform* debugPlaneTransform = debugPlaneEntity->GetComponent<Transform>();
 		debugPlaneTransform->SetPosition(debugPlaneOffset);
@@ -712,7 +725,7 @@ namespace Eng
 		debugPlaneTransform->SetScale(glm::vec3(0.2f));
 		debugPlaneEntity->AddComponent<RenderDefinition>(planeMeshID, m_debugMaterial);
 		m_hierarchy.CommitEntity(debugPlaneEntity);
-
+		
 		glm::vec3 bunnyOffset = glm::vec3(3.0f, 0.5f, 0.0f);
 		Entity* bunnyEntity = m_hierarchy.AddEntity(bunnyOffset, "bunny");
 		Transform* bunnyTransform = bunnyEntity->GetComponent<Transform>();

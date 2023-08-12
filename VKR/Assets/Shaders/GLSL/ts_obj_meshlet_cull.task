@@ -15,6 +15,7 @@ layout(push_constant) uniform Bindings
 {
     DEFINE_REQUIRED_UNIFORM_BINDINGS;
     uint indexBufferIndex;
+    uint primitiveIndexBufferIndex;
     uint drawRangeBufferIndex;
     uint meshetDataBufferIndex;
     uint instanceBufferIndex;
@@ -23,23 +24,22 @@ layout(push_constant) uniform Bindings
 DEFINE_CULL_VIEW_CONSTANTS_UBO(cullConstants);                  
 #define CULL_CONSTANTS PB_UBO(cullConstants, cullConstantsIndex)
 
-layout(set = 0, binding = 2) readonly buffer DrawRangesBuffer
+layout(set = 0, binding = 2) readonly restrict buffer DrawRangesBuffer
 {
     uvec2 ranges[MAX_DRAW_COUNT];
 } drawRangesBuffer[];
 #define DRAW_RANGES PB_STORAGE_BUFFER(drawRangesBuffer, drawRangeBufferIndex).ranges
 
-layout(set = 0, binding = 2) readonly buffer MeshletDataBuffer
+layout(set = 0, binding = 2, std430) readonly restrict buffer MeshletDataBuffer
 {
-    MeshletBoundData data[];
+    MeshletData data[];
 } meshletDataBuffer[];
 #define MESHLET_DATA PB_STORAGE_BUFFER(meshletDataBuffer, meshetDataBufferIndex)
 
 struct TASK_PAYLOAD
 {
-    // Indices of meshlets which pass culling tests. Only these meshlets will be processed in the mesh shader.
-    uint passingMeshletIndices[TASK_GROUP_SIZE];
-    uint meshletCount;
+    uint packedVertOffsetCount[TASK_GROUP_SIZE];
+    uint packedPrimOffsetCount[TASK_GROUP_SIZE];
 };
 
 // One per set of mesh shader workgroups dispatched by a single task shader workgroup.
@@ -47,14 +47,21 @@ taskPayloadSharedEXT TASK_PAYLOAD payloadOut;
 
 shared uint passingMeshletCount;
 
-const float halfPi = 1.57079632679;
+const float halfPi = 1.57079632679; // 90 degrees.
 
-bool isFrontFaceVisible(in vec3 meshletOrigin, in vec3 meshletExtents, vec3 meanNormal, in float angularSpan)
+bool IsFrontFaceVisible(in vec3 meshletOrigin, in vec3 meshletExtents, vec3 meanNormal, in float angularSpan)
 {
-    vec3 meshletCenter = meshletOrigin + (meshletExtents * 0.5);
-    vec3 centreDir = normalize(meshletCenter - CULL_CONSTANTS.cameraOrigin.xyz);
+    bool isOrthographic = CULL_CONSTANTS.isOrthographic;
+    float sinConeAngle = sin(min(angularSpan, halfPi)); // Max 90 degrees.
+    if(isOrthographic == true)
+    {
+        vec3 camForward = CULL_CONSTANTS.mainFrustrumPlanes[0].xyz; // Use the camera's forward vector instead (near plane vector), due to the parallel nature of orthographic projection.
+        return dot(meanNormal, camForward) < sinConeAngle;
+    }
 
-    float sinConeAngle = sin(min(angularSpan, halfPi));
+    vec3 meshletCenter = meshletOrigin + (meshletExtents * 0.5);
+    vec3 centreDir = normalize(meshletCenter - CULL_CONSTANTS.cameraOrigin);
+
     return dot(meanNormal, centreDir) < sinConeAngle;
 }
 
@@ -67,7 +74,7 @@ void main()
 
     uvec2 range = DRAW_RANGES[gl_DrawID];
     uint rangeOffset = range[0] + gl_GlobalInvocationID.x;
-    MeshletBoundData meshletData = MESHLET_DATA.data[rangeOffset];
+    MeshletData meshletData = MESHLET_DATA.data[rangeOffset];
 
     // Frustrum intersection test.
     bool pass = IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[0], meshletData.origin, meshletData.extents)     // Near
@@ -80,19 +87,20 @@ void main()
     // Mask out meshlets outside of the range.
     pass = pass && rangeOffset < range[1];
 
-    vec4 normalUnpacked = vec4(unpackHalf2x16(meshletData.normalDataPacked0), unpackHalf2x16(meshletData.normalDataPacked1));
-    float normalTolerance = normalUnpacked.w;
+    vec4 normalUnpacked = vec4(unpackHalf2x16(meshletData.normalDataXYPacked), unpackHalf2x16(meshletData.normalDataZThetaPacked));
+    float angularSpan = normalUnpacked.w;
 
-    pass = pass && isFrontFaceVisible(meshletData.origin, meshletData.extents, normalUnpacked.xyz, normalTolerance);
+    pass = pass && IsFrontFaceVisible(meshletData.origin, meshletData.extents, normalUnpacked.xyz, angularSpan);
 
     if (pass == true)
     {
         // Atomic increment the passing meshlet count for a invocation-unique index to write out passing meshlet's index to.
         uint outputIndex = atomicAdd(passingMeshletCount, 1);
-        payloadOut.passingMeshletIndices[outputIndex] = rangeOffset;
-    }
 
-    payloadOut.meshletCount = gl_NumWorkGroups.x * TASK_GROUP_SIZE;
+        // Pack meshlet vertex/primitive offsets and counts for use in mesh shader.
+        payloadOut.packedVertOffsetCount[outputIndex] = meshletData.vertOffsetCountPacked;
+        payloadOut.packedPrimOffsetCount[outputIndex] = meshletData.primOffsetCountPacked;
+    }
 
     // Amount of mesh shader workgroups to dispatch.
     EmitMeshTasksEXT(passingMeshletCount, 1, 1);

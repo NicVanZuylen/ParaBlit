@@ -1,4 +1,4 @@
-#include "../src/Parse/Parse.h"
+#include "Parse.h"
 #include <fstream>
 #include <filesystem>
 
@@ -23,6 +23,11 @@ namespace Ctrl
 	{
 		if (strcmp(m_tokens.find(token)->second.c_str(), "True") == 0)
 			return true;
+		else if (strcmp(m_tokens.find(token)->second.c_str(), "true") == 0)
+			return true;
+		else if (std::atoi(m_tokens.find(token)->second.c_str()) > 0)
+			return true;
+
 		return false;
 	}
 
@@ -250,7 +255,14 @@ namespace Ctrl
 
 	bool SettingsHub::GetBooleanValue(const char* token)
 	{
-		return std::atoi(m_tokens[token].c_str()) > 0;
+		if (strcmp(m_tokens[token].c_str(), "True") == 0)
+			return true;
+		else if (strcmp(m_tokens[token].c_str(), "true") == 0)
+			return true;
+		else if (std::atoi(m_tokens[token].c_str()) > 0)
+			return true;
+
+		return false;
 	}
 
 	bool SettingsHub::HasToken(const char* token)

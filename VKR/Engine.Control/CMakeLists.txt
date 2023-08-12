@@ -47,15 +47,16 @@ file(GLOB_RECURSE SRC_FILES
     "${source_dir}/*.ixx"
 )
 source_group(${filter_name} FILES ${SRC_FILES})
-target_sources(${_LIBRARY_} PUBLIC ${SRC_FILES})
+target_sources(${_LIBRARY_} PRIVATE ${SRC_FILES})
 
 endfunction()
 # ------------------------------------------------------------
 
 # Interface Files
 
+set(_INCLUDE_DIR_ "${CMAKE_CURRENT_SOURCE_DIR}/include/${_LIBRARY_}")
 file(GLOB_RECURSE INTERFACE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/${_LIBRARY_}/*.h"
+    "${_INCLUDE_DIR_}/*.h"
 )
 
 source_group(interface FILES ${INTERFACE_FILES})

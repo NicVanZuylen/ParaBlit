@@ -76,8 +76,8 @@ namespace PB
 		void CmdDrawMeshTasksIndirect(IBufferObject* paramsBuffer, u32 offset) override;
 		void CmdDrawMeshTasksIndirectCount(IBufferObject* paramsBuffer, u32 paramsOffset, IBufferObject* drawCountBuffer, u32 drawCountOffset, u32 maxDrawCount, u32 paramStride) override;
 		void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) override;
-		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) override;
-		void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) override;
+		void CmdCopyBufferToBuffer(const IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) override;
+		void CmdCopyBufferToBuffer(const IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) override;
 		void CmdBindResources(const BindingLayout& layout) override;
 		void CmdBindResources(const IBindingCache* layout) override;
 		void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) override;

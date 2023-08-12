@@ -1,4 +1,5 @@
 #include "Engine.AssetEncoder/EncoderBase.h"
+#include <Engine.Control/ISettingsParsers.h>
 
 namespace AssetEncoder
 {
@@ -6,6 +7,7 @@ namespace AssetEncoder
 	{
 		m_name = name;
 		m_dbName = name;
+		m_forceBuild = Ctrl::ISettingsHub::GetOrCreate()->GetBooleanValue("Build.ForceBuildAll");
 
 		std::string databasePath = assetDirectory;
 		databasePath += "build/";
@@ -95,7 +97,7 @@ namespace AssetEncoder
 			status.m_extension = it->m_fileName.substr(it->m_fileName.find_last_of('.'));
 			AssetHandle handle(status.m_dbPath.c_str());
 			status.m_info = m_dbReader->GetAssetInfo(handle);
-			status.m_outdated = status.m_info.m_binarySize == 0 || status.m_info.m_dateModified < mostRecentModifiedTime;
+			status.m_outdated = status.m_info.m_binarySize == 0 || status.m_info.m_dateModified < mostRecentModifiedTime || m_forceBuild;
 			status.m_hasPropertyFile = propertyFileEntry.exists();
 			status.m_lastModifiedTime = mostRecentModifiedTime;
 		}

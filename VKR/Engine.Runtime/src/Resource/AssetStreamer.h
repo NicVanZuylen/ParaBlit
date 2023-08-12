@@ -110,6 +110,11 @@ namespace Eng
 			m_resources.PushBack(desc);
 		};
 
+		const StreamableHandle& GetResourceStreamingHandle(uint32_t index)
+		{
+			return m_resources[index];
+		}
+
 		void SetOutputBindingLocation(PB::ResourceView* outputBindings) 
 		{
 			m_bindingsDstCpu = outputBindings;

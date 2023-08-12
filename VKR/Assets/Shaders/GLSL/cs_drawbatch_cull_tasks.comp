@@ -9,7 +9,6 @@ layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_
 
 #define MAX_DRAW_COUNT 8
 #define TASK_GROUP_SIZE 32
-#define MESHLET_INDEX_COUNT 32 * 3
 
 layout(push_constant) uniform Bindings
 {
@@ -111,10 +110,7 @@ void main()
 		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[4], objectData.origin, objectData.extents)     // Bottom
             && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[5], objectData.origin, objectData.extents);    // Far
 
-    // Since a meshlet really is just MESHLET_INDEX_COUNT indices and the draw ranges are expected to be divisible by that number,
-    // We can just divide by it change the range units to represent meshlets instead of indices.
     drawRanges[gl_LocalInvocationID.x] = pass ? objectData.drawRange : INVALID_RANGE;
-    drawRanges[gl_LocalInvocationID.x] /= MESHLET_INDEX_COUNT;
 
     memoryBarrierShared();
     barrier();
@@ -174,7 +170,7 @@ void main()
     // On a single invocation we traverse all contigous ranges (there's typically no more than MAX_DRAW_COUNT * 2 of them)
     // and detect continuity between partitions, and use the final contigous ranges to set up the draw call index ranges for the batch.
     // If there are more contigous ranges than MAX_DRAW_COUNT, further ranges will be forcefully combined with the last range under MAX_DRAW_COUNT
-    // to ensure they are drawn, but this worst-case scenario does introduce wastage as vertices that would be culled are still drawn.
+    // to ensure they are drawn, but this worst-case scenario does introduce wastage as geometry that would be culled are still drawn.
     int currentDrawCall = -1;
     int rangeIndex = -1;
     uvec2 lastValidRange = INVALID_RANGE;

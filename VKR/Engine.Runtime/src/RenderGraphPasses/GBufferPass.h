@@ -46,5 +46,6 @@ namespace Eng
 		const RenderBoundingVolumeHierarchy* m_rbvh = nullptr;
 		PB::BindingLayout m_batchBindings;
 		PB::Pipeline m_drawbatchPipeline = 0;
+		bool m_useMeshShaders = false;
 	};
 };

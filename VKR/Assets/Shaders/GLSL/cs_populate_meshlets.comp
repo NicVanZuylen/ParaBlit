@@ -13,7 +13,7 @@ layout(push_constant) uniform Bindings
 {
     uint srcMeshletBufferBindingsIndex;
     uint uploadMetaIndex;
-    uint outputBufferIndex;
+    uint meshletOutputBufferIndex;
 } PB_BINDINGS_NAME;
 
 struct MeshletUploadMetadata
@@ -22,20 +22,24 @@ struct MeshletUploadMetadata
     uint firstWorkgroup;
     uint workgroupCount;
     uint meshletCount;
+    uint vertexOffset;
+    uint primitiveOffset;
     uint startIndex;
+    uint pad0;
+    uint pad1;
 };
 
 layout(set = 0, binding = 2) buffer MeshletSrcBuffers
 {
     uint views[];
-} viewBuffers[];
+} meshletViewBuffers[];
 
-layout(set = 0, binding = 2) buffer MeshletOutputBuffer
+layout(set = 0, binding = 2, std430) buffer MeshletOutputBuffer
 {
-    MeshletBoundData meshlets[];
+    MeshletData meshlets[];
 } meshletOutputBuffer[];
 
-layout(set = 0, binding = 2) buffer InputMeshletBuffers
+layout(set = 0, binding = 2, std430) buffer InputMeshletBuffers
 {
     MeshletData meshlets[];
 } inputMeshletBuffers[];
@@ -57,30 +61,42 @@ void main()
     if(srcMeshletIndex >= data.meshletCount)
         return;
 
-    uint srcView = PB_STORAGE_BUFFER(viewBuffers, srcMeshletBufferBindingsIndex).views[objectIndex];
-    MeshletData srcMeshlet = inputMeshletBuffers[srcView].meshlets[srcMeshletIndex];
+    uint srcMeshletView = PB_STORAGE_BUFFER(meshletViewBuffers, srcMeshletBufferBindingsIndex).views[objectIndex];
+    MeshletData srcMeshlet = inputMeshletBuffers[nonuniformEXT(srcMeshletView)].meshlets[srcMeshletIndex];
 
     mat4 transformMat = data.meshletTransform;
+
+    // Unpack meshlet AABB.
     vec3 origin = srcMeshlet.origin;
     vec3 extents = srcMeshlet.extents;
+
+    // Transform AABB to match object transform.
     TransformBounds(transformMat, origin, extents);
 
-    //vec4 normalUnpacked = unpackSnorm4x8(srcMeshlet.normalDataPacked);
-    vec4 normalUnpacked = vec4(unpackHalf2x16(srcMeshlet.normalDataPacked0), unpackHalf2x16(srcMeshlet.normalDataPacked1));
-    float normalTolerance = normalUnpacked.w;
+    // Transform meshlet normal to match object transform.
+    vec4 normalUnpacked = vec4(unpackHalf2x16(srcMeshlet.normalDataXYPacked), unpackHalf2x16(srcMeshlet.normalDataZThetaPacked));
+    float angularSpan = normalUnpacked.w;
     normalUnpacked.w = 0.0;
 
     vec4 transformedNormal = transformMat * normalUnpacked;
-    transformedNormal.w = normalTolerance;
+    transformedNormal.xyz = normalize(transformedNormal.xyz);
+    transformedNormal.w = angularSpan;
 
-    MeshletBoundData dstMeshlet;
+    // Populate final meshlet data.
+    MeshletData dstMeshlet;
     dstMeshlet.origin = origin;
-    //dstMeshlet.index = objectIndex;
+    dstMeshlet.pad0 = 0;
     dstMeshlet.extents = extents;
-    //dstMeshlet.normalDataPacked = packSnorm4x8(vec4(transformedNormal.xyz, 0.0));
-    dstMeshlet.normalDataPacked0 = packHalf2x16(transformedNormal.xy);
-    dstMeshlet.normalDataPacked1 = packHalf2x16(transformedNormal.zw);
+    dstMeshlet.pad1 = 0;
+    dstMeshlet.normalDataXYPacked = packHalf2x16(transformedNormal.xy);
+    dstMeshlet.normalDataZThetaPacked = packHalf2x16(transformedNormal.zw);
+
+    uint newVertOffset = data.vertexOffset + (srcMeshlet.vertOffsetCountPacked & 0xFFFFFF);
+    uint newPrimOffset = data.primitiveOffset + (srcMeshlet.primOffsetCountPacked & 0xFFFFFF);
+
+    dstMeshlet.vertOffsetCountPacked = newVertOffset | ((srcMeshlet.vertOffsetCountPacked >> 24) << 24);
+    dstMeshlet.primOffsetCountPacked = newPrimOffset | ((srcMeshlet.primOffsetCountPacked >> 24) << 24);
 
     uint dstMeshletIndex = data.startIndex + srcMeshletIndex;
-    PB_STORAGE_BUFFER(meshletOutputBuffer, outputBufferIndex).meshlets[dstMeshletIndex] = dstMeshlet;
+    PB_STORAGE_BUFFER(meshletOutputBuffer, meshletOutputBufferIndex).meshlets[dstMeshletIndex] = dstMeshlet;
 }

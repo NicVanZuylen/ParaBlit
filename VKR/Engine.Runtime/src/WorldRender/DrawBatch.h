@@ -52,7 +52,7 @@ namespace Eng
 		void DispatchFrustrumCull(PB::ICommandContext* cmdContext, PB::UniformBufferView viewConstantsView, bool cullTasks);
 		void DrawCulledGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
 		void DrawAllGeometry(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings);
-		void EXPERIMENTAL_DrawAllMeshShader(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings, PB::UniformBufferView viewConstantsView);
+		void DrawAllMeshShader(PB::ICommandContext* cmdContext, const PB::BindingLayout& bindings, PB::UniformBufferView viewConstantsView);
 
 		void AddInstance(AssetEncoder::AssetID meshID, const float* modelMatrix, const Bounds& bounds, AssetEncoder::AssetID* textureIDs, uint32_t textureCount, PB::ResourceView sampler);
 
@@ -93,7 +93,10 @@ namespace Eng
 			uint32_t m_firstWorkgroup;
 			uint32_t m_workgroupCount;
 			uint32_t m_meshletCount;
+			uint32_t m_vertexOffset;
+			uint32_t m_primitiveOffset;
 			uint32_t m_startIndex;
+			uint32_t m_pad[2];
 		};
 
 		struct DrawBatchInstanceData
@@ -190,6 +193,7 @@ namespace Eng
 		PB::IBufferObject* m_batchMeshletUploadBuffer = nullptr;
 		PB::IBufferObject* m_meshletSrcViewBuffer = nullptr;
 		PB::IBufferObject* m_batchMeshletBuffer = nullptr;
+		PB::IBufferObject* m_batchPrimitiveBuffer = nullptr;
 
 		PB::IBufferObject* m_cullConstantsBuffer = nullptr;
 		PB::IBufferObject* m_drawParamsBuffer = nullptr;
@@ -202,6 +206,8 @@ namespace Eng
 
 		ManagedInstanceBuffer<DrawBatchInstanceData, MaxObjects, MaxObjects> m_instanceBuffer;
 		uint32_t m_batchIndexCount = 0;
+		uint32_t m_batchMeshletCount = 0;
+		uint32_t m_batchPrimitiveCount = 0;
 		uint32_t m_batchInstanceCount = 0;
 		uint32_t m_meshletWorkgroupCount = 0;
 		bool m_useMeshShaders = false;

@@ -612,7 +612,6 @@ namespace Eng
 
 	AssetStreamer::ResourceHandle AssetStreamer::GetResourceHandle(const StreamableHandle& handle)
 	{
-		std::lock_guard<std::mutex> lock(m_streamingLock);
 		auto it = m_resourceMap.find(handle.m_id);
 		if (it == m_resourceMap.end())
 			return nullptr;

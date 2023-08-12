@@ -81,6 +81,7 @@ namespace PB
 		inline PageListNode* AllocatePageBuffer(EMemoryType memoryType, u32 desiredSize);
 
 		Device* m_device = nullptr;
+		std::mutex m_mutex;
 		CLib::Allocator m_pageAllocator{ sizeof(PageListNode) * 8 };
 
 		PageList m_freeLists[MemoryTypeCount]{}; // Pool of pages available for any frame to use.

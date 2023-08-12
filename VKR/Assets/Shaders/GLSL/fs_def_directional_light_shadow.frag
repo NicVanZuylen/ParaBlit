@@ -3,7 +3,6 @@
 #include "Common/pb_common.h"
 #include "Common/view_constants.h"
 #extension GL_ARB_separate_shader_objects : enable
-#extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_samplerless_texture_functions : require
 
 struct FS_IN
@@ -29,9 +28,9 @@ layout(push_constant) uniform Bindings
     uint iblSamplerIdx;
 } PB_BINDINGS_NAME;
 
-layout(set = 0, binding = 0) uniform texture2D textures[];
-layout(set = 0, binding = 0) uniform textureCube cubeTextures[];
-layout(set = 0, binding = 1) uniform sampler samplers[];
+PB_DEFINE_TEXTURE_BINDINGS;
+PB_DEFINE_TEXTURE_CUBE_BINDINGS;
+PB_DEFINE_SAMPLER_BINDINGS;
 
 DEFINE_VIEW_CONSTANTS(viewConstants);
 #define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
@@ -48,6 +47,7 @@ layout(set = 1, binding = 0) uniform LightingData
     int count;
     float emissionIntensityScale;
 } lightingData[];
+#define LIGHTING_DATA PB_UBO(lightingData, lightingUBOIndex)
 
 layout(location = 0) in FS_IN fsInput;
 
@@ -134,7 +134,7 @@ void main()
 
     vec4 colorTexel = texture
     (
-        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.colorRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
+        sampler2D(PB_TEXTURE(colorRTVIdx), PB_SAMPLER(samplerIdx)), 
         fsInput.texCoord
     );
     vec3 color = colorTexel.rgb;
@@ -142,13 +142,13 @@ void main()
 
     vec3 normal = texture
     (
-        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.normalRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
+        sampler2D(PB_TEXTURE(normalRTVIdx), PB_SAMPLER(samplerIdx)), 
         fsInput.texCoord
     ).xyz;
 
     vec4 specAndRough = texture
     (
-        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.specAndRoughRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
+        sampler2D(PB_TEXTURE(specAndRoughRTVIdx), PB_SAMPLER(samplerIdx)), 
         fsInput.texCoord
     );
     vec3 specular = specAndRough.rgb;
@@ -156,7 +156,7 @@ void main()
 
     float depth = texture
     (
-        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.depthRTVIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
+        sampler2D(PB_TEXTURE(depthRTVIdx), PB_SAMPLER(samplerIdx)), 
         fsInput.texCoord
     ).r;
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, invView, invProj);
@@ -166,19 +166,19 @@ void main()
 
     float shadow = texture
     (
-        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.shadowmaskIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
+        sampler2D(PB_TEXTURE(shadowmaskIdx), PB_SAMPLER(samplerIdx)), 
         fsInput.texCoord
     ).r;
 
     float ao = texture
     (
-        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.aoIndex)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
+        sampler2D(PB_TEXTURE(aoIndex), PB_SAMPLER(samplerIdx)), 
         fsInput.texCoord
     ).r;
 
     vec3 envIrradiance = texture
     (
-        samplerCube(cubeTextures[nonuniformEXT(PB_BINDINGS_NAME.irradianceIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.iblSamplerIdx)]), 
+        samplerCube(PB_TEXTURE_CUBE(irradianceIdx), PB_SAMPLER(iblSamplerIdx)), 
         normal
     ).rgb;
     envIrradiance = pow(envIrradiance, gamma);
@@ -188,16 +188,16 @@ void main()
     vec3 ambientDiffuse = envIrradiance * color * kD;
 
     vec3 reflectionVec = reflect(-dirToCam, normal);
-    float prefilterMipCount = float(textureQueryLevels(samplerCube(cubeTextures[nonuniformEXT(PB_BINDINGS_NAME.prefilteredEnvMapIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.iblSamplerIdx)])));
+    float prefilterMipCount = float(textureQueryLevels(samplerCube(PB_TEXTURE_CUBE(prefilteredEnvMapIdx), PB_SAMPLER(iblSamplerIdx))));
     vec3 indirectSpecular = textureLod
     (
-        samplerCube(cubeTextures[nonuniformEXT(PB_BINDINGS_NAME.prefilteredEnvMapIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.iblSamplerIdx)]), 
+        samplerCube(PB_TEXTURE_CUBE(prefilteredEnvMapIdx), PB_SAMPLER(iblSamplerIdx)), 
         reflectionVec,
         roughness * prefilterMipCount
     ).rgb;
     vec2 specBDRF = texture
     (
-        sampler2D(textures[nonuniformEXT(PB_BINDINGS_NAME.specBDRFLutIdx)], samplers[nonuniformEXT(PB_BINDINGS_NAME.samplerIdx)]), 
+        sampler2D(PB_TEXTURE(specBDRFLutIdx), PB_SAMPLER(samplerIdx)), 
         vec2(normalDotCam, roughness)
     ).rg;
     indirectSpecular = pow(indirectSpecular, gamma);
@@ -205,10 +205,10 @@ void main()
 
     vec4 Lo = vec4((ambientDiffuse + ambientSpecular) * ao, 1.0);
     
-    int count = lightingData[nonuniformEXT(PB_BINDINGS_NAME.lightingUBOIndex)].count;
+    int count = LIGHTING_DATA.count;
     for(int i = 0; i < count; ++i)
     {
-        DirectionalLight light = lightingData[nonuniformEXT(PB_BINDINGS_NAME.lightingUBOIndex)].lights[i];
+        DirectionalLight light = LIGHTING_DATA.lights[i];
         vec3 normLightDir = normalize(light.direction.xyz);
 
         float normalDotLight = max(dot(normal, normLightDir), 0.0);
@@ -221,7 +221,7 @@ void main()
         Lo.rgb += Reflectance(color, bdrfSpecular, radiance, kD, normalDotLight) * shadow;
     }
 
-    float emissionIntensityScale = lightingData[nonuniformEXT(PB_BINDINGS_NAME.lightingUBOIndex)].emissionIntensityScale;
+    float emissionIntensityScale = LIGHTING_DATA.emissionIntensityScale;
     vec4 emissionOutput = vec4(color.rgb * emissionIntensityScale, 1.0);
 
     outColor = emissionMask == 0.0 ? Lo : emissionOutput;

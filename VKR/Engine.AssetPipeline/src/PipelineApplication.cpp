@@ -128,14 +128,17 @@ namespace AssetPipeline
 
 		printf("Commence Encoding...\n\n");
 
+		if(settings->GetBooleanValue("Build.SkipShaders") == false)
 		{
 			AssetPipeline::SpirvShaderEncoder encoder("[SPIR-V Encoder]", "shaders.adb", dbDir.c_str());
 		}
 
+		if (settings->GetBooleanValue("Build.SkipMeshes") == false)
 		{
 			AssetPipeline::MeshEncoder encoder("[Mesh Encoder]", "meshes.adb", dbDir.c_str());
 		}
 
+		if (settings->GetBooleanValue("Build.SkipTextures") == false)
 		{
 			AssetPipeline::Texture2DEncoder encoder("[Texture2D Encoder]", "textures.adb", dbDir.c_str(), pipelineDbDir.c_str(), m_renderer);
 		}

@@ -53,5 +53,6 @@ namespace AssetEncoder
 		AssetEncoder::AssetBinaryDatabaseReader* m_dbReader = nullptr;
 		AssetEncoder::AssetBinaryDatabaseWriter* m_dbWriter = nullptr;
 		bool m_changesDetected = false;
+		bool m_forceBuild = false;
 	};
 }

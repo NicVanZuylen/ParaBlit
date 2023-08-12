@@ -2,31 +2,30 @@
 layout(set = 1, binding = 0) uniform CullingConstants       \
 {                                                           \
     vec4 mainFrustrumPlanes[6];                             \
-	vec4 cameraOrigin;										\
+	vec3 cameraOrigin;										\
+	bool isOrthographic;									\
 } name[]                                                    \
 
 #define DEFINE_CULL_VIEW_CONSTANTS_STORAGE_BUFFER(name)         \
 layout(set = 0, binding = 2) readonly buffer CullingConstants   \
 {                                                               \
     vec4 mainFrustrumPlanes[6];                                 \
-	vec4 cameraOrigin;											\
+	vec3 cameraOrigin;											\
+	bool isOrthographic;										\
 } name[]                                                        \
 
 struct MeshletData
 {
     vec3 origin;
-	uint normalDataPacked0;
-	vec3 extents;
-	uint normalDataPacked1;
-};
+	uint pad0;
 
-struct MeshletBoundData
-{
-    vec3 origin;
-    //uint index;
-	uint normalDataPacked0;
-    vec3 extents;
-	uint normalDataPacked1;
+	vec3 extents;
+	uint pad1;
+
+	uint normalDataXYPacked;
+	uint normalDataZThetaPacked;
+	uint vertOffsetCountPacked;
+	uint primOffsetCountPacked;
 };
 
 // Vertices order:

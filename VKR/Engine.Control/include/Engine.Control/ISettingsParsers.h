@@ -27,8 +27,8 @@ namespace Ctrl
 	{
 	public:
 
-		static ICommandLine* Create(int argc, char** argv);
-		static void Destroy(ICommandLine* parser);
+		CONTROL_API static ICommandLine* Create(int argc, char** argv);
+		CONTROL_API static void Destroy(ICommandLine* parser);
 
 		CONTROL_INTERFACE const IDataContainer* GetData() const = 0;
 	};
@@ -49,8 +49,8 @@ namespace Ctrl
 			OPENED_SUCCESSFULLY
 		};
 
-		static IConfigFile* Create(const char* filePath, EOpenMode openMode = EOpenMode::OPEN_READ_ONLY);
-		static void Destroy(IConfigFile* file);
+		CONTROL_API static IConfigFile* Create(const char* filePath, EOpenMode openMode = EOpenMode::OPEN_READ_ONLY);
+		CONTROL_API static void Destroy(IConfigFile* file);
 
 		CONTROL_INTERFACE EFileStatus GetStatus() = 0;
 		CONTROL_INTERFACE IDataContainer* GetData() = 0;
@@ -69,8 +69,8 @@ namespace Ctrl
 			IGNORE_DUPLICATES
 		};
 
-		static ISettingsHub* GetOrCreate();
-		static void Destroy();
+		CONTROL_API static ISettingsHub* GetOrCreate();
+		CONTROL_API static void Destroy();
 
 		CONTROL_INTERFACE void AddSettings(const IDataContainer* parser, EMergeBehavior mergeBehavior = EMergeBehavior::OVERWRITE) = 0;
 		CONTROL_INTERFACE const char* GetStringValue(const char* token) = 0;

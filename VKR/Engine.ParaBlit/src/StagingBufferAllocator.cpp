@@ -6,6 +6,7 @@ namespace PB
 {
 	void TempBufferAllocator::ResetFrame(u32 frameIndex)
 	{
+		std::lock_guard lock(m_mutex);
 		for (u32 i = 0; i < MemoryTypeCount; ++i)
 			m_freeLists[i].AppendList(m_frameLists[frameIndex][i]);
 	}
@@ -41,6 +42,8 @@ namespace PB
 
 	TempBuffer TempBufferAllocator::NewTempBuffer(u32 size, u32 frameIndex, EMemoryType memoryType, u32 alignment)
 	{
+		std::lock_guard lock(m_mutex);
+
 		u32 memoryTypeIdx = static_cast<u32>(memoryType);
 		u32 requiredSize = size + alignment;
 		PageList& frameList = m_frameLists[frameIndex][memoryTypeIdx];

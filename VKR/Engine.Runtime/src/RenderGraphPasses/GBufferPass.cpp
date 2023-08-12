@@ -22,6 +22,8 @@ namespace Eng
 		m_batchBindings.m_uniformBuffers = &m_viewConstView;
 		m_batchBindings.m_resourceCount = 0;
 		m_batchBindings.m_resourceViews = nullptr;
+
+		m_useMeshShaders = m_renderer->GetDeviceLimitations()->m_supportMeshShader;
 	}
 
 	GBufferPass::~GBufferPass()
@@ -33,10 +35,8 @@ namespace Eng
 	{
 		if (m_drawbatchPipeline == 0)
 		{
-			bool supportMeshShaders = m_renderer->GetDeviceLimitations()->m_supportMeshShader;
-
 			PB::GraphicsPipelineDesc pipelineDesc = GetBasePipelineDesc();
-			if (supportMeshShaders)
+			if (m_useMeshShaders)
 			{
 				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::TASK] = Eng::Shader(m_renderer, "Shaders/GLSL/ts_obj_meshlet_cull", m_allocator, true).GetModule();
 				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::MESH] = Eng::Shader(m_renderer, "Shaders/GLSL/ms_obj_task_batch", m_allocator, true).GetModule();
@@ -52,7 +52,7 @@ namespace Eng
 		}
 
 		m_rbvh->CullBatches(m_camera->GetFrustrum(), m_batchDispatcher, m_batchBindings);
-		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView, true);
+		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView, m_useMeshShaders);
 	}
 
 	void GBufferPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -63,7 +63,7 @@ namespace Eng
 		info.m_commandContext->CmdSetViewport({ 0, 0, renderWidth, renderHeight }, 0.0f, 1.0f);
 		info.m_commandContext->CmdSetScissor({ 0, 0, renderWidth, renderHeight });
 
-		m_batchDispatcher->DrawBatches(info.m_commandContext, m_viewPlanesView, m_drawbatchPipeline, true);
+		m_batchDispatcher->DrawBatches(info.m_commandContext, m_viewPlanesView, m_drawbatchPipeline, m_useMeshShaders);
 	}
 
 	void GBufferPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -142,6 +142,7 @@ namespace Eng
 		pipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 		pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
 		pipelineDesc.m_attachmentCount = 3;
+		pipelineDesc.m_cullMode = PB::EFaceCullMode::BACK;
 
 		return pipelineDesc;
 	}

@@ -16,6 +16,8 @@ namespace Eng
 		m_renderer = renderer;
 		m_allocator = allocator;
 
+		m_useMeshShaders = m_renderer->GetDeviceLimitations()->m_supportMeshShader;
+
 		m_frustrumSectionNear = desc.m_frustrumSectionNear;
 		m_frustrumSectionFar = desc.m_frustrumSectionFar;
 		m_softShadowPenumbraDistance = desc.m_softShadowPenumbraDistance;
@@ -60,13 +62,21 @@ namespace Eng
 		if (m_shadowPipeline == 0)
 		{
 			PB::GraphicsPipelineDesc pipelineDesc = GetBasePipelineDesc(m_shadowmapResolution);
-			pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_obj_shad_batch", m_allocator, true).GetModule();
+			if (m_useMeshShaders == false)
+			{
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_obj_shad_batch", m_allocator, true).GetModule();
+			}
+			else
+			{
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::TASK] = Eng::Shader(m_renderer, "Shaders/GLSL/ts_obj_meshlet_cull", m_allocator, true).GetModule();
+				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::MESH] = Eng::Shader(m_renderer, "Shaders/GLSL/ms_obj_task_batch_excl_pos", m_allocator, true).GetModule();
+			}
 
 			m_shadowPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 		}
 
 		m_rbvh->CullBatches(m_shadowCascadeFrustrum, m_batchDispatcher, m_batchBindings);
-		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView);
+		m_batchDispatcher->DispatchFrustrumCull(info.m_commandContext, m_viewPlanesView, m_useMeshShaders);
 	}
 
 	void ShadowMapPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -84,7 +94,7 @@ namespace Eng
 		info.m_commandContext->CmdSetViewport({ 0, 0, m_shadowmapResolution, m_shadowmapResolution }, 0.0f, 1.0f);
 		info.m_commandContext->CmdSetScissor({ 0, 0, m_shadowmapResolution, m_shadowmapResolution });
 
-		m_batchDispatcher->DrawBatches(info.m_commandContext, m_viewPlanesView, m_shadowPipeline);
+		m_batchDispatcher->DrawBatches(info.m_commandContext, m_viewPlanesView, m_shadowPipeline, m_useMeshShaders);
 	}
 
 	void ShadowMapPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -179,6 +189,8 @@ namespace Eng
 		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[3] = m_shadowCascadeFrustrum.m_top;
 		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[4] = m_shadowCascadeFrustrum.m_bottom;
 		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[5] = m_shadowCascadeFrustrum.m_far;
+		m_localShadowPlaneConstants.m_cameraOrigin = eye;
+		m_localShadowPlaneConstants.m_isOrthographic = true;
 
 		m_localShadowConstants.m_cascadeRange = glm::vec2(m_frustrumSectionNear, m_frustrumSectionFar);
 
@@ -197,7 +209,7 @@ namespace Eng
 		pipelineDesc.m_subpass = 0;
 		pipelineDesc.m_renderArea = { 0, 0, shadowMapResolution, shadowMapResolution };
 		pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
-		pipelineDesc.m_cullMode = PB::EFaceCullMode::BACK;
+		pipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
 
 		return pipelineDesc;
 	}

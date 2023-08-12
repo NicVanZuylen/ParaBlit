@@ -134,9 +134,9 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdDispatch(u32 threadGroupX, u32 threadGroupY, u32 threadGroupZ) = 0;
 
-		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) = 0;
+		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(const IBufferObject* src, IBufferObject* dst, u32 srcOffset, u32 dstOffset, u32 size) = 0;
 
-		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) = 0;
+		PARABLIT_INTERFACE void CmdCopyBufferToBuffer(const IBufferObject* src, IBufferObject* dst, const CopyRegion* copyRegions, u32 regionCount) = 0;
 
 		PARABLIT_INTERFACE void CmdCopyTextureToTexture(ITexture* src, ITexture* dst) = 0;
 

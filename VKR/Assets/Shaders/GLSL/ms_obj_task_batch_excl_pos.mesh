@@ -1,8 +1,8 @@
 #version 460
 
 #include "Common/pb_common.h"
-#include "Common/view_constants.h"
 #include "Common/vertex_common.h"
+#include "Common/view_constants.h"
 #include "Common/drawbatch_common.h"
 
 #extension GL_ARB_separate_shader_objects : require
@@ -65,22 +65,6 @@ struct TASK_PAYLOAD
 };
 taskPayloadSharedEXT TASK_PAYLOAD payloadIn;
 
-layout(location = 0) out VERTEX_OUT
-{
-    vec4 position;
-    vec2 texCoord;
-
-    mat3 tbnMatrix; // Normal is 3rd vector component.
-} vertOutput[];
-
-layout(location = 5) perprimitiveEXT out PRIMITIVE_OUT
-{
-    // Resource indices can be output at a per primitive rate.
-    flat uint samplerIdx;
-    flat uint vertexIndex;
-    flat uint textureIndices[INSTANCE_TEXTURE_COUNT];
-} primOutput[];
-
 shared VS_INSTANCE instanceData;
 
 void ProcessVertex(in VS_INSTANCE instanceData, uint vertexIndex, uint outVertexIndex)
@@ -93,20 +77,7 @@ void ProcessVertex(in VS_INSTANCE instanceData, uint vertexIndex, uint outVertex
     vec3 tangent;
     UnpackVertexAttibutes(vertexData, position, texCoord, normal, tangent);
 
-    mat3 modelCpy = mat3(instanceData.model);
-    vec3 biTangent = -cross(normal, tangent);
-
-    vertOutput[outVertexIndex].tbnMatrix = mat3
-    (
-        modelCpy * tangent,     // t
-        modelCpy * biTangent,   // b
-        modelCpy * normal       // n
-    );
-
     gl_MeshVerticesEXT[outVertexIndex].gl_Position = VIEW_CONST.viewProj * instanceData.model * position;
-    vertOutput[outVertexIndex].position = instanceData.model * position;
-    vertOutput[outVertexIndex].position.w = 1.0;
-    vertOutput[outVertexIndex].texCoord = texCoord;
 }
 
 uint GetVertexIndex(uint index)
@@ -165,10 +136,6 @@ void main()
     uint primitiveIndex = gl_LocalInvocationID.x;
     if(primitiveIndex < primitiveCount)
     {
-        primOutput[primitiveIndex].samplerIdx = instanceData.samplerIndex;
-        for(uint i = 0; i < INSTANCE_TEXTURE_COUNT; ++i)
-            primOutput[primitiveIndex].textureIndices[i] = instanceData.textureIndices[i];
-
         gl_PrimitiveTriangleIndicesEXT[primitiveIndex] = GetPrimitiveIndices(primitiveOffset + primitiveIndex);
     }
 }

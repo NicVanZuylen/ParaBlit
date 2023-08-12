@@ -68,6 +68,9 @@ namespace Eng
 		struct ShadowPlaneConstants
 		{
 			glm::vec4 m_shadowFrustrumPlanes[6];
+			glm::vec3 m_cameraOrigin;
+			bool m_isOrthographic = true;
+			bool m_pad[3];
 		} m_localShadowPlaneConstants{};
 
 		PB::Pipeline m_shadowPipeline = 0;
@@ -78,6 +81,7 @@ namespace Eng
 		PB::UniformBufferView m_viewPlanesView = nullptr;
 		PB::BindingLayout m_batchBindings{};
 		bool m_shadowConstantsRequireUpdate = false;
+		bool m_useMeshShaders = false;
 
 		PB::ITexture* m_outputTexture = nullptr;
 		const Camera* m_camera = nullptr;

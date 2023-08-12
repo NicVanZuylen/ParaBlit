@@ -24,22 +24,26 @@ namespace Eng
 	struct Meshlet
 	{
 		glm::vec3 m_origin;
-		uint32_t m_index;
+		uint32_t m_vertexOffset;
 		glm::vec3 m_extents;
-		uint8_t m_normalX;
-		uint8_t m_normalY;
-		uint8_t m_normalZ;
-		uint8_t m_normalTolerance;
+		uint32_t m_primitiveOffset;
+		uint32_t m_vertexCount;
+		uint32_t m_primitiveCount;
+		uint32_t m_normalDataXYPacked;
+		uint32_t m_normalDataZThetaPacked;
 	};
+	static_assert(sizeof(Meshlet) == 12 * sizeof(uint32_t));
 
 	struct MeshCacheData
 	{
-		uint64_t m_vertexCount		= 0;
-		uint64_t m_indexCount		= 0;
-		uint64_t m_meshletCount		= 0;
-		size_t m_vertexDataOffset	= 0;
-		size_t m_indexOffset		= 0;
-		size_t m_meshletDataOffset	= 0;
+		uint64_t m_vertexCount = 0;
+		uint64_t m_indexCount = 0;
+		uint64_t m_meshletCount = 0;
+		uint64_t m_meshletPrimitiveCount = 0;
+		size_t m_vertexDataOffset = 0;
+		size_t m_indexOffset = 0;
+		size_t m_meshletDataOffset = 0;
+		size_t m_meshletPrimitiveDataOffset = 0;
 		glm::vec4 m_boundOrigin;
 		glm::vec4 m_boundExtents;
 	};
@@ -90,6 +94,12 @@ namespace Eng
 		uint32_t IndexCount() const;
 
 		/*
+		Description: Get the amount of meshlet primitives in the entire mesh.
+		Return Type: uint32_t
+		*/
+		uint32_t MeshletPrimitiveCount() const;
+
+		/*
 		Description: Get index of the first vertex in the vertex pool (if vertex pool is used).
 		Return Type: uint32_t
 		*/
@@ -132,6 +142,12 @@ namespace Eng
 		const PB::IBufferObject* GetMeshletBuffer() const;
 
 		/*
+		Description: Get the primitive buffer of this mesh.
+		Return Type: const PB::IBufferObject*
+		*/
+		const PB::IBufferObject* GetMeshletPrimitiveBuffer() const;
+
+		/*
 		Description: Get the axis-aligned bounding box which fully encapsulates the mesh at identity transform.
 		Return Type: Bounds
 		*/
@@ -152,8 +168,10 @@ namespace Eng
 		PB::IBufferObject* m_vertexBuffer = nullptr;
 		PB::IBufferObject* m_indexBuffer = nullptr;
 		PB::IBufferObject* m_meshletBuffer = nullptr;
+		PB::IBufferObject* m_meshletPrimitiveBuffer = nullptr;
 		uint64_t m_totalVertexCount = 0;
 		uint64_t m_totalIndexCount = 0;
+		uint64_t m_totalMeshletPrimitiveCount = 0;
 		Bounds m_bounds;
 		const char* m_filePath = nullptr;
 		VertexPool* m_vertexPool = nullptr;

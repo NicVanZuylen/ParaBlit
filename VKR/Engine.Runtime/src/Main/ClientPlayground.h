@@ -74,7 +74,9 @@ namespace Eng
 		struct FrustrumPlanesBuffer
 		{
 			glm::vec4 m_planes[6];
-			glm::vec4 m_camPos;
+			glm::vec3 m_camPos;
+			bool m_isOrthographic = false;
+			bool m_pad[3];
 		};
 		// -------------------------------------------------------------------------
 

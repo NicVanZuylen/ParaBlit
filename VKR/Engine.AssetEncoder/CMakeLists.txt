@@ -11,6 +11,12 @@ set_target_properties(${_LIBRARY_} PROPERTIES OPTIMIZE_DEPENDENCIES TRUE)
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/CLib/ContainerLib/include")
 add_dependencies(${_LIBRARY_} CLib)
 target_link_libraries(${_LIBRARY_} CLib)
+
+# Engine.Control
+target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_SOURCE_DIR}/Engine.Control/include")
+target_link_libraries(${_LIBRARY_} Engine.Control)
+add_dependencies(${_LIBRARY_} Engine.Control)
+
 # --------------------------------------------------------------------
 
 # --------------------------- Library Properties ---------------------------

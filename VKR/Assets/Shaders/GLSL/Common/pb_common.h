@@ -8,7 +8,6 @@
 #define PB_BINDINGS_NAME pb_bindings
 
 // Names of resource array declarations.
-
 #define PB_TEXTURE_BINDINGS_NAME pb_textures
 #define PB_TEXTURE_CUBE_BINDINGS_NAME pb_textures_cube
 #define PB_SAMPLER_BINDINGS_NAME pb_samplers
@@ -23,17 +22,30 @@
 // Define storage image binding array with the provided qualifiers.
 #define PB_DEFINE_STORAGE_IMAGE_BINDINGS(qualifiers, format) layout(set = 0, binding = 3, format) uniform qualifiers image2D PB_STORAGE_IMAGE_BINDINGS_NAME[]
 
+// Shorthand for accessing a texture using a non uniform binding index.
+#define PB_TEXTURE_NU(index) PB_TEXTURE_BINDINGS_NAME[nonuniformEXT(index)]
 // Shorthand for accessing a texture using its binding index.
-#define PB_TEXTURE(index) PB_TEXTURE_BINDINGS_NAME[nonuniformEXT(PB_BINDINGS_NAME.index)]
-#define PB_TEXTURE_CUBE(index) PB_TEXTURE_CUBE_BINDINGS_NAME[nonuniformEXT(PB_BINDINGS_NAME.index)]
+#define PB_TEXTURE(index) PB_TEXTURE_BINDINGS_NAME[PB_BINDINGS_NAME.index]
+// Shorthand for accessing a texture cube using a non uniform binding index.
+#define PB_TEXTURE_CUBE_NU(index) PB_TEXTURE_CUBE_BINDINGS_NAME[nonuniformEXT(index)]
+// Shorthand for accessing a texture cube using its binding index.
+#define PB_TEXTURE_CUBE(index) PB_TEXTURE_CUBE_BINDINGS_NAME[PB_BINDINGS_NAME.index]
+// Shorthand for accessing a sampler using a non uniform binding index.
+#define PB_SAMPLER_NU(index) PB_SAMPLER_BINDINGS_NAME[nonuniformEXT(index)]
 // Shorthand for accessing a sampler using its binding index.
-#define PB_SAMPLER(index) PB_SAMPLER_BINDINGS_NAME[nonuniformEXT(PB_BINDINGS_NAME.index)]
+#define PB_SAMPLER(index) PB_SAMPLER_BINDINGS_NAME[PB_BINDINGS_NAME.index]
+// Shorthand for accessing a storage image using a non uniform binding index.
+#define PB_STORAGE_IMAGE_NU(index) PB_STORAGE_IMAGE_BINDINGS_NAME[nonuniformEXT(index)]
 // Shorthand for accessing a storage image using its binding index.
-#define PB_STORAGE_IMAGE(index) PB_STORAGE_IMAGE_BINDINGS_NAME[nonuniformEXT(PB_BINDINGS_NAME.index)]
+#define PB_STORAGE_IMAGE(index) PB_STORAGE_IMAGE_BINDINGS_NAME[PB_BINDINGS_NAME.index]
+// Shorthand for accessing a uniform buffer using a non uniform binding index.
+#define PB_UBO_NU(name, index) name[nonuniformEXT(index)]
 // Shorthand for accessing a uniform buffer using its binding index.
-#define PB_UBO(name, index) name[nonuniformEXT(PB_BINDINGS_NAME.index)]
+#define PB_UBO(name, index) name[PB_BINDINGS_NAME.index]
+// Shorthand for accessing a storage buffer using a non uniform binding index.
+#define PB_STORAGE_BUFFER_NU(name, index) name[nonuniformEXT(index)]
 // Shorthand for accessing a storage buffer using its binding index.
-#define PB_STORAGE_BUFFER(name, index) name[nonuniformEXT(PB_BINDINGS_NAME.index)]
+#define PB_STORAGE_BUFFER(name, index) name[PB_BINDINGS_NAME.index]
 
 // Shorthand for building a combined image sampler using the binding indices of a texture and sampler.
 #define PB_BUILD_SAMPLER(t, s) sampler2D(PB_TEXTURE(t), PB_SAMPLER(s))

@@ -87,7 +87,7 @@ namespace Eng
 					batchState.batch->DrawCulledGeometry(cmdContext, batchState.batchBindings);
 				else
 				{
-					batchState.batch->EXPERIMENTAL_DrawAllMeshShader(cmdContext, batchState.batchBindings, viewConstantsView);
+					batchState.batch->DrawAllMeshShader(cmdContext, batchState.batchBindings, viewConstantsView);
 				}
 			}
 		}

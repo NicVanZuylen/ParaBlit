@@ -35,6 +35,29 @@ namespace AssetPipeline
 		};
 		static_assert(sizeof(Vec2PackedHalfFloat) == sizeof(uint32_t));
 
+		struct Vec2PackedUint16
+		{
+			Vec2PackedUint16(uint16_t x, uint16_t y)
+			{
+				m_packed = uint32_t(y) << 16;
+				m_packed |= uint32_t(x);
+			}
+
+			Vec2PackedUint16(glm::u16vec2 vec)
+			{
+				m_packed = uint32_t(vec.y) << 16;
+				m_packed |= uint32_t(vec.x);
+			}
+
+			glm::u16vec2 Unpack()
+			{
+				return glm::u16vec2(m_packed & 0xFFFF, m_packed >> 16);
+			}
+
+			glm::uint m_packed;
+		};
+		static_assert(sizeof(Vec2PackedUint16) == sizeof(uint32_t));
+
 		struct Vec4PackedHalfFloat
 		{
 			Vec4PackedHalfFloat(float x, float y, float z, float w)
@@ -96,19 +119,26 @@ namespace AssetPipeline
 		struct Meshlet
 		{
 			glm::vec3 m_origin;
-			Vec2PackedHalfFloat m_normalPacked0;
+			uint32_t m_pad0;
 			glm::vec3 m_extents;
-			Vec2PackedHalfFloat m_normalPacked1;
+			uint32_t m_pad1;
+			Vec2PackedHalfFloat m_normalDataXYPacked;
+			Vec2PackedHalfFloat m_normalDataZThetaPacked;
+			uint32_t m_vertOffsetCountPacked;
+			uint32_t m_primOffsetCountPacked;
 		};
+		static_assert(sizeof(Meshlet) == 12 * sizeof(uint32_t));
 
 		struct MeshCacheData
 		{
 			uint64_t m_vertexCount;
 			uint64_t m_indexCount;
 			uint64_t m_meshletCount;
+			uint64_t m_meshletPrimitiveCount;
 			size_t m_vertexDataOffset;
 			size_t m_indexOffset;
 			size_t m_meshletDataOffset;
+			size_t m_meshletPrimitiveDataOffset;
 			glm::vec4 m_boundOrigin;
 			glm::vec4 m_boundExtents;
 		};
@@ -116,7 +146,7 @@ namespace AssetPipeline
 		typedef uint32_t MeshIndex;
 		typedef CLib::Vector<Vertex, 1, 1024> VertexBuffer;
 		typedef CLib::Vector<MeshIndex, 1, 4096> IndexBuffer;
-		typedef CLib::Vector<Meshlet, 1, 256> MeshletBuffer;
+		typedef CLib::Vector<Meshlet, 1, 1024> MeshletBuffer;
 		typedef CLib::Vector<glm::vec2, 1, 1024> SinglePrecisionTexCoords;
 
 		MeshEncoder(const char* name, const char* dbName, const char* assetDirectory);

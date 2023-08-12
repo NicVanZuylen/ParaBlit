@@ -53,6 +53,12 @@ target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/compressonato
 target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/compressonator/src/compressonator-build/lib/${CFG}")
 target_link_libraries(${_LIBRARY_} CMP_Compressonator)
 
+# DirectXMesh
+set(_DIRECTXMESH_BUILD_DIR_ "${_EXTERNAL_DIR_}/directxmesh/directxmesh-build/bin/CMake/${CFG}")
+target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/directxmesh/DirectXMesh")
+target_link_directories(${_LIBRARY_} PRIVATE "${_DIRECTXMESH_BUILD_DIR_}")
+target_link_libraries(${_LIBRARY_} DirectXMesh)
+
 # --------------------------------------------------------------------
 
 # --------------------------- Library Properties ---------------------------

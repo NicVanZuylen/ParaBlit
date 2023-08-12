@@ -39,6 +39,8 @@ namespace Eng
 
 			if (m_meshletBuffer)
 				m_renderer->FreeBuffer(m_meshletBuffer);
+			if (m_meshletPrimitiveBuffer)
+				m_renderer->FreeBuffer(m_meshletPrimitiveBuffer);
 			m_meshletBuffer = nullptr;
 		}
 	}
@@ -53,6 +55,7 @@ namespace Eng
 
 		m_totalVertexCount = data.m_vertexCount;
 		m_totalIndexCount = data.m_indexCount;
+		m_totalMeshletPrimitiveCount = data.m_meshletPrimitiveCount;
 		m_bounds.m_origin = data.m_boundOrigin;
 		m_bounds.m_extents = data.m_boundExtents;
 	}
@@ -90,6 +93,7 @@ namespace Eng
 		size_t vertexBufferSize = cacheData.m_vertexCount * sizeof(Vertex);
 		size_t indexBufferSize = cacheData.m_indexCount * sizeof(MeshIndex);
 		size_t meshletBufferSize = cacheData.m_meshletCount * sizeof(Meshlet);
+		size_t primitiveBufferSize = cacheData.m_meshletPrimitiveCount * sizeof(uint32_t);
 
 		// Create vertex and index buffers...
 		PB::BufferObjectDesc vertexBufferDesc;
@@ -160,6 +164,19 @@ namespace Eng
 			m_meshletBuffer->EndPopulate();
 		}
 
+		if (primitiveBufferSize > 0)
+		{
+			PB::BufferObjectDesc primitiveBufferDesc;
+			primitiveBufferDesc.m_bufferSize = static_cast<PB::u32>(primitiveBufferSize);
+			primitiveBufferDesc.m_options = 0;
+			primitiveBufferDesc.m_usage = PB::EBufferUsage::COPY_SRC | PB::EBufferUsage::COPY_DST;
+			m_meshletPrimitiveBuffer = m_renderer->AllocateBuffer(primitiveBufferDesc);
+
+			PB::u8* primitiveData = m_meshletPrimitiveBuffer->BeginPopulate();
+			s_meshDatabaseLoader.GetAssetBinaryRange(m_assetID, primitiveData, cacheData.m_meshletPrimitiveDataOffset, cacheData.m_meshletPrimitiveDataOffset + primitiveBufferSize);
+			m_meshletPrimitiveBuffer->EndPopulate();
+		}
+
 		m_empty = false;
 		printf("Mesh: Successfully loaded asset [%u] (%u bytes) from database: %s\n", uint32_t(m_assetID), uint32_t(assetInfo.m_binarySize), MeshDatabaseDir);
 	}
@@ -172,6 +189,11 @@ namespace Eng
 	uint32_t Mesh::IndexCount() const
 	{
 		return static_cast<uint32_t>(m_totalIndexCount);
+	}
+
+	uint32_t Mesh::MeshletPrimitiveCount() const
+	{
+		return static_cast<uint32_t>(m_totalMeshletPrimitiveCount);
 	}
 
 	uint32_t Mesh::FirstVertex() const
@@ -207,6 +229,11 @@ namespace Eng
 	const PB::IBufferObject* Mesh::GetMeshletBuffer() const
 	{
 		return m_meshletBuffer;
+	}
+
+	const PB::IBufferObject* Mesh::GetMeshletPrimitiveBuffer() const
+	{
+		return m_meshletPrimitiveBuffer;
 	}
 
 	const VertexPool* Mesh::GetVertexPool() const
