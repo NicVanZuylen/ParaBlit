@@ -7,6 +7,11 @@
 
 #include "Resource/AssetStreamer.h"
 
+#include <Engine.Math/Scalar.h>
+#include <Engine.Math/Vectors.h>
+#include <Engine.Math/Matrix4.h>
+#include <Engine.Math/Quaternion.h>
+
 struct GLFWwindow;
 
 namespace CLib
@@ -60,12 +65,12 @@ namespace Eng
 		// Buffer Structures
 		struct ViewConstantsBuffer
 		{
-			glm::mat4 m_viewProj;
-			glm::mat4 m_view;
-			glm::mat4 m_proj;
-			glm::mat4 m_invView;
-			glm::mat4 m_invProj;
-			glm::vec4 m_camPos;
+			Matrix4 m_viewProj;
+			Matrix4 m_view;
+			Matrix4 m_proj;
+			Matrix4 m_invView;
+			Matrix4 m_invProj;
+			Vector4f m_camPos;
 			float m_aspectRatio;
 			float m_tanHalfFOV;
 			float m_pad[2];
@@ -73,8 +78,8 @@ namespace Eng
 
 		struct FrustrumPlanesBuffer
 		{
-			glm::vec4 m_planes[6];
-			glm::vec3 m_camPos;
+			Vector4f m_planes[6];
+			Vector3f m_camPos;
 			uint32_t m_isOrthographic = 0;
 		};
 		// -------------------------------------------------------------------------

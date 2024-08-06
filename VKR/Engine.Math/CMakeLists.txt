@@ -1,16 +1,13 @@
 # add the library
-set(_LIBRARY_ Engine.Control)
+set(_LIBRARY_ Engine.Math)
 
 add_library(${_LIBRARY_} SHARED)
 set_target_properties(${_LIBRARY_} PROPERTIES LINKER_LANGUAGE CXX)
 set_target_properties(${_LIBRARY_} PROPERTIES OPTIMIZE_DEPENDENCIES TRUE)
 
 # --------------------------- Dependencies ---------------------------
-
-# CLib
-target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/CLib/ContainerLib/include")
-add_dependencies(${_LIBRARY_} CLib)
-target_link_libraries(${_LIBRARY_} CLib)
+# GLM
+target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/glm")
 # --------------------------------------------------------------------
 
 # --------------------------- Library Properties ---------------------------
@@ -32,7 +29,7 @@ target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc
 # --------------------------------------------------------------------------
 
 # ------------------------- PREPROCESSOR DEFINITIONS -------------------------
-add_compile_definitions(CONTROL_EXPORT)
+add_compile_definitions(MATH_EXPORT)
 
 # ----------------------------------------------------------------------------
 
@@ -64,7 +61,4 @@ target_sources(${_LIBRARY_} PRIVATE ${INTERFACE_FILES})
 
 # Source Files
 
-add_source("src/DataFile" "DataFile")
-add_source("src/DataClass" "DataClass")
-add_source("src/pugixml" "pugixml")
-add_source("src/MurmurHash" "MurmurHash")
+add_source("src" "${_LIBRARY_}")

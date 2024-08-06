@@ -67,7 +67,7 @@ namespace Eng
 
 		Bounds GetBounds() const { return m_root ? m_root->m_bounds : Bounds(); }
 
-		const ObjectData* RaycastGetObjectData(DebugLinePass* lines, const glm::vec3& rayOrigin, const glm::vec3& rayDirection);
+		const ObjectData* RaycastGetObjectData(DebugLinePass* lines, const Vector3f& rayOrigin, const Vector3f& rayDirection);
 
 	protected:
 
@@ -173,7 +173,7 @@ namespace Eng
 
 		void RecursiveGetObjectData(CLib::Vector<const ObjectData*>& outObjectData, BuildNode* node);
 
-		std::pair<BuildNode*, float> RecursiveObjectRayIntersection(BuildNode* node, const glm::vec3& rayOrigin, const glm::vec3& rayDirection);
+		std::pair<BuildNode*, float> RecursiveObjectRayIntersection(BuildNode* node, const Vector3f& rayOrigin, const Vector3f& rayDirection);
 
 		void RecursiveFreeNode(BuildNode* node);
 
@@ -183,7 +183,7 @@ namespace Eng
 
 		void RecursiveDebugDrawNode(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, BuildNode* node, uint32_t depth, bool drawObjectBounds) const;
 
-		void DebugDrawCube(DebugLinePass* lines, const glm::vec3& origin, const glm::vec3& extents, const glm::vec3& lineColor) const;
+		void DebugDrawCube(DebugLinePass* lines, const Vector3f& origin, const Vector3f& extents, const Vector3f& lineColor) const;
 
 		CLib::FixedBlockAllocator* m_nodeAllocator = nullptr;
 		BuildNode* m_root = nullptr;

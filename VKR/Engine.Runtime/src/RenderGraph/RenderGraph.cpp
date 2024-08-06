@@ -20,7 +20,7 @@ namespace Eng
 
 	}
 
-	inline PB::TextureStateFlags TextureStateFromAttachmentUsage(PB::AttachmentUsageFlags usage)
+	PB::TextureStateFlags TextureStateFromAttachmentUsage(PB::AttachmentUsageFlags usage)
 	{
 		PB::TextureStateFlags stateFlags = 0;
 		if (usage & PB::EAttachmentUsage::COLOR)

@@ -53,7 +53,7 @@ namespace Eng
 		m_renderHierarchy.Destroy();
 	}
 
-	Entity* EntityHierarchy::AddEntity(const glm::vec3& position, const char* name)
+	Entity* EntityHierarchy::AddEntity(const Vector3f& position, const char* name)
 	{
 		Entity* newEntity = m_entityAllocator.Alloc<Entity>(this, name);
 		Transform* transform = newEntity->AddComponent<Transform>();

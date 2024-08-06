@@ -36,6 +36,11 @@ target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/stb")
 # GLM
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/glm")
 
+# Engine.Math
+target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_SOURCE_DIR}/Engine.Math/include")
+#target_link_libraries(${_LIBRARY_} Engine.Math)
+#add_dependencies(${_LIBRARY_} Engine.Math)
+
 # GLFW
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/glfw/include")
 target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/glfw/glfw-build/src/${CFG}")

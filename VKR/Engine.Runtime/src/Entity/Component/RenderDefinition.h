@@ -24,7 +24,7 @@ namespace Eng
 
 		void OnDestruction() override { ECDestroy(this); }
 
-		void GetReflection(CLib::Reflector& outReflector) override { outReflector.Init(this); }
+		void GetReflection(CLib::Reflection::Reflector& outReflector) override { outReflector.Init(this); }
 
 		const AssetEncoder::AssetID GetMeshID() const { return m_meshID; }
 		const Material* GetMaterial() const { return m_material; }

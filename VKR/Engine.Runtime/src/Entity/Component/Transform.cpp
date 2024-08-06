@@ -1,34 +1,33 @@
 #include "Transform.h"
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtx/quaternion.hpp"
+#include "Engine.Math/Scalar.h"
 
 namespace Eng
 {
 	void Transform::RotateEulerX(float angle)
 	{
-		m_quaternion = glm::rotate(m_quaternion, glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
+		m_quaternion.Rotate(angle, Vector3f(1.0f, 0.0f, 0.0f));
 	}
 
 	void Transform::RotateEulerY(float angle)
 	{
-		m_quaternion = glm::rotate(m_quaternion, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+		m_quaternion.Rotate(angle, Vector3f(0.0f, 1.0f, 0.0f));
 	}
 
 	void Transform::RotateEulerZ(float angle)
 	{
-		m_quaternion = glm::rotate(m_quaternion, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f));
+		m_quaternion.Rotate(angle, Vector3f(0.0f, 0.0f, 1.0f));
 	}
 
-	void Transform::GetMatrix(glm::mat4& outMatrix) const
+	void Transform::GetMatrix(Matrix4& outMatrix) const
 	{
-		outMatrix = glm::translate(glm::identity<glm::mat4>(), glm::vec3(m_translation));
-		outMatrix *= glm::toMat4(m_quaternion);
-		outMatrix = glm::scale(outMatrix, glm::vec3(m_scale));
+		outMatrix.Translate(m_translation);
+		outMatrix *= m_quaternion.ToMatrix4();
+		outMatrix.Scale(m_scale);
 	}
 
-	glm::mat4 Transform::GetMatrix() const
+	Matrix4 Transform::GetMatrix() const
 	{
-		glm::mat4 mat;
+		Matrix4 mat;
 		GetMatrix(mat);
 
 		return mat;

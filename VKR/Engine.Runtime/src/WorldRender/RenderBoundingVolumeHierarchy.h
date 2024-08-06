@@ -28,7 +28,7 @@ namespace Eng
 			AssetEncoder::AssetID m_meshID = 0;
 			MeshCacheData m_meshData;
 			Eng::Material* m_material = nullptr;
-			glm::mat4 m_transform;
+			Matrix4 m_transform;
 		};
 
 		RenderBoundingVolumeHierarchy() = default;

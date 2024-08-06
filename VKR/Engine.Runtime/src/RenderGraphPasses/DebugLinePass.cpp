@@ -4,6 +4,8 @@
 
 namespace Eng
 {
+	using namespace Math;
+
 	DebugLinePass::DebugLinePass(PB::IRenderer* renderer, CLib::Allocator* allocator, PB::UniformBufferView mvpView) : RenderGraphBehaviour(renderer, allocator)
 	{
 		m_mvpView = mvpView;
@@ -138,7 +140,7 @@ namespace Eng
 		);
 	}
 
-	void DebugLinePass::DrawLine(glm::vec3 startPoint, glm::vec3 endPoint, glm::vec3 color)
+	void DebugLinePass::DrawLine(Vector3f startPoint, Vector3f endPoint, Vector3f color)
 	{
 		DrawLine
 		(

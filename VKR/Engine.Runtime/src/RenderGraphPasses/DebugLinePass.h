@@ -1,9 +1,7 @@
 #pragma once
 #include "RenderGraph/RenderGraphNode.h"
 
-#pragma warning(push, 0)
-#include "glm/glm.hpp"
-#pragma warning(pop)
+#include <Engine.Math/Vectors.h>
 
 namespace Eng
 {
@@ -24,7 +22,7 @@ namespace Eng
 		void AddToRenderGraph(class RenderGraphBuilder* builder);
 
 		void DrawLine(PB::Float3 startPoint, PB::Float3 endPoint, PB::Float3 color);
-		void DrawLine(glm::vec3 startPoint, glm::vec3 endPoint, glm::vec3 color);
+		void DrawLine(Math::Vector3f startPoint, Math::Vector3f endPoint, Math::Vector3f color);
 		void DrawLine(PB::Float4 startPoint, PB::Float4 endPoint, PB::Float4 color);
 
 	private:

@@ -1,13 +1,12 @@
 #include "Entity/Entity.h"
-
-#pragma warning(push, 0)
-#define GLM_FORCE_CTOR_INIT
-#include "glm/glm.hpp"
-#include "glm/gtc/quaternion.hpp"
-#pragma warning(pop)
+#include "Engine.Math/Vector3.h"
+#include "Engine.Math/Quaternion.h"
+#include "Engine.Math/Matrix4.h"
 
 namespace Eng
 {
+	using namespace Math;
+
 	class Transform : public EntityComponent
 	{
 	public:
@@ -35,33 +34,33 @@ namespace Eng
 
 		void OnDestruction() override { ECDestroy(this); }
 
-		void GetReflection(CLib::Reflector& outReflector) override { outReflector.Init(this); }
+		void GetReflection(CLib::Reflection::Reflector& outReflector) override { outReflector.Init(this); }
 
-		inline void SetPosition(const glm::vec3& position) { m_translation = position; }
-		inline void SetScale(const glm::vec3& scale) { m_scale = scale; }
-		inline void Translate(const glm::vec3& translation) { m_translation += translation; }
+		inline void SetPosition(const Vector3f& position) { m_translation = position; }
+		inline void SetScale(const Vector3f& scale) { m_scale = scale; }
+		inline void Translate(const Vector3f& translation) { m_translation += translation; }
 		inline void ResetRotation() { m_quaternion = glm::identity<glm::quat>(); }
-		void SetRotation(const glm::quat& quaternion) { m_quaternion = quaternion; }
+		void SetRotation(const Quaternion& quaternion) { m_quaternion = quaternion; }
 		void RotateEulerX(float angle);
 		void RotateEulerY(float angle);
 		void RotateEulerZ(float angle);
-		void Rotate(const glm::quat& quat) { m_quaternion *= quat; }
-		inline void Scale(const glm::vec3& deltaScale) { m_scale += deltaScale; }
+		void Rotate(const Quaternion& quat) { m_quaternion *= quat; }
+		inline void Scale(const Vector3f& deltaScale) { m_scale += deltaScale; }
 
-		inline glm::vec3 GetPosition() const { return m_translation; }
-		inline glm::quat GetQuaternion() const { return m_quaternion; }
-		inline glm::vec3 GetEulerAngles() const { return glm::degrees(glm::eulerAngles(m_quaternion)); }
-		inline glm::vec3 GetScale() const { return m_scale; }
+		inline Vector3f GetPosition() const { return m_translation; }
+		inline Quaternion GetQuaternion() const { return m_quaternion; }
+		inline Vector3f GetEulerAngles() const { return m_quaternion.ToEuler(); }
+		inline Vector3f GetScale() const { return m_scale; }
 
-		void GetMatrix(glm::mat4& outMatrix) const;
-		glm::mat4 GetMatrix() const;
+		void GetMatrix(Matrix4& outMatrix) const;
+		Matrix4 GetMatrix() const;
 
 	private:
 
 		CLIB_REFLECTABLE(Transform,
-			(glm::vec3) m_translation,
-			(glm::quat) m_quaternion,
-			(glm::vec3) m_scale
+			(Vector3f) m_translation,
+			(Quaternion) m_quaternion,
+			(Vector3f) m_scale
 		)
 	};
 }

@@ -40,6 +40,8 @@
 
 namespace Eng
 {
+	using namespace Math;
+
 	ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* allocator)
 	{
 		m_renderer = renderer;
@@ -61,8 +63,8 @@ namespace Eng
 		m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
 		cameraDesc.m_width = cameraDesc.m_height / 2;
-		cameraDesc.m_position = glm::vec3(-16.0f, 1.0f, 16.0f);
-		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, -55.0f, 0.0f));
+		cameraDesc.m_position = glm::vec3(16.0f, 1.0f, 16.0f);
+		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, 45.0f, 0.0f));
 		m_frustrumTestCamera = Camera(cameraDesc);
 
 		std::string dbDir = std::filesystem::current_path().string();
@@ -207,15 +209,15 @@ namespace Eng
 
 		if (input->GetMouseButton(MOUSEBUTTON_LEFT, INPUTSTATE_PREVIOUS) && !input->GetMouseButton(MOUSEBUTTON_LEFT, INPUTSTATE_CURRENT))
 		{
-			glm::vec4 cursorScreenPos = glm::vec4(0.0f, 0.0f, 1.0f, 0.2f);
+			Vector4f cursorScreenPos = Vector4f(0.0f, 0.0f, 1.0f, 0.2f);
 			cursorScreenPos.x = input->GetCursorX(INPUTSTATE_CURRENT) / m_swapchain->GetWidth();
 			cursorScreenPos.y = input->GetCursorY(INPUTSTATE_CURRENT) / m_swapchain->GetHeight();
 
-			glm::vec3 cursorFarPlanePos = m_camera.GetCursorFarPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
-			glm::vec3 cursorNearPlanePos = m_camera.GetCursorNearPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
-			glm::vec3 rayDirection = cursorFarPlanePos - cursorNearPlanePos;
+			Vector3f cursorFarPlanePos = m_camera.GetCursorFarPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
+			Vector3f cursorNearPlanePos = m_camera.GetCursorNearPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
+			Vector3f rayDirection = cursorFarPlanePos - cursorNearPlanePos;
 
-			auto* selectedEntityData = m_hierarchy.GetEntityBoundingVolumeHierarchy().RaycastGetObjectData(m_debugLinePass, glm::vec3(cursorNearPlanePos), rayDirection);
+			auto* selectedEntityData = m_hierarchy.GetEntityBoundingVolumeHierarchy().RaycastGetObjectData(m_debugLinePass, cursorNearPlanePos, rayDirection);
 			if (selectedEntityData)
 			{
 				m_selectedEntity = reinterpret_cast<const EntityBoundingVolumeHierarchy::ObjectData*>(selectedEntityData)->m_entity;
@@ -243,16 +245,16 @@ namespace Eng
 
 			// View
 			bufferMatrices->m_view = m_camera.GetViewMatrix(); // View
-			bufferMatrices->m_invView = glm::inverse(bufferMatrices->m_view);
+			bufferMatrices->m_invView = Inverse(bufferMatrices->m_view);
 
 			// Projection
 			bufferMatrices->m_proj = m_camera.GetProjectionMatrix();
-			bufferMatrices->m_invProj = glm::inverse(bufferMatrices->m_proj);
+			bufferMatrices->m_invProj = Inverse(bufferMatrices->m_proj);
 
 			bufferMatrices->m_viewProj = bufferMatrices->m_proj * bufferMatrices->m_view;
 
 			// Position
-			bufferMatrices->m_camPos = glm::vec4(m_camera.Position(), 1.0f);
+			bufferMatrices->m_camPos = m_camera.Position();
 
 			// Depth Reconstruction Constants
 			bufferMatrices->m_aspectRatio = float(m_swapchain->GetWidth()) / m_swapchain->GetHeight();
@@ -270,7 +272,7 @@ namespace Eng
 			frustrumPlanes->m_planes[3] = frustrum.m_top;
 			frustrumPlanes->m_planes[4] = frustrum.m_bottom;
 			frustrumPlanes->m_planes[5] = frustrum.m_far;
-			frustrumPlanes->m_camPos = glm::vec4(m_camera.Position(), 1.0f);
+			frustrumPlanes->m_camPos = m_camera.Position();
 			frustrumPlanes->m_isOrthographic = 0;
 
 			m_frustrumPlanesBuffer->EndPopulate();
@@ -286,7 +288,7 @@ namespace Eng
 			testFrustrumPlanes->m_planes[3] = testFrustrum.m_top;
 			testFrustrumPlanes->m_planes[4] = testFrustrum.m_bottom;
 			testFrustrumPlanes->m_planes[5] = testFrustrum.m_far;
-			testFrustrumPlanes->m_camPos = glm::vec4(m_frustrumTestCamera.Position(), 1.0f);
+			testFrustrumPlanes->m_camPos = m_frustrumTestCamera.Position();
 			testFrustrumPlanes->m_isOrthographic = 0;
 
 			m_frustrumTestBuffer->EndPopulate();
@@ -651,8 +653,6 @@ namespace Eng
 	{
 		PB::UniformBufferView mvpView = m_mvpBuffer->GetViewAsUniformBuffer();
 
-		glm::mat4 modelMat = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
-
 		AssetEncoder::AssetID paintMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_paint").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID detailsMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_details").GetID(&Mesh::s_meshDatabaseLoader);
 		AssetEncoder::AssetID glassMeshID = AssetEncoder::AssetHandle("Meshes/Objects/Spinner/mesh_spinner_low_glass").GetID(&Mesh::s_meshDatabaseLoader);
@@ -664,7 +664,7 @@ namespace Eng
 		const uint32_t spinnerCount = 2;
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
-			glm::vec3 pos = glm::vec3(8.0f * (i / 10), 0.0f, -7.0f * (i % 10));
+			Vector3f pos = Vector3f(8.0f * (i / 10), 0.0f, -7.0f * (i % 10));
 			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
 		
 			if (i == 1)
@@ -673,7 +673,8 @@ namespace Eng
 				pos.z += 2.5f;
 			}
 		
-			glm::quat spinnerQuat = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			//glm::quat spinnerQuat = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			Quaternion spinnerQuat = Quaternion::Identity().Rotate(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		
 			Entity* paintEntity = m_hierarchy.AddEntity(pos, "spinner_paint");
 			Transform* paintTransform = paintEntity->GetComponent<Transform>();
@@ -697,9 +698,7 @@ namespace Eng
 			m_hierarchy.CommitEntity(glassEntity);
 		}
 		
-		modelMat = glm::identity<glm::mat4>();
-		glm::vec3 planeOffset = glm::vec3(0.0f, -0.2f, 0.0f);
-		modelMat = glm::translate(glm::mat4(), planeOffset);
+		Vector3f planeOffset = Vector3f(0.0f, -0.2f, 0.0f);
 		
 		Entity* planeEntity = m_hierarchy.AddEntity(planeOffset, "plane");
 		Transform* planeTransform = planeEntity->GetComponent<Transform>();
@@ -707,7 +706,7 @@ namespace Eng
 		planeEntity->AddComponent<RenderDefinition>(planeMeshID, m_planeMaterial);
 		m_hierarchy.CommitEntity(planeEntity);
 
-		glm::vec3 thescythe = glm::vec3(4.0f, 2.0f, -4.0f);
+		Vector3f thescythe = Vector3f(4.0f, 2.0f, -4.0f);
 		
 		Entity* deathEntity = m_hierarchy.AddEntity(thescythe, "death");
 		Transform* whyamIdoingthis = deathEntity->GetComponent<Transform>();
@@ -716,21 +715,21 @@ namespace Eng
 		m_hierarchy.CommitEntity(deathEntity); // Sweet jeebus save me...
 
 		
-		glm::vec3 debugPlaneOffset = glm::vec3(-2.4f, 1.0f, 0.0f);
+		Vector3f debugPlaneOffset = Vector3f(-2.4f, 1.0f, 0.0f);
 		
 		Entity* debugPlaneEntity = m_hierarchy.AddEntity(debugPlaneOffset, "debug_plane");
 		Transform* debugPlaneTransform = debugPlaneEntity->GetComponent<Transform>();
 		debugPlaneTransform->SetPosition(debugPlaneOffset);
-		debugPlaneTransform->RotateEulerZ(-45.0f);
-		debugPlaneTransform->SetScale(glm::vec3(0.2f));
+		debugPlaneTransform->RotateEulerZ(ToRadians(-45.0f));
+		debugPlaneTransform->SetScale(Vector3f(0.2f));
 		debugPlaneEntity->AddComponent<RenderDefinition>(planeMeshID, m_debugMaterial);
 		m_hierarchy.CommitEntity(debugPlaneEntity);
 		
-		glm::vec3 bunnyOffset = glm::vec3(3.0f, 0.5f, 0.0f);
+		Vector3f bunnyOffset = Vector3f(3.0f, 0.5f, 0.0f);
 		Entity* bunnyEntity = m_hierarchy.AddEntity(bunnyOffset, "bunny");
 		Transform* bunnyTransform = bunnyEntity->GetComponent<Transform>();
 		bunnyTransform->SetPosition(bunnyOffset);
-		bunnyTransform->SetScale(glm::vec3(0.3f));
+		bunnyTransform->SetScale(Vector3f(0.3f));
 		bunnyEntity->AddComponent<RenderDefinition>(bunnyMeshID, m_debugMaterial);
 		m_hierarchy.CommitEntity(bunnyEntity);
 

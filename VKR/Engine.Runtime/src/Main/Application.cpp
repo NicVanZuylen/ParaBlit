@@ -84,8 +84,8 @@ namespace Eng
 		PB::SwapChainDesc swapchainDesc;
 		swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 		swapchainDesc.m_height = 0;
-		swapchainDesc.m_presentMode = PB::EPresentMode::FIFO;
-		swapchainDesc.m_imageCount = 2;
+		swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
+		swapchainDesc.m_imageCount = 3;
 
 		m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
 
@@ -175,7 +175,7 @@ namespace Eng
 					PB::SwapChainDesc swapchainDesc;
 					swapchainDesc.m_width = (uint32_t)width;
 					swapchainDesc.m_height = (uint32_t)height;
-					swapchainDesc.m_presentMode = PB::EPresentMode::FIFO;
+					swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
 					swapchainDesc.m_imageCount = 3;
 
 					PB::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };

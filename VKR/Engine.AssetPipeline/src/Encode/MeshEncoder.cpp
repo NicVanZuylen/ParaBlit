@@ -26,18 +26,18 @@ namespace AssetPipeline
 
 		for (auto& asset : assetStatus)
 		{
-			Ctrl::IConfigFile* propertyFile = Ctrl::IConfigFile::Create(asset.m_propertyFilePath.c_str(), Ctrl::IConfigFile::EOpenMode::OPEN_READ_WRITE);
-			auto* data = propertyFile->GetData();
+			Ctrl::IDataFile* propertyDataFile = Ctrl::IDataFile::Create(asset.m_propertyFilePath.c_str(), Ctrl::IDataFile::EOpenMode::OPEN_READ_WRITE);
+			Ctrl::IDataNode* meshNode = propertyDataFile->GetRoot()->GetOrAddDataNode("Mesh");
 			if (asset.m_hasPropertyFile == false)
 			{
-				data->SetBooleanValue("Mesh.ConvertCmToM", false);
-				data->SetBooleanValue("Mesh.GenerateMeshlets", true);
-				propertyFile->WriteData();
+				meshNode->SetBool("ConvertCmToM", false);
+				meshNode->SetBool("GenerateMeshlets", true);
+				propertyDataFile->WriteData();
 			}
 
 			if (asset.m_outdated)
 			{
-				BuildMesh(asset, data);
+				BuildMesh(asset, meshNode);
 				FlagAsModified();
 			}
 			else
@@ -45,7 +45,8 @@ namespace AssetPipeline
 				WriteUnmodifiedAsset(asset);
 			}
 
-			Ctrl::IConfigFile::Destroy(propertyFile);
+			propertyDataFile->Close();
+			Ctrl::IDataFile::Destroy(propertyDataFile);
 		}
 	}
 
@@ -220,7 +221,7 @@ namespace AssetPipeline
 		outExtents = outExtents - outOrigin;
 	}
 
-	inline void MeshEncoder::BuildMesh(const AssetStatus& asset, const Ctrl::IDataContainer* properties)
+	inline void MeshEncoder::BuildMesh(const AssetStatus& asset, const Ctrl::IDataNode* properties)
 	{
 		// Array of all vertices of all mesh chunks, for a single mesh VBO.
 		VertexBuffer wholeMeshVertices;
@@ -229,11 +230,11 @@ namespace AssetPipeline
 
 		glm::vec3 meshBoundOrigin;
 		glm::vec3 meshBoundExtents;
-		LoadOBJ(wholeMeshVertices, wholeMeshIndices, meshBoundOrigin, meshBoundExtents, asset.m_fullPath.c_str(), properties->GetBooleanValue("Mesh.ConvertCmToM"));
+		LoadOBJ(wholeMeshVertices, wholeMeshIndices, meshBoundOrigin, meshBoundExtents, asset.m_fullPath.c_str(), properties->GetBool("ConvertCmToM"));
 
 		constexpr uint32_t MeshletSize = 32; // 32 primitives is optimial for Nvidia GPUs as it will fit the GPU warp size. 64 is optimial for AMD.
 		std::vector<DirectX::MeshletTriangle> primitiveIndices;
-		if (properties->GetBooleanValue("Mesh.GenerateMeshlets"))
+		if (properties->GetBool("GenerateMeshlets"))
 		{
 			constexpr uint32_t VerticesPerMeshlet = MeshletSize;
 			constexpr uint32_t PrimitivesPerMeshlet = MeshletSize;

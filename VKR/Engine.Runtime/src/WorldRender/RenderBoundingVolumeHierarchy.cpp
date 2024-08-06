@@ -139,7 +139,7 @@ namespace Eng
 		{
 			const ObjectData* obj = reinterpret_cast<const ObjectData*>(node->m_objectData);
 
-			pipelineBatch.m_batch->AddInstance(obj->m_meshID, glm::value_ptr(obj->m_transform), node->m_bounds, obj->m_material->GetTextureIDs(), obj->m_material->GetTextureCount(), obj->m_material->GetSampler());
+			pipelineBatch.m_batch->AddInstance(obj->m_meshID, (const float*)obj->m_transform, node->m_bounds, obj->m_material->GetTextureIDs(), obj->m_material->GetTextureCount(), obj->m_material->GetSampler());
 		}
 		pipelineBatch.m_batch->UpdateCullParams();
 	}
@@ -341,11 +341,11 @@ namespace Eng
 	{
 		// Nodes are sorted by proximity to the parent node's centre.
 		// This is done in an attempt to place nodes which are close together in world space closer to each other in draw batch memory to avoid memory fragmentation that would introduce more draw calls.
-		glm::vec3 centre = node->m_bounds.Centre();
+		Vector3f centre = node->m_bounds.Centre();
 		auto centreProximitySort = [&](const BuildNode* a, const BuildNode* b)
 		{
-			float distA = glm::distance(centre, a->m_bounds.Centre());
-			float distB = glm::distance(centre, b->m_bounds.Centre());
+			float distA = Distance(centre, a->m_bounds.Centre());
+			float distB = Distance(centre, b->m_bounds.Centre());
 			return distA < distB;
 		};
 		std::sort(node->m_children.begin(), node->m_children.end(), centreProximitySort);

@@ -12,6 +12,11 @@
 
 #include "Engine.Control/ISettingsParsers.h"
 
+// ---------------------- TEST --------------------------------------
+#include "Engine.Control/IDataFile.h"
+#include "Engine.Control/GUID.h"
+// ---------------------- TEST --------------------------------------
+
 void* GetWindowHandle(GLFWwindow* window)
 {
 #ifdef GLFW_EXPOSE_NATIVE_WIN32
@@ -58,6 +63,8 @@ namespace AssetPipeline
 			rendererDesc.m_extensionNames = extensionNames;
 			rendererDesc.m_windowInfo = &windowInfo;
 
+			printf("Initializing ParaBlit...\n\n");
+
 			m_renderer = PB::CreateRenderer();
 			m_renderer->Init(rendererDesc);
 
@@ -103,7 +110,6 @@ namespace AssetPipeline
 		printf("Running Asset Pipeline...\n\n");
 
 		std::string assetRootDir = settings->GetStringValue("Path.AssetsDir");
-
 		std::string workingDir = std::filesystem::current_path().string();
 		std::string pipelineDbDir = workingDir + "\\" + "PipelineAssets\\";
 		std::string dbDir = workingDir + "\\" + assetRootDir;
@@ -115,13 +121,11 @@ namespace AssetPipeline
 		// ==========================================================================================================================
 		// Pipline Dependency Encoding
 
+		printf("Encoding Pipeline Assets...\n\n");
+
 		{
 			AssetPipeline::SpirvShaderEncoder dependencyShaderEncoder("<Pipeline SPIR-V Encoder>", "pipelineShaders.adb", pipelineDbDir.c_str());
 		}
-
-		printf("Encoding Pipeline Assets...\n\n");
-
-		printf("Initialising ParaBlit...\n\n");
 
 		// ==========================================================================================================================
 		// Asset Encoding

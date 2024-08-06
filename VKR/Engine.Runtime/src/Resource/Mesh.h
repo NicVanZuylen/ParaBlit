@@ -7,9 +7,12 @@
 #include "Engine.ParaBlit/IRenderer.h"
 #include "WorldRender/DrawBatch.h"
 #include "Engine.AssetEncoder/AssetDatabaseReader.h"
+#include "Engine.Math/Vectors.h"
 
 namespace Eng
 {
+	using namespace Math;
+
 	struct Vertex
 	{
 		PB::Float3 m_position;
@@ -23,9 +26,9 @@ namespace Eng
 
 	struct Meshlet
 	{
-		glm::vec3 m_origin;
+		Vector3f m_origin;
 		uint32_t m_vertexOffset;
-		glm::vec3 m_extents;
+		Vector3f m_extents;
 		uint32_t m_primitiveOffset;
 		uint32_t m_vertexCount;
 		uint32_t m_primitiveCount;
@@ -44,8 +47,8 @@ namespace Eng
 		size_t m_indexOffset = 0;
 		size_t m_meshletDataOffset = 0;
 		size_t m_meshletPrimitiveDataOffset = 0;
-		glm::vec4 m_boundOrigin;
-		glm::vec4 m_boundExtents;
+		Vector4f m_boundOrigin;
+		Vector4f m_boundExtents;
 	};
 
 	typedef uint32_t MeshIndex;

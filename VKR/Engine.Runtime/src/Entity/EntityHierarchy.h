@@ -2,11 +2,15 @@
 #include "CLib/FixedBlockAllocator.h"
 #include "Entity/EntityBoundingVolumeHierarchy.h"
 #include "WorldRender/RenderBoundingVolumeHierarchy.h"
+#include "Engine.Math/Vector4.h"
 
 #include <unordered_set>
 
+
 namespace Eng
 {
+	using namespace Math;
+
 	class AssetStreamer;
 
 	class EntityHierarchy
@@ -20,10 +24,10 @@ namespace Eng
 		void Init(CLib::Allocator* allocator, PB::IRenderer* renderer, AssetStreamer* streamer);
 		void Destroy();
 
-		Entity* AddEntity(const glm::vec3& position, const char* name = nullptr);
-		inline Entity* AddEntity(const glm::vec4& position, const char* name = nullptr)
+		Entity* AddEntity(const Vector3f& position, const char* name = nullptr);
+		inline Entity* AddEntity(const Vector4f& position, const char* name = nullptr)
 		{
-			return AddEntity(glm::vec3(position.x, position.y, position.z), name);
+			return AddEntity(Vector3f(position.x, position.y, position.z), name);
 		}
 
 		void DestroyEntity(Entity* entity);

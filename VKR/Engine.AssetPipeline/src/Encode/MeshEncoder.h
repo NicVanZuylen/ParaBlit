@@ -1,6 +1,6 @@
 #pragma once
 #include "Engine.AssetEncoder/EncoderBase.h"
-#include "Engine.Control/ISettingsParsers.h"
+#include "Engine.Control/IDataFile.h"
 
 #pragma warning(push, 0)
 #define GLM_FORCE_CTOR_INIT // Required to ensure glm constructors actually initialize vectors/matrices etc.
@@ -159,6 +159,6 @@ namespace AssetPipeline
 
 		inline void LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, glm::vec3& outOrigin, glm::vec3& outExtents, const char* path, bool cmToM);
 
-		inline void BuildMesh(const AssetStatus& asset, const Ctrl::IDataContainer* properties);
+		inline void BuildMesh(const AssetStatus& asset, const Ctrl::IDataNode* properties);
 	};
 }

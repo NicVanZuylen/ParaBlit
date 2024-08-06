@@ -42,7 +42,7 @@ namespace Eng
 
 		void SetOutputTexture(PB::ITexture* tex);
 
-		void SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh, glm::vec3 shadowDirection);
+		void SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh, Vector3f shadowDirection);
 
 		void Update();
 
@@ -58,17 +58,17 @@ namespace Eng
 
 		struct ShadowConstants
 		{
-			glm::mat4 m_viewProjectionMatrix;
-			glm::vec4 m_shadowViewDirection;
-			glm::vec2 m_cascadeRange;
+			Matrix4 m_viewProjectionMatrix;
+			Vector4f m_shadowViewDirection;
+			Vector2f m_cascadeRange;
 			float m_shadowPenumbraDistance;
 			float m_shadowBiasMultiplier;
 		} m_localShadowConstants{};
 
 		struct ShadowPlaneConstants
 		{
-			glm::vec4 m_shadowFrustrumPlanes[6];
-			glm::vec3 m_cameraOrigin;
+			Vector4f m_shadowFrustrumPlanes[6];
+			Vector3f m_cameraOrigin;
 			uint32_t m_isOrthographic = 1;
 		} m_localShadowPlaneConstants{};
 

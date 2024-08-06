@@ -3,12 +3,6 @@
 #include "WorldRender/RenderBoundingVolumeHierarchy.h"
 #include "WorldRender/BatchDispatcher.h"
 
-#pragma warning(push, 0)
-#define GLM_FORCE_CTOR_INIT
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
-#pragma warning(pop)
-
 namespace Eng
 {
 	ShadowMapPass::ShadowMapPass(PB::IRenderer* renderer, CLib::Allocator* allocator, const CreateDesc& desc) : RenderGraphBehaviour(renderer, allocator)
@@ -130,17 +124,17 @@ namespace Eng
 		m_outputTexture = tex;
 	}
 
-	void ShadowMapPass::SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh, glm::vec3 viewDirection)
+	void ShadowMapPass::SetCamera(const Camera* camera, const RenderBoundingVolumeHierarchy* rbvh, Vector3f viewDirection)
 	{
 		m_camera = camera;
 		m_rbvh = rbvh;
 
-		m_localShadowConstants.m_shadowViewDirection = glm::vec4(glm::normalize(viewDirection), 0.0f);
+		m_localShadowConstants.m_shadowViewDirection = Vector4f(viewDirection.Normalized(), 0.0f);
 	}
 
 	void ShadowMapPass::Update()
 	{
-		glm::mat4 axisCorrection;
+		Matrix4 axisCorrection;
 		axisCorrection[1][1] = -1.0f;
 		axisCorrection[2][2] = 1.0f;
 		axisCorrection[3][3] = 1.0f;
@@ -148,16 +142,16 @@ namespace Eng
 		Camera::CameraFrustrum cascadeFrustrumSection;
 		m_camera->GetFrustrumSection(cascadeFrustrumSection, m_frustrumSectionNear, m_frustrumSectionFar);
 
-		glm::vec3 cascadeCentre(0.0f);
+		Vector3f cascadeCentre(0.0f);
 		for (const auto& corner : cascadeFrustrumSection.m_frustrumCorners)
 			cascadeCentre += corner;
 		cascadeCentre /= 8;
 
-		glm::vec3 normalizedViewDir = m_localShadowConstants.m_shadowViewDirection;
+		Vector3f normalizedViewDir = m_localShadowConstants.m_shadowViewDirection;
 		const float cascadeViewDistance = 100.0f;
 
-		glm::vec3 eye = cascadeCentre + (normalizedViewDir * cascadeViewDistance);
-		glm::mat4 viewMat = glm::lookAt(eye, cascadeCentre, glm::vec3(0.0f, 1.0f, 0.0f));
+		Vector3f eye = cascadeCentre + (normalizedViewDir * cascadeViewDistance);
+		Matrix4 viewMat = Matrix4::LookAt(eye, cascadeCentre, Vector3f(0.0f, 1.0f, 0.0f));
 
 		float frustrumSectionLength = m_frustrumSectionFar - m_frustrumSectionNear;
 		float texelDistance = (frustrumSectionLength * 2) / m_shadowmapResolution;
@@ -169,7 +163,7 @@ namespace Eng
 		float maxDepth = 0.0f;
 		for (auto& corner : cascadeFrustrumSection.m_frustrumCorners)
 		{
-			glm::vec4 viewSpaceCorner = viewMat * glm::vec4(corner, 1.0f);
+			Vector4f viewSpaceCorner = viewMat * Vector4f(corner, 1.0f);
 			minWidth = glm::min(minWidth, viewSpaceCorner.x);
 			minHeight = glm::min(minHeight, viewSpaceCorner.y);
 			maxWidth = glm::max(maxWidth, viewSpaceCorner.x);
@@ -178,7 +172,7 @@ namespace Eng
 		}
 
 		const float farDistance = cascadeViewDistance + maxDepth;
-		glm::mat4 proj = axisCorrection * glm::orthoZO(minWidth, maxWidth, minHeight, maxHeight, 1.0f, farDistance);
+		Matrix4 proj = axisCorrection * glm::orthoZO(minWidth, maxWidth, minHeight, maxHeight, 1.0f, farDistance);
 
 		m_localShadowConstants.m_viewProjectionMatrix = proj * viewMat;
 		Camera::GetShadowCascadeFrustrum(m_shadowCascadeFrustrum, eye, normalizedViewDir, minWidth, maxWidth, minHeight, maxHeight, 1.0f, farDistance);
@@ -192,7 +186,7 @@ namespace Eng
 		m_localShadowPlaneConstants.m_cameraOrigin = eye;
 		m_localShadowPlaneConstants.m_isOrthographic = 1;
 
-		m_localShadowConstants.m_cascadeRange = glm::vec2(m_frustrumSectionNear, m_frustrumSectionFar);
+		m_localShadowConstants.m_cascadeRange = Vector2f(m_frustrumSectionNear, m_frustrumSectionFar);
 
 		m_localShadowConstants.m_shadowPenumbraDistance = m_softShadowPenumbraDistance / texelDistance;
 		m_localShadowConstants.m_shadowBiasMultiplier = m_shadowBiasMultiplier;

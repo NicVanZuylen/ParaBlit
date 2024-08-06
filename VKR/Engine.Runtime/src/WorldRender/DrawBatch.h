@@ -132,9 +132,9 @@ namespace Eng
 		// Per-instance data used for GPU-driven frustrum culling.
 		struct CullObjectData
 		{
-			glm::vec3 m_boundOrigin;
+			Vector3f m_boundOrigin;
 			uint32_t m_partition;
-			glm::vec3 m_boundExtents;
+			Vector3f m_boundExtents;
 			uint32_t m_pad0;
 			glm::uvec2 m_drawRange; // Mesh index range of this object.
 			glm::uvec2 m_pad1;

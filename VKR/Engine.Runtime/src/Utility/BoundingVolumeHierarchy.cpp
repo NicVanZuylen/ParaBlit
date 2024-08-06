@@ -49,7 +49,7 @@ namespace Eng
 		}
 	}
 
-	const BoundingVolumeHierarchy::ObjectData* BoundingVolumeHierarchy::RaycastGetObjectData(DebugLinePass* lines, const glm::vec3& rayOrigin, const glm::vec3& rayDirection)
+	const BoundingVolumeHierarchy::ObjectData* BoundingVolumeHierarchy::RaycastGetObjectData(DebugLinePass* lines, const Vector3f& rayOrigin, const Vector3f& rayDirection)
 	{
 		BuildNode* result = RecursiveObjectRayIntersection(m_root, rayOrigin, rayDirection).first;
 		if (result)
@@ -194,7 +194,7 @@ namespace Eng
 		{
 			if (b != a)
 			{
-				float dist = glm::distance(a->m_bounds.Centre(), b->m_bounds.Centre());
+				float dist = Distance(a->m_bounds.Centre(), b->m_bounds.Centre());
 				total -= dist;
 			}
 		}
@@ -606,13 +606,13 @@ namespace Eng
 
 	bool BoundingVolumeHierarchy::IsInFrontOfPlane(const Camera::CameraFrustrum::Plane& plane, const Bounds& bounds) const
 	{
-		const glm::vec3 centre = bounds.Centre();
-		const glm::vec3 halfExtents = bounds.m_extents * 0.5f;
+		const Vector3f centre = bounds.Centre();
+		const Vector3f halfExtents = bounds.m_extents * 0.5f;
 
 		const float r = halfExtents.x * std::abs(plane.x) +
 			halfExtents.y * std::abs(plane.y) + halfExtents.z * std::abs(plane.z);
 
-		const float signedDist = glm::dot(glm::vec3(plane), centre) - plane.w;
+		const float signedDist = Dot(Vector3f(plane), centre) - plane.w;
 
 		return -r <= signedDist;
 	}
@@ -627,7 +627,7 @@ namespace Eng
 			&& IsInFrontOfPlane(frustrum.m_far, bounds);
 	}
 
-	std::pair<BoundingVolumeHierarchy::BuildNode*, float> BoundingVolumeHierarchy::RecursiveObjectRayIntersection(BuildNode* node, const glm::vec3& rayOrigin, const glm::vec3& rayDirection)
+	std::pair<BoundingVolumeHierarchy::BuildNode*, float> BoundingVolumeHierarchy::RecursiveObjectRayIntersection(BuildNode* node, const Vector3f& rayOrigin, const Vector3f& rayDirection)
 	{
 		using Hit = std::pair<BuildNode*, float>;
 		static const Hit NoHit = { nullptr, INFINITY };
@@ -695,8 +695,8 @@ namespace Eng
 		glm::vec3 lineColor = node->m_isObject ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
 		lineColor = (depth != ~uint32_t(0) && node->m_depth == depth) ? glm::vec3(0.0f, 0.0f, 1.0f) : lineColor;
 
-		const glm::vec3& origin = node->m_bounds.m_origin;
-		const glm::vec3& extents = node->m_bounds.m_extents;
+		const Vector3f& origin = node->m_bounds.m_origin;
+		const Vector3f& extents = node->m_bounds.m_extents;
 
 		// Origin to sky
 		if (node == m_root)
@@ -724,7 +724,7 @@ namespace Eng
 		}
 	}
 
-	void BoundingVolumeHierarchy::DebugDrawCube(DebugLinePass* lines, const glm::vec3& origin, const glm::vec3& extents, const glm::vec3& lineColor) const
+	void BoundingVolumeHierarchy::DebugDrawCube(DebugLinePass* lines, const Vector3f& origin, const Vector3f& extents, const Vector3f& lineColor) const
 	{
 		PB::Float3 color3(lineColor.r, lineColor.g, lineColor.b);
 

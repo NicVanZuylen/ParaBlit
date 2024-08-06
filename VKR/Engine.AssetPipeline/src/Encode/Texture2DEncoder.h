@@ -3,7 +3,7 @@
 
 #include "Engine.ParaBlit/IRenderer.h"
 #include "Engine.ParaBlit/ICommandContext.h"
-#include "Engine.Control/ISettingsParsers.h"
+#include "Engine.Control/IDataFile.h"
 #include "TextureShared.h"
 
 namespace AssetPipeline
@@ -18,13 +18,13 @@ namespace AssetPipeline
 
 	private:
 
-		void Encode2DTexture(const AssetStatus& asset, const Ctrl::IDataContainer* properties);
+		void Encode2DTexture(const AssetStatus& asset, const Ctrl::IDataNode* properties);
 
 		void GenerateEnvironmentMap(PB::ICommandContext* cmdContext, PB::ITexture* srcCube, PB::ITexture*& envMap, EConvolutedMapType mapType);
 
 		PB::ITexture* GetAsCube(PB::ICommandContext* cmdContext, PB::ITexture* srcTexture, bool isHdr);
 
-		void EncodeEnvironmentMap(const AssetStatus& asset, const Ctrl::IDataContainer* properties);
+		void EncodeEnvironmentMap(const AssetStatus& asset, const Ctrl::IDataNode* properties);
 
 		AssetEncoder::AssetBinaryDatabaseReader* m_pipelineDBReader = nullptr;
 		PB::IRenderer* m_renderer = nullptr;

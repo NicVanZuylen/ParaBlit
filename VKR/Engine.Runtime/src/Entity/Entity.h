@@ -17,7 +17,7 @@ namespace Eng
 		virtual void OnDestruction() = 0;
 
 		Entity* GetHost() { return m_host; }
-		virtual void GetReflection(CLib::Reflector& outReflector) {}
+		virtual void GetReflection(CLib::Reflection::Reflector& outReflector) {}
 
 		const Entity* GetHost() const { return m_host; }
 		size_t GetTypeHash() const { return m_typeHash; }
