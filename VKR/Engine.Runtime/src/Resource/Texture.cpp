@@ -19,6 +19,9 @@
 
 #include <filesystem>
 
+#include <Engine.Math/Vectors.h>
+#include <Engine.Math/Matrix4.h>
+
 namespace Eng
 {
 	AssetEncoder::AssetBinaryDatabaseReader Texture::s_textureDatabaseLoader;
@@ -509,20 +512,20 @@ namespace Eng
 
 		struct CubeGenConstants
 		{
-			glm::mat4 m_proj;
-			glm::mat4 m_view;
+			Math::Matrix4 m_proj;
+			Math::Matrix4 m_view;
 		};
 
 		// We will be projecting the sphere map onto each cube face via a render pass for each face.
 		// Since each face is in a different direction, we need a view matrix for each face.
-		glm::mat4 cubeGenViewMatrices[] =
+		Math::Matrix4 cubeGenViewMatrices[] =
 		{
-		   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), -glm::vec3(0.0f, -1.0f,  0.0f)),
-		   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), -glm::vec3(0.0f, -1.0f,  0.0f)),
-		   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), -glm::vec3(0.0f,  0.0f, 1.0f)),
-		   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), -glm::vec3(0.0f,  0.0f, -1.0f)),
-		   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), -glm::vec3(0.0f, -1.0f,  0.0f)),
-		   glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), -glm::vec3(0.0f, -1.0f,  0.0f))
+		   Math::Matrix4::LookAt(Math::Vector3f(0.0f, 0.0f, 0.0f), Math::Vector3f(1.0f,  0.0f,  0.0f), -Math::Vector3f(0.0f, -1.0f,  0.0f)),
+		   Math::Matrix4::LookAt(Math::Vector3f(0.0f, 0.0f, 0.0f), Math::Vector3f(-1.0f,  0.0f,  0.0f), -Math::Vector3f(0.0f, -1.0f,  0.0f)),
+		   Math::Matrix4::LookAt(Math::Vector3f(0.0f, 0.0f, 0.0f), Math::Vector3f(0.0f, -1.0f,  0.0f), -Math::Vector3f(0.0f,  0.0f, 1.0f)),
+		   Math::Matrix4::LookAt(Math::Vector3f(0.0f, 0.0f, 0.0f), Math::Vector3f(0.0f,  1.0f,  0.0f), -Math::Vector3f(0.0f,  0.0f, -1.0f)),
+		   Math::Matrix4::LookAt(Math::Vector3f(0.0f, 0.0f, 0.0f), Math::Vector3f(0.0f,  0.0f, -1.0f), -Math::Vector3f(0.0f, -1.0f,  0.0f)),
+		   Math::Matrix4::LookAt(Math::Vector3f(0.0f, 0.0f, 0.0f), Math::Vector3f(0.0f,  0.0f,  1.0f), -Math::Vector3f(0.0f, -1.0f,  0.0f))
 		};
 
 		CLib::Vector<PB::UniformBufferView, 6> cubeGenConstantsViews;

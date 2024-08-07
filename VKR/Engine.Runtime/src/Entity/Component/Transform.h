@@ -13,9 +13,9 @@ namespace Eng
 
 		Transform()
 		{
-			m_translation = glm::vec3(0.0f);
-			m_quaternion = glm::identity<glm::quat>();
-			m_scale = glm::vec3(1.0f);
+			m_translation = Vector3f(0.0f);
+			m_quaternion = Quaternion::Identity();
+			m_scale = Vector3f(1.0f);
 		}
 
 		~Transform() = default;
@@ -39,7 +39,7 @@ namespace Eng
 		inline void SetPosition(const Vector3f& position) { m_translation = position; }
 		inline void SetScale(const Vector3f& scale) { m_scale = scale; }
 		inline void Translate(const Vector3f& translation) { m_translation += translation; }
-		inline void ResetRotation() { m_quaternion = glm::identity<glm::quat>(); }
+		inline void ResetRotation() { m_quaternion = Quaternion::Identity(); }
 		void SetRotation(const Quaternion& quaternion) { m_quaternion = quaternion; }
 		void RotateEulerX(float angle);
 		void RotateEulerY(float angle);

@@ -3,9 +3,7 @@
 #include "Engine.ParaBlit/IRenderer.h"
 #include "Engine.ParaBlit/ICommandContext.h"
 
-#pragma warning(push, 0)
-#include "glm/glm.hpp"
-#pragma warning(pop)
+#include <Engine.Math/Scalar.h>
 
 namespace Eng
 {
@@ -33,10 +31,10 @@ namespace Eng
 		for (PB::u32 i = 0; i < kernelSize; ++i)
 		{
 			float iFloat = static_cast<float>(i);
-			weights[i].x = glm::exp(-(iFloat * iFloat) / doubleSigmaSqr);
+			weights[i].x = Math::Exp(-(iFloat * iFloat) / doubleSigmaSqr);
 		}
 
-		blurConstants->m_guassianNormPart = 1.0f / (sigma * glm::sqrt(TwoPi)); // First half of the guassian function. Multiplying by this will normalize the blur colour samples.
+		blurConstants->m_guassianNormPart = 1.0f / (sigma * Math::Sqrt(TwoPi)); // First half of the guassian function. Multiplying by this will normalize the blur colour samples.
 		m_blurConstantsBuffer->EndPopulate();
 
 		PB::SamplerDesc blurSamplerDesc{};

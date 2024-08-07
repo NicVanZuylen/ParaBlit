@@ -16,4 +16,12 @@ namespace Eng::Math
 	MATH_INLINE TVec Min(const TVec& a, const TVec& b) { return a.Min(b); }
 	template<typename TVec>
 	MATH_INLINE TVec Max(const TVec& a, const TVec& b) { return a.Max(b); }
+	template<typename TVec>
+	MATH_INLINE TVec ToRadians(const TVec& vec) { return vec.AsRadians(); }
+	template<typename TVec>
+	MATH_INLINE TVec ToDegrees(const TVec& vec) { return vec.AsDegrees(); }
+	template<typename TVec, typename T>
+	MATH_INLINE TVec Lerp(TVec x, const TVec& y, const T& a) { return x.Lerp(y, a); }
+	template<typename TVec, typename T>
+	MATH_INLINE TVec Mix(TVec x, const TVec& y, const T& a) { return x.MixWith(y, a); }
 }

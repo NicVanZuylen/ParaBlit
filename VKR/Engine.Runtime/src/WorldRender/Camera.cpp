@@ -5,6 +5,7 @@
 
 #include <iostream>
 
+
 namespace Eng
 {
 
@@ -170,9 +171,9 @@ namespace Eng
 
 		if (m_projectionType == EProjectionType::PERSPECTIVE)
 		{
-			const float nearFarHeight = nearDistance * glm::tan(FovY() * 0.5f);
+			const float nearFarHeight = nearDistance * Math::Tan(FovY() * 0.5f);
 			const float nearFarWidth = nearFarHeight * Aspect();
-			const float halfFarHeight = farDistance * glm::tan(FovY() * 0.5f);
+			const float halfFarHeight = farDistance * Math::Tan(FovY() * 0.5f);
 			const float halfFarWidth = halfFarHeight * Aspect();
 
 			outFrustrum.m_nearTopLeft = nearCentre + (Up() * nearFarHeight) - (Right() * nearFarWidth);
@@ -269,7 +270,7 @@ namespace Eng
 		axisCorrection[2][2] = 1.0f;
 		axisCorrection[3][3] = 1.0f;
 
-		Matrix4 trans = noTranslate.Rotated(glm::pi<float>(), Vector3f(0.0f, 1.0f, 0.0f)) * axisCorrection;
+		Matrix4 trans = noTranslate.Rotated(Math::Pi<float>(), Vector3f(0.0f, 1.0f, 0.0f)) * axisCorrection;
 
 		outFrustrum.m_nearTopLeft = trans * Vector4f(outFrustrum.m_nearTopLeft, 1.0f);
 		outFrustrum.m_nearTopRight = trans * Vector4f(outFrustrum.m_nearTopRight, 1.0f);
@@ -355,7 +356,7 @@ namespace Eng
 		axisCorrection[2][2] = 1.0f;
 		axisCorrection[3][3] = 1.0f;
 
-		Matrix4 trans = noTranslate.Rotated(glm::pi<float>(), Vector3f(0.0f, 1.0f, 0.0f)) * axisCorrection;
+		Matrix4 trans = noTranslate.Rotated(Math::Pi<float>(), Vector3f(0.0f, 1.0f, 0.0f)) * axisCorrection;
 
 		outFrustrum.m_nearTopLeft = trans * Vector4f(outFrustrum.m_nearTopLeft, 1.0f);
 		outFrustrum.m_nearTopRight = trans * Vector4f(outFrustrum.m_nearTopRight, 1.0f);

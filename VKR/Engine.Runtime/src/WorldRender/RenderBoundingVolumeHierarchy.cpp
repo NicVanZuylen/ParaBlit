@@ -115,7 +115,7 @@ namespace Eng
 		if (camera != nullptr)
 		{
 			frustrum = camera->GetFrustrum();
-			glm::vec3 frustrumColor(1.0f, 0.0f, 1.0f);
+			Vector3f frustrumColor(1.0f, 0.0f, 1.0f);
 			Camera::DrawFrustrum(lines, frustrum, frustrumColor);
 		}
 
@@ -419,11 +419,11 @@ namespace Eng
 				for (auto& pipelineBatch : data->m_drawBatches)
 				{
 					const Bounds& batchBounds = pipelineBatch.m_batch->GetBounds();
-					DebugDrawCube(lines, batchBounds.m_origin, batchBounds.m_extents, glm::vec3(1.0f, 0.0f, 0.0f));
+					DebugDrawCube(lines, batchBounds.m_origin, batchBounds.m_extents, Vector3f(1.0f, 0.0f, 0.0f));
 				}
 
 				if (data->m_drawBatches.Count() == 0)
-					DebugDrawCube(lines, node->m_bounds.m_origin, node->m_bounds.m_extents, glm::vec3(0.0f, 1.0f, 0.0f));
+					DebugDrawCube(lines, node->m_bounds.m_origin, node->m_bounds.m_extents, Vector3f(0.0f, 1.0f, 0.0f));
 			}
 		}
 	}

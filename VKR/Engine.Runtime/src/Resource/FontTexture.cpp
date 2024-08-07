@@ -5,7 +5,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-#include "glm/glm.hpp"
+#include <Engine.Math/Scalar.h>
 
 namespace Eng
 {
@@ -48,8 +48,8 @@ namespace Eng
 
 			int fontScale = static_cast<int>(m_fontHeight) / 16;
 
-			int textureWidth = glm::clamp<uint32_t>(fontScale * 256, 256, 2048);
-			int textureHeight = glm::clamp<uint32_t>(fontScale * 256, 256, 2048);
+			int textureWidth = Math::Clamp(fontScale * 256, 256, 2048);
+			int textureHeight = Math::Clamp(fontScale * 256, 256, 2048);
 			m_fontTexWidth = textureWidth;
 			m_fontTexHeight = textureHeight;
 

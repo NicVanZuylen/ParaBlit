@@ -3,55 +3,108 @@
 
 namespace Eng::Math
 {
-	template<typename T>
-	MATH_INLINE T ToDegrees(T radians)
+	MATH_INLINE float ToDegrees(const float& radians)
 	{
 		return glm::degrees(radians);
 	}
 
-	template<typename T>
-	MATH_INLINE T ToRadians(T degrees)
+	MATH_INLINE double ToDegrees(const double& radians)
+	{
+		return glm::degrees(radians);
+	}
+
+	MATH_INLINE float ToRadians(const float& degrees)
 	{
 		return glm::radians(degrees);
 	}
 
-	MATH_INLINE float Abs(float value)
+	MATH_INLINE double ToRadians(const double& degrees)
+	{
+		return glm::radians(degrees);
+	}
+
+	MATH_INLINE float Abs(const float& value)
 	{
 		return glm::abs(value);
 	}
 
-	MATH_INLINE double Abs(double value)
+	MATH_INLINE double Abs(const double& value)
 	{
 		return glm::abs(value);
 	}
 
-	MATH_INLINE int32_t Abs(int32_t value)
+	MATH_INLINE int32_t Abs(const int32_t& value)
 	{
 		return glm::abs(value);
 	}
 
-	MATH_INLINE int64_t Abs(int64_t value)
+	MATH_INLINE int64_t Abs(const int64_t& value)
 	{
 		return glm::abs(value);
 	}
 
-	MATH_INLINE float Min(float a, float b)
+	MATH_INLINE float Min(const float& a, const float& b)
 	{
 		return glm::min(a, b);
 	}
 
-	MATH_INLINE double Min(double a, double b)
+	MATH_INLINE double Min(const double& a, const double& b)
 	{
 		return glm::min(a, b);
 	}
 
-	MATH_INLINE float Max(float a, float b)
+	MATH_INLINE float Max(const float& a, const float& b)
 	{
 		return glm::max(a, b);
 	}
 
-	MATH_INLINE double Max(double a, double b)
+	MATH_INLINE double Max(const double& a, const double& b)
 	{
 		return glm::max(a, b);
+	}
+
+	MATH_INLINE float Lerp(const float& x, const float& y, const float& a) { return glm::mix(x, y, a); }
+	MATH_INLINE double Lerp(const double& x, const double& y, const double& a) { return glm::mix(x, y, a); }
+
+	MATH_INLINE float Mix(const float& x, const float& y, const float& a) { return Mix(x, y, a); }
+	MATH_INLINE double Mix(const double& x, const double& y, const double& a) { return Mix(x, y, a); }
+
+	MATH_INLINE float Pow(const float& x, const float& p) { return glm::pow(x, p); }
+	MATH_INLINE double Pow(const double& x, const double& p) { return glm::pow(x, p); }
+
+	MATH_INLINE float Exp(const float& x) { return glm::exp(x); }
+	MATH_INLINE double Exp(const double& x) { return glm::exp(x); }
+
+	MATH_INLINE float Sqrt(const float& x) { return glm::sqrt(x); }
+	MATH_INLINE double Sqrt(const double& x) { return glm::sqrt(x); }
+
+	template<typename T>
+	MATH_INLINE T Pi()
+	{
+		return glm::pi<T>();
+	}
+
+	template<typename T>
+	MATH_INLINE T Clamp(const T& val, const T& min, const T& max)
+	{
+		return glm::clamp(val, min, max);
+	}
+
+	template<typename T>
+	MATH_INLINE T Sin(const T& x)
+	{
+		return glm::sin(x);
+	}
+
+	template<typename T>
+	MATH_INLINE T Cos(const T& x)
+	{
+		return glm::cos(x);
+	}
+
+	template<typename T>
+	MATH_INLINE T Tan(const T& x)
+	{
+		return glm::tan(x);
 	}
 }

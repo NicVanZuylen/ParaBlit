@@ -2,11 +2,10 @@
 #include "RenderGraph/RenderGraph.h"
 #include "Resource/Shader.h"
 
-#pragma warning(push, 0)
-#include "glm/glm.hpp"
-#pragma warning(pop)
-
 #include <random>
+
+#include <Engine.Math/Scalar.h>
+#include <Engine.Math/Vectors.h>
 
 namespace Eng
 {
@@ -206,7 +205,7 @@ namespace Eng
 
 	void AmbientOcclusionPass::GenerateRandomSamples(void* pixelValues)
 	{
-		glm::vec4* samples = reinterpret_cast<glm::vec4*>(pixelValues);
+		Math::Vector4f* samples = reinterpret_cast<Math::Vector4f*>(pixelValues);
 
 		std::default_random_engine randEngine;
 		std::uniform_real_distribution distribution(0.0f, 1.0f);
@@ -215,15 +214,15 @@ namespace Eng
 		{
 			float scale = static_cast<float>(i) / AOSampleKernelSize;
 
-			glm::vec3 sample
+			Math::Vector3f sample
 			(
 				distribution(randEngine) * 2.0f - 1.0f,
 				distribution(randEngine) * 2.0f - 1.0f,
 				distribution(randEngine)
 			);
-			sample = glm::normalize(sample);
-			sample *= glm::mix<float>(0.1f, 1.0f, glm::pow(scale, 2));
-			samples[i] = glm::vec4(sample, 1.0f);
+			sample = Math::Normalize(sample);
+			sample *= Math::Lerp(0.1f, 1.0f, Math::Pow(scale, 2));
+			samples[i] = Math::Vector4f(sample, 1.0f);
 		}
 	}
 
@@ -238,8 +237,8 @@ namespace Eng
 		for (uint32_t i = 0; i < PixelCount; ++i)
 		{
 			float angle = distribution(randEngine) * RevolutionRadians;
-			pixelValues[i].x = glm::cos(angle);
-			pixelValues[i].y = glm::sin(angle);
+			pixelValues[i].x = Math::Cos(angle);
+			pixelValues[i].y = Math::Sin(angle);
 		}
 	}
 

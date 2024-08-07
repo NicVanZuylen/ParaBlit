@@ -28,8 +28,6 @@
 #include "WorldRender/DrawBatch.h"
 #include "WorldRender/ObjectDispatcher.h"
 
-#include "glm/gtc/type_ptr.hpp"
-
 #include "Entity/Component/Transform.h"
 #include "Entity/Component/RenderDefinition.h"
 
@@ -40,31 +38,32 @@
 
 namespace Eng
 {
-	using namespace Math;
-
 	ClientPlayground::ClientPlayground(PB::IRenderer* renderer, CLib::Allocator* allocator)
 	{
 		m_renderer = renderer;
 		m_swapchain = m_renderer->GetSwapchain();
 		m_allocator = allocator;
 
-		glm::vec3 sunDir(1.0f, 1.0f, 0.0f);
+		Vector3f sunDir(1.0f, 1.0f, 0.0f);
+		
+		Vector4f test;
+		test = Lerp(test, Vector4f(), 1.0f);
 
 		Camera::CreateDesc cameraDesc;
-		cameraDesc.m_position = glm::vec3(0.0f, 1.2f, 4.0f);
-		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(-45.0f, 0.0f, 0.0f));
+		cameraDesc.m_position = Vector3f(0.0f, 1.2f, 4.0f);
+		cameraDesc.m_eulerAngles = ToRadians(Vector3f(-45.0f, 0.0f, 0.0f));
 		cameraDesc.m_sensitivity = 0.5f;
 		cameraDesc.m_moveSpeed = 20.0f;
 		cameraDesc.m_width = float(m_swapchain->GetWidth());
 		cameraDesc.m_height = float(m_swapchain->GetHeight());
-		cameraDesc.m_fovY = glm::radians(45.0f);
+		cameraDesc.m_fovY = ToRadians(45.0f);
 		cameraDesc.m_zFar = 500.0f;
 		m_camera = Camera(cameraDesc);
 		m_shadowCascadeSectionRanges[0] = m_camera.ZNear();
 
 		cameraDesc.m_width = cameraDesc.m_height / 2;
-		cameraDesc.m_position = glm::vec3(16.0f, 1.0f, 16.0f);
-		cameraDesc.m_eulerAngles = glm::radians(glm::vec3(0.0f, 45.0f, 0.0f));
+		cameraDesc.m_position = Vector3f(16.0f, 1.0f, 16.0f);
+		cameraDesc.m_eulerAngles = ToRadians(Vector3f(0.0f, 45.0f, 0.0f));
 		m_frustrumTestCamera = Camera(cameraDesc);
 
 		std::string dbDir = std::filesystem::current_path().string();
@@ -213,8 +212,8 @@ namespace Eng
 			cursorScreenPos.x = input->GetCursorX(INPUTSTATE_CURRENT) / m_swapchain->GetWidth();
 			cursorScreenPos.y = input->GetCursorY(INPUTSTATE_CURRENT) / m_swapchain->GetHeight();
 
-			Vector3f cursorFarPlanePos = m_camera.GetCursorFarPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
-			Vector3f cursorNearPlanePos = m_camera.GetCursorNearPlaneWorldPosition(glm::vec2(cursorScreenPos.x, cursorScreenPos.y));
+			Vector3f cursorFarPlanePos = m_camera.GetCursorFarPlaneWorldPosition(Vector2f(cursorScreenPos.x, cursorScreenPos.y));
+			Vector3f cursorNearPlanePos = m_camera.GetCursorNearPlaneWorldPosition(Vector2f(cursorScreenPos.x, cursorScreenPos.y));
 			Vector3f rayDirection = cursorFarPlanePos - cursorNearPlanePos;
 
 			auto* selectedEntityData = m_hierarchy.GetEntityBoundingVolumeHierarchy().RaycastGetObjectData(m_debugLinePass, cursorNearPlanePos, rayDirection);
@@ -231,7 +230,7 @@ namespace Eng
 
 		if (input->GetKey(GLFW_KEY_M, EInputState::INPUTSTATE_CURRENT))
 		{
-			m_frustrumTestCamera.Rotate(glm::radians(glm::vec3(0.0f, deltaTime * 45.0f, 0.0f)));
+			m_frustrumTestCamera.Rotate(ToRadians(Vector3f(0.0f, deltaTime * 45.0f, 0.0f)));
 			//m_frustrumTestCamera.UpdateFreeCam(deltaTime, input, window);
 			m_frustrumTestCamera.Update();
 		}
@@ -239,7 +238,7 @@ namespace Eng
 		// Update Camera -------------------------------------------------------------------------------------------------
 		{
 			constexpr float fov = 45.0f;
-			constexpr float fovRadians = glm::radians(fov);
+			float fovRadians = ToRadians(fov);
 
 			ViewConstantsBuffer* bufferMatrices = (ViewConstantsBuffer*)m_mvpBuffer->BeginPopulate();
 
@@ -258,7 +257,7 @@ namespace Eng
 
 			// Depth Reconstruction Constants
 			bufferMatrices->m_aspectRatio = float(m_swapchain->GetWidth()) / m_swapchain->GetHeight();
-			bufferMatrices->m_tanHalfFOV = glm::tan(fovRadians / 2);
+			bufferMatrices->m_tanHalfFOV = Tan(fovRadians / 2);
 
 			m_mvpBuffer->EndPopulate();
 
@@ -280,7 +279,7 @@ namespace Eng
 			FrustrumPlanesBuffer* testFrustrumPlanes = (FrustrumPlanesBuffer*)m_frustrumTestBuffer->BeginPopulate();
 
 			const Camera::CameraFrustrum& testFrustrum = m_frustrumTestCamera.GetFrustrum();
-			Camera::DrawFrustrum(m_debugLinePass, testFrustrum, glm::vec3(1.0f, 0.0f, 1.0f));
+			Camera::DrawFrustrum(m_debugLinePass, testFrustrum, Vector3f(1.0f, 0.0f, 1.0f));
 
 			testFrustrumPlanes->m_planes[0] = testFrustrum.m_near;
 			testFrustrumPlanes->m_planes[1] = testFrustrum.m_left;
@@ -508,7 +507,7 @@ namespace Eng
 	{
 		PB::IBufferObject* viewBuffer = m_frustrumTestBuffer;
 
-		glm::vec3 sunDir = glm::normalize(glm::vec3(1.0f, 2.0f, 1.0f));
+		Vector3f sunDir = Vector3f(1.0f, 2.0f, 1.0f).Normalized();
 
 		RenderGraph* output = nullptr;
 		{
@@ -640,7 +639,7 @@ namespace Eng
 
 			m_shadowAccumPass->SetCascadeViews(cascadeViews.Data(), ShadowCascadeCount);
 
-			glm::vec3 sunColor = glm::vec3(2.4f);
+			Vector3f sunColor = Vector3f(2.4f);
 
 			m_deferredLightingPass->SetDirectionalLight(0, { sunDir.x, sunDir.y, sunDir.z, 1.0f }, { sunColor.r, sunColor.g, sunColor.b, 1.0f });
 			m_deferredLightingPass->SetSkyboxTexture(m_hdrSkyTexture, m_skyIrradianceMap, m_skyPrefilterMap);
@@ -665,7 +664,7 @@ namespace Eng
 		for (uint32_t i = 0; i < spinnerCount; ++i)
 		{
 			Vector3f pos = Vector3f(8.0f * (i / 10), 0.0f, -7.0f * (i % 10));
-			//glm::vec3 pos = glm::vec3(0.0f, 0.0f, -3.0f + (i * 6.0f));
+			//Vector3f pos = Vector3f(0.0f, 0.0f, -3.0f + (i * 6.0f));
 		
 			if (i == 1)
 			{
@@ -673,8 +672,7 @@ namespace Eng
 				pos.z += 2.5f;
 			}
 		
-			//glm::quat spinnerQuat = glm::rotate(glm::identity<glm::quat>(), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-			Quaternion spinnerQuat = Quaternion::Identity().Rotate(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			Quaternion spinnerQuat = Quaternion::Identity().Rotate(ToRadians(90.0f), Vector3f(0.0f, 1.0f, 0.0f));
 		
 			Entity* paintEntity = m_hierarchy.AddEntity(pos, "spinner_paint");
 			Transform* paintTransform = paintEntity->GetComponent<Transform>();

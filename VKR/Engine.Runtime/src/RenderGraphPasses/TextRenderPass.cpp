@@ -2,13 +2,9 @@
 #include "RenderGraph/RenderGraph.h"
 #include "Resource/FontTexture.h"
 
-#pragma warning(push, 0)
-#define GLM_FORCE_CTOR_INIT // Required to ensure glm constructors actually initialize vectors/matrices etc.
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/packing.hpp"
-#include "glm/gtc/type_ptr.hpp"
-#pragma warning(pop)
+#include <Engine.Math/Vectors.h>
+#include <Engine.Math/Matrix4.h>
+#include <Engine.Math/Packing.h>
 
 namespace Eng
 {
@@ -201,8 +197,8 @@ namespace Eng
 		float w = static_cast<float>(nodeDesc.m_renderWidth);
 		float h = static_cast<float>(nodeDesc.m_renderHeight);
 
-		glm::mat4 projMat = glm::ortho(0.0f, w, 0.0f, h);
-		memcpy(constantsData->m_proj, glm::value_ptr(projMat), sizeof(PB::Float4) * 4);
+		Math::Matrix4 projMat = glm::ortho(0.0f, w, 0.0f, h);
+		memcpy(constantsData->m_proj, (float*)projMat, sizeof(PB::Float4) * 4);
 
 		constantsData->m_renderDimensions = PB::Float2(float(nodeDesc.m_renderWidth), float(nodeDesc.m_renderHeight));
 		m_textRenderConstants->EndPopulate();
@@ -249,19 +245,19 @@ namespace Eng
 		newRegion.m_end = newRegion.m_start + charCount;
 
 		// Generate char data locally and schedule a copy to the device.
-		glm::vec2 curCharPos(linePosition.x, -linePosition.y);
+		Math::Vector2f curCharPos(linePosition.x, -linePosition.y);
 		for (uint32_t i = 0; i < charCount; ++i)
 		{
 			Eng::FontTexture::GlyphData charGlyphData = font->GetGlyphData(string[i]);
 
-			glm::vec2 halfDim(charGlyphData.m_widthPix * 0.5f, charGlyphData.m_heightPix * 0.5f);
-			glm::vec2 localCharPos(charGlyphData.m_offsetXPix + charGlyphData.m_widthPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
+			Math::Vector2f halfDim(charGlyphData.m_widthPix * 0.5f, charGlyphData.m_heightPix * 0.5f);
+			Math::Vector2f localCharPos(charGlyphData.m_offsetXPix + charGlyphData.m_widthPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
 			localCharPos -= halfDim;
 
 			CharInstance& instance = m_localCharInstanceData[newRegion.m_start + i];
 			instance.m_char = string[i];
 			instance.m_font = fontIdx;
-			instance.m_packedPosition = glm::packHalf2x16(curCharPos + localCharPos);
+			instance.m_packedPosition = Math::PackHalf2x16(curCharPos + localCharPos);
 
 			curCharPos.x += charGlyphData.m_advancePix;
 		}
@@ -295,7 +291,7 @@ namespace Eng
 		}
 
 		uint32_t totalCharCount = 0;
-		glm::vec2 curCharPos(linePosition.x, -linePosition.y);
+		Math::Vector2f curCharPos(linePosition.x, -linePosition.y);
 		for (auto& region : text.m_instanceRegions)
 		{
 			auto regionSize = region.m_end - region.m_start;
@@ -314,14 +310,14 @@ namespace Eng
 
 				Eng::FontTexture::GlyphData charGlyphData = text.m_fontTexture->GetGlyphData(c);
 
-				glm::vec2 halfDim(charGlyphData.m_widthPix * 0.5f, charGlyphData.m_heightPix * 0.5f);
-				glm::vec2 localCharPos(charGlyphData.m_offsetXPix + charGlyphData.m_widthPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
+				Math::Vector2f halfDim(charGlyphData.m_widthPix * 0.5f, charGlyphData.m_heightPix * 0.5f);
+				Math::Vector2f localCharPos(charGlyphData.m_offsetXPix + charGlyphData.m_widthPix, charGlyphData.m_heightPix + charGlyphData.m_offsetYPix);
 				localCharPos -= halfDim;
 
 				CharInstance& instance = m_localCharInstanceData[region.m_start + i];
 				instance.m_char = c;
 				instance.m_font = fontIdx;
-				instance.m_packedPosition = glm::packHalf2x16(curCharPos + localCharPos);
+				instance.m_packedPosition = Math::PackHalf2x16(curCharPos + localCharPos);
 
 				curCharPos.x += charGlyphData.m_advancePix;
 			}

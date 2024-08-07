@@ -125,7 +125,7 @@ namespace Eng
 	{
 		printf_s("Moving Entity: %s\n", entityToMove->GetName());
 
-		entityToMove->GetComponent<Transform>()->Translate(glm::vec3(1.0f, 0.0f, 0.0f));
+		entityToMove->GetComponent<Transform>()->Translate(Vector3f(1.0f, 0.0f, 0.0f));
 		entityToMove->GetComponent<StaticEntityTracker>()->UpdateEntity();
 
 		UpdateTrees();

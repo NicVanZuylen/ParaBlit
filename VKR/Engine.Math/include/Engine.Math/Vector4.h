@@ -404,6 +404,27 @@ namespace Eng::Math
 			return { glm::max(x, other.x), glm::max(y, other.y), glm::max(z, other.z), glm::max(w, other.w) };
 		}
 
+		MATH_INLINE Self AsRadians() const
+		{
+			return { glm::radians(x), glm::radians(y), glm::radians(z), glm::radians(w) };
+		}
+
+		MATH_INLINE Self AsDegrees() const
+		{
+			return { glm::degrees(x), glm::degrees(y), glm::degrees(z), glm::degrees(w) };
+		}
+
+		MATH_INLINE Self& Lerp(const Self& other, const T& a)
+		{
+			*this = glm::mix((const GLMT&)*this, (const GLMT&)other, a);
+			return *this;
+		}
+
+		MATH_INLINE Self& MixWith(const Self& other, const T& a)
+		{
+			return Lerp(other, a);
+		}
+
 		// -----------------------------------------------------------------
 	};
 	static_assert(sizeof(TVector4<float>) == sizeof(float) * 4);
@@ -441,6 +462,10 @@ namespace Eng::Math
 
 	using Vector4f = TVector4<float>;
 	using Vector4d = TVector4<double>;
+	using Vector4i = TVector4<int>;
+	using Vector4l = TVector4<int64_t>;
+	using Vector4u = TVector4<uint32_t>;
+	using Vector4ul = TVector4<uint64_t>;
 }
 
 #pragma warning (pop)

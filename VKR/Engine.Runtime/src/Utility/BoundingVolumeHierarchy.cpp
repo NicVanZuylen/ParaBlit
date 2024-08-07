@@ -55,7 +55,7 @@ namespace Eng
 		if (result)
 		{
 			auto* data = result->m_objectData;
-			DebugDrawCube(lines, data->m_bounds.m_origin, data->m_bounds.m_extents, glm::vec3(0.0f, 1.0f, 0.0f));
+			DebugDrawCube(lines, data->m_bounds.m_origin, data->m_bounds.m_extents, Vector3f(0.0f, 1.0f, 0.0f));
 			return data;
 		}
 		return nullptr;
@@ -180,7 +180,7 @@ namespace Eng
 		{
 			frustrum = camera->GetFrustrum();
 			// Draw frustrum
-			glm::vec3 frustrumColor(1.0f, 0.0f, 1.0f);
+			Vector3f frustrumColor(1.0f, 0.0f, 1.0f);
 			Camera::DrawFrustrum(lines, frustrum, frustrumColor);
 		}
 
@@ -236,7 +236,7 @@ namespace Eng
 					if(currentCluster != c)
 						currentCluster->PushBack(currentNode);
 
-					currentClusterRange.m_max = glm::max<float>(currentClusterRange.m_max, nodeRange.m_max);
+					currentClusterRange.m_max = Math::Max(currentClusterRange.m_max, nodeRange.m_max);
 				}
 				else
 				{
@@ -381,7 +381,7 @@ namespace Eng
 
 				BuildNode& convertedCluster = *clusterNodes->Back();
 				const float largestScale = convertedCluster.GetLargestScale();
-				largestClusterScale = glm::max<float>(largestClusterScale, largestScale);
+				largestClusterScale = Math::Max(largestClusterScale, largestScale);
 			}
 
 			if (waves.Count() > 0)
@@ -692,8 +692,8 @@ namespace Eng
 
 	void BoundingVolumeHierarchy::RecursiveDebugDrawNode(DebugLinePass* lines, const Camera::CameraFrustrum& frustrum, BuildNode* node, uint32_t depth, bool drawObjectBounds) const
 	{
-		glm::vec3 lineColor = node->m_isObject ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
-		lineColor = (depth != ~uint32_t(0) && node->m_depth == depth) ? glm::vec3(0.0f, 0.0f, 1.0f) : lineColor;
+		Vector3f lineColor = node->m_isObject ? Vector3f(0.0f, 1.0f, 0.0f) : Vector3f(1.0f, 0.0f, 0.0f);
+		lineColor = (depth != ~uint32_t(0) && node->m_depth == depth) ? Vector3f(0.0f, 0.0f, 1.0f) : lineColor;
 
 		const Vector3f& origin = node->m_bounds.m_origin;
 		const Vector3f& extents = node->m_bounds.m_extents;
@@ -765,11 +765,11 @@ namespace Eng
 		// TODO: To produce better results, it may be worth biasing axes e.g. valuing taller volumes less that wider and longer volumes for mostly flat levels.
 		//		 In an engine-level implementation, axes could be biased based on which angles a player is most likely to be looking at any given time at the location of insertion e.g. looking up/down more often in taller locations.
 
-		glm::vec3 dimensions = glm::vec3
+		Vector3f dimensions = Vector3f
 		(
-			glm::abs(bounds.m_origin.x - bounds.MaxX()),
-			glm::abs(bounds.m_origin.y - bounds.MaxY()),
-			glm::abs(bounds.m_origin.z - bounds.MaxZ())
+			Math::Abs(bounds.m_origin.x - bounds.MaxX()),
+			Math::Abs(bounds.m_origin.y - bounds.MaxY()),
+			Math::Abs(bounds.m_origin.z - bounds.MaxZ())
 		);
 		return uint64_t(dimensions.x * dimensions.y * dimensions.z);
 	}
@@ -780,7 +780,7 @@ namespace Eng
 		const float scaleY = m_bounds.m_extents.y;
 		const float scaleZ = m_bounds.m_extents.z;
 
-		return glm::max<float>(glm::max<float>(scaleX, scaleY), scaleZ);
+		return Math::Max(Math::Max(scaleX, scaleY), scaleZ);
 	}
 
 	void BoundingVolumeHierarchy::BuildNode::RemoveChild(BuildNode* child)

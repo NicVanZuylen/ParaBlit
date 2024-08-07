@@ -164,11 +164,11 @@ namespace Eng
 		for (auto& corner : cascadeFrustrumSection.m_frustrumCorners)
 		{
 			Vector4f viewSpaceCorner = viewMat * Vector4f(corner, 1.0f);
-			minWidth = glm::min(minWidth, viewSpaceCorner.x);
-			minHeight = glm::min(minHeight, viewSpaceCorner.y);
-			maxWidth = glm::max(maxWidth, viewSpaceCorner.x);
-			maxHeight = glm::max(maxHeight, viewSpaceCorner.y);
-			maxDepth = glm::max(maxDepth, -viewSpaceCorner.z - cascadeViewDistance);
+			minWidth = Min(minWidth, viewSpaceCorner.x);
+			minHeight = Min(minHeight, viewSpaceCorner.y);
+			maxWidth = Max(maxWidth, viewSpaceCorner.x);
+			maxHeight = Max(maxHeight, viewSpaceCorner.y);
+			maxDepth = Max(maxDepth, -viewSpaceCorner.z - cascadeViewDistance);
 		}
 
 		const float farDistance = cascadeViewDistance + maxDepth;

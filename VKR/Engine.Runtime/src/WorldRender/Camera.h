@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Engine.Math/Scalar.h>
 #include <Engine.Math/Vectors.h>
 #include <Engine.Math/Matrix4.h>
 

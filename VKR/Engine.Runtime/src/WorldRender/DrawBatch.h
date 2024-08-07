@@ -122,10 +122,10 @@ namespace Eng
 
 		struct MeshletBoundData
 		{
-			glm::vec4 m_normal;
-			glm::vec3 m_origin;
+			Vector4f m_normal;
+			Vector3f m_origin;
 			uint32_t m_index;
-			glm::vec3 m_extents;
+			Vector3f m_extents;
 			uint32_t m_normalDataPacked;
 		};
 
@@ -136,8 +136,8 @@ namespace Eng
 			uint32_t m_partition;
 			Vector3f m_boundExtents;
 			uint32_t m_pad0;
-			glm::uvec2 m_drawRange; // Mesh index range of this object.
-			glm::uvec2 m_pad1;
+			Vector2u m_drawRange; // Mesh index range of this object.
+			Vector2u m_pad1;
 		};
 
 		struct BatchCullConstants
@@ -159,7 +159,7 @@ namespace Eng
 
 		struct MeshletDrawRangesBuffer
 		{
-			glm::uvec2 m_drawRanges[MaxDrawCount];
+			Vector2u m_drawRanges[MaxDrawCount];
 		};
 
 		struct DispatchInfo

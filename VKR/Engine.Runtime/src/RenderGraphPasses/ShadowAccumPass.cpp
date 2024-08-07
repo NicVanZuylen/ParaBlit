@@ -1,9 +1,7 @@
 #include "ShadowAccumPass.h"
 #include "RenderGraph/RenderGraph.h"
 
-#pragma warning(push, 0)
-#include "glm/glm.hpp"
-#pragma warning(pop)
+#include <Engine.Math/Scalar.h>
 
 #include <random>
 
@@ -239,8 +237,8 @@ namespace Eng
 		for (uint32_t i = 0; i < PixelCount; ++i)
 		{
 			float angle = distribution(randEngine) * RevolutionRadians;
-			pixelValues[i].x = glm::cos(angle);
-			pixelValues[i].y = glm::sin(angle);
+			pixelValues[i].x = Math::Cos(angle);
+			pixelValues[i].y = Math::Sin(angle);
 		}
 	}
 

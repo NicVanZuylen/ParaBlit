@@ -1,9 +1,7 @@
 #include "ShadowBlurPass.h"
 #include "RenderGraph/RenderGraph.h"
 
-#pragma warning(push, 0)
-#include "glm/glm.hpp"
-#pragma warning(pop)
+#include <Engine.Math/Scalar.h>
 
 namespace Eng
 {
@@ -74,9 +72,9 @@ namespace Eng
 			for (uint32_t i = 0; i < GaussianKernelSize; ++i)
 			{
 				float iFloat = static_cast<float>(i);
-				blurConstants->m_weights[i].x = glm::exp(-(iFloat * iFloat) / doubleSigmaSqr);
+				blurConstants->m_weights[i].x = Math::Exp(-(iFloat * iFloat) / doubleSigmaSqr);
 			}
-			blurConstants->m_guassianNormPart = 1.0f / (sigma * glm::sqrt(TwoPi)); // First half of the guassian function. Multiplying by this will normalize the blur colour samples.
+			blurConstants->m_guassianNormPart = 1.0f / (sigma * Math::Sqrt(TwoPi)); // First half of the guassian function. Multiplying by this will normalize the blur colour samples.
 
 			m_blurConstants->EndPopulate();
 
