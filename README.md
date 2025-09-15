@@ -1,5 +1,3 @@
-
-https://github.com/user-attachments/assets/f05959c1-7512-4192-b868-5a5f5f5e77a9
 # Neuroverse Engine / ParaBlit
 
 ## Goal
