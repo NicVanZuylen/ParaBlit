@@ -1,0 +1,189 @@
+#version 460
+#include "Common/raytracing_common.h"
+#include "Common/view_constants.h"
+#include "Common/drawbatch_common.h"
+#include "Common/vertex_common.h"
+#include "Common/pbr.h"
+
+#define PERMUTATION_RT_ShaderStage 3 // 0 == RAYGEN, 1 == MISS, 2 == CLOSESTHIT, 3 == ANYHIT, 4 == INTERSECTION
+
+DEFINE_PATH_TRACING_BINDINGS;
+
+// ********************************************************************************************************************************
+#if PERMUTATION_RT_ShaderStage == 1 // MISS
+// ********************************************************************************************************************************
+
+layout(location = REFLECTION_PAYLOAD_LOCATION) rayPayloadInEXT ReflectionRayPayload reflectionPayload;
+
+PB_DEFINE_SAMPLER_BINDINGS;
+PB_DEFINE_TEXTURE_CUBE_BINDINGS;
+
+void main() 
+{
+    vec3 skyColor = texture(PB_BUILD_SAMPLER_CUBE(skyCubeTextureIndex, skySamplerIndex), gl_WorldRayDirectionEXT).rgb;
+    skyColor.rgb = pow(skyColor.rgb, vec3(1.0 / 2.2)); // Gamma correction.
+
+    reflectionPayload.color = skyColor;
+}
+
+// ********************************************************************************************************************************
+#elif PERMUTATION_RT_ShaderStage == 2 // CLOSESTHIT
+// ********************************************************************************************************************************
+
+layout(location = REFLECTION_PAYLOAD_LOCATION) rayPayloadInEXT ReflectionRayPayload reflectionPayload;
+
+PB_DEFINE_TEXTURE_BINDINGS;
+PB_DEFINE_SAMPLER_BINDINGS;
+
+DEFINE_WORLD_CONSTANTS(worldConstantsBuffer);
+#define WORLD_CONSTANTS PB_UBO(worldConstantsBuffer, worldConstantsIndex)
+
+layout(set = 0, binding = 2) readonly buffer PoolInstanceIndexBuffer
+{
+    uint indices[];
+} poolInstanceIndexBuffer[];
+#define OBJ_INSTANCE_INDEX poolInstanceIndexBuffer[PB_BINDINGS_NAME.objPoolInstanceIndexBufferIndex].indices
+
+layout(set = 0, binding = 2) readonly buffer MeshLibraryBuffer
+{
+    MeshLibraryEntry entries[];
+} meshLibraryBuffer[];
+#define MESH_LIBRARY_ENTRIES meshLibraryBuffer[PB_BINDINGS_NAME.meshLibraryBufferIndex].entries
+
+layout(set = 0, binding = 2) readonly buffer InstanceBuffers
+{
+    VS_INSTANCE instances[];
+} objInstanceBuffer[];
+#define OBJ_INSTANCES(poolIndex) objInstanceBuffer[nonuniformEXT(poolIndex)].instances
+
+layout(set = 0, binding = 2, std430) readonly buffer ObjIndexBuffer
+{
+    uint indices[];
+} objIndexBuffer[];
+#define OBJ_INDEX_BUFFER(indexBufferIndex) PB_STORAGE_BUFFER_NU(objIndexBuffer, indexBufferIndex).indices
+
+layout(set = 0, binding = 2) readonly buffer VertexBuffer
+{
+    VS_IN vertices[];
+} vertexBuffer[];
+#define VERTICES(vertexBufferIndex) vertexBuffer[nonuniformEXT(vertexBufferIndex)].vertices
+
+hitAttributeEXT vec2 attribs;
+
+void main() 
+{
+    uint poolIndex = gl_InstanceCustomIndexEXT;
+    uint instanceIndexAndLOD = OBJ_INSTANCE_INDEX[gl_InstanceID];
+    uint instanceIndex = instanceIndexAndLOD & 0x0FFFFFFF;
+    
+    VS_INSTANCE instance = OBJ_INSTANCES(poolIndex)[instanceIndex];
+    MeshLibraryEntry mesh = MESH_LIBRARY_ENTRIES[instance.meshID];
+
+    uint lod = instanceIndexAndLOD >> 28;
+    uint indexOffset = mesh.lodBLASIndexOffsets[lod] + (gl_PrimitiveID * 3);
+
+    uint i0 = OBJ_INDEX_BUFFER(mesh.blasIndexBufferIndex)[indexOffset];
+    uint i1 = OBJ_INDEX_BUFFER(mesh.blasIndexBufferIndex)[indexOffset + 1];
+    uint i2 = OBJ_INDEX_BUFFER(mesh.blasIndexBufferIndex)[indexOffset + 2];
+
+    VS_IN v0 = VERTICES(mesh.vertexBufferIndex)[i0];
+    VS_IN v1 = VERTICES(mesh.vertexBufferIndex)[i1];
+    VS_IN v2 = VERTICES(mesh.vertexBufferIndex)[i2];
+
+    vec4 p0;
+    vec4 p1;
+    vec4 p2;
+
+    vec2 t0;
+    vec2 t1;
+    vec2 t2;
+
+    vec3 n0;
+    vec3 n1;
+    vec3 n2;
+
+    vec3 tan0;
+    vec3 tan1;
+    vec3 tan2;
+
+    UnpackVertexAttibutes(v0, p0, t0, n0, tan0);
+    UnpackVertexAttibutes(v1, p1, t1, n1, tan1);
+    UnpackVertexAttibutes(v2, p2, t2, n2, tan2);
+
+    const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+    const vec2 texCoord = t0 * barycentrics.x + t1 * barycentrics.y + t2 * barycentrics.z;
+
+    vec3 gamma = vec3(1.0 / 2.2);
+
+    uint colorIndex = instance.textureIndices[0];
+    vec4 color = texture
+    (
+        sampler2D(PB_TEXTURE_NU(colorIndex), PB_SAMPLER_NU(instance.samplerIndex)), 
+        texCoord
+    );
+    color.rgb = pow(color.rgb, gamma);
+
+    uint normalIndex = instance.textureIndices[1];
+    vec3 texNormal = texture
+    (
+        sampler2D(PB_TEXTURE_NU(normalIndex), PB_SAMPLER_NU(instance.samplerIndex)), 
+        texCoord
+    ).xyz;
+
+    uint specularIndex = instance.textureIndices[2];
+    vec3 texSpecular = texture
+    (
+        sampler2D(PB_TEXTURE_NU(specularIndex), PB_SAMPLER_NU(instance.samplerIndex)), 
+        texCoord
+    ).rgb;
+    texSpecular = pow(texSpecular, gamma);
+
+    uint roughnessIndex = instance.textureIndices[3];
+    float roughness = texture
+    (
+        sampler2D(PB_TEXTURE_NU(roughnessIndex), PB_SAMPLER_NU(instance.samplerIndex)), 
+        texCoord
+    ).r;
+    roughness = pow(roughness, gamma.r);
+
+    uint emissionIndex = instance.textureIndices[4];
+    vec3 emission = texture
+    (
+        sampler2D(PB_TEXTURE_NU(emissionIndex), PB_SAMPLER_NU(instance.samplerIndex)), 
+        texCoord
+    ).rgb;
+
+    const vec3 normal = n0 * barycentrics.x + n1 * barycentrics.y + n2 * barycentrics.z;
+    const vec3 tangent = tan0 * barycentrics.x + tan1 * barycentrics.y + tan2 * barycentrics.z;
+    vec3 biTangent = -cross(normal, tangent);
+
+    mat3 model3x3 = mat3(instance.model);
+    mat3 tbnMatrix = mat3
+    (
+        model3x3 * tangent,
+        model3x3 * biTangent,
+        model3x3 * normal
+    );
+    const vec3 worldNormal = normalize(tbnMatrix * (texNormal * 2.0 - 1.0));
+
+    const vec3 sunDir = WORLD_CONSTANTS.sunDirection;
+    const vec3 hitPos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
+    const vec3 worldHitPos = vec3(gl_ObjectToWorldEXT * vec4(hitPos, 1.0));
+
+    float nDotL = max(0.0, dot(sunDir, worldNormal));
+    
+    vec3 kS;
+    vec3 bdrfSpecular = CookTorranceDirect(worldNormal, -gl_WorldRayDirectionEXT, sunDir, texSpecular, kS, roughness, nDotL);
+
+    vec3 Lo = color.xyz * WORLD_CONSTANTS.sunIntensity * 0.1;
+
+    vec3 lightRadiance = WORLD_CONSTANTS.sunIntensity * WORLD_CONSTANTS.sunColor;
+    vec3 kD = (1.0 - kS) * (1.0 - texSpecular);
+    Lo += Reflectance(color.rgb, bdrfSpecular, lightRadiance, kD, nDotL);
+
+    reflectionPayload.color = emission + Lo;
+}
+
+// ********************************************************************************************************************************
+#endif
+// ********************************************************************************************************************************

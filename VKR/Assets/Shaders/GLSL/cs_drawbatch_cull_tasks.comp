@@ -2,13 +2,13 @@
 #include "Common/pb_common.h"
 #include "Common/view_constants.h"
 #include "Common/culling_common.h"
+#include "Common/drawbatch_common.h"
 
-#define WORKGROUP_SIZE_X 256
+#define WORKGROUP_SIZE_X DRAWBATCH_MAX_INSTANCES
 #define WORKGROUP_SIZE_Y 1
 layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
 
 #define MAX_DRAW_COUNT 8
-#define TASK_GROUP_SIZE 32
 
 layout(push_constant) uniform Bindings
 {
@@ -31,16 +31,9 @@ struct ObjectData
 
 layout(set = 0, binding = 2, std430) readonly buffer BatchConstants
 {
-    ObjectData objects[256];
+    ObjectData objects[DRAWBATCH_MAX_INSTANCES];
 } batchConstants[];
 #define BATCH_CONST PB_UBO(batchConstants, batchConstantsIndex)
-
-struct IndirectDrawMeshTasksParams
-{
-	uint workgroupX;
-    uint workgroupY;
-    uint workgroupZ;
-};
 
 layout(set = 0, binding = 2) buffer DrawRangesBuffer
 {
@@ -85,8 +78,8 @@ uvec2 CombineRanges(uvec2 a, uvec2 b)
 uint GetMeshletRangeWorkgroupCount(uvec2 range)
 {
     uint meshletCount = range[1] - range[0];
-    uint tailWorkgroup = (meshletCount % TASK_GROUP_SIZE > 0) ? 1 : 0;
-    return (meshletCount / TASK_GROUP_SIZE) + tailWorkgroup;
+    uint tailWorkgroup = (meshletCount % DRAWBATCH_TASK_GROUP_SIZE > 0) ? 1 : 0;
+    return (meshletCount / DRAWBATCH_TASK_GROUP_SIZE) + tailWorkgroup;
 }
 
 #define INVALID_RANGE uvec2(~uint(0), 0)

@@ -1,0 +1,30 @@
+#version 460
+#include "Common/raytracing_common.h"
+
+#define PERMUTATION_RT_ShaderStage 3 // 0 == RAYGEN, 1 == MISS, 2 == CLOSESTHIT, 3 == ANYHIT, 4 == INTERSECTION
+
+// ********************************************************************************************************************************
+#if PERMUTATION_RT_ShaderStage == 1 // MISS
+// ********************************************************************************************************************************
+
+layout(location = SHADOW_PAYLOAD_LOCATION) rayPayloadInEXT ShadowRayPayload shadowPayload;
+
+void main() 
+{
+    ++shadowPayload.missCount;
+}
+
+// ********************************************************************************************************************************
+#elif PERMUTATION_RT_ShaderStage == 2 // CLOSESTHIT
+// ********************************************************************************************************************************
+
+layout(location = SHADOW_PAYLOAD_LOCATION) rayPayloadInEXT ShadowRayPayload shadowPayload;
+
+void main() 
+{
+    shadowPayload.hitDistance = gl_HitTEXT;
+}
+
+// ********************************************************************************************************************************
+#endif
+// ********************************************************************************************************************************

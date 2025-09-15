@@ -1,6 +1,7 @@
 #version 450
 #include "Common/pb_common.h"
 #include "Common/view_constants.h"
+#include "Common/gbuffer_common.h"
 #extension GL_EXT_samplerless_texture_functions : require
 
 #define AO_KERNEL_SIZE 32
@@ -58,6 +59,7 @@ void main()
     float depth = texture(PB_BUILD_SAMPLER(depthIndex, srcSamplerIndex), fsInput.texCoord).r;
 
     vec3 worldNormal = texture(PB_BUILD_SAMPLER(normalIndex, srcSamplerIndex), fsInput.texCoord).xyz;
+    UnpackNormal(worldNormal);
     // SSAO calculations operate in view space, so convert the normal from world to view space.
     vec3 normal = (VIEW_CONST.view * vec4(worldNormal.xyz, 0.0)).xyz;
 

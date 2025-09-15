@@ -1,8 +1,0 @@
-set REPOSITORY_URL=%1
-set FOLDER_NAME=%2
-set COMMIT_SHA1=%3
-
-git clone %REPOSITORY_URL% %FOLDER_NAME%
-cd %FOLDER_NAME%
-git reset --hard %COMMIT_SHA1%
-cd ../

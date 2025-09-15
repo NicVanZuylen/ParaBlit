@@ -1,6 +1,7 @@
 #version 450
 #include "Common/pb_common.h"
 #include "Common/view_constants.h"
+#include "Common/gbuffer_common.h"
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_samplerless_texture_functions : require
 
@@ -194,6 +195,7 @@ void main()
 {
     float depth = texture(PB_BUILD_SAMPLER(gDepthIndex, gBufferSamplerIdx), fsInput.texCoord).r;
     vec3 normal = texture(PB_BUILD_SAMPLER(gNormalIndex, gBufferSamplerIdx), fsInput.texCoord).rgb;
+    UnpackNormal(normal);
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, MVP_CONST.invView, MVP_CONST.invProj);
 
     uint cascadeIdx = ~uint(0);

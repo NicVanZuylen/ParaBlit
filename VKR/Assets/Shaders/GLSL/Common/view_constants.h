@@ -3,11 +3,13 @@
 layout(set = 1, binding = 0) uniform ViewConstants  \
 {                                                   \
     mat4 viewProj;                                  \
+    mat4 viewProjLastFrame;                         \
     mat4 view;                                      \
     mat4 proj;                                      \
     mat4 invView;                                   \
     mat4 invProj;                                   \
     vec4 cameraPosition;                            \
+    vec4 cameraPositionLastFrame;                   \
     float aspectRatio;                              \
     float tanHalfFOV;                               \
 } name[]                                            \

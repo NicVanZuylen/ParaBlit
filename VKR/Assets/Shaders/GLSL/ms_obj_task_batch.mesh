@@ -8,6 +8,8 @@
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_EXT_mesh_shader : require
 
+#define PERMUTATION_OutputPositionOnly 2
+
 #define TASK_GROUP_SIZE 32
 #define MESHLET_PRIMITIVE_COUNT 32
 #define MESHLET_VERTEX_COUNT MESHLET_PRIMITIVE_COUNT * 3
@@ -16,27 +18,10 @@ layout (local_size_x = MESHLET_PRIMITIVE_COUNT, local_size_y = 1, local_size_z =
 layout (triangles) out;
 layout (max_vertices=MESHLET_VERTEX_COUNT, max_primitives=MESHLET_PRIMITIVE_COUNT) out;
 
-layout(push_constant) uniform Bindings
-{
-    DEFINE_REQUIRED_UNIFORM_BINDINGS;
-    uint indexBufferIndex;
-    uint primitiveIndexBufferIndex;
-    uint drawRangeBufferIndex;
-    uint meshetDataBufferIndex;
-    uint instanceBufferIndex;
-} PB_BINDINGS_NAME;
+DEFINE_DRAWBATCH_BINDINGS;
 
 DEFINE_VIEW_CONSTANTS(viewConstants);
 #define VIEW_CONST PB_UBO(viewConstants, viewConstIndex)
-
-#define INSTANCE_TEXTURE_COUNT 6
-struct VS_INSTANCE
-{
-    mat4 model;
-    uint textureIndices[INSTANCE_TEXTURE_COUNT];
-    uint vertexIndex;
-    uint samplerIndex;
-};
 
 layout(set = 0, binding = 2, std430) readonly restrict buffer IndexBuffer
 {
@@ -58,22 +43,30 @@ layout(set = 0, binding = 2, std430) readonly restrict buffer InstanceBuffer
     VS_INSTANCE instances[];
 } instanceBuffer[];
 
+layout(set = 0, binding = 2) readonly buffer MeshLibraryBuffer
+{
+    MeshLibraryEntry entries[];
+} meshLibraryBuffer[];
+#define MESH_LIBRARY_ENTRIES PB_STORAGE_BUFFER(meshLibraryBuffer, meshLibraryBufferIndex).entries
+
 struct TASK_PAYLOAD
 {
     uint packedVertOffsetCount[TASK_GROUP_SIZE];
     uint packedPrimOffsetCount[TASK_GROUP_SIZE];
+    uint instanceIds[TASK_GROUP_SIZE];
 };
 taskPayloadSharedEXT TASK_PAYLOAD payloadIn;
 
 layout(location = 0) out VERTEX_OUT
 {
     vec4 position;
+    vec4 positionLastFrame;
     vec2 texCoord;
 
     mat3 tbnMatrix; // Normal is 3rd vector component.
 } vertOutput[];
 
-layout(location = 5) perprimitiveEXT out PRIMITIVE_OUT
+layout(location = 6) perprimitiveEXT out PRIMITIVE_OUT
 {
     // Resource indices can be output at a per primitive rate.
     flat uint samplerIdx;
@@ -81,17 +74,21 @@ layout(location = 5) perprimitiveEXT out PRIMITIVE_OUT
     flat uint textureIndices[INSTANCE_TEXTURE_COUNT];
 } primOutput[];
 
-shared VS_INSTANCE instanceData;
-
-void ProcessVertex(in VS_INSTANCE instanceData, uint vertexIndex, uint outVertexIndex)
+void ProcessVertex(in VS_INSTANCE instanceData, uint vertexBufferIndex, uint vertexIndex, uint outVertexIndex)
 {
-    VS_IN vertexData = PB_STORAGE_BUFFER_NU(vertexBuffer, instanceData.vertexIndex).vertices[vertexIndex];
+    VS_IN vertexData = PB_STORAGE_BUFFER_NU(vertexBuffer, vertexBufferIndex).vertices[vertexIndex];
 
     vec4 position;
     vec2 texCoord;
     vec3 normal;
     vec3 tangent;
     UnpackVertexAttibutes(vertexData, position, texCoord, normal, tangent);
+
+#if PERMUTATION_OutputPositionOnly
+
+    gl_MeshVerticesEXT[outVertexIndex].gl_Position = VIEW_CONST.viewProj * instanceData.model * position;
+
+#else
 
     mat3 modelCpy = mat3(instanceData.model);
     vec3 biTangent = -cross(normal, tangent);
@@ -103,72 +100,87 @@ void ProcessVertex(in VS_INSTANCE instanceData, uint vertexIndex, uint outVertex
         modelCpy * normal       // n
     );
 
-    gl_MeshVerticesEXT[outVertexIndex].gl_Position = VIEW_CONST.viewProj * instanceData.model * position;
-    vertOutput[outVertexIndex].position = instanceData.model * position;
-    vertOutput[outVertexIndex].position.w = 1.0;
+    vec4 pos = VIEW_CONST.viewProj * instanceData.model * position;
+
+    gl_MeshVerticesEXT[outVertexIndex].gl_Position = pos;
+    vertOutput[outVertexIndex].position = pos;
+    vertOutput[outVertexIndex].positionLastFrame = VIEW_CONST.viewProjLastFrame * instanceData.prevModel * position;
     vertOutput[outVertexIndex].texCoord = texCoord;
+
+#endif
 }
 
-uint GetVertexIndex(uint index)
+uint GetVertexIndex(uint indexBufferIndex, uint index)
 {
-    uint indicesPacked = PB_STORAGE_BUFFER(indexBuffer, indexBufferIndex).indices[index];
-    return indicesPacked & 0xFFFFFF;
+    return PB_STORAGE_BUFFER_NU(indexBuffer, indexBufferIndex).indices[index];
 }
 
-uint GetInstanceIndex(uint index)
+uvec3 GetPrimitiveIndices(uint meshletPrimitiveBufferIndex, uint index)
 {
-    uint indicesPacked = PB_STORAGE_BUFFER(indexBuffer, indexBufferIndex).indices[index];
-    return indicesPacked >> 24;
-}
-
-uvec3 GetPrimitiveIndices(uint index)
-{
-    uint primitiveIndices = PB_STORAGE_BUFFER(primitiveBuffer, primitiveIndexBufferIndex).primitivePackedIndices[index];
+    uint primitiveIndices = PB_STORAGE_BUFFER_NU(primitiveBuffer, meshletPrimitiveBufferIndex).primitivePackedIndices[index];
     return uvec3(primitiveIndices & 0x3FF, (primitiveIndices >> 10) & 0x3FF, (primitiveIndices >> 20) & 0x3FF);
 }
+
+shared VS_INSTANCE instanceData;
+shared MeshLibraryEntry mesh;
 
 void main()
 {
     // Unpack vertex and primitive offsets and counts.
     uint packedVertOffsetCount = payloadIn.packedVertOffsetCount[gl_WorkGroupID.x];
     uint packedPrimOffsetCount = payloadIn.packedPrimOffsetCount[gl_WorkGroupID.x];
-    uint vertexOffset = packedVertOffsetCount & 0xFFFFFF;
-    uint vertexCount = packedVertOffsetCount >> 24;
-    uint primitiveOffset = packedPrimOffsetCount & 0xFFFFFF;
-    uint primitiveCount = packedPrimOffsetCount >> 24;
+    uint instanceId = payloadIn.instanceIds[gl_WorkGroupID.x];
+
+    uint vertexOffset = packedVertOffsetCount & 0x3FFFFFF;
+    uint vertexCount = packedVertOffsetCount >> 26;
+    uint primitiveOffset = packedPrimOffsetCount & 0x3FFFFFF;
+    uint primitiveCount = packedPrimOffsetCount >> 26;
 
     SetMeshOutputsEXT(vertexCount, primitiveCount);
 
     uint baseVertexIndex = gl_LocalInvocationID.x * 3;
     if(baseVertexIndex == 0)
     {
-       // Only obtain instance data for the first vertex. All vertices/primitives within the meshlet this work group is assigned to will belong to the same instance.
-       instanceData = PB_STORAGE_BUFFER(instanceBuffer, instanceBufferIndex).instances[GetInstanceIndex(vertexOffset)];
+        // Only obtain instance data for the first vertex. All vertices/primitives within the meshlet this work group is assigned to will belong to the same instance.
+        instanceData = PB_STORAGE_BUFFER(instanceBuffer, instanceBufferIndex).instances[instanceId];
+        mesh = MESH_LIBRARY_ENTRIES[instanceData.meshID];
     }
 
-    barrier();
+    memoryBarrierShared();
 
     // Shade 3 vertices per invocation.
     if(baseVertexIndex < vertexCount) // Vertex count will be a multiple of 3 in most cases, so only check base index.
     {
-        uint firstVertexIndex = GetVertexIndex(vertexOffset + baseVertexIndex);
-        ProcessVertex(instanceData, firstVertexIndex, baseVertexIndex);
+        uint firstVertexIndex = GetVertexIndex(mesh.indexBufferIndex, vertexOffset + baseVertexIndex);
+        ProcessVertex(instanceData, mesh.vertexBufferIndex, firstVertexIndex, baseVertexIndex);
 
-        uint secondVertexIndex = GetVertexIndex(vertexOffset + baseVertexIndex + 1);
-        ProcessVertex(instanceData, secondVertexIndex, baseVertexIndex + 1);
+        uint secondVertexIndex = GetVertexIndex(mesh.indexBufferIndex, vertexOffset + baseVertexIndex + 1);
+        ProcessVertex(instanceData, mesh.vertexBufferIndex, secondVertexIndex, baseVertexIndex + 1);
 
-        uint thirdVertexIndex = GetVertexIndex(vertexOffset + baseVertexIndex + 2);
-        ProcessVertex(instanceData, thirdVertexIndex, baseVertexIndex + 2);
+        uint thirdVertexIndex = GetVertexIndex(mesh.indexBufferIndex, vertexOffset + baseVertexIndex + 2);
+        ProcessVertex(instanceData, mesh.vertexBufferIndex, thirdVertexIndex, baseVertexIndex + 2);
     }
 
     // Output data for 1 primitive per invocation.
     uint primitiveIndex = gl_LocalInvocationID.x;
+
+#if PERMUTATION_OutputPositionOnly
+
+    if(primitiveIndex < primitiveCount)
+    {
+        gl_PrimitiveTriangleIndicesEXT[primitiveIndex] = GetPrimitiveIndices(mesh.meshletPrimitiveBufferIndex, primitiveOffset + primitiveIndex);
+    }
+
+#else
+
     if(primitiveIndex < primitiveCount)
     {
         primOutput[primitiveIndex].samplerIdx = instanceData.samplerIndex;
         for(uint i = 0; i < INSTANCE_TEXTURE_COUNT; ++i)
             primOutput[primitiveIndex].textureIndices[i] = instanceData.textureIndices[i];
 
-        gl_PrimitiveTriangleIndicesEXT[primitiveIndex] = GetPrimitiveIndices(primitiveOffset + primitiveIndex);
+        gl_PrimitiveTriangleIndicesEXT[primitiveIndex] = GetPrimitiveIndices(mesh.meshletPrimitiveBufferIndex, primitiveOffset + primitiveIndex);
     }
+
+#endif
 }

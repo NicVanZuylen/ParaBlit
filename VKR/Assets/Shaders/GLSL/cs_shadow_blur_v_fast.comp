@@ -1,5 +1,6 @@
 #version 450
 #include "Common/pb_common.h"
+#include "Common/gbuffer_common.h"
 
 #define WORKGROUP_SIZE_X 1
 #define WORKGROUP_SIZE_Y 256
@@ -85,6 +86,7 @@ void main()
     screenTexCoord += texelSize * 0.5;
 
     vec3 srcNormal = texture(PB_BUILD_SAMPLER(normalIndex, srcSamplerIndex), screenTexCoord).xyz;
+    UnpackNormal(srcNormal);
     float srcDepth = texture(PB_BUILD_SAMPLER(depthIndex, srcSamplerIndex), screenTexCoord).r;
     float srcColor = texture(PB_BUILD_SAMPLER(srcImageIndex, srcSamplerIndex), screenTexCoord).r;
 

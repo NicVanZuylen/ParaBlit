@@ -1,0 +1,41 @@
+# ------------------------------------------- Engine Source Code -------------------------------------------
+
+# Ignore all build directories.
+*/Assets/build/*
+build
+*-build
+
+# Ignore root Visual Studio solution and project files.
+*.sln
+*.vcxproj
+*.vcxproj.filters
+
+# Ignore all Visual Studio temp files.
+*.suo
+*.opensdf
+*.sdf
+
+# Ignore Visual Studio program database files.
+*.pdb
+
+# Ingnore external dependencies but include genbuild batch files.
+External
+!External/**/*_genbuild.bat
+!External/CMakeLists.txt
+External/**/CMakeLists.txt
+
+# Ignore generated headers.
+*_generated.h
+
+# Ingnore Visual Studio Intellisense metadata.
+*/.vs/*
+
+# Ignore git metadata.
+*/.git/*
+
+# Ignore built binaries and temporary build files
+*/obj/*
+*.csprojAssemblyReference.cache
+
+# Ignore Python cached files
+*.pyc

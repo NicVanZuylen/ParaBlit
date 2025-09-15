@@ -3,23 +3,17 @@
 #extension GL_EXT_mesh_shader : require
 
 #include "Common/pb_common.h"
+#include "Common/vertex_common.h"
 #include "Common/drawbatch_common.h"
 #include "Common/culling_common.h"
 
 #define MAX_DRAW_COUNT 8
 
-#define TASK_GROUP_SIZE 32
-layout (local_size_x = TASK_GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+//#define TASK_SEARCHER_SEARCH_COUNT 64
+//#define TASK_SEARCHER_COUNT 256 / TASK_SEARCHER_SEARCH_COUNT
+layout (local_size_x = DRAWBATCH_TASK_GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
-layout(push_constant) uniform Bindings
-{
-    DEFINE_REQUIRED_UNIFORM_BINDINGS;
-    uint indexBufferIndex;
-    uint primitiveIndexBufferIndex;
-    uint drawRangeBufferIndex;
-    uint meshetDataBufferIndex;
-    uint instanceBufferIndex;
-} PB_BINDINGS_NAME;
+DEFINE_DRAWBATCH_BINDINGS;
 
 DEFINE_CULL_VIEW_CONSTANTS_UBO(cullConstants);                  
 #define CULL_CONSTANTS PB_UBO(cullConstants, cullConstantsIndex)
@@ -30,16 +24,33 @@ layout(set = 0, binding = 2) readonly restrict buffer DrawRangesBuffer
 } drawRangesBuffer[];
 #define DRAW_RANGES PB_STORAGE_BUFFER(drawRangesBuffer, drawRangeBufferIndex).ranges
 
-layout(set = 0, binding = 2, std430) readonly restrict buffer MeshletDataBuffer
+layout(set = 0, binding = 2, std430) readonly restrict buffer MeshletBuffer
 {
-    MeshletData data[];
-} meshletDataBuffer[];
-#define MESHLET_DATA PB_STORAGE_BUFFER(meshletDataBuffer, meshetDataBufferIndex)
+    MeshletData meshlets[];
+} meshletBuffer[];
+
+layout(set = 0, binding = 2, std430) readonly restrict buffer InstanceBuffer
+{
+    VS_INSTANCE instances[];
+} instanceBuffer[];
+
+layout(set = 0, binding = 2) readonly buffer MeshLibraryBuffer
+{
+    MeshLibraryEntry entries[];
+} meshLibraryBuffer[];
+#define MESH_LIBRARY_ENTRIES PB_STORAGE_BUFFER(meshLibraryBuffer, meshLibraryBufferIndex).entries
+
+layout(set = 0, binding = 2, std430) readonly restrict buffer MeshletRangesBuffer
+{
+    uvec2 ranges[];
+} meshletRangesBuffer[];
+#define MESHLET_RANGES PB_STORAGE_BUFFER(meshletRangesBuffer, meshletRangesBufferIndex)
 
 struct TASK_PAYLOAD
 {
-    uint packedVertOffsetCount[TASK_GROUP_SIZE];
-    uint packedPrimOffsetCount[TASK_GROUP_SIZE];
+    uint packedVertOffsetCount[DRAWBATCH_TASK_GROUP_SIZE];
+    uint packedPrimOffsetCount[DRAWBATCH_TASK_GROUP_SIZE];
+    uint instanceIds[DRAWBATCH_TASK_GROUP_SIZE];
 };
 
 // One per set of mesh shader workgroups dispatched by a single task shader workgroup.
@@ -49,7 +60,7 @@ shared uint passingMeshletCount;
 
 const float halfPi = 1.57079632679; // 90 degrees.
 
-bool IsFrontFaceVisible(in vec3 meshletOrigin, in vec3 meshletExtents, vec3 meanNormal, in float angularSpan)
+bool IsFrontFaceVisible(in vec3 meshletCenter, vec3 meanNormal, in float angularSpan)
 {
     float sinConeAngle = sin(min(angularSpan, halfPi)); // Max 90 degrees.
     if(CULL_CONSTANTS.isOrthographic > 0)
@@ -58,10 +69,81 @@ bool IsFrontFaceVisible(in vec3 meshletOrigin, in vec3 meshletExtents, vec3 mean
         return dot(meanNormal, camForward) < sinConeAngle;
     }
 
-    vec3 meshletCenter = meshletOrigin + (meshletExtents * 0.5);
     vec3 centreDir = normalize(meshletCenter - CULL_CONSTANTS.cameraOrigin);
 
     return dot(meanNormal, centreDir) < sinConeAngle;
+}
+
+uint GetRangeEnd(in uint rangeIndex)
+{
+    return MESHLET_RANGES.ranges[rangeIndex][0];
+}
+
+uint GetRangeStart(in uint rangeIndex)
+{
+    return ((rangeIndex > 0) ? MESHLET_RANGES.ranges[rangeIndex - 1][0] : 0);
+}
+
+uint GetLOD(in uint rangeIndex)
+{
+    return MESHLET_RANGES.ranges[rangeIndex][1];
+}
+
+// ------------------------------------------ BACKUP METHOD ------------------------------------------
+/*
+uint FindInstanceId(uint meshletIdx)
+{
+    uint prevFooting = 0;
+    uint footing = 0;
+    uint prevJumpBack = DRAWBATCH_MAX_INSTANCES;
+    for(uint i = 0; i < 8; ++i)
+    {
+        uint rangeEnd = GetRangeEnd(footing);
+        uint rangeStart = GetRangeStart(footing);
+
+        if(meshletIdx < rangeStart)
+        {
+            prevJumpBack /= 2;
+            footing = prevFooting - prevJumpBack;
+            prevFooting = footing;
+        }
+        else if(meshletIdx < rangeEnd)
+        {
+            // Stay here
+        }
+        else
+        {
+            footing = footing + (prevJumpBack / 2);
+            prevFooting = footing;
+            prevJumpBack /= 2;
+        }
+    }
+
+    return footing;
+}
+*/
+// ------------------------------------------ BACKUP METHOD ------------------------------------------
+
+
+// This algorithm is a non-branching version of the algorithm above. The above algorithm is kept for readability.
+// Recursively search for the range the meshlet index resides within. The index of this range is the instance index.
+// Perform a binary tree-like search for the range:
+uint FindInstanceId(uint meshletIdx)
+{
+    uint prevFooting = 0;
+    uint footing = 0;
+    uint prevJumpBack = DRAWBATCH_MAX_INSTANCES;
+    for(uint i = 0; i < 8; ++i)
+    {
+        uint rangeEnd = GetRangeEnd(footing);
+        uint rangeStart = GetRangeStart(footing);
+
+        prevJumpBack /= 2;
+        footing -= uint(meshletIdx < rangeStart) * prevJumpBack;
+        footing += uint(meshletIdx >= rangeStart && meshletIdx >= rangeEnd) * prevJumpBack;
+    }
+
+    return footing;
 }
 
 void main()
@@ -73,24 +155,71 @@ void main()
     memoryBarrierShared();
 
     uvec2 range = DRAW_RANGES[gl_DrawID];
-    uint rangeOffset = range[0] + gl_GlobalInvocationID.x;
-    MeshletData meshletData = MESHLET_DATA.data[rangeOffset];
+    uint globalMeshletIndex = range[0] + gl_GlobalInvocationID.x;
 
-    // Frustrum intersection test.
-    bool pass = IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[0], meshletData.origin, meshletData.extents)     // Near
-		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[1], meshletData.origin, meshletData.extents)  // Left
-		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[2], meshletData.origin, meshletData.extents)  // Right
-		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[3], meshletData.origin, meshletData.extents)  // Top
-		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[4], meshletData.origin, meshletData.extents)  // Bottom
-                && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[5], meshletData.origin, meshletData.extents); // Far
+    // ------------------------------------------ BACKUP METHOD ------------------------------------------
+    // Search for the meshlet range this index resides within. The index of that range will be the object instance index.
+    // uint searchIndex = gl_LocalInvocationID.y * TASK_SEARCHER_SEARCH_COUNT;
+    // for(uint i = 0; i < TASK_SEARCHER_SEARCH_COUNT; ++i)
+    // {
+    //     uvec2 range = MESHLET_RANGES.ranges[searchIndex + i];
+    //     if(globalMeshletIndex >= range[0] && globalMeshletIndex < range[1])
+    //     {
+    //         instanceId = searchIndex + i;
+    //         instanceOffset = range[0];
+    //     }
+    // }
+    // ------------------------------------------ BACKUP METHOD ------------------------------------------
+
+    uint instanceId = ~uint(0);
+    uint instanceOffset = ~uint(0);
+    instanceId = FindInstanceId(globalMeshletIndex);
+    instanceOffset = GetRangeStart(instanceId);
+
+    VS_INSTANCE instanceData = PB_STORAGE_BUFFER(instanceBuffer, instanceBufferIndex).instances[instanceId];
+    MeshLibraryEntry mesh = MESH_LIBRARY_ENTRIES[instanceData.meshID];
+
+    uint lod = GetLOD(instanceId);
+    uvec2 lodMeshletRange = uvec2
+    (
+        (lod > 0) ? mesh.lodMeshletEndOffsets[lod - 1] : 0,
+        mesh.lodMeshletEndOffsets[lod]
+    );
+    uint lodMeshletCount = lodMeshletRange[1] - lodMeshletRange[0];
+
+    uint meshletIdx = globalMeshletIndex - instanceOffset;
+    MeshletData meshletData = PB_STORAGE_BUFFER_NU(meshletBuffer, mesh.meshletBufferIndex).meshlets[meshletIdx + lodMeshletRange[0]];
+
+    vec3 meshletNormal;
+    float meshletAngularSpan;
+    {
+        // Transform meshlet bounding sphere to match instance transform.
+        TransformSphere(instanceData.model, meshletData.center, meshletData.radius);
+
+        // Transform meshlet normal to match instance transform.
+        vec4 normalUnpacked = vec4(unpackHalf2x16(meshletData.normalDataXYPacked), unpackHalf2x16(meshletData.normalDataZThetaPacked));
+        meshletAngularSpan = normalUnpacked.w;
+        normalUnpacked.w = 0.0;
+
+        meshletNormal = normalize(instanceData.model * normalUnpacked).xyz;
+    }
+
+    // LOD mask.
+    bool pass = meshletIdx < lodMeshletCount;
 
     // Mask out meshlets outside of the range.
-    pass = pass && rangeOffset < range[1];
+    pass = pass && globalMeshletIndex < range[1];
 
-    vec4 normalUnpacked = vec4(unpackHalf2x16(meshletData.normalDataXYPacked), unpackHalf2x16(meshletData.normalDataZThetaPacked));
-    float angularSpan = normalUnpacked.w;
+    // Frustrum intersection test.
+    pass = pass && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[0], meshletData.center, meshletData.radius)  // Near
+	            && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[1], meshletData.center, meshletData.radius)  // Left
+		        && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[2], meshletData.center, meshletData.radius)  // Right
+	            && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[3], meshletData.center, meshletData.radius)  // Top
+	            && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[4], meshletData.center, meshletData.radius)  // Bottom
+                && IsInFrontOfPlane(CULL_CONSTANTS.mainFrustrumPlanes[5], meshletData.center, meshletData.radius); // Far
 
-    pass = pass && IsFrontFaceVisible(meshletData.origin, meshletData.extents, normalUnpacked.xyz, angularSpan);
+    // Front face visibility test.
+    pass = pass && IsFrontFaceVisible(meshletData.center, meshletNormal, meshletAngularSpan);
 
     if (pass == true)
     {
@@ -100,6 +229,7 @@ void main()
         // Pack meshlet vertex/primitive offsets and counts for use in mesh shader.
         payloadOut.packedVertOffsetCount[outputIndex] = meshletData.vertOffsetCountPacked;
         payloadOut.packedPrimOffsetCount[outputIndex] = meshletData.primOffsetCountPacked;
+        payloadOut.instanceIds[outputIndex] = instanceId;
     }
 
     // Amount of mesh shader workgroups to dispatch.

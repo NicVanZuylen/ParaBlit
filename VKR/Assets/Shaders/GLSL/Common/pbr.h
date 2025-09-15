@@ -32,6 +32,12 @@ vec3 FresnelSchlick(float cosTheta, in vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+// Fresnel-Schlick for surface roughness
+vec3 FresnelShlickRoughness(float cosTheta, vec3 spec, float roughness)
+{
+    return spec + (max(vec3(1.0 - roughness), spec) - spec) * pow(1.0 - cosTheta, 5.0);
+}
+
 // Smith's Schlick GGX Geometry Function
 // Where:
 // NDotV = dot product of surface normal and view vector

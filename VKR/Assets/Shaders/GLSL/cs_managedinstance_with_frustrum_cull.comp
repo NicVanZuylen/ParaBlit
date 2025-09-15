@@ -1,0 +1,210 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+#include "Common/pb_common.h"
+#include "Common/culling_common.h"
+#include "Common/vertex_common.h"
+#include "Common/drawbatch_common.h"
+
+#define PERMUTATION_Stage 2
+
+#define WORKGROUP_SIZE 256
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform Bindings
+{
+    uint viewPlanesBuffer;
+    uint srcInstanceBuffer;
+    uint dstInstanceBuffer;
+    uint bitfieldBuffer;
+    uint cullStateBitfieldBuffer;
+    uint counterBuffer;
+    uint meshLibraryBuffer;
+    uint instanceCullDataBufferIndex;
+} PB_BINDINGS_NAME;
+
+DEFINE_CULL_VIEW_CONSTANTS_UBO(viewPlanes);
+#define VIEW_PLANES PB_UBO(viewPlanes, viewPlanesBuffer)
+
+layout(set = 0, binding = 2) readonly buffer InstanceCullDataBuffer
+{
+    vec4 data[]; // xyz = origin, w = radius.
+} instanceCullDataBuffer[];
+#define CULL_DATA instanceCullDataBuffer[PB_BINDINGS_NAME.instanceCullDataBufferIndex].data
+
+layout(set = 0, binding = 2) readonly buffer SrcInstanceBuffers
+{
+    VS_INSTANCE instances[];
+} srcinstanceBuffer[];
+#define SRC_INSTANCES srcinstanceBuffer[PB_BINDINGS_NAME.srcInstanceBuffer].instances
+
+layout(set = 0, binding = 2) buffer DstInstanceBuffers
+{
+    VS_INSTANCE instances[];
+} dstinstanceBuffer[];
+#define DST_INSTANCES dstinstanceBuffer[PB_BINDINGS_NAME.dstInstanceBuffer].instances
+
+layout(set = 0, binding = 2) buffer BitfieldBuffers
+{
+    uint bits[];
+} bitfieldBuffer[];
+#define BIT_FIELD bitfieldBuffer[PB_BINDINGS_NAME.bitfieldBuffer].bits
+
+layout(set = 0, binding = 2) buffer CounterBuffer
+{
+    uint counters[];    // Count instances who pass the cull per-workgroup.
+} counterBuffer[];
+#define COUNTERS counterBuffer[PB_BINDINGS_NAME.counterBuffer].counters
+
+layout(set = 0, binding = 2) readonly buffer MeshLibraryBuffer
+{
+    MeshLibraryEntry entries[];
+} meshLibraryBuffer[];
+#define MESH_LIBRARY_ENTRIES meshLibraryBuffer[PB_BINDINGS_NAME.meshLibraryBuffer].entries
+
+#define CULL_STATE_BIT_FIELD bitfieldBuffer[PB_BINDINGS_NAME.cullStateBitfieldBuffer].bits
+
+bool IsActiveBit(uint instanceIndex)
+{
+    uint fieldIdx = instanceIndex / 32;
+    uint bitIdx = instanceIndex % 32;
+
+    return (BIT_FIELD[fieldIdx] & (1 << bitIdx)) > 0;
+}
+
+void SetCulledBit(uint instanceIndex, bool val)
+{
+    uint fieldIdx = instanceIndex / 32;
+    uint bitIdx = instanceIndex % 32;
+
+    uint mask = 1 << bitIdx;
+    if(val == true)
+    {
+        atomicAnd(CULL_STATE_BIT_FIELD[fieldIdx], ~mask);
+    }
+    else
+    {
+        atomicOr(CULL_STATE_BIT_FIELD[fieldIdx], mask);
+    }
+}
+
+bool IsCulledBit(uint instanceIndex)
+{
+    uint fieldIdx = instanceIndex / 32;
+    uint bitIdx = instanceIndex % 32;
+
+    return (CULL_STATE_BIT_FIELD[fieldIdx] & (1 << bitIdx)) == 0;
+}
+
+void GetCullData(uint instanceIndex, in mat4 modelMatrix, out vec4 data)
+{
+    data = CULL_DATA[instanceIndex];
+    TransformSphere(modelMatrix, data.xyz, data.w);
+}
+
+bool FrustrumCullCheck(in VS_INSTANCE instance, uint instanceIndex)
+{
+    vec4 cullData;
+    GetCullData(instanceIndex, instance.model, cullData);
+
+    return IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[0], cullData.xyz, cullData.w)      // Near
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[1], cullData.xyz, cullData.w)    // Left
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[2], cullData.xyz, cullData.w)    // Right
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[3], cullData.xyz, cullData.w)    // Top
+		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[4], cullData.xyz, cullData.w)    // Bottom
+            && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[5], cullData.xyz, cullData.w);   // Far
+}
+
+bool IsTooFar(in VS_INSTANCE instance, uint lodData)
+{
+    return GetLODLevel(instance.model[3].xyz, lodData, VIEW_PLANES.mainFrustrumPlanes[0]) >= GetLODCount(lodData);
+}
+
+bool CullCheck(in VS_INSTANCE instance, uint lodData, uint instanceIndex)
+{
+    return IsActiveBit(instanceIndex) && FrustrumCullCheck(instance, instanceIndex) && !IsTooFar(instance, lodData);
+}
+
+// ********************************************************************************************************************************
+#if PERMUTATION_Stage == 0 // Cull Instances
+// ********************************************************************************************************************************
+
+shared uint localCounter;
+
+void main()
+{
+    if(gl_LocalInvocationID.x == 0)
+    {
+        localCounter = 0;
+    }
+
+    // Invalidate old instance data invalidating the LOD.
+    uint instanceIndex = gl_GlobalInvocationID.x;
+    VS_INSTANCE srcInstance = SRC_INSTANCES[instanceIndex];
+    uint lodData = MESH_LIBRARY_ENTRIES[srcInstance.meshID].lodData;
+    DST_INSTANCES[instanceIndex].lodData = 0xFFFFFFFF;
+    barrier();
+
+    if(CullCheck(srcInstance, lodData, instanceIndex))
+    {
+        atomicAdd(localCounter, 1);
+        SetCulledBit(instanceIndex, false);
+    }
+    else
+    {
+        SetCulledBit(instanceIndex, true);
+    }
+    barrier();
+
+    if(gl_LocalInvocationID.x == 0)
+    {
+        COUNTERS[gl_WorkGroupID.x] = localCounter;
+    }
+}
+
+// ********************************************************************************************************************************
+#elif PERMUTATION_Stage == 1 // Populate Instances
+// ********************************************************************************************************************************
+
+shared uint localOutputOffset;
+shared uint localOutputCounter;
+
+void main()
+{
+    if(gl_LocalInvocationID.x == 0)
+    {
+        localOutputCounter = 0;
+
+        uint outputOffset = 0;
+        uint prefixCount = gl_WorkGroupID.x;
+        for(uint i = 0; i < prefixCount; ++i)
+        {
+            outputOffset += COUNTERS[i];
+        }
+        localOutputOffset = outputOffset;
+    }
+    barrier();
+
+    uint instanceIndex = gl_GlobalInvocationID.x;
+    VS_INSTANCE instance = SRC_INSTANCES[instanceIndex];
+    uint lodData = MESH_LIBRARY_ENTRIES[instance.meshID].lodData;
+
+    // Determine LOD level
+    vec4 nearPlane = VIEW_PLANES.mainFrustrumPlanes[0];
+    vec3 worldPosition = instance.model[3].xyz;
+
+	uint lod = GetLODLevel(worldPosition, lodData, VIEW_PLANES.mainFrustrumPlanes[0]);
+    lod = clamp(lod, 0, GetLODCount(lodData));
+
+    if(IsCulledBit(instanceIndex) == false)
+    {
+        instance.lodData = SetChosenLOD(lodData, lod);
+
+        uint instanceOutputOffset = localOutputOffset + atomicAdd(localOutputCounter, 1);
+        DST_INSTANCES[instanceOutputOffset] = instance;
+    }
+}
+
+// ********************************************************************************************************************************
+#endif
+// ********************************************************************************************************************************

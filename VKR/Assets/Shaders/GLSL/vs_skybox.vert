@@ -1,23 +1,15 @@
 #version 450
 #include "Common/pb_common.h"
+#include "Common/view_constants.h"
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(push_constant) uniform Bindings
 {
-    uint mvpUBOIndex;
+    uint viewConstantsIndex;
 } PB_BINDINGS_NAME;
 
-layout(set = 1, binding = 0) uniform MVPLayout
-{
-    mat4 model;
-    mat4 view;
-    mat4 proj;
-    mat4 invView;
-    mat4 invProj;
-    vec4 cameraPosition;
-} mvp[];
-
-#define MVP PB_UBO(mvp, mvpUBOIndex)
+DEFINE_VIEW_CONSTANTS(viewConstants);
+#define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
 
 layout (location = 0) out vec3 outPosition;
 
@@ -69,10 +61,10 @@ vec3 skyboxVertices[] =
 
 void main() 
 {
-    mat4 view = MVP.view;
+    mat4 view = VIEW_CONST.view;
     view[3] = vec4(0.0, 0.0, 0.0, 1.0);
 
     outPosition = skyboxVertices[gl_VertexIndex];
-    gl_Position = MVP.proj * view * vec4(outPosition, 1.0);
+    gl_Position = VIEW_CONST.proj * view * vec4(outPosition, 1.0);
     gl_Position = gl_Position.xyww;
 }

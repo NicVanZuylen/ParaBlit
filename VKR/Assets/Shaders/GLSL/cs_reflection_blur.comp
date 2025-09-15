@@ -1,0 +1,184 @@
+#version 450
+#extension GL_EXT_samplerless_texture_functions : require
+
+#include "Common/pb_common.h"
+
+// 0 == Vertical, 1 == Horizontal
+#define PERMUTATION_Horizontal 2
+
+#define PERMUTATION_KernelSize 6
+
+#if PERMUTATION_Horizontal == 0
+// Vertical
+
+#define WORKGROUP_SIZE_X 1
+#define WORKGROUP_SIZE_Y 256
+#define KERNEL_AXIS_SIZE WORKGROUP_SIZE_Y
+
+#else                           
+// Horizontal
+
+#define WORKGROUP_SIZE_X 256
+#define WORKGROUP_SIZE_Y 1
+#define KERNEL_AXIS_SIZE WORKGROUP_SIZE_X
+
+#endif
+
+#define WORKGROUP_AREA WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y
+
+// 0 == 4, 1 == 8, 2 == 16, 3 == 32, 4 == 64, 5 == 128, 6 == 256, 7 == 512
+#if PERMUTATION_KernelSize == 0
+#define GAUSSIAN_KERNEL_SIZE 4
+#elif PERMUTATION_KernelSize == 1
+#define GAUSSIAN_KERNEL_SIZE 8
+#elif PERMUTATION_KernelSize == 2
+#define GAUSSIAN_KERNEL_SIZE 16
+#elif PERMUTATION_KernelSize == 3
+#define GAUSSIAN_KERNEL_SIZE 32
+#elif PERMUTATION_KernelSize == 4
+#define GAUSSIAN_KERNEL_SIZE 64
+#elif PERMUTATION_KernelSize == 5
+#define GAUSSIAN_KERNEL_SIZE 128
+#endif
+
+#define GAUSSIAN_KERNEL_SIZE_MINUS_ONE (GAUSSIAN_KERNEL_SIZE - 1)
+#define BLUR_TILE_SIZE (KERNEL_AXIS_SIZE - (2 * GAUSSIAN_KERNEL_SIZE_MINUS_ONE))
+
+layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
+
+layout(push_constant) uniform Bindings
+{
+    uint constantsIndex;
+    uint srcImageIndex;
+    uint srcSamplerIndex;
+    uint dstImageIndex;
+    uint depthIndex;
+    uint roughnessIndex;
+} pb_bindings;
+
+layout(set = 1, binding = 0) uniform Constants
+{
+    float depthDiscontinuityThreshold;
+    float depthScaleFactor;
+    float gaussianNormPart; // Normalization constant for the guassian function (the first half of the function).
+    float pad0;
+    vec4  weights[GAUSSIAN_KERNEL_SIZE];
+} constants[];
+
+PB_DEFINE_TEXTURE_BINDINGS;
+PB_DEFINE_SAMPLER_BINDINGS;
+
+PB_DEFINE_STORAGE_IMAGE_BINDINGS(writeonly restrict, rgba16f);
+
+#define CONST PB_UBO(constants, constantsIndex)
+
+shared vec4 sharedSamples[WORKGROUP_AREA];
+
+void StoreSample(uvec2 location, vec4 storeSample)
+{
+#if PERMUTATION_Horizontal == 1
+    location.xy = location.yx;
+#endif
+
+    sharedSamples[location.y + (location.x * KERNEL_AXIS_SIZE)] = storeSample;
+}
+
+vec4 GetSample(uvec2 location)
+{
+#if PERMUTATION_Horizontal == 1
+    location.xy = location.yx;
+#endif
+
+    return sharedSamples[location.y + (location.x * KERNEL_AXIS_SIZE)];
+}
+
+vec3 GaussianSample(vec3 srcColor, float srcDepth, uvec2 texCoord, float weight, float scale)
+{
+    vec4 sharedSample = GetSample(texCoord);
+
+    float sampleDepth = sharedSample.a;
+    float discontinuity = 1.0 - float(abs(srcDepth - sampleDepth) > CONST.depthDiscontinuityThreshold);
+
+    return mix(srcColor, sharedSample.rgb, scale * discontinuity) * weight;
+}
+
+void main()
+{
+    uvec2 localReadLocation = gl_LocalInvocationID.xy;
+    ivec2 dstSize = imageSize(PB_STORAGE_IMAGE(dstImageIndex));
+    vec2 texelSize = 1.0 / dstSize;
+
+#if PERMUTATION_Horizontal == 0
+
+    int tileStart = int((gl_WorkGroupID.y * BLUR_TILE_SIZE) + localReadLocation.y);
+    int edgeStart = tileStart - GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
+
+    int locationX = int((gl_WorkGroupID.x * WORKGROUP_SIZE_X) + gl_LocalInvocationID.x);
+    ivec2 writeLocation = ivec2(locationX, edgeStart);
+    vec2 screenTexCoord = vec2(writeLocation.x, writeLocation.y - GAUSSIAN_KERNEL_SIZE_MINUS_ONE) / dstSize;
+#else
+
+    int tileStart = int((gl_WorkGroupID.x * BLUR_TILE_SIZE) + localReadLocation.x);
+    int edgeStart = tileStart - GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
+
+    int locationY = int((gl_WorkGroupID.y * WORKGROUP_SIZE_Y) + gl_LocalInvocationID.y);
+    ivec2 writeLocation = ivec2(edgeStart, locationY);
+    vec2 screenTexCoord = vec2(writeLocation.x - GAUSSIAN_KERNEL_SIZE_MINUS_ONE, writeLocation.y) / dstSize;
+#endif
+
+    screenTexCoord += texelSize * 0.5;
+
+    vec3 srcColor = texture(PB_BUILD_SAMPLER(srcImageIndex, srcSamplerIndex), screenTexCoord).rgb;
+    float depth = texture(PB_BUILD_SAMPLER(depthIndex, srcSamplerIndex), screenTexCoord).r;
+    float roughness = texture(PB_BUILD_SAMPLER(roughnessIndex, srcSamplerIndex), screenTexCoord).a;
+
+    StoreSample(localReadLocation, vec4(srcColor, depth));
+
+    // Sync shared samples within work group.
+    memoryBarrierShared();
+    barrier();
+
+#if PERMUTATION_Horizontal == 0
+    localReadLocation.y += GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
+#else
+    localReadLocation.x += GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
+#endif
+
+    vec4 centreSample = GetSample(localReadLocation);
+    srcColor = centreSample.rgb;
+
+    vec3 filteredColor = srcColor.rgb;
+
+    const float MinScale = 0.2;
+    const float ScaleRange = 1.0 - MinScale;
+
+    //float scale = log(pow(roughness, 0.5)) + 1.0;
+    float scale = min(1.0, roughness * 2);
+    float kernelScale = float(GAUSSIAN_KERNEL_SIZE) * (MinScale + (ScaleRange * scale));
+
+#if PERMUTATION_Horizontal == 0
+    if(gl_LocalInvocationID.y >= WORKGROUP_SIZE_Y - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
+#else
+    if(gl_LocalInvocationID.x >= WORKGROUP_SIZE_X - GAUSSIAN_KERNEL_SIZE_MINUS_ONE - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
+#endif
+    {
+        return;
+    }
+
+    for(int i = 1; i < GAUSSIAN_KERNEL_SIZE; ++i)
+    {
+        float sampleScale = clamp(kernelScale - float(i), 0.0, 1.0);
+        float weight = CONST.weights[i].x;
+
+#if PERMUTATION_Horizontal == 0
+        filteredColor += GaussianSample(srcColor, centreSample.a, uvec2(localReadLocation.x, localReadLocation.y + i), weight, sampleScale);
+        filteredColor += GaussianSample(srcColor, centreSample.a, uvec2(localReadLocation.x, localReadLocation.y - i), weight, sampleScale);
+#else
+        filteredColor += GaussianSample(srcColor, centreSample.a, uvec2(localReadLocation.x + i, localReadLocation.y), weight, sampleScale);
+        filteredColor += GaussianSample(srcColor, centreSample.a, uvec2(localReadLocation.x - i, localReadLocation.y), weight, sampleScale);
+#endif
+    }
+    filteredColor *= CONST.gaussianNormPart;
+
+    imageStore(PB_STORAGE_IMAGE(dstImageIndex), writeLocation, vec4(filteredColor, 1.0));
+}

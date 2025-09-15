@@ -66,12 +66,17 @@ void main()
 
     mat4 transformMat = data.meshletTransform;
 
+    // Transform meshlet bounding sphere.
+    vec3 center = srcMeshlet.center;
+    float radius = srcMeshlet.radius;
+    TransformSphere(transformMat, center, radius);
+
     // Unpack meshlet AABB.
-    vec3 origin = srcMeshlet.origin;
-    vec3 extents = srcMeshlet.extents;
+    //vec3 origin = srcMeshlet.origin;
+    //vec3 extents = srcMeshlet.extents;
 
     // Transform AABB to match object transform.
-    TransformBounds(transformMat, origin, extents);
+    //TransformBounds(transformMat, origin, extents);
 
     // Transform meshlet normal to match object transform.
     vec4 normalUnpacked = vec4(unpackHalf2x16(srcMeshlet.normalDataXYPacked), unpackHalf2x16(srcMeshlet.normalDataZThetaPacked));
@@ -84,10 +89,13 @@ void main()
 
     // Populate final meshlet data.
     MeshletData dstMeshlet;
-    dstMeshlet.origin = origin;
-    dstMeshlet.pad0 = 0;
-    dstMeshlet.extents = extents;
-    dstMeshlet.pad1 = 0;
+    //dstMeshlet.origin = origin;
+    //dstMeshlet.pad0 = 0;
+    //dstMeshlet.extents = extents;
+    //dstMeshlet.pad1 = 0;
+    dstMeshlet.center = center;
+    dstMeshlet.radius = radius;
+
     dstMeshlet.normalDataXYPacked = packHalf2x16(transformedNormal.xy);
     dstMeshlet.normalDataZThetaPacked = packHalf2x16(transformedNormal.zw);
 

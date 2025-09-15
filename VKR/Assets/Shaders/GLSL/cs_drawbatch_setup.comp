@@ -1,0 +1,168 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_KHR_shader_subgroup_basic: enable
+#extension GL_KHR_shader_subgroup_arithmetic: enable
+
+#include "Common/pb_common.h"
+#include "Common/drawbatch_common.h"
+#include "Common/vertex_common.h"
+#include "Common/culling_common.h"
+
+#define WORKGROUP_SIZE DRAWBATCH_MAX_INSTANCES
+#define SUBGROUP_SIZE 32
+
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform Bindings
+{
+    uint srcInstanceBuffer;
+    uint dstInstanceBuffer;
+    uint meshLibraryIndex;
+    uint meshletRangesBuffer;
+    uint drawRangesBuffer;
+    uint drawParamsBuffer;
+} PB_BINDINGS_NAME;
+
+layout(set = 0, binding = 2) readonly restrict buffer SrcInstanceBuffers
+{
+    VS_INSTANCE instances[];
+} srcinstanceBuffer[];
+#define SRC_INSTANCES srcinstanceBuffer[PB_BINDINGS_NAME.srcInstanceBuffer].instances
+
+layout(set = 0, binding = 2) buffer DstInstanceBuffers
+{
+    VS_INSTANCE instances[];
+} dstinstanceBuffer[];
+#define DST_INSTANCES dstinstanceBuffer[PB_BINDINGS_NAME.dstInstanceBuffer].instances
+
+layout(set = 0, binding = 2) readonly buffer MeshLibraryBuffer
+{
+    MeshLibraryEntry entries[];
+} meshLibraryBuffer[];
+#define MESH_LIBRARY_ENTRIES meshLibraryBuffer[PB_BINDINGS_NAME.meshLibraryIndex].entries
+
+layout(set = 0, binding = 2) buffer MeshletRanges
+{
+    uvec2 ranges[];
+} meshletRanges[];
+#define MESHLET_RANGES meshletRanges[PB_BINDINGS_NAME.meshletRangesBuffer].ranges
+
+struct DrawParams
+{
+    uint groupSizes[3 * 8];
+    uint drawCount;
+};
+
+layout(set = 0, binding = 2) buffer DrawRangesBuffer
+{
+    uvec4 drawRanges[];
+} drawRangesBuffer[];
+#define DRAW_RANGES drawRangesBuffer[PB_BINDINGS_NAME.drawRangesBuffer].drawRanges
+
+layout(set = 0, binding = 2) buffer DrawParamsBuffer
+{
+    DrawParams params[];
+} drawParamsBuffer[];
+#define DRAW_PARAMS drawParamsBuffer[PB_BINDINGS_NAME.drawParamsBuffer].params
+
+void SetDrawParams(inout DrawParams params, uint batchMeshletCount)
+{
+    uint meshletCount = batchMeshletCount;
+    uint tailWorkgroup = (meshletCount % DRAWBATCH_TASK_GROUP_SIZE > 0) ? 1 : 0;
+    uint workgroupCount = (meshletCount / DRAWBATCH_TASK_GROUP_SIZE) + tailWorkgroup;
+
+    params.groupSizes[0] = workgroupCount;
+    params.groupSizes[1] = 1;
+    params.groupSizes[2] = 1;
+    params.drawCount = uint(batchMeshletCount > 0);
+}
+
+#define SUBGROUP_COUNT (WORKGROUP_SIZE / SUBGROUP_SIZE)
+
+shared uint subgroupCounts[SUBGROUP_COUNT];
+shared uint subgroupPrefixSums[SUBGROUP_COUNT];
+shared uint batchMeshletCount;
+
+void main() 
+{
+    if(gl_LocalInvocationID.x == 0)
+    {
+        batchMeshletCount = 0;
+    }
+
+    if(subgroupElect())
+    {
+        subgroupCounts[gl_SubgroupID] = 0;
+    }
+    barrier();
+
+    uint instanceIndex = gl_GlobalInvocationID.x;
+    VS_INSTANCE instance = SRC_INSTANCES[instanceIndex];
+
+    uint lod = GetChosenLOD(instance.lodData);
+    uint lodMeshletCount = GetMeshletCount(MESH_LIBRARY_ENTRIES[instance.meshID], lod);
+
+    if(lod < 0xFF)
+    {
+        subgroupCounts[gl_SubgroupID] = subgroupAdd(lodMeshletCount);
+        // Calculate meshlet range offset local to subgroup.
+        uint rangeOffset = subgroupExclusiveAdd(lodMeshletCount);
+
+        DST_INSTANCES[instanceIndex] = instance;
+        MESHLET_RANGES[instanceIndex] = uvec2(rangeOffset + lodMeshletCount, lod);
+    }
+    else
+    {
+        MESHLET_RANGES[instanceIndex] = uvec2(~uint(0), 0xFF);
+    }
+
+    if(subgroupElect())
+    {
+        atomicAdd(batchMeshletCount, subgroupCounts[gl_SubgroupID]);
+    }
+    barrier();
+
+    // Calculate subgroup prefix sums within the first subgroup.
+#if SUBGROUP_SIZE >= SUBGROUP_COUNT
+    if(gl_SubgroupID == 0 && gl_SubgroupInvocationID < SUBGROUP_COUNT)
+    {
+        uint subgroupIdx = gl_SubgroupInvocationID;
+        uint subgroupCount = subgroupCounts[subgroupIdx];
+        subgroupPrefixSums[subgroupIdx] = subgroupExclusiveAdd(subgroupCount);
+    }
+#else
+    // Alternative path for when the subgroup size is smaller than the subgroup count. (WARNING: UNTESTED, MAY NOT WORK)
+    const uint subgroupsNeeded = (SUBGROUP_COUNT / SUBGROUP_SIZE) + ((SUBGROUP_COUNT % SUBGROUP_SIZE > 0) ? 1 : 0);
+    if(gl_SubgroupID < subgroupsNeeded && gl_SubgroupInvocationID < SUBGROUP_COUNT)
+    {
+        uint subgroupIdx = gl_SubgroupInvocationID;
+        uint subgroupCount = subgroupCounts[subgroupIdx];
+        subgroupPrefixSums[subgroupIdx] = subgroupExclusiveAdd(subgroupCount);
+    }
+
+    if(gl_LocalInvocationID.x < SUBGROUP_SIZE)
+    {
+        for(uint i = 1; i < subgroupsNeeded; ++i)
+        {
+            uint prefixSubgroupIdx = (i * SUBGROUP_SIZE) - 1;
+            uint subgroupIdx = (i * SUBGROUP_SIZE) + gl_LocalInvocationID.x;
+            subgroupPrefixSums[subgroupIdx] += subgroupPrefixSums[prefixSubgroupIdx];
+        }
+    }
+#endif
+
+    barrier();
+
+    // Add subgroup prefix sums to correctly offset ranges for the current subgroup.
+    if(lod < 0xFF)
+    {
+        MESHLET_RANGES[instanceIndex].x += subgroupPrefixSums[gl_SubgroupID];  
+    }
+
+    if(gl_LocalInvocationID.x == 0)
+    {
+        uint batchIdx = gl_WorkGroupID.x;
+        DRAW_RANGES[batchIdx] = uvec4(0, batchMeshletCount, 0, 0);
+        SetDrawParams(DRAW_PARAMS[batchIdx], batchMeshletCount);
+    }
+}

@@ -13,8 +13,6 @@ layout(push_constant) uniform Bindings
 PB_DEFINE_TEXTURE_CUBE_BINDINGS;
 PB_DEFINE_SAMPLER_BINDINGS;
 
-#define MVP PB_UBO(mvp, mvpUBOIndex);
-
 layout(location = 0) in vec3 inPosition;
 
 layout(location = 0) out vec4 outColor;
