@@ -1,6 +1,10 @@
 #pragma once
+#include "EntityHierarchy_generated.h"
+#include "Engine.Control/IDataClass.h"
+#include "CLib/Reflection.h"
 #include "CLib/FixedBlockAllocator.h"
 #include "Entity/EntityBoundingVolumeHierarchy.h"
+#include "Entity/DynamicEntitySpatialHashTable.h"
 #include "WorldRender/RenderBoundingVolumeHierarchy.h"
 #include "WorldRender/DynamicDrawPool.h"
 #include "WorldRender/StaticObjectRenderer.h"
@@ -15,18 +19,27 @@ namespace Eng
 
 	class AssetStreamer;
 
-	class EntityHierarchy
+	class EntityHierarchy : public Ctrl::DataClass
 	{
+		REFLECTRON_CLASS()
+
 	public:
 
-		EntityHierarchy() = default;
+		REFLECTRON_GENERATED_EntityHierarchy()
+
+		using EntityMap = std::unordered_set<TObjectPtr<Entity>, TObjectPtr<Entity>::Hash>;
+
+		EntityHierarchy() : Ctrl::DataClass(this)
+		{
+		}
 		~EntityHierarchy();
 
 		void Init(Ctrl::IDataNode* entityData, CLib::Allocator* allocator, PB::IRenderer* renderer, AssetStreamer* streamer);
 		void SaveState(Ctrl::IDataFile* file, Ctrl::IDataNode* entityRoot);
 		void Destroy();
 
-		TObjectPtr<Entity> CreateEntity(EEntityUpdateMethod updateMethod = EEntityUpdateMethod::STATIC, bool initializeRendering = false, const char* meshName = nullptr);
+		TObjectPtr<Entity> CreateEntity(EEntityUpdateMethod updateMethod = EEntityUpdateMethod::STATIC, bool initializeRendering = false);
+		void UncommitEntity(Entity* entity);
 		void DestroyEntity(Entity* entity);
 
 		TObjectPtr<Entity> FindEntity(const char* name);
@@ -35,6 +48,8 @@ namespace Eng
 		inline StaticObjectRenderer& GetStaticObjectRenderer() { return m_staticObjectRenderer; }
 		inline RenderBoundingVolumeHierarchy& GetRenderHierarchy() { return m_renderHierarchy; }
 		inline EntityBoundingVolumeHierarchy& GetEntityBoundingVolumeHierarchy() { return m_entityBoundingVolumeHierarchy; }
+		inline DynamicEntitySpatialHashTable& GetEntitySpatialHashTable() { return m_entitySpatialHashTable; }
+		inline const EntityMap& GetAllEntities() const { return m_entityMap; }
 
 		inline PB::IRenderer* GetRenderer() { return m_renderer; }
 		inline AssetStreamer* GetAssetStreamer() { return m_streamer; }
@@ -48,7 +63,13 @@ namespace Eng
 
 		void BakeTrees();
 
-		void DynamicUpdate();
+		void SimUpdate();
+
+		void RenderUpdate(const float& interpT);
+
+		void SetSimulationEnable(bool enableSimulation) { m_simulationEnabled = enableSimulation; }
+
+		const TObjectPtr<Material>& GetDefaultMaterial() const { return m_defaultMaterial; }
 
 	private:
 
@@ -62,11 +83,19 @@ namespace Eng
 		StaticObjectRenderer m_staticObjectRenderer;
 		RenderBoundingVolumeHierarchy m_renderHierarchy;
 		EntityBoundingVolumeHierarchy m_entityBoundingVolumeHierarchy;
+		bool m_simulationEnabled = false;
 
-		std::unordered_set<TObjectPtr<Entity>, TObjectPtr<Entity>::Hash> m_entities;
-		std::unordered_set<TObjectPtr<Entity>, TObjectPtr<Entity>::Hash> m_dynamicEntities;
+		DynamicEntitySpatialHashTable m_entitySpatialHashTable;
+		std::vector<TObjectPtr<Entity>> m_dynamicEntities;
+
+
+		EntityMap m_entityMap; // All live entity instances.
 
 		// Default resources
 		TObjectPtr<Material> m_defaultMaterial;
+
+		REFLECTRON_FIELD()
+		TObjectPtrArray<Entity> m_entities; // Used only for fetching entities.
 	};
+	CLIB_REFLECTABLE_CLASS(EntityHierarchy)
 }

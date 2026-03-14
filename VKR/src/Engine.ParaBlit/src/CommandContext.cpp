@@ -137,7 +137,7 @@ namespace PB
 		inheritInfo.framebuffer = reinterpret_cast<VkFramebuffer>(frameBuffer);
 		inheritInfo.occlusionQueryEnable = VK_FALSE;
 
-		if (renderPass != nullptr && frameBuffer == nullptr && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
+		if (renderPass != nullptr && frameBuffer == nullptr && m_device->GetVulkan13Features()->dynamicRendering == VK_TRUE)
 		{
 			RenderPassCache::DynamicRenderPass* dynamicPass = reinterpret_cast<RenderPassCache::DynamicRenderPass*>(inheritInfo.renderPass);
 			inheritInfo.renderPass = nullptr;
@@ -460,14 +460,16 @@ namespace PB
 		vkCmdPipelineBarrier(m_cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
 	}
 
-	void CommandContext::CmdGraphicsBarrier(EMemoryBarrierType type)
+	void CommandContext::CmdTextureBarrier(PB::ITexture* texture, EMemoryBarrierType barrierType, const SubresourceRange& subresourceRange)
 	{
 		PB_ASSERT(!m_activeRenderpass);
 
+		Texture* internalTex = reinterpret_cast<Texture*>(texture);
+
 		VkPipelineStageFlags srcStage;
 		VkPipelineStageFlags dstStage;
-		VkMemoryBarrier barrier;
-		GetMemoryBarrierOfType(type, barrier, srcStage, dstStage);
+		VkImageMemoryBarrier barrier;
+		GetImageMemoryBarrierOfType(barrierType, barrier, srcStage, dstStage, internalTex, subresourceRange);
 
 		vkCmdPipelineBarrier
 		(
@@ -475,7 +477,34 @@ namespace PB
 			srcStage, 
 			dstStage, 
 			0, 
+			0, 
+			nullptr, 
+			0, 
+			nullptr, 
 			1, 
+			&barrier
+		);
+	}
+
+	void CommandContext::CmdGraphicsToComputeBarrier()
+	{
+		PB_ASSERT(!m_activeRenderpass);
+
+		VkMemoryBarrier barrier
+		{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+			.pNext = nullptr,
+			.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT
+		};
+
+		vkCmdPipelineBarrier
+		(
+			m_cmdBuffer,
+			VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			0,
+			1,
 			&barrier, 0, nullptr, 0, nullptr
 		);
 	}
@@ -498,23 +527,27 @@ namespace PB
 		);
 	}
 
-	void CommandContext::CmdComputeBufferBarrier(BufferMemoryBarrier* barriers, u32 barrierCount)
+	void CommandContext::CmdBufferBarrier(BufferMemoryBarrier* barriers, u32 barrierCount)
 	{
+		PB_ASSERT(barrierCount > 0);
+
 		CLib::Vector<VkBufferMemoryBarrier, 8, 8> vkBarriers;
 		vkBarriers.SetCount(barrierCount);
 
+		VkPipelineStageFlags srcStage = 0;
+		VkPipelineStageFlags dstStage = 0;
 		for (u32 i = 0; i < barrierCount; ++i)
 		{
 			BufferMemoryBarrier& b = barriers[i];
 			const BufferObject* buf = reinterpret_cast<const BufferObject*>(b.m_buffer);
-			GetBufferMemoryBarrierOfType(b.m_barrierType, buf->GetHandle(), b.m_offset, b.m_size, vkBarriers[i]);
+			GetBufferMemoryBarrierOfType(b.m_barrierType, buf->GetHandle(), b.m_offset, b.m_size, vkBarriers[i], srcStage, dstStage);
 		}
 
 		vkCmdPipelineBarrier
 		(
 			m_cmdBuffer,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			srcStage,
+			dstStage,
 			0,
 			0,
 			nullptr, 
@@ -538,7 +571,7 @@ namespace PB
 			barrier.pNext = nullptr;
 			barrier.buffer = buf->GetHandle();
 			barrier.offset = 0;
-			barrier.size = buf->GetSize();
+			barrier.size = VK_WHOLE_SIZE;
 			barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 			barrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
 			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -546,29 +579,6 @@ namespace PB
 		}
 
 		vkCmdPipelineBarrier(m_cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, bufferMemBarriers.Count(), bufferMemBarriers.Data(), 0, nullptr);
-	}
-
-	void CommandContext::CmdComputeToBuildAccelerationStructureBufferBarrier(const PB::IBufferObject** buffers, u32 bufferCount)
-	{
-		CLib::Vector<VkBufferMemoryBarrier, 8> bufferMemBarriers(bufferCount);
-		bufferMemBarriers.Reserve(bufferCount);
-		for (u32 i = 0; i < bufferCount; ++i)
-		{
-			VkBufferMemoryBarrier& barrier = bufferMemBarriers.PushBack();
-			const BufferObject* buf = reinterpret_cast<const BufferObject*>(buffers[i]);
-
-			barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-			barrier.pNext = nullptr;
-			barrier.buffer = buf->GetHandle();
-			barrier.offset = 0;
-			barrier.size = buf->GetSize();
-			barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		}
-
-		vkCmdPipelineBarrier(m_cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 0, nullptr, bufferMemBarriers.Count(), bufferMemBarriers.Data(), 0, nullptr);
 	}
 
 	void CommandContext::CmdBuildAccelerationStructureToTraceRaysBarrier(const IAccelerationStructure** accStructures, u32 accStructureCount)
@@ -959,7 +969,6 @@ namespace PB
 		PB::Texture* dstInternal = reinterpret_cast<PB::Texture*>(dst);
 
 		PB_ASSERT_MSG(srcInternal->GetUsage() & ETextureState::COPY_SRC && dstInternal->GetUsage() & ETextureState::COPY_DST, "Src and Dst image layouts are incorrect.");
-		PB_ASSERT(dstInternal->GetExtent().width >= srcInternal->GetExtent().width && dstInternal->GetExtent().height >= srcInternal->GetExtent().height);
 		PB_ASSERT((srcInternal->HasDepthPlane() && dstInternal->HasDepthPlane()) || (!srcInternal->HasDepthPlane() && !dstInternal->HasDepthPlane()));
 		PB_ASSERT_MSG(srcInternal->GetMipCount() == dstInternal->GetMipCount(), "Src and Dst mip count must be equal.");
 		PB_ASSERT_MSG(srcInternal->GetArrayLayerCount() == dstInternal->GetArrayLayerCount(), "Src and Dst array layer count must be equal.");
@@ -967,8 +976,13 @@ namespace PB
 		VkImageCopy region;
 		region.dstOffset = { 0, 0, 0 };
 		region.srcOffset = { 0, 0, 0 };
-		region.extent = srcInternal->GetExtent(); // TODO: Make sure dst's extent is large enough to accomodate src's extent. If not, it should use the min extent.
 		
+		VkExtent3D srcExtent = srcInternal->GetExtent();
+		VkExtent3D dstExtent = dstInternal->GetExtent();
+		region.extent.width = std::min<uint32_t>(srcExtent.width, dstExtent.width);
+		region.extent.height = std::min<uint32_t>(srcExtent.height, dstExtent.height);
+		region.extent.depth = std::min<uint32_t>(srcExtent.depth, dstExtent.depth);
+
 		auto& srcSubresource = region.srcSubresource;
 		srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		if (srcInternal->HasDepthPlane())

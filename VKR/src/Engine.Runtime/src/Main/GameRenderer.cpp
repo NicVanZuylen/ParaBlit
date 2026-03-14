@@ -1,6 +1,7 @@
 #include "GameRenderer.h"
-#include "EditorMain.h"
 
+#include "Engine.ParaBlit/ParaBlitDefs.h"
+#include "Engine.ParaBlit/ParaBlitImplUtil.h"
 #include "RenderGraphPasses/RayTracingPrePass.h"
 #include "RenderGraphPasses/ShadowMapPass.h"
 #include "RenderGraphPasses/GBufferPass.h"
@@ -20,9 +21,7 @@
 
 #include "Entity/EntityHierarchy.h"
 
-#include "EditorMain.h"
-
-#include <sstream>
+#include "Editor/EditorMain.h"
 
 namespace Eng
 {
@@ -135,7 +134,7 @@ namespace Eng
 
 		PB::IBufferObject* viewBuffer = m_frustrumPlanesBuffer;
 
-		Vector3f sunDir = Vector3f(1.0f, 2.0f, 1.0f).Normalized();
+		Vector3f sunDir = Vector3f(1.0f, 2.0f, 1.0f).Normalized(); // Direction from the world origin to the sun.
 
 		{
 			RenderGraphBuilder rgBuilder(m_renderer, m_allocator);
@@ -185,6 +184,9 @@ namespace Eng
 			}
 			else
 			{
+				// Gbuffer pass
+				addGBufferPass();
+
 				// Shadowmap Pass
 				{
 					for (uint32_t i = 0; i < ShadowCascadeCount; ++i)
@@ -195,19 +197,16 @@ namespace Eng
 							shadowMapPassDesc.m_frustrumSectionNear = m_shadowCascadeSectionRanges[i * 2];
 							shadowMapPassDesc.m_frustrumSectionFar = m_shadowCascadeSectionRanges[(i * 2) + 1];
 							shadowMapPassDesc.m_softShadowPenumbraDistance = 0.5f;
-							shadowMapPassDesc.m_shadowBiasMultiplier = 0.1f * (i + 1);
+							shadowMapPassDesc.m_shadowBiasMultiplier = m_shadowCascadeBiasValues[i];
 							shadowMapPassDesc.m_shadowmapResolution = ShadowmapResolution;
 							shadowMapPassDesc.m_cascadeIndex = i;
 
 							m_shadowmapPass[i] = m_allocator->Alloc<ShadowMapPass>(m_renderer, m_allocator, shadowMapPassDesc);
-							m_shadowmapPass[i]->SetCamera(m_camera, m_hierarchy, &m_hierarchy->GetRenderHierarchy(), sunDir);
+							m_shadowmapPass[i]->SetCamera(m_camera, viewBuffer->GetViewAsUniformBuffer(), m_hierarchy, &m_hierarchy->GetRenderHierarchy(), sunDir);
 						}
 						m_shadowmapPass[i]->AddToRenderGraph(&rgBuilder, ShadowmapResolution);
 					}
 				}
-
-				// Gbuffer pass
-				addGBufferPass();
 
 				// Shadow Accumulation Pass
 				{
@@ -263,17 +262,19 @@ namespace Eng
 				m_deferredLightingPass->AddToRenderGraph(&rgBuilder, m_worldRenderResolution);
 			}
 
+			const bool halfResBloom = true;
+
 			// Bloom Extraction Pass
 			{
 				if (!m_bloomExtractionPass)
-					m_bloomExtractionPass = m_allocator->Alloc<BloomExtractionPass>(m_renderer, m_allocator, true);
+					m_bloomExtractionPass = m_allocator->Alloc<BloomExtractionPass>(m_renderer, m_allocator, halfResBloom);
 				m_bloomExtractionPass->AddToRenderGraph(&rgBuilder, m_worldRenderResolution);
 			}
 
 			// Bloom Blur Pass
 			{
 				if (!m_bloomBlurPass)
-					m_bloomBlurPass = m_allocator->Alloc<BloomBlurPass>(m_renderer, m_allocator, true);
+					m_bloomBlurPass = m_allocator->Alloc<BloomBlurPass>(m_renderer, m_allocator, halfResBloom);
 				m_bloomBlurPass->AddToRenderGraph(&rgBuilder, m_worldRenderResolution);
 			}
 
@@ -306,7 +307,7 @@ namespace Eng
 
 			PB::TextureDesc worldRenderOutputDesc{};
 			worldRenderOutputDesc.m_name = "WorldRender_Output";
-			worldRenderOutputDesc.m_format = m_swapchain->GetImageFormat();
+			worldRenderOutputDesc.m_format = PB::Util::FormatToUnorm(m_swapchain->GetImageFormat());
 			worldRenderOutputDesc.m_width = m_worldRenderResolution.x;
 			worldRenderOutputDesc.m_height = m_worldRenderResolution.y;
 			worldRenderOutputDesc.m_initOptions = PB::ETextureInitOptions::PB_TEXTURE_INIT_NONE;
@@ -383,13 +384,17 @@ namespace Eng
 			for (auto& shadowPass : m_shadowmapPass)
 			{
 				shadowPass->Update();
+
+				if constexpr (SHADOW_MAP_PASS_DEBUG_DRAW_CASCADES)
+				{
+					shadowPass->DebugDrawCascadeVolumes(m_debugLinePass);
+				}
 			}
 		}
 
 		// Update Camera -------------------------------------------------------------------------------------------------
 		{
-			constexpr float fov = 45.0f;
-			float fovRadians = ToRadians(fov);
+			float fovRadians = Math::ToRadians(m_camera->FovY());
 
 			ViewConstantsBuffer* bufferMatrices = (ViewConstantsBuffer*)m_mvpBuffer->BeginPopulate();
 
@@ -410,7 +415,7 @@ namespace Eng
 
 			// Depth Reconstruction Constants
 			bufferMatrices->m_aspectRatio = float(m_worldRenderResolution.x) / m_worldRenderResolution.y;
-			bufferMatrices->m_tanHalfFOV = Tan(fovRadians / 2);
+			bufferMatrices->m_tanHalfFOV = Tan(fovRadians * 0.5f);
 
 			m_mvpBuffer->EndPopulate();
 

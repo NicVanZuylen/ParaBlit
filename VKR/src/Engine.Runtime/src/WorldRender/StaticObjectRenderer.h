@@ -1,5 +1,8 @@
 #pragma once
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "WorldRender/DynamicDrawPool.h"
+
+#include <list>
 
 namespace Eng
 {
@@ -20,7 +23,7 @@ namespace Eng
 
 		void ForceUpdate() { m_updateRequired = true; };
 
-		void UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullConstants);
+		void UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullViewPlanes, PB::UniformBufferView lodViewPlanes = 0, bool waitForPreviousDraw = false);
 		void UpdateTLASInstances
 		(
 			PB::ICommandContext* commandContext, 

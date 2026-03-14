@@ -2,7 +2,6 @@
 #include "Renderer.h"
 #include "ParaBlitDebug.h"
 #include "Device.h"
-#include "Texture.h"
 #include "PBUtil.h"
 
 namespace PB
@@ -37,12 +36,12 @@ namespace PB
 		{
 			vkDestroySwapchainKHR(m_device->GetHandle(), m_handle, nullptr);
 
-			m_swapchainImages.Clear();
 			for (u32 i = 0; i < m_swapchainImages.Count(); ++i)
 			{
 				m_wrappedSwapchainImages[i].Destroy();
 			}
-			delete[] m_wrappedSwapchainImages;
+			m_wrappedSwapchainImages.Clear();
+			m_swapchainImages.Clear();
 
 			m_handle = VK_NULL_HANDLE;
 		}
@@ -95,6 +94,14 @@ namespace PB
 			m_width = surfaceCapabilities.currentExtent.width;
 		if (m_height == 0)
 			m_height = surfaceCapabilities.currentExtent.height;
+
+		m_width = std::max<u32>(m_width, surfaceCapabilities.minImageExtent.width);
+		m_height = std::max<u32>(m_height, surfaceCapabilities.minImageExtent.height);
+		m_width = std::min<u32>(m_width, surfaceCapabilities.maxImageExtent.width);
+		m_height = std::min<u32>(m_height, surfaceCapabilities.maxImageExtent.height);
+
+		m_imageCount = std::max<u32>(m_imageCount, surfaceCapabilities.minImageCount);
+		m_imageCount = std::min<u32>(m_imageCount, std::max<u32>(surfaceCapabilities.maxImageCount, surfaceCapabilities.minImageCount));
 
 		VkSwapchainCreateInfoKHR swapChainInfo = { VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, nullptr };
 		swapChainInfo.surface = m_windowSurface;
@@ -219,7 +226,7 @@ namespace PB
 		m_swapchainImages.SetCount(imageCount);
 		vkGetSwapchainImagesKHR(m_device->GetHandle(), m_handle, &imageCount, m_swapchainImages.Data());
 
-		m_wrappedSwapchainImages = new Texture[imageCount];
+		m_wrappedSwapchainImages.SetCount(imageCount);
 
 		// Wrap swapchain images into ParaBlit texture objects.
 		WrappedTextureDesc wrappedTextureDesc = {};

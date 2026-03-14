@@ -35,7 +35,9 @@ namespace Eng
 		GameInstanceMain(Input* input, PB::IRenderer* renderer, CLib::Allocator* allocator);
 		~GameInstanceMain();
 
-		void Update(GLFWwindow* window, float deltaTime, float elapsedTime, float stallTime, bool updateMetrics);
+		void Update(GLFWwindow* window, bool updateMetrics);
+
+		void Render(GLFWwindow* window, const float interpT);
 
 		void UpdateResolution(uint32_t width, uint32_t height);
 
@@ -77,12 +79,11 @@ namespace Eng
 
 		Ctrl::IDataFile* m_entityDataFile = nullptr;
 		Ctrl::IDataNode* m_entityRoot = nullptr;
-		EntityHierarchy m_hierarchy;
-		Entity* m_selectedEntity = nullptr;
+		//Ctrl::IDataFile* m_textureLibraryDataFile = nullptr;
+		//Ctrl::IDataNode* m_textureLibraryRoot = nullptr;
+		TObjectPtr<EntityHierarchy> m_hierarchy;
 		Entity* m_cameraEntity = nullptr;
 		TObjectPtr<Camera> m_camera;
-
-		CLib::Vector<Entity*> m_dynamicEntitiesTest;
 
 		// -------------------------------------------------------------------------
 	};

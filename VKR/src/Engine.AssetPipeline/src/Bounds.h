@@ -113,52 +113,32 @@ namespace AssetPipeline
 		{
 			struct Vertices
 			{
-				union
-				{
-					struct
-					{
-						Eng::Math::Vector4f botLeft;
-						Eng::Math::Vector4f botRight;
-						Eng::Math::Vector4f botBackLeft;
-						Eng::Math::Vector4f botBackRight;
-						Eng::Math::Vector4f topLeft;
-						Eng::Math::Vector4f topRight;
-						Eng::Math::Vector4f topBackLeft;
-						Eng::Math::Vector4f topBackRight;
-					};
-					Eng::Math::Vector4f vertices[8];
-				};
+				Eng::Math::Vector4f vertices[8];
 			};
 
 			Vertices v
 			{
-				Eng::Math::Vector4f(m_origin, 1.0f),
-				Eng::Math::Vector4f(m_origin + Eng::Math::Vector3f(m_extents.x, 0.0f, 0.0f), 1.0f),
-				Eng::Math::Vector4f(m_origin + Eng::Math::Vector3f(0.0f, 0.0f, m_extents.z), 1.0f),
-				Eng::Math::Vector4f(m_origin + Eng::Math::Vector3f(m_extents.x, 0.0f, m_extents.z), 1.0f)
+				Eng::Math::Vector4f(m_origin),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y, m_origin.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x, m_origin.y, m_origin.z + m_extents.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y, m_origin.z + m_extents.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x, m_origin.y + m_extents.y, m_origin.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y + m_extents.y, m_origin.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x, m_origin.y + m_extents.y, m_origin.z + m_extents.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y + m_extents.y, m_origin.z + m_extents.z, 1.0f)
 			};
 
-			v.topLeft = v.botLeft;
-			v.topLeft.y += m_extents.y;
-			v.topRight = v.botRight;
-			v.topRight.y += m_extents.y;
-			v.topBackLeft = v.botBackLeft;
-			v.topBackLeft.y += m_extents.y;
-			v.topBackRight = v.botBackRight;
-			v.topBackRight.y += m_extents.y;
-
-			Eng::Math::Vector4f newOrigin(INFINITY);
-			Eng::Math::Vector4f newExtents(-INFINITY);
+			Eng::Math::Vector3f newOrigin(INFINITY);
+			Eng::Math::Vector3f newExtents(-INFINITY);
 			for (Eng::Math::Vector4f& vert : v.vertices)
 			{
 				vert = matrix * vert;
-				newOrigin = Eng::Math::Vector4f(Eng::Math::Min(newOrigin.x, vert.x), Eng::Math::Min(newOrigin.y, vert.y), Eng::Math::Min(newOrigin.z, vert.z), 0.0f);
-				newExtents = Eng::Math::Vector4f(Eng::Math::Max(newExtents.x, vert.x), Eng::Math::Max(newExtents.y, vert.y), Eng::Math::Max(newExtents.z, vert.z), 0.0f);
+				newOrigin = Eng::Math::Vector3f(Eng::Math::Min(newOrigin.x, vert.x), Eng::Math::Min(newOrigin.y, vert.y), Eng::Math::Min(newOrigin.z, vert.z));
+				newExtents = Eng::Math::Vector3f(Eng::Math::Max(newExtents.x, vert.x), Eng::Math::Max(newExtents.y, vert.y), Eng::Math::Max(newExtents.z, vert.z));
 			}
 
 			m_origin = newOrigin;
-			m_extents = newExtents;
-			m_extents -= m_origin;
+			m_extents = newExtents - newOrigin;
 		}
 	};
 };

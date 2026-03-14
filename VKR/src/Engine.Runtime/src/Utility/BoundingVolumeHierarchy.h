@@ -24,11 +24,9 @@ namespace Eng
 			float m_toleranceStepZ = 0.1f;
 		};
 
-		class BuildNode;
-
 		struct NodeHandle
 		{
-			BuildNode* m_node = nullptr;
+			void* m_node = nullptr;
 		};
 
 		struct ObjectData
@@ -87,6 +85,8 @@ namespace Eng
 			Y,
 			Z
 		};
+
+		struct BuildNode;
 
 		struct NodeData
 		{

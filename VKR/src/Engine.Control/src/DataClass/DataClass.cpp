@@ -1,11 +1,13 @@
+#include "Engine.Control/GUID.h"
 #include "Engine.Control/IDataClass.h"
 #include "DataFile/DataFile.h"
+#include "CLib/Reflection.h"
 
 #include <cassert>
 
 namespace Ctrl
 {
-	std::unordered_map<Ctrl::GUID, DataClass::DataClassTracking> DataClass::s_globalDataClassMap;
+	std::unordered_map<Ctrl::GUID, DataClassTracking> DataClass::s_globalDataClassMap;
 	std::unordered_map<DataClass**, Ctrl::GUID> DataClass::s_globalGUIDMap;
 	std::mutex DataClass::s_globalDataClassMapMutex;
 
@@ -29,7 +31,15 @@ namespace Ctrl
 	DATA_CLASS_TYPE_MAP(Matrix4f, float, 16);
 	DATA_CLASS_TYPE_MAP(Matrix4d, double, 16);
 
-	void DataClass::DataClassTracking::FreeDataClass()
+	DataClassTracking::~DataClassTracking()
+	{
+		if (m_ptr != nullptr && m_refCount.load() == 0)
+		{
+			printf("[Engine.Control] WARNING: DataClass [%s] (%p) was instantiated but never referenced.\n", m_ptr->GetGUID().AsCString(), m_ptr);
+		}
+	}
+
+	void DataClassTracking::FreeDataClass()
 	{
 		CLib::Reflection::DeleteClass(m_ptr->GetReflection().GetTypeName(), m_ptr);
 		m_ptr = nullptr;
@@ -57,6 +67,10 @@ namespace Ctrl
 				guidMap[m_ptr] = guid;
 			}
 		}
+		else
+		{
+			Invalidate();
+		}
 	}
 
 	void ObjectPtr::AssignDataClass(const DataClass* dataClass)
@@ -70,14 +84,26 @@ namespace Ctrl
 		Assign(dc->m_guid);
 	}
 
+	const GUID& ObjectPtr::GetAssignedGUID() const
+	{
+		auto& guidMap = DataClass::s_globalGUIDMap;
+		auto it = guidMap.find(m_ptr);
+		if(it != guidMap.end())
+		{
+			return it->second;
+		}
+
+		return Ctrl::nullGUID;
+	}
+
 	void DataClass::InstantiateNodeTree(const Ctrl::IDataNode* root)
 	{
-		auto peekAttrib = [&](const std::string& name, const Attribute& attrib)
+		auto peekField = [&](const std::string& name, const Field& field)
 		{
-			if(attrib.m_type == EAttributeType::DATA_NODE)
+			if(field.m_type == EFieldType::DATA_NODE)
 			{
-				uint32_t nodeCount = attrib.m_data.Count() / sizeof(DataNode*);
-				const DataNode** nodes = (const DataNode**)attrib.m_data.Data();
+				uint32_t nodeCount = field.m_data.Count() / sizeof(DataNode*);
+				const DataNode** nodes = (const DataNode**)field.m_data.Data();
 				for (uint32_t i = 0; i < nodeCount; ++i)
 				{
 					const DataNode* node = nodes[i];
@@ -107,7 +133,7 @@ namespace Ctrl
 			}
 		};
 
-		root->PeekAttributes(peekAttrib);
+		root->PeekFields(peekField);
 	}
 
 	void DataClass::SaveNodeTree(Ctrl::IDataNode* root)
@@ -116,20 +142,20 @@ namespace Ctrl
 		TODO:
 
 		1. Modify CLib reflection to get the type name from a reflectable field declaration.
-		2. Use the type name determine which type of data attribute to add.
-		3. Add raw binary blob attribute functionality to DataNode to load/store unrecognized types.
+		2. Use the type name determine which type of data field to add.
+		3. Add raw binary blob field functionality to DataNode to load/store unrecognized types.
 		4. Add alias macro to reveal basic type values for math Vectors etc. "DATACLASS_VIEW_TYPES(Type, member types...)" Eg. DATACLASS_VIEW_TYPES(Vector3f, float, float, float) or DATACLASS_VIEW_TYPES(Vector3f, (3)float) (Array)
-			^ This macro will add the type's name to a static-initialized map which contains information on which DataNode attribute types each member corresponds to.
+			^ This macro will add the type's name to a static-initialized map which contains information on which DataNode field types each member corresponds to.
 			  The macro could also be used for basic types (int, float, bool, etc.) to avoid creating special cases for them. E.g. DATACLASS_VIEW_TYPES(int, int)
 			  In turn, the type specified in the macro will be treated as a known type instead of a binary blob.
 		*/
 
-		auto peekAttrib = [&](const std::string& name, const Attribute& attrib)
+		auto peekField = [&](const std::string& name, const Field& field)
 		{
-			if (attrib.m_type == EAttributeType::DATA_NODE)
+			if (field.m_type == EFieldType::DATA_NODE)
 			{
-				uint32_t nodeCount = attrib.m_data.Count() / sizeof(DataNode*);
-				DataNode** nodes = (DataNode**)attrib.m_data.Data();
+				uint32_t nodeCount = field.m_data.Count() / sizeof(DataNode*);
+				DataNode** nodes = (DataNode**)field.m_data.Data();
 				for (int i = 0; i < nodeCount; ++i)
 				{
 					DataNode* node = nodes[i];
@@ -143,11 +169,11 @@ namespace Ctrl
 							DataClass* nodeClass = s_globalDataClassMap[nodeGuid].m_ptr;
 							if (nodeClass != nullptr)
 							{
-								nodeClass->SaveToDataNode(root, node);
+								nodeClass->SaveToDataNode(node);
 							}
 							else
 							{
-								root->RemoveAttributeOrNode(name.c_str(), i);
+								root->RemoveFieldOrNode(name.c_str(), i);
 								// Correct index and count.
 								nodeCount--;
 								i--;
@@ -162,7 +188,57 @@ namespace Ctrl
 			}
 		};
 
-		root->PeekAttributes(peekAttrib);
+		root->PeekFields(peekField);
+	}
+
+	void DataClass::GetTypeInfoFromField(const ReflectronFieldData& field, EFieldType& outType, size_t& outArrayCount)
+	{
+		outArrayCount = field.m_arrayCount;
+
+		auto typeIt = s_typeMap.find(field.m_typeName);
+		if (typeIt != s_typeMap.end())
+		{
+			outType = typeIt->second.first;
+			outArrayCount *= typeIt->second.second;
+
+			return;
+		}
+		else if (std::strstr(field.m_typeName, "TObjectPtr<") || std::strstr(field.m_typeName, "TObjectPtrArray<"))
+		{
+			outType = EFieldType::GUID;
+
+			return;
+		}
+
+		outType = EFieldType::UNKNOWN_OR_INVALID;
+	}
+
+	std::string DataClass::GetDataClassTypeFromField(const ReflectronFieldData& field)
+	{
+		std::string typeName = field.m_typeName;
+			
+		auto dcTypeStartPos = typeName.find_first_of('<');
+		if(dcTypeStartPos != std::string::npos)
+		{
+			dcTypeStartPos += 1;
+		}
+
+		auto dcTypeEndPos = typeName.find_first_of('>', dcTypeStartPos);
+
+		if (dcTypeStartPos != std::string::npos && dcTypeEndPos != std::string::npos)
+		{
+			std::string dcTypeName = typeName.substr(dcTypeStartPos, dcTypeEndPos - dcTypeStartPos);
+
+			auto lastColumnPos = dcTypeName.find_last_of(':');
+			if (lastColumnPos != std::string::npos)
+			{
+				dcTypeName = dcTypeName.substr(lastColumnPos + 1);
+			}
+
+			return dcTypeName;
+		}
+
+		return nullptr;
 	}
 
 	DataClass::~DataClass()
@@ -189,61 +265,65 @@ namespace Ctrl
 
 	void DataClass::FillFromDataNode(const IDataNode* node)
 	{
-		auto fillFromAttrib = [&](const std::string& name, const Attribute& attrib)
+		auto fillFromField = [&](const std::string& name, const Field& field /* serialized field */)
 		{
-			size_t fieldSize = 0;
-			void* fieldData = m_reflector.GetFieldWithName(name.c_str(), &fieldSize);
+			auto* runtimeField = m_reflector.GetFieldWithName(name.c_str());
+			if (runtimeField == nullptr) // Field doesn't exist. Ignore it.
+				return;
+
+			size_t fieldSize = runtimeField->m_size;
+			void* fieldData = m_reflector.GetFieldValue(*runtimeField);
 
 			if (fieldData != nullptr)
 			{
-				switch (attrib.m_type)
+				switch (field.m_type)
 				{
-					case EAttributeType::STRING:
+					case EFieldType::STRING:
 					{
 						// Field is expected to be an std::string.
 						assert(fieldSize % sizeof(std::string) == 0);
 
 						uint32_t fieldStringCount = fieldSize / sizeof(std::string);
-						CLib::Vector<const char*> attribStrings; 
-						node->GetString(name.c_str(), attribStrings);
+						CLib::Vector<const char*> fieldStrings; 
+						node->GetString(name.c_str(), fieldStrings);
 
-						uint32_t stringCount = std::min<uint32_t>(fieldStringCount, attribStrings.Count());
+						uint32_t stringCount = std::min<uint32_t>(fieldStringCount, fieldStrings.Count());
 						for (uint32_t i = 0; i < stringCount; ++i)
 						{
-							reinterpret_cast<std::string*>(fieldData)[i] = attribStrings[i];
+							reinterpret_cast<std::string*>(fieldData)[i] = fieldStrings[i];
 						}
 						break;
 					}
-					case EAttributeType::DATA_NODE:
+					case EFieldType::DATA_NODE:
 					{
-						uint32_t nodeCount = attrib.m_data.Count() / sizeof(DataNode*);
-						const DataNode** nodes = (const DataNode**)attrib.m_data.Data();
-						CLib::Reflection::ReflectableClass* reflectableClasses = reinterpret_cast<CLib::Reflection::ReflectableClass*>(fieldData);
-						for (uint32_t i = 0; i < nodeCount; ++i)
-						{
-							const DataNode* node = nodes[i];
-							const char* typeName = node->GetTypeName();
+						// uint32_t nodeCount = field.m_data.Count() / sizeof(DataNode*);
+						// const DataNode** nodes = (const DataNode**)field.m_data.Data();
+						// CLib::Reflection::ReflectableClass* reflectableClasses = reinterpret_cast<CLib::Reflection::ReflectableClass*>(fieldData);
+						// for (uint32_t i = 0; i < nodeCount; ++i)
+						// {
+						// 	const DataNode* node = nodes[i];
+						// 	const char* typeName = node->GetTypeName();
 
-							// Field is expected to be a ReflectableClass instance of a derived class of DataClass. 
-							// Instantiate and fill the data class field with this data node attribute.
-							CLib::Reflection::PlacedConstructClass(typeName, &reflectableClasses[i]);
-							DataClass* nodeClass = reinterpret_cast<DataClass*>(&reflectableClasses[i]);
-							nodeClass->FillFromDataNode(node);
+						// 	// Field is expected to be a ReflectableClass instance of a derived class of DataClass. 
+						// 	// Instantiate and fill the data class field with this data node field.
+						// 	CLib::Reflection::PlacedConstructClass(typeName, &reflectableClasses[i]);
+						// 	DataClass* nodeClass = reinterpret_cast<DataClass*>(&reflectableClasses[i]);
+						// 	nodeClass->FillFromDataNode(node);
 
-							// Validate object ptr in global DataClass map to allow referencing by guid.
-							const GUID& nodeGuid = node->GetSelfGUID();
-							if (nodeGuid.IsValid())
-							{
-								nodeClass->AssignNewGUID(nodeGuid);
-							}
-							else
-							{
-								nodeClass->AssignNewGUID(Ctrl::GenerateGUID()); // If the node was not assigned a GUID, give it a new one here.
-							}
-						}
+						// 	// Validate object ptr in global DataClass map to allow referencing by guid.
+						// 	const GUID& nodeGuid = node->GetSelfGUID();
+						// 	if (nodeGuid.IsValid())
+						// 	{
+						// 		nodeClass->AssignNewGUID(nodeGuid);
+						// 	}
+						// 	else
+						// 	{
+						// 		nodeClass->AssignNewGUID(Ctrl::GenerateGUID()); // If the node was not assigned a GUID, give it a new one here.
+						// 	}
+						// }
 						break;
 					}
-					case EAttributeType::GUID:
+					case EFieldType::GUID:
 					{
 						bool isDynamicArray = fieldSize == sizeof(ObjectPtrArray);
 						if (isDynamicArray == false)
@@ -251,8 +331,8 @@ namespace Ctrl
 							assert(fieldSize % sizeof(ObjectPtr) == 0);
 
 							// Field is expected to be a pointer (or C-array of pointers) to the DataClass object instance referenced by this GUID.
-							const uint32_t guidCount = std::min<uint32_t>(fieldSize / sizeof(ObjectPtr), attrib.m_data.Count() / sizeof(GUID));
-							const Ctrl::GUID* guidArr = reinterpret_cast<const GUID*>(attrib.m_data.Data());
+							const uint32_t guidCount = std::min<uint32_t>(fieldSize / sizeof(ObjectPtr), field.m_data.Count() / sizeof(GUID));
+							const Ctrl::GUID* guidArr = reinterpret_cast<const GUID*>(field.m_data.Data());
 							for (uint32_t i = 0; i < guidCount; ++i)
 							{
 								ObjectPtr& ptr = reinterpret_cast<ObjectPtr*>(fieldData)[i];
@@ -263,33 +343,31 @@ namespace Ctrl
 						{
 							ObjectPtrArray& ptrArr = *reinterpret_cast<ObjectPtrArray*>(fieldData);
 
-							const uint32_t guidCount = attrib.m_data.Count() / sizeof(GUID);
-							const Ctrl::GUID* guidArr = reinterpret_cast<const GUID*>(attrib.m_data.Data());
+							const uint32_t guidCount = field.m_data.Count() / sizeof(GUID);
+							const Ctrl::GUID* guidArr = reinterpret_cast<const GUID*>(field.m_data.Data());
 							for (uint32_t i = 0; i < guidCount; ++i)
 							{
-								ObjectPtr newPtr;
-								newPtr.Assign(guidArr[i]);
-								ptrArr.PushBack(newPtr);
+								ptrArr.PushBackInit(guidArr[i]);
 							}
 						}
 						break;
 					}
 					default:
 					{
-						// Field is a known-length scalar value (or array of scalar values). Copy the attribute data to the field.
-						fieldSize = std::min<size_t>(fieldSize, attrib.m_data.Count());
-						std::memcpy(fieldData, attrib.m_data.Data(), fieldSize);
+						// Field is a known-length scalar value (or array of scalar values). Copy the field data to the field.
+						fieldSize = std::min<size_t>(fieldSize, field.m_data.Count());
+						std::memcpy(fieldData, field.m_data.Data(), fieldSize);
 
 						uint32_t fieldCount = 1;
-						switch (attrib.m_type)
+						switch (field.m_type)
 						{
-							case EAttributeType::INT:
+							case EFieldType::INT:
 							{ fieldCount = fieldSize / sizeof(int); break; }
-							case EAttributeType::FLOAT:
+							case EFieldType::FLOAT:
 							{ fieldCount = fieldSize / sizeof(float); break; }
-							case EAttributeType::DOUBLE:
+							case EFieldType::DOUBLE:
 							{ fieldCount = fieldSize / sizeof(double); break; }
-							case EAttributeType::BOOL:
+							case EFieldType::BOOL:
 							{ fieldCount = fieldSize / sizeof(bool); break; }
 							default:
 								assert(false && "SCALAR TYPE NOT IMPLEMENTED!");
@@ -303,39 +381,132 @@ namespace Ctrl
 		};
 
 		AssignNewGUID(node->GetSelfGUID());
-		node->PeekAttributes(fillFromAttrib);
+		node->PeekFields(fillFromField);
 	}
 
-	void DataClass::SaveToDataNode(IDataNode* parentNode, IDataNode* dstNode) const
+	bool DataClass::FieldsMatchDataNode(const IDataNode* node)
+	{
+		if (node->GetSelfGUID() != m_guid)
+			return false;
+
+		bool fieldsMatch = true;
+		auto compareFields = [&](const std::string& name, const Field& field /* serialized field */)
+		{
+			if (fieldsMatch == false)
+				return;
+
+			auto* runtimeField = m_reflector.GetFieldWithName(name.c_str());
+			if (runtimeField == nullptr) // Field doesn't exist. Ignore it.
+				return;
+
+			size_t fieldSize = runtimeField->m_size;
+			void* fieldData = m_reflector.GetFieldValue(*runtimeField);
+
+			if (fieldData != nullptr)
+			{
+				switch (field.m_type)
+				{
+					case EFieldType::STRING:
+					{
+						// Field is expected to be an std::string.
+						assert(fieldSize % sizeof(std::string) == 0);
+
+						uint32_t fieldStringCount = fieldSize / sizeof(std::string);
+						CLib::Vector<const char*> fieldStrings; 
+						node->GetString(name.c_str(), fieldStrings);
+
+						uint32_t stringCount = std::min<uint32_t>(fieldStringCount, fieldStrings.Count());
+
+						for (uint32_t i = 0; i < stringCount; ++i)
+						{
+							fieldsMatch &= (reinterpret_cast<std::string*>(fieldData)[i] == fieldStrings[i]);
+						}
+						break;
+					}
+					case EFieldType::DATA_NODE:
+					{
+						break;
+					}
+					case EFieldType::GUID:
+					{
+						bool isDynamicArray = fieldSize == sizeof(ObjectPtrArray);
+						if (isDynamicArray == false)
+						{
+							assert(fieldSize % sizeof(ObjectPtr) == 0);
+
+							// Field is expected to be a pointer (or C-array of pointers) to the DataClass object instance referenced by this GUID.
+							const uint32_t fieldCount = fieldSize / sizeof(ObjectPtr);
+							const uint32_t guidCount = field.m_data.Count() / sizeof(GUID);
+
+							const uint32_t count = std::min<uint32_t>(fieldCount, guidCount);
+							const Ctrl::GUID* guidArr = reinterpret_cast<const GUID*>(field.m_data.Data());
+							for (uint32_t i = 0; i < count; ++i)
+							{
+								const ObjectPtr& ptr = reinterpret_cast<ObjectPtr*>(fieldData)[i];
+								const GUID& guid = guidArr[i];
+
+								bool bothNull = (ptr.IsValid() == false && guid.IsValid() == false);
+								fieldsMatch &= (bothNull || (ptr.IsValid() && ptr->GetGUID() == guid));
+							}
+						}
+						else
+						{
+							ObjectPtrArray& ptrArr = *reinterpret_cast<ObjectPtrArray*>(fieldData);
+
+							const uint32_t guidCount = field.m_data.Count() / sizeof(GUID);
+							const Ctrl::GUID* guidArr = reinterpret_cast<const GUID*>(field.m_data.Data());
+							for (uint32_t i = 0; i < guidCount; ++i)
+							{
+								const ObjectPtr& ptr = ptrArr[i];
+								const GUID& guid = guidArr[i];
+
+								bool bothNull = (ptr.IsValid() == false && guid.IsValid() == false);
+								fieldsMatch &= (bothNull || (ptr.IsValid() && ptr->GetGUID() == guid));
+							}
+						}
+						break;
+					}
+					default:
+					{
+						if (field.m_data.Count() != fieldSize)
+						{
+							fieldsMatch = false;
+							return;
+						}
+
+						// Simple binary compare for scalar primitives.
+						fieldsMatch &= (memcmp(fieldData, field.m_data.Data(), fieldSize) == 0);
+						break;
+					}
+				}
+			}
+		};
+
+		node->PeekFields(compareFields);
+
+		return fieldsMatch;
+	}
+
+	void DataClass::SaveToDataNode(IDataNode* dstNode) const
 	{
 		dstNode->SetSelfGUID(m_guid);
 
 		auto& reflectionFields = m_reflector.GetReflectionFields();
 		uint32_t i = 0;
-		for (auto& f : reflectionFields)
+		for (auto& field : reflectionFields)
 		{
-			auto& field = f.second;
-			void* fieldData = m_reflector.GetFieldAtOffset(field.m_offset);
+			void* fieldData = m_reflector.GetFieldValue(field);
 
-			EAttributeType type = EAttributeType::UNKNOWN_OR_INVALID;
-			size_t scalarArrayCount = field.m_arrayCount;
-			auto typeIt = s_typeMap.find(field.m_typeName);
-			if(typeIt != s_typeMap.end())
-			{
-				type = typeIt->second.first;
-				scalarArrayCount *= typeIt->second.second;
-			}
-			else if(std::strstr(field.m_typeName, "TObjectPtr<") || std::strstr(field.m_typeName, "TObjectPtrArray<"))
-			{
-				type = EAttributeType::GUID;
-			}
-			assert(type != EAttributeType::UNKNOWN_OR_INVALID);
+			EFieldType type;
+			size_t scalarArrayCount;
+			GetTypeInfoFromField(field, type, scalarArrayCount);
+			assert(type != EFieldType::UNKNOWN_OR_INVALID);
 
 			switch (type)
 			{
-				case EAttributeType::UNKNOWN_OR_INVALID:
+				case EFieldType::UNKNOWN_OR_INVALID:
 					break;
-				case EAttributeType::STRING:
+				case EFieldType::STRING:
 				{
 					// Field is expected to be a single value or array of std::string.
 					assert(field.m_size % sizeof(std::string) == 0);
@@ -349,15 +520,15 @@ namespace Ctrl
 					dstNode->SetString(field.m_name, cStrings.Data(), cStrings.Count());
 					break;
 				}
-				case EAttributeType::DATA_NODE:
+				case EFieldType::DATA_NODE:
 				{
 					assert(false && "NOT IMPLEMENTED!");
 					break;
 				}
-				case EAttributeType::GUID:
+				case EFieldType::GUID:
 				{
 					std::lock_guard<std::mutex> lock(s_globalDataClassMapMutex);
-					CLib::Vector<GUID, 8, 8> guids;
+					CLib::Vector<GUID, 8, 8, true> guids;
 					if(field.m_size == sizeof(ObjectPtrArray))
 					{
 						const ObjectPtrArray& fieldPtrArr = *reinterpret_cast<const ObjectPtrArray*>(fieldData);
@@ -378,16 +549,16 @@ namespace Ctrl
 					dstNode->SetGUID(field.m_name, guids.Data(), guids.Count());
 					break;
 				}
-				case EAttributeType::INT:
+				case EFieldType::INT:
 					dstNode->SetInteger(field.m_name, reinterpret_cast<int*>(fieldData), scalarArrayCount);
 					break;
-				case EAttributeType::FLOAT:
+				case EFieldType::FLOAT:
 					dstNode->SetFloat(field.m_name, reinterpret_cast<float*>(fieldData), scalarArrayCount);
 					break;
-				case EAttributeType::DOUBLE:
+				case EFieldType::DOUBLE:
 					dstNode->SetDouble(field.m_name, reinterpret_cast<double*>(fieldData), scalarArrayCount);
 					break;
-				case EAttributeType::BOOL:
+				case EFieldType::BOOL:
 					dstNode->SetBool(field.m_name, reinterpret_cast<bool*>(fieldData), scalarArrayCount);
 					break;
 				default:

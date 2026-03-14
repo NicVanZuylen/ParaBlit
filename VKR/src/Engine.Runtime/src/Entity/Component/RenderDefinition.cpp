@@ -1,4 +1,9 @@
 #include "Entity/Component/RenderDefinition.h"
+#include "Engine.Control/IDataClass.h"
+#include "Engine.Math/Quaternion.h"
+#include "Engine.Math/Vector3.h"
+#include "Engine.Reflectron/ReflectronAPI.h"
+#include "Entity/Component/DynamicEntityTracker.h"
 #include "Entity/Component/Transform.h"
 #include "Entity/EntityHierarchy.h"
 #include "WorldRender/DynamicDrawPool.h"
@@ -7,9 +12,8 @@ namespace Eng
 {
 	// ****************************************************************************************************************************
 	// ****************************************************************************************************************************
-	RenderDefinition::RenderDefinition(const char* meshName, TObjectPtr<Material> material, EEntityUpdateMethod updateMethod) : EntityComponent(this)
+	RenderDefinition::RenderDefinition(TObjectPtr<Material> material, EEntityUpdateMethod updateMethod) : EntityComponent(this)
 	{
-		m_meshName = meshName;
 		m_material = material;
 		m_updateMethod = updateMethod;
 	}
@@ -17,20 +21,37 @@ namespace Eng
 	// ****************************************************************************************************************************
 	void RenderDefinition::GetMeshData()
 	{
-		m_meshID = AssetEncoder::AssetHandle(m_meshName.c_str()).GetID(&Mesh::s_meshDatabaseLoader);
-		Mesh::GetMeshData(m_meshID, &m_meshData);
+		if (m_meshID == 0)
+		{
+			const char* assetGuid = (m_mesh != nullptr) ? m_mesh->GetAssetGUID().c_str() : nullptr;
+			const char* fallback = "Meshes/Primitives/sphere";
+			const char* assetIdentifier = assetGuid ? assetGuid : fallback; // Can be GUID or name.
+
+			m_meshID = AssetEncoder::AssetHandle(assetIdentifier).GetID(&Mesh::s_meshDatabaseLoader);
+
+			if (m_mesh != nullptr)
+			{
+				m_meshBounds.m_origin = m_mesh->GetBoundOrigin();
+				m_meshBounds.m_extents = m_mesh->GetBoundExtents();
+			}
+			else
+			{
+				AssetPipeline::MeshCacheData data;
+				Mesh::GetMeshData(m_meshID, &data);
+
+				m_meshBounds.m_origin = data.m_boundOrigin;
+				m_meshBounds.m_extents = data.m_boundExtents;
+			}
+		}
 	}
 	// ****************************************************************************************************************************
 	// ****************************************************************************************************************************
 	void RenderDefinition::GetMeshBounds(Bounds& bounds)
 	{
-		if (m_meshID == 0)
-		{
-			GetMeshData();
-		}
+		GetMeshData();
 
-		bounds.m_origin = m_meshData.m_boundOrigin;
-		bounds.m_extents = m_meshData.m_boundExtents;
+		bounds.m_origin = m_meshBounds.m_origin;
+		bounds.m_extents = m_meshBounds.m_extents;
 	}
 	// ****************************************************************************************************************************
 	// ****************************************************************************************************************************
@@ -55,11 +76,14 @@ namespace Eng
 				GetMeshData();
 			}
 
-			DynamicDrawPool::InstanceCullData* cullData = m_drawPool->GetInstanceCullingData(m_drawInstanceID);
+			if (m_material.IsInstantiated() == false)
+			{
+				m_material = m_host->GetHierarchy()->GetDefaultMaterial();
+			}
 
-			Bounds meshBounds(m_meshData.m_boundOrigin, m_meshData.m_boundExtents);
-			cullData->m_origin = meshBounds.Centre();
-			cullData->m_radius = Math::Max(Math::Max(meshBounds.m_extents.x, meshBounds.m_extents.y), meshBounds.m_extents.z);
+			DynamicDrawPool::InstanceCullData* cullData = m_drawPool->GetInstanceCullingData(m_drawInstanceID);
+			cullData->m_origin = m_meshBounds.Center();
+			cullData->m_radius = Math::Max(Math::Max(m_meshBounds.m_extents.x, m_meshBounds.m_extents.y), m_meshBounds.m_extents.z);
 
 			m_streamingBatch->AddResource(StreamableHandle(m_meshID, EStreamableResourceType::MESH, StreamableHandle::EBindingType::STORAGE)); // Mesh library instance index.
 
@@ -98,7 +122,7 @@ namespace Eng
 	}
 	// ****************************************************************************************************************************
 	// ****************************************************************************************************************************
-	void RenderDefinition::UpdateRenderEntity()
+	void RenderDefinition::UpdateRenderEntity(const float& interpT)
 	{
 		assert(m_updateMethod == EEntityUpdateMethod::DYNAMIC);
 		if (m_committed == true)
@@ -108,8 +132,22 @@ namespace Eng
 			// Update last frame's transform matrix.
 			std::memcpy(dynamicInstanceData->m_prevFrameModelMatrix, dynamicInstanceData->m_modelMatrix, sizeof(DrawBatch::DrawBatchInstanceData::m_prevFrameModelMatrix));
 
+			// Calculate interpolation transform matrix.
 			Matrix4& transformMatrix = *reinterpret_cast<Matrix4*>(dynamicInstanceData->m_modelMatrix);
-			m_host->GetComponent<Transform>()->GetMatrix(transformMatrix);
+			{
+				Vector3f deltaPos = m_framePosition - m_priorFramePosition;
+				Quaternion deltaRotation = m_frameQuaternion * Math::Inverse(m_priorFrameQuaternion);
+				Vector3f deltaScale = m_frameScale - m_priorFrameScale;
+
+				Vector3f interpPos = Math::Lerp(m_framePosition, m_framePosition + deltaPos, interpT);
+				Quaternion interpRotation = Math::Slerp(m_frameQuaternion, deltaRotation * m_frameQuaternion, interpT);
+				Vector3f interpScale = Math::Lerp(m_frameScale, m_frameScale + deltaScale, interpT);
+
+				transformMatrix.ToIdentity();
+				transformMatrix.Translate(interpPos);
+				transformMatrix *= interpRotation.ToMatrix4();
+				transformMatrix.Scale(interpScale);
+			}
 
 			if (m_streamingComplete == false && m_streamingBatch->GetStatus() == StreamingBatch::EStreamingStatus::IDLE)
 			{
@@ -165,6 +203,30 @@ namespace Eng
 		if (m_updateMethod == EEntityUpdateMethod::DYNAMIC)
 		{
 			m_host->GetHierarchy()->GetDynamicDrawPool().SetInstanceEnable(m_drawInstanceID, enable);
+		}
+	}
+	// ****************************************************************************************************************************
+	// ****************************************************************************************************************************
+	void RenderDefinition::OnReferenceChanged(const ObjectPtr& ref)
+	{
+		if (ref == m_material)
+		{
+			printf("Entity: %s [%p] will be hot-reloaded as its material properties have been modified.\n", m_host->GetName(), m_host);
+			m_host->SoftReload();
+		}
+	}
+	// ****************************************************************************************************************************
+	// ****************************************************************************************************************************
+	void RenderDefinition::OnFieldChanged(const ReflectronFieldData& field)
+	{
+		if (strcmp(field.m_name, "m_mesh") == 0)
+		{
+			m_meshID = 0;
+			m_host->SoftReload();
+		}
+		else if (strcmp(field.m_name, "m_material") == 0)
+		{
+			m_host->SoftReload();
 		}
 	}
 }

@@ -1,10 +1,11 @@
 #pragma once
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "RenderGraph/RenderGraphNode.h"
-#include "Resource/Mesh.h"
 #include "Resource/Texture.h"
 #include "Resource/Shader.h"
-#include "WorldRender/ObjectDispatcher.h"
 #include "Entity/Component/Camera.h"
+
+#define SHADOW_MAP_PASS_DEBUG_DRAW_CASCADES 0
 
 namespace Eng
 {
@@ -43,9 +44,11 @@ namespace Eng
 
 		void SetOutputTexture(PB::ITexture* tex);
 
-		void SetCamera(const Camera* camera, EntityHierarchy* hierarchyToDraw, const RenderBoundingVolumeHierarchy* rbvh, Vector3f shadowDirection);
+		void SetCamera(const Camera* camera, PB::UniformBufferView cameraViewPlanesView, EntityHierarchy* hierarchyToDraw, const RenderBoundingVolumeHierarchy* rbvh, Vector3f shadowDirection);
 
 		void Update();
+
+		void DebugDrawCascadeVolumes(class DebugLinePass* linePass);
 
 		PB::GraphicsPipelineDesc GetBasePipelineDesc(uint32_t shadowMapResolution) const;
 
@@ -78,7 +81,8 @@ namespace Eng
 		PB::IBufferObject* m_shadowViewBuffer = nullptr;
 		PB::IBufferObject* m_shadowPlanesBuffer = nullptr;
 		PB::UniformBufferView m_shadowConstantsView = 0;
-		PB::UniformBufferView m_viewPlanesView = nullptr;
+		PB::UniformBufferView m_viewPlanesView = 0;
+		PB::UniformBufferView m_mainCamViewPlanesView = 0;
 		bool m_shadowConstantsRequireUpdate = false;
 
 		PB::ITexture* m_outputTexture = nullptr;
@@ -94,5 +98,14 @@ namespace Eng
 		float m_shadowBiasMultiplier;
 		uint32_t m_shadowmapResolution;
 		uint32_t m_cascadeIndex;
+
+		// Debug
+#if SHADOW_MAP_PASS_DEBUG_DRAW_CASCADES
+		bool m_debugFrustrumIsSet = false;
+		Camera::CameraFrustrum m_debugCamFrustrum;
+		Camera::CameraFrustrum m_debugCascadeFrustrum;
+		Vector3f m_debugEye;
+		Vector3f m_debugCascadeCenter;
+#endif
 	};
 };

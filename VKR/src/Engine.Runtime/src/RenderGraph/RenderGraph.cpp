@@ -1,7 +1,6 @@
 #include "RenderGraph.h"
 #include "RenderGraphNode.h"
 
-#include <algorithm>
 #include <cassert>
 
 #define RG_ASSERT(expr) assert(expr)
@@ -47,6 +46,7 @@ namespace Eng
 		m_mipCount = desc.m_mipCount;
 		m_arraySize = desc.m_arraySize;
 		m_flags = desc.m_flags;
+		m_noAlias = false;
 	}
 
 	RenderGraphBuilder::TransientTextureMeta::TransientTextureMeta(const TransientTextureDesc& desc)
@@ -59,6 +59,7 @@ namespace Eng
 		m_format = desc.m_format;
 		m_mipCount = desc.m_mipCount;
 		m_arraySize = desc.m_arraySize;
+		m_noAlias = desc.m_noAlias;
 	}
 
 	void RenderGraphBuilder::AddNode(const NodeDesc& desc)
@@ -189,7 +190,9 @@ namespace Eng
 
 					if (usageMeta.m_texture == nullptr)
 					{
-						usageMeta.m_texture = FindTexture(usageMeta.m_meta, graph);
+						auto t = FindTexture(usageMeta.m_meta, graph);
+						usageMeta.m_texture = t.first;
+						usageMeta.m_baseTexture = t.second;
 					}
 
 					// Add texture to free list to allow future textures to alias this one when it is no longer needed.
@@ -282,11 +285,13 @@ namespace Eng
 
 				if (usageMeta.m_texture == nullptr)
 				{
-					usageMeta.m_texture = FindTexture(usageMeta.m_meta, graph);
+					auto t = FindTexture(usageMeta.m_meta, graph);
+					usageMeta.m_texture = t.first;
+					usageMeta.m_baseTexture = t.second;
 				}
 
 				// Add texture to free list to allow future textures to alias this one when it is no longer needed.
-				if (passIdx == usageMeta.m_mostRecentPassIndex)
+				if (passIdx == usageMeta.m_mostRecentPassIndex && usageMeta.m_meta.m_noAlias == false)
 				{
 					passTransientFreeList.PushBack(&usageMeta);
 				}
@@ -371,6 +376,8 @@ namespace Eng
 
 			attach.m_meta.m_usage |= meta.m_usage;
 			attach.m_meta.m_flags |= meta.m_flags;
+
+			attach.m_meta.m_noAlias |= meta.m_noAlias;
 		}
 		else
 		{
@@ -482,7 +489,7 @@ namespace Eng
 		return size_t(meta.m_width * meta.m_height * GetFormatBytesPerPixel(meta.m_format));
 	}
 
-	PB::ITexture* RenderGraphBuilder::FindTexture(const TransientTextureMeta& meta, RenderGraph* graph)
+	std::pair<PB::ITexture*, PB::ITexture*> RenderGraphBuilder::FindTexture(const TransientTextureMeta& meta, RenderGraph* graph)
 	{
 		size_t desiredSize = GetSizeFromAttachMeta(meta);
 
@@ -496,17 +503,21 @@ namespace Eng
 
 			// Find the smallest free texture large enough for the desired size.
 			auto freeIt = m_freeList.lower_bound(desiredSize);
-			if (freeIt != m_freeList.end() && newAlias->CanAlias(freeIt->second.m_texture))
+			if (freeIt != m_freeList.end())
 			{
-				printf("Alias texture [%s] created from memory of [%s].\n", meta.m_name, freeIt->second.m_name.CString());
+				PB::ITexture* baseTex = freeIt->second.m_baseTexture ? freeIt->second.m_baseTexture : freeIt->second.m_texture;
+				if(newAlias->CanAlias(baseTex))
+				{
+					printf("Alias texture [%s] created from memory of [%s].\n", meta.m_name, freeIt->second.m_name.CString());
 
-				newAlias->AliasTexture(freeIt->second.m_texture);
-				graph->m_aliasTextures.PushBack(newAlias);
+					newAlias->AliasTexture(baseTex);
+					graph->m_aliasTextures.PushBack(newAlias);
 
-				// Remove free list.
-				m_freeList.erase(freeIt);
+					// Remove free list.
+					m_freeList.erase(freeIt);
 
-				return newAlias;
+					return { newAlias, baseTex };
+				}
 			}
 
 			m_renderer->FreeTexture(newAlias);
@@ -515,7 +526,7 @@ namespace Eng
 		// No suitable textures available. Create a new one and return it's metadata. (which should be identical to that provided.)
 		auto* newTex = CreateTexture(meta);
 		graph->m_baseTextures.PushBack(newTex);
-		return newTex;
+		return { newTex, nullptr };
 	}
 
 	PB::ITexture* RenderGraphBuilder::CreateTexture(const TransientTextureMeta& meta)

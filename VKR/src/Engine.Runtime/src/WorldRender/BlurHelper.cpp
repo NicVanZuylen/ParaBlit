@@ -54,6 +54,7 @@ namespace Eng
 		blurSamplerDesc.m_filter = PB::ESamplerFilter::BILINEAR;
 		blurSamplerDesc.m_mipFilter = PB::ESamplerFilter::BILINEAR;
 		blurSamplerDesc.m_repeatMode = PB::ESamplerRepeatMode::CLAMP_BORDER;
+		blurSamplerDesc.m_borderColor = PB::ESamplerBorderColor::BLACK;
 		m_blurSampler = m_renderer->GetSampler(blurSamplerDesc);
 	}
 
@@ -104,16 +105,14 @@ namespace Eng
 		PB::BindingLayout bindings;
 		bindings.m_uniformBufferCount = 1;
 		bindings.m_uniformBuffers = &blurConstantsView;
-		bindings.m_resourceCount = _countof(resourceViews);
+		bindings.m_resourceCount = PB_ARRAY_LENGTH(resourceViews);
 		bindings.m_resourceViews = resourceViews;
-
-		uint32_t kernelSizeMinusOne = m_kernelSize - 1;
 
 		// The blur shader uses some of it's work group invocations to store excess off-edge samples of count: (GaussianKernelSize - 1) * 2.
 		// This reduces the amount of pixels each work group writes to by that amount, so we divide our screen resolution by that new amount.
-		uint32_t tileDim = WorkGroupY - (2 * kernelSizeMinusOne);
-		uint32_t workGroupCountV = (dstResolution.y / tileDim) + (dstResolution.y % tileDim > 0 ? 1 : 0);
-		uint32_t workGroupCountH = (dstResolution.x / tileDim) + (dstResolution.x % tileDim > 0 ? 1 : 0);
+		uint32_t tileDim = WorkGroupY - (2 * m_kernelSize);
+		uint32_t workGroupCountV = Math::RoundUp(dstResolution.y, tileDim) / tileDim;
+		uint32_t workGroupCountH = Math::RoundUp(dstResolution.x, tileDim) / tileDim;
 
 		PB::ComputePipelineDesc pipelineDesc{};
 		pipelineDesc.m_computeModule = m_verticalPassModule;

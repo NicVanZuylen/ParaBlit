@@ -1,11 +1,16 @@
 #include "MeshEncoder.h"
 #include "../Bounds.h"
+#include "Engine.Control/GUID.h"
+#include "Engine.Control/IDataClass.h"
+#include "MeshAsset.h"
+#include "MeshShared.h"
 #include "meshoptimizer.h"
+#include "Engine.Math/Vectors.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../TinyObjLoader/tiny_obj_loader.h"
 
-#include <chrono>
+#include <algorithm>
 #include <cassert>
 
 // For some reason the DirectXMesh header includes min & max macros, which conflict with glm::min/max.
@@ -16,6 +21,8 @@ using namespace Eng::Math;
 
 namespace AssetPipeline
 {
+	using namespace Ctrl;
+
 	MeshEncoder::MeshEncoder(const char* name, const char* dbName, const char* assetDirectory)
 		: EncoderBase(name, dbName, assetDirectory)
 	{
@@ -27,6 +34,50 @@ namespace AssetPipeline
 
 		for (auto& asset : assetStatus)
 		{
+			std::string dataName = asset.m_dbPath;
+			std::replace(dataName.begin(), dataName.end(), '/', '_');
+
+			TObjectPtr<MeshAsset> assetData;
+			bool assetMetaDataModified = false;
+
+			IDataFile* assetDataFile = nullptr;
+			IDataNode* meshDataNode = nullptr;
+			{
+				assetDataFile = Ctrl::IDataFile::Create();
+				Ctrl::IDataFile::EFileStatus fileStatus = assetDataFile->Open(asset.m_propertyFilePath.c_str(), Ctrl::IDataFile::EOpenMode::OPEN_READ_WRITE, true);
+
+				if (fileStatus == Ctrl::IDataFile::EFileStatus::OPENED_SUCCESSFULLY)
+				{
+					meshDataNode = assetDataFile->GetRoot()->GetDataNode(dataName.c_str());
+				}
+				
+				IDataNode* assetRoot = assetDataFile->GetRoot();
+				if(meshDataNode == nullptr)
+				{
+					assetData = CLib::Reflection::InstantiateClass<MeshAsset>("MeshAsset");
+					assetData->SetAssetName(dataName);
+					assetData->SetAssetGUID(Ctrl::GenerateGUID());
+
+					assetData->SaveToDataNode(assetRoot->AddDataNode(dataName.c_str(), "MeshAsset"));
+
+					assetDataFile->WriteData();
+				}
+				else
+				{
+					Ctrl::DataClass::InstantiateNodeTree(assetRoot);
+
+					assetData.Assign(meshDataNode->GetSelfGUID());
+
+					if(assetData->GetAssetName().empty() || assetData->GetAssetGUID().empty())
+					{
+						assetData->SetAssetName(dataName);
+						assetData->SetAssetGUID(Ctrl::GenerateGUID());
+						
+						assetMetaDataModified = true;
+					}
+				}
+			}
+
 			Ctrl::IDataFile* propertyDataFile = Ctrl::IDataFile::Create();
 			Ctrl::IDataFile::EFileStatus fileStatus = propertyDataFile->Open(asset.m_propertyFilePath.c_str(), Ctrl::IDataFile::EOpenMode::OPEN_READ_WRITE, true);
 			Ctrl::IDataNode* meshNode = propertyDataFile->GetRoot()->GetOrAddDataNode("Mesh");
@@ -47,12 +98,25 @@ namespace AssetPipeline
 
 			if (asset.m_outdated)
 			{
-				BuildMesh(asset, meshNode);
+				BuildMesh(asset, assetData);
 				FlagAsModified();
 			}
 			else
 			{
 				WriteUnmodifiedAsset(asset);
+			}
+
+			if (assetDataFile != nullptr)
+			{
+				if (assetMetaDataModified == true)
+				{
+					// TODO: This post-build file write will trigger a redundant build for the asset on the next run. Can we prevent that?
+					assetData->SaveToDataNode(meshDataNode);
+					assetDataFile->WriteData();
+				}
+
+				assetDataFile->Close();
+				Ctrl::IDataFile::Destroy(assetDataFile);
 			}
 
 			propertyDataFile->Close();
@@ -190,7 +254,7 @@ namespace AssetPipeline
 
 			IndexBuffer chunkIndices(static_cast<uint32_t>(shape.mesh.indices.size()));
 			chunkIndices.SetCount(chunkIndices.Capacity());
-			memcpy_s(chunkIndices.Data(), sizeof(MeshIndex) * chunkIndices.Count(), shape.mesh.indices.data(), sizeof(MeshIndex) * shape.mesh.indices.size());
+			memcpy(chunkIndices.Data(), shape.mesh.indices.data(), sizeof(MeshIndex) * shape.mesh.indices.size());
 
 			// Append chunk indices to whole mesh indices...
 			if (i == 0) // The indices can be copied for the first submesh, since they do not need to be offset by vertex count.
@@ -198,7 +262,7 @@ namespace AssetPipeline
 				indices.Reserve(indices.Count() + static_cast<uint32_t>(shape.mesh.indices.size()));
 
 				int chunkIndicesSize = sizeof(MeshIndex) * static_cast<uint32_t>(shape.mesh.indices.size());
-				memcpy_s(&indices.Data()[indices.Count()], chunkIndicesSize, shape.mesh.indices.data(), chunkIndicesSize);
+				memcpy(&indices.Data()[indices.Count()], shape.mesh.indices.data(), chunkIndicesSize);
 
 				indices.SetCount(indices.Count() + static_cast<uint32_t>(shape.mesh.indices.size()));
 			}
@@ -280,7 +344,7 @@ namespace AssetPipeline
 		outExtents = outExtents - outOrigin;
 	}
 
-	inline void MeshEncoder::BuildMesh(const AssetStatus& asset, const Ctrl::IDataNode* properties)
+	inline void MeshEncoder::BuildMesh(const AssetStatus& asset, TObjectPtr<MeshAsset> assetData)
 	{
 		// Array of all vertices of all mesh chunks, for a single mesh VBO.
 		VertexBuffer wholeMeshVertices;
@@ -289,38 +353,10 @@ namespace AssetPipeline
 
 		glm::vec3 meshBoundOrigin;
 		glm::vec3 meshBoundExtents;
-		LoadOBJ(wholeMeshVertices, wholeMeshIndices, meshBoundOrigin, meshBoundExtents, asset.m_fullPath.c_str(), properties->GetBool("ConvertCmToM"));
+		LoadOBJ(wholeMeshVertices, wholeMeshIndices, meshBoundOrigin, meshBoundExtents, asset.m_fullPath.c_str(), assetData->GetConvertCMToM());
 
 		// LOD Generation
-		//{
-		//	const float targetError = 1e-2f;
-		//	const uint32_t lodCount = std::clamp<uint32_t>(properties->GetInteger("LodCount", DefaultLODCount), 1, MaxLODCount);
-		//	IndexBuffer prevLodIndexBuffer = wholeMeshIndices;
-		//	for (uint32_t lod = 1; lod < lodCount; ++lod)
-		//	{
-		//		printf_s("%s: Generating mesh: [%s] LOD: [%u]...\n", m_name.c_str(), asset.m_dbPath.c_str(), lod);
-
-		//		IndexBuffer lodIndexBuffer;
-
-		//		lodIndexBuffer.Reserve(prevLodIndexBuffer.Count());
-		//		size_t simplifiedIndexCount = meshopt_simplify<MeshIndex>
-		//		(
-		//			lodIndexBuffer.Data(),
-		//			prevLodIndexBuffer.Data(),
-		//			prevLodIndexBuffer.Count(),
-		//			reinterpret_cast<const float*>(wholeMeshVertices.Data()),
-		//			wholeMeshVertices.Count(),
-		//			sizeof(Vertex),
-		//			prevLodIndexBuffer.Count() / 32,
-		//			targetError
-		//		);
-		//		lodIndexBuffer.SetCount(simplifiedIndexCount);
-
-		//		prevLodIndexBuffer = lodIndexBuffer;
-		//	}
-		//}
-
-		const uint32_t lodCount = std::clamp<uint32_t>(properties->GetInteger("LodCount", DefaultLODCount), 1, MaxLODCount);
+		const uint32_t lodCount = std::clamp<uint32_t>(assetData->GetLODCount(), 1, MaxLODCount);
 		const float targetError = 1e-2f;
 
 		IndexBuffer blasIndices;
@@ -328,7 +364,7 @@ namespace AssetPipeline
 		CLib::Vector<MeshletTriangle, 0, 1024> wholeMeshPrimitiveIndices;
 		CLib::Vector<uint32_t> lodMeshletEndOffsets;
 		CLib::Vector<uint32_t> lodBlasIndexEndOffsets;
-		if (properties->GetBool("GenerateMeshlets"))
+		if (assetData->GetGenerateMeshlets())
 		{
 			constexpr uint32_t VerticesPerMeshlet = 32;
 			constexpr uint32_t PrimitivesPerMeshlet = 32;
@@ -362,7 +398,7 @@ namespace AssetPipeline
 					lodIndices = prevLodIndices;
 				}
 
-				if (properties->GetBool("GenerateBLASData", true) == true)
+				if (assetData->GetGenerateBLASData() == true)
 				{
 					blasIndices += lodIndices;
 					lodBlasIndexEndOffsets.PushBack(blasIndices.Count());
@@ -499,7 +535,8 @@ namespace AssetPipeline
 
 		MeshCacheData* outCacheData;
 		size_t totalSize = vertexBufferSize + indexBufferSize + meshletBufferSize + meshletPrimitiveBufferSize + blasIndexDataSize;
-		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), sizeof(MeshCacheData), totalSize, asset.m_lastModifiedTime, reinterpret_cast<char**>(&outCacheData)));
+		const Ctrl::GUID assetGuid = assetData->GetAssetGUID().c_str();
+		uint8_t* data = reinterpret_cast<uint8_t*>(m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), assetGuid, sizeof(MeshCacheData), totalSize, asset.m_lastModifiedTime, reinterpret_cast<char**>(&outCacheData)));
 
 		outCacheData->m_vertexCount = wholeMeshVertices.Count();
 		outCacheData->m_indexCount = wholeMeshIndices.Count();
@@ -514,12 +551,12 @@ namespace AssetPipeline
 		outCacheData->m_boundOrigin = Vector4f(meshBoundOrigin.x, meshBoundOrigin.y, meshBoundOrigin.z, 0.0f);
 		outCacheData->m_boundExtents = Vector4f(meshBoundExtents.x, meshBoundExtents.y, meshBoundExtents.z, 0.0f);
 		outCacheData->m_lodCount = uint16_t(lodCount);
-		outCacheData->m_maxLOD = uint8_t(properties->GetInteger("MaxLOD", DefaultLODCount - 1));
+		outCacheData->m_maxLOD = uint8_t(assetData->GetMaxLOD());
 
 		bool skipLODs[MaxLODCount]{};
 		{
-			uint32_t propValueCount;
-			const bool* skipLODsProperty = properties->GetBool("SkipLODLevels", propValueCount);
+			uint32_t propValueCount = assetData->GetSkipLodLevelCount();
+			const bool* skipLODsProperty = assetData->GetSkipLodLevels();
 			if (skipLODsProperty)
 			{
 				std::memcpy(skipLODs, skipLODsProperty, propValueCount);

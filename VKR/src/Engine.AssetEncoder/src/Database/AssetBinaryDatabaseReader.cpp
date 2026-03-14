@@ -1,6 +1,7 @@
-#include "Engine.AssetEncoder/AssetDatabaseReader.h"
+#include "Engine.AssetEncoder/AssetBinaryDatabaseReader.h"
 
 #include <cassert>
+#include <mutex>
 
 namespace AssetEncoder
 {
@@ -28,12 +29,15 @@ namespace AssetEncoder
 
 	void AssetBinaryDatabaseReader::OpenFile(const char* databasePath)
 	{
-		m_dbFile = std::ifstream(databasePath, std::ios::binary | std::ios::beg);
+		std::lock_guard<std::mutex> lock(m_readLock);
+
+		m_dbFile = std::ifstream(databasePath, std::ifstream::binary);
 		auto fileExceptions = m_dbFile.exceptions();
 
 		if (!m_dbFile.good() || fileExceptions)
 			return;
 
+		m_dbFile.seekg(std::ios::beg);
 		m_startPos = m_dbFile.tellg();
 
 		// Read header...
@@ -58,6 +62,7 @@ namespace AssetEncoder
 
 				const char* str = &m_stringCache[stringOffset];
 				m_assetMap.insert({ id, *header });
+				m_idToGUIDMap.insert({ header->m_asset.m_guid, id });
 				m_idToStringMap.insert({ AssetString(str), id});
 				m_stringToIDMap.insert({ id, AssetString(str) });
 
@@ -73,10 +78,22 @@ namespace AssetEncoder
 
 	AssetID AssetBinaryDatabaseReader::GetAssetID(const char* assetName) const
 	{
-		AssetString str(assetName);
-		auto it = m_idToStringMap.find(str);
-		if (it == m_idToStringMap.end())
-			return 0;
+		Ctrl::GUID asGUID(assetName);
+		
+		auto it = m_idToGUIDMap.find(asGUID);
+		if (it == m_idToGUIDMap.end())
+		{
+			AssetString str(assetName);
+			auto strIt = m_idToStringMap.find(str);
+			if(strIt == m_idToStringMap.end())
+			{
+				return 0;
+			}
+			else
+			{
+				return strIt->second;
+			}
+		}
 
 		return it->second;
 	}
@@ -118,6 +135,8 @@ namespace AssetEncoder
 
 	void AssetBinaryDatabaseReader::GetAssetBinary(AssetID id, void* storage)
 	{
+		std::lock_guard<std::mutex> lock(m_readLock);
+
 		auto it = m_assetMap.find(id);
 		if (it == m_assetMap.end())
 			return;
@@ -134,6 +153,8 @@ namespace AssetEncoder
 
 	void AssetBinaryDatabaseReader::GetAssetBinaryRange(AssetID id, void* storage, size_t beginBytes, size_t endBytes)
 	{
+		std::lock_guard<std::mutex> lock(m_readLock);
+
 		auto it = m_assetMap.find(id);
 		if (it == m_assetMap.end())
 			return;

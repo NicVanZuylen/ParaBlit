@@ -6,12 +6,6 @@
 #include <iostream>
 #include <string>
 
-#pragma warning(push, 0)
-#define GLM_FORCE_CTOR_INIT // Required to ensure glm constructors actually initialize vectors/matrices etc.
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#pragma warning(pop)
-
 #pragma warning(push)
 #pragma warning(disable : 26451 6262 26819) // Warnings coming from stb_image.h
 #define STB_IMAGE_IMPLEMENTATION
@@ -22,7 +16,7 @@
 #include <Engine.Math/Vectors.h>
 #include <Engine.Math/Matrix4.h>
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || !defined(NDEBUG)
 #define TEXTURE_USE_TEXTURE_LABELS 1
 #else
 #define TEXTURE_USE_TEXTURE_LABELS 0
@@ -696,7 +690,7 @@ namespace Eng
 				PB::BindingLayout bindings{};
 				bindings.m_uniformBufferCount = 1;
 				bindings.m_uniformBuffers = &cubeGenConstantsViews[face];
-				bindings.m_resourceCount = _countof(resources);
+				bindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
 				bindings.m_resourceViews = resources;
 
 				scopedContext->CmdBindResources(bindings);

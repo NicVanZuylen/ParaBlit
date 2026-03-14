@@ -71,6 +71,14 @@ namespace Eng::Math
 			y = data_[1];
 		}
 
+#ifdef MATH_IMPL_IMGUI
+		TVector2(const ImVec2& vec)
+		{
+			x = vec.x;
+			y = vec.y;
+		}
+#endif
+
 		// -----------------------------------------------------------------
 		// Conversion
 
@@ -306,9 +314,7 @@ namespace Eng::Math
 
 		MATH_INLINE T LengthSqr() const
 		{
-			const Self& selfRef = *((GLMT*)this);
-			Self selfSqr = selfRef * selfRef;
-			return selfSqr.x + selfSqr.y + selfSqr.z;
+			return (x * x) + (y * y);
 		}
 
 		MATH_INLINE Self& Normalize()

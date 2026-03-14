@@ -70,7 +70,7 @@ namespace Eng
 			PB::UniformBufferView cullConstants, 
 			uint32_t& outInstanceCount
 		);
-		void UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullConstants, bool keepFrameInstanceData = false);
+		void UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullViewPlanes, PB::UniformBufferView lodViewPlanes = 0, bool keepFrameInstanceData = false, bool waitForPreviousDraw = false);
 		void Draw(PB::ICommandContext* commandContext, PB::UniformBufferView viewConstants, PB::UniformBufferView cullConstants) const;
 
 	private:
@@ -95,8 +95,8 @@ namespace Eng
 		PB::IBufferObject* m_drawInstancesBuffer = nullptr;
 		PB::IBufferObject* m_cullDataBuffer = nullptr;
 		PB::IBufferObject* m_meshletRangesBuffer = nullptr;
-		PB::IBufferObject* m_drawParamsBuffer = nullptr;
 		PB::IBufferObject* m_drawRangesBuffer = nullptr;
+		PB::IBufferObject* m_drawParamsBuffer = nullptr;
 
 		bool m_instanceDataNeedsUpload = false;
 		bool m_cullDataNeedsUpload = false;

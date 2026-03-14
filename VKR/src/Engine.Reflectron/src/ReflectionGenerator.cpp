@@ -1,8 +1,12 @@
 #include "ReflectionGenerator.h"
 
+#include "Engine.Control/ISettingsParsers.h"
+
 #include <chrono>
 #include <cassert>
 #include <fstream>
+#include <limits>
+#include <cmath>
 
 namespace Reflectron
 {
@@ -11,6 +15,8 @@ namespace Reflectron
 	{
 		std::vector<AssetEncoder::FileInfo> fileInfos;
 		RecursiveSearchDirectoryForExtension(sourceDirectory, fileInfos, ".h");
+
+		Ctrl::ISettingsHub* settings = Ctrl::ISettingsHub::GetOrCreate();
 
 		for (auto& fileInfo : fileInfos)
 		{
@@ -39,11 +45,12 @@ namespace Reflectron
 				generatedTimestamp = GetTimestamp(fileSource);
 			}
 
-			bool needToGenerate = generatedFileExists == false || generatedTimestamp < fileInfo.m_lastModifiedTime;
+			bool forceBuild = settings->GetBooleanValue("Build.ForceBuild");
+			bool needToGenerate = generatedFileExists == false || generatedTimestamp < fileInfo.m_lastModifiedTime || forceBuild;
 			if (needToGenerate)
 			{
 				std::string generatedCode;
-				std::ios::openmode openFlags = std::ios::_Nocreate | std::ios::in | std::ios::ate;
+				std::ios::openmode openFlags = std::ios::in | std::ios::ate;
 				std::fstream file(fileInfo.m_fileName, openFlags);
 				bool needsReflectionGenerated = false;
 				if (file.good())
@@ -92,6 +99,9 @@ namespace Reflectron
 		std::string m_typeName;
 		std::string m_name;
 		size_t m_arrayCount;
+		double m_minValue;
+		double m_maxValue;
+		std::string m_displayName;
 	};
 
 	uint64_t ReflectionGenerator::GetTimestamp(std::string& src)
@@ -145,6 +155,32 @@ namespace Reflectron
 		str.erase(std::remove(str.begin(), str.end(), '\v'), str.end());
 		str.erase(std::remove(str.begin(), str.end(), '\f'), str.end());
 		str.erase(std::remove(str.begin(), str.end(), '\r'), str.end());
+	}
+
+	void RemoveNamespaces(std::string& str)
+	{
+		// Template argument types need their namespaces removed separately.
+		size_t templateStart = str.find_first_of('<') + 1;
+		if (templateStart != std::string::npos)
+		{
+			size_t templateEnd = str.find_last_of('>');
+
+			if (templateEnd != std::string::npos)
+			{
+				templateEnd = templateEnd;
+
+				std::string templateArgStr = str.substr(templateStart, templateEnd - templateStart);
+				RemoveNamespaces(templateArgStr);
+
+				str.replace(templateStart, templateEnd - templateStart, templateArgStr);
+			}
+		}
+
+		size_t pos = str.find_last_of(':');
+		if (pos != std::string::npos)
+		{
+			str.erase(0, pos + 1);
+		}
 	}
 
 	void ReflectionGenerator::GenerateReflectionCode(std::string& outfileStr, const std::string& src, const std::string& fileName, const std::string& generatedFilename, uint64_t timestamp)
@@ -221,12 +257,36 @@ namespace Reflectron
 					pos = classSrc.find("REFLECTRON_FIELD", pos);
 					GetReflectionFieldArgs(classSrc, pos, fieldArgs);
 
+					pos = classSrc.find_first_of(')', pos); // Skip over args. TODO: Correctly handle nested parenthesis in arguments.
+
 					bool isEnum = false; // Enums must be declared as an argument. Otherwise there is no way to determine if the type is an enum or not.
+					double minValue = -std::numeric_limits<double>::infinity();
+					double maxValue = std::numeric_limits<double>::infinity();
+					std::string displayName = "\"\"";
 					for (auto& arg : fieldArgs)
 					{
 						if (arg == "enum")
 						{
 							isEnum = true;
+						}
+						else if (arg.substr(0, 3) == "min")
+						{
+							size_t eq = arg.find_first_of('=');
+							std::string valStr = arg.substr(eq + 1);
+
+							minValue = std::atof(valStr.c_str());
+						}
+						else if (arg.substr(0, 3) == "max")
+						{
+							size_t eq = arg.find_first_of('=');
+							std::string valStr = arg.substr(eq + 1);
+
+							maxValue = std::atof(valStr.c_str());
+						}
+						else if (arg.substr(0, 7) == "display")
+						{
+							size_t eq = arg.find_first_of('=');
+							displayName = arg.substr(eq + 1);
 						}
 					}
 
@@ -255,6 +315,7 @@ namespace Reflectron
 							fieldInfo.m_typeName = "int"; // Enums are a special case where the name may be anything but the underlying type is an int.
 						}
 						RemoveWhitespace(fieldInfo.m_typeName);
+						RemoveNamespaces(fieldInfo.m_typeName);
 
 						size_t beginVarName = classSrc.find_first_not_of(whiteSpace, endTypeName);
 						size_t expressionTerminator = classSrc.find_first_of(';', beginVarName);
@@ -272,6 +333,10 @@ namespace Reflectron
 							std::string arrayCountStr = classSrc.substr(beginArrayCount, endArrayCount - beginArrayCount);
 							fieldInfo.m_arrayCount = std::atoi(arrayCountStr.c_str());
 						}
+
+						fieldInfo.m_minValue = minValue;
+						fieldInfo.m_maxValue = maxValue;
+						fieldInfo.m_displayName = displayName;
 
 						assert(fieldInfo.m_typeName.empty() == false && fieldInfo.m_name.empty() == false);
 						pos = endVarName;
@@ -291,6 +356,8 @@ namespace Reflectron
 				macro << "\tconst ReflectronFieldData m_fieldData[FieldCount] =" << macroEndl;
 				macro << "\t{" << macroEndl;
 
+				macro.precision(5);
+
 				for (auto& fieldInfo : fields)
 				{
 					macro << "\t\t{ ";
@@ -298,7 +365,27 @@ namespace Reflectron
 					macro << "\"" << fieldInfo.m_typeName << "\", ";
 					macro << "offsetof(" + className << ", " + fieldInfo.m_name << "), ";
 					macro << "sizeof(" << fieldInfo.m_name << "), ";
-					macro << fieldInfo.m_arrayCount;
+					macro << fieldInfo.m_arrayCount << ", ";
+
+					if (std::isinf(fieldInfo.m_minValue))
+					{
+						macro << "-REFLECTRON_INFINITY, ";
+					}
+					else
+					{
+						macro << fieldInfo.m_minValue << ", ";
+					}
+					if (std::isinf(fieldInfo.m_maxValue))
+					{
+						macro << "REFLECTRON_INFINITY, ";
+					}
+					else
+					{
+						macro << fieldInfo.m_maxValue << ", ";
+					}
+
+					macro << fieldInfo.m_displayName;
+
 					macro << " }," << macroEndl;
 				}
 				macro << "\t};" << macroEndl;
@@ -347,7 +434,7 @@ namespace Reflectron
 	void ReflectionGenerator::GetReflectionFieldArgs(std::string& src, size_t pos, std::vector<std::string>& outArgs)
 	{
 		size_t start = src.find_first_of('(', pos) + 1;
-		size_t end = src.find_first_of(')', pos);
+		size_t end = src.find_first_of(')', pos); // TODO: Correctly handle nested parenthesis.
 		if (end == start)
 		{
 			return;

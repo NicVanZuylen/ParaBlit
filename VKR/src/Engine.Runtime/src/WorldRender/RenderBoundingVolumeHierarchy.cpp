@@ -347,11 +347,11 @@ namespace Eng
 	{
 		// Nodes are sorted by proximity to the parent node's centre.
 		// This is done in an attempt to place nodes which are close together in world space closer to each other in draw batch memory to avoid memory fragmentation that would introduce more draw calls.
-		Vector3f centre = node->m_bounds.Centre();
+		Vector3f centre = node->m_bounds.Center();
 		auto centreProximitySort = [&](const BuildNode* a, const BuildNode* b)
 		{
-			float distA = Distance(centre, a->m_bounds.Centre());
-			float distB = Distance(centre, b->m_bounds.Centre());
+			float distA = Distance(centre, a->m_bounds.Center());
+			float distB = Distance(centre, b->m_bounds.Center());
 			return distA < distB;
 		};
 		std::sort(node->m_children.begin(), node->m_children.end(), centreProximitySort);

@@ -1,6 +1,7 @@
 import os
 import subprocess
 import multiprocessing
+import platform
 
 genbuild_tag = "[GENBUILD]"
 
@@ -32,25 +33,30 @@ def fetch_dependencies():
     clone_repo("https://github.com/tinyobjloader/tinyobjloader.git", "tinyobjloader", "51908fb")
     clone_repo("https://github.com/glfw/glfw.git", "glfw", "201400b")
     clone_repo("https://github.com/g-truc/glm.git", "glm", "06ed280")
-    clone_repo("https://github.com/google/shaderc.git", "shaderc", "f9eb1c7")
-    clone_repo("https://github.com/microsoft/DirectXMesh.git", "directxmesh", "5647700")
+    clone_repo("https://github.com/google/shaderc.git", "shaderc", "e0a5092")
     clone_repo("https://github.com/zeux/meshoptimizer.git", "meshoptimizer", "536f296")
+    clone_repo("https://github.com/ocornut/imgui.git", "imgui", "87c1ab7")
 
 def cmake_configure_external_libs():
 
     if not os.path.exists("build"):
         os.mkdir("build")
 
-    subprocess.call("cmake -S . -B build", shell=True)
+    subprocess.call("cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build", shell=True)
 
 def cmake_build(job_count):
 
-    subprocess.call(f"cmake --build build --config Debug --target ALL_BUILD -j {job_count}")
-    subprocess.call(f"cmake --build build --config Release --target ALL_BUILD -j {job_count}")
+    if platform.system() == 'Windows':
+        subprocess.call(f"cmake --build build --config Debug --target ALL_BUILD -j {job_count}")
+        subprocess.call(f"cmake --build build --config Release --target ALL_BUILD -j {job_count}")
+    elif platform.system() == 'Linux':
+        subprocess.call(f"cmake --build build -j {job_count}", shell=True)
+    
 
 def cmake_configure_engine():
 
-    subprocess.call("cmake -S . -B engine-build", shell=True)
+    if platform.system() == 'Windows': # Only needed on Windows to generate the Visual Studio solution. On Linux we use VSCode with CMakeTools.
+        subprocess.call("cmake -S . -B engine-build", shell=True)
 
 def main():
 

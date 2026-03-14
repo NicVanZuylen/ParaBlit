@@ -75,8 +75,16 @@ void main()
 
     const vec3 gamma = vec3(1.0 / 2.2);
 
-    outColor = (emission.r + emission.g + emission.b == 0.0) ? vec4(color.rgb, 0.0) : vec4(emission.rgb, 1.0); // Alpha is used as emission mask.
-    outColor.rgb = pow(outColor.rgb, gamma);
+    if (emission.r + emission.g + emission.b == 0.0)
+    {
+        outColor = vec4(color.rgb, 0.0);
+        outColor.rgb = pow(outColor.rgb, gamma);
+    }
+    else
+    {
+        vec3 emissionEncoded = EncodeColorF(emission.rgb, 10);
+        outColor = vec4(emissionEncoded, 1.0);
+    }
 
     outNormal = vec4(normalize(fsInput.tbnMatrix * (normal * 2.0 - 1.0)), 1.0);
     PackNormal(outNormal.xyz);
@@ -85,11 +93,6 @@ void main()
 
     // Calculate motion vectors..
     {
-        //vec2 position = fsInput.position.xy / fsInput.position.w * 0.5 + 0.5;
-        //vec2 positionLastFrame = fsInput.positionLastFrame.xy / fsInput.positionLastFrame.w * 0.5 + 0.5;
-
-        //outMotionVectors = (position - positionLastFrame) * 0.5 + 0.5;
-
         vec2 clipPos = fsInput.position.xy / fsInput.position.w * 0.5 + 0.5;
         vec2 clipPosLastFrame = fsInput.positionLastFrame.xy / fsInput.positionLastFrame.w * 0.5 + 0.5;
 

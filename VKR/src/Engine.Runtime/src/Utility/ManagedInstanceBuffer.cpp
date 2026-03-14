@@ -1,4 +1,3 @@
-#pragma once
 #include "ManagedInstanceBuffer.h"
 #include "Engine.ParaBlit/ICommandContext.h"
 #include "Engine.Math/Scalar.h"
@@ -141,28 +140,26 @@ namespace Eng
 
 		if (m_desc.m_copyAll == false)
 		{
+			PB::IBufferObject* bitfieldBuffer = m_bitfieldBuffers[m_currentStagingIndex];
+
 			if (stagingNeedsUpload == true)
 			{
-				PB::u8* bitfieldMapped = m_bitfieldBuffer->Map(0, m_bitfieldSize);
+				PB::u8* bitfieldMapped = bitfieldBuffer->Map(0, m_bitfieldSize);
 				std::memcpy(bitfieldMapped, GetBitFields(), m_bitfieldSize);
-				m_bitfieldBuffer->Unmap();
+				bitfieldBuffer->Unmap();
 			}
 
 			// Copy staging buffer to the final buffer using a compute shader which will also defragment instance data.
 			// Do this with an upload context to ensure the copy is complete before the buffer is used.
 			{
-				PB::BufferViewDesc cullBitFieldViewDesc{};
-				cullBitFieldViewDesc.m_size = m_bitfieldSize / 2;
-				cullBitFieldViewDesc.m_offset = cullBitFieldViewDesc.m_size;
-
 				PB::BufferViewDesc dstViewDesc(desc.dstBufferOffset, desc.dstBuffer->GetSize() - desc.dstBufferOffset);
 
 				CLib::Vector<PB::ResourceView, 8> resources =
 				{
 					stagingBuffer->GetViewAsStorageBuffer(),
 					desc.dstBuffer->GetViewAsStorageBuffer(dstViewDesc),
-					m_bitfieldBuffer->GetViewAsStorageBuffer(),
-					m_bitfieldBuffer->GetViewAsStorageBuffer(cullBitFieldViewDesc),
+					bitfieldBuffer->GetViewAsStorageBuffer(),
+					m_cullBitfieldBuffer->GetViewAsStorageBuffer(),
 					m_counterBuffer->GetViewAsStorageBuffer()
 				};
 
@@ -203,13 +200,14 @@ namespace Eng
 
 					// Memory barriers between Cull & Populate stages
 					{
-						CLib::Vector<PB::BufferMemoryBarrier, 3> barriers =
+						PB::BufferMemoryBarrier barriers[] =
 						{
-							PB::BufferMemoryBarrier(stagingBuffer, PB::EMemoryBarrierType::SHADER_WRITE_TO_SHADER_READ),
-							PB::BufferMemoryBarrier(desc.dstBuffer, PB::EMemoryBarrierType::SHADER_WRITE_TO_SHADER_READ),
-							PB::BufferMemoryBarrier(m_counterBuffer, PB::EMemoryBarrierType::SHADER_WRITE_TO_SHADER_READ)
+							PB::BufferMemoryBarrier(stagingBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ),
+							PB::BufferMemoryBarrier(m_cullBitfieldBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ),
+							PB::BufferMemoryBarrier(desc.dstBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ),
+							PB::BufferMemoryBarrier(m_counterBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ),
 						};
-						cmdContext->CmdComputeBufferBarrier(barriers.Data(), barriers.Count());
+						cmdContext->CmdBufferBarrier(barriers, PB_ARRAY_LENGTH(barriers));
 					}
 				}
 
@@ -298,7 +296,7 @@ namespace Eng
 	PB::u32 ManagedInstanceBuffer::GetBitFieldSize(PB::u32 elementCapacity)
 	{
 		PB::u32 bitFieldSize = Math::RoundUp(elementCapacity, 32u) / 32u;
-		bitFieldSize *= sizeof(PB::u32) * 2; // Double size to include cull state bitfield.
+		bitFieldSize *= sizeof(PB::u32);
 
 		return bitFieldSize;
 	}
@@ -370,7 +368,18 @@ namespace Eng
 		// Allocate one counter for each compute work group.
 		m_counterBufferSize = GetCounterBufferSize(m_desc.m_elementCapacity);
 
+		if (m_desc.m_copyAll == false)
+		{			
+			PB::BufferObjectDesc cullBitfieldDesc;
+			cullBitfieldDesc.m_name = "ManagedInstanceBuffer::cullBitfieldBuffer";
+			cullBitfieldDesc.m_bufferSize = m_bitfieldSize;
+			cullBitfieldDesc.m_options = 0;
+			cullBitfieldDesc.m_usage = PB::EBufferUsage::STORAGE;
+			m_cullBitfieldBuffer = m_renderer->AllocateBuffer(cullBitfieldDesc);
+		}
+
 		PB::BufferObjectDesc bufferDesc{};
+		uint32_t bufferCount = m_renderer->GetSwapchain()->GetImageCount();
 		if (m_desc.m_copyAll == false)
 		{
 			bufferDesc = {};
@@ -378,7 +387,11 @@ namespace Eng
 			bufferDesc.m_bufferSize = m_bitfieldSize;
 			bufferDesc.m_options = PB::EBufferOptions::CPU_ACCESSIBLE | PB::EBufferOptions::DEVICE_MEMORY;
 			bufferDesc.m_usage = PB::EBufferUsage::STORAGE;
-			m_bitfieldBuffer = m_renderer->AllocateBuffer(bufferDesc);
+
+			for (uint32_t i = 0; i < bufferCount; ++i)
+			{
+				m_bitfieldBuffers.PushBack(m_renderer->AllocateBuffer(bufferDesc));
+			}
 
 			bufferDesc = {};
 			bufferDesc.m_name = "ManagedInstanceBuffer::counterBuffer";
@@ -390,7 +403,6 @@ namespace Eng
 
 		// Staging buffers
 		{
-			uint32_t bufferCount = m_renderer->GetSwapchain()->GetImageCount();
 			for (uint32_t i = 0; i < bufferCount; ++i)
 			{
 				m_stagingBuffers.PushBack(AllocateStagingBuffer(instanceDataSize));
@@ -409,11 +421,20 @@ namespace Eng
 			m_counterBuffer = nullptr;
 		}
 
-		if (m_bitfieldBuffer != nullptr)
+		if (m_cullBitfieldBuffer != nullptr)
 		{
-			m_renderer->FreeBuffer(m_bitfieldBuffer);
-			m_bitfieldBuffer = nullptr;
+			m_renderer->FreeBuffer(m_cullBitfieldBuffer);
+			m_cullBitfieldBuffer = nullptr;
 		}
+
+		for (auto& bitfieldBuffer : m_bitfieldBuffers)
+		{
+			if (bitfieldBuffer != nullptr)
+			{
+				m_renderer->FreeBuffer(bitfieldBuffer);
+			}
+		}
+		m_bitfieldBuffers.Clear();
 
 		for (auto& stagingBuffer : m_stagingBuffers)
 		{

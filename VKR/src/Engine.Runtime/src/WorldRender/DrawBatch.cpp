@@ -85,11 +85,11 @@ namespace Eng
 
         PB::BufferViewDesc drawViewDesc{};
         drawViewDesc.m_buffer = m_drawMeshletParamsBuffer;
-        drawViewDesc.m_offset = offsetof(MeshletDrawParamsBuffer, MeshletDrawParamsBuffer::m_drawMeshTasksParams);;
+        drawViewDesc.m_offset = offsetof(MeshletDrawParamsBuffer, m_drawMeshTasksParams);
         drawViewDesc.m_size = sizeof(MeshletDrawParamsBuffer::m_drawMeshTasksParams);
         drawParamsView = m_drawMeshletParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
 
-        drawViewDesc.m_offset = offsetof(MeshletDrawParamsBuffer, MeshletDrawParamsBuffer::m_drawCount);
+        drawViewDesc.m_offset = offsetof(MeshletDrawParamsBuffer, m_drawCount);
         drawViewDesc.m_size = sizeof(MeshletDrawParamsBuffer::m_drawCount);
         drawCountView = m_drawMeshletParamsBuffer->GetViewAsStorageBuffer(drawViewDesc);
 
@@ -102,9 +102,9 @@ namespace Eng
         };
 
         PB::BindingLayout bindings;
-        bindings.m_uniformBufferCount = _countof(constants);
+        bindings.m_uniformBufferCount = PB_ARRAY_LENGTH(constants);
         bindings.m_uniformBuffers = constants;
-        bindings.m_resourceCount = _countof(resources);
+        bindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
         bindings.m_resourceViews = resources;
         cmdContext->CmdBindResources(bindings);
         cmdContext->CmdDispatch(1, 1, 1);
@@ -119,11 +119,11 @@ namespace Eng
 		PB::ResourceView drawRangesBuffer, 
 		PB::ResourceView meshLibraryBuffer,
 		PB::IBufferObject* drawParamsBuffer, 
-		PB::UniformBufferView viewConstantsView, 
+		PB::UniformBufferView cullConstantsView, 
 		PB::u32 drawParamsOffset
 	)
     {
-		CLib::Vector<PB::UniformBufferView, 8, 8> uniformBindings = { viewConstantsView };
+		CLib::Vector<PB::UniformBufferView, 8, 8> uniformBindings = { cullConstantsView };
 
 		for (uint32_t i = 0; i < bindings.m_uniformBufferCount; ++i)
 			uniformBindings.PushBack(bindings.m_uniformBuffers[i]);
@@ -139,7 +139,7 @@ namespace Eng
 			instanceBuffer,
 			meshLibraryBuffer
 		};
-		finalBindingLayout.m_resourceCount = _countof(batchResources);
+		finalBindingLayout.m_resourceCount = PB_ARRAY_LENGTH(batchResources);
 		finalBindingLayout.m_resourceViews = batchResources;
 
 		constexpr uint32_t TaskWorkGroupMeshletCount = 32;
@@ -150,7 +150,7 @@ namespace Eng
 			drawParamsBuffer, 
 			drawParamsOffset, 
 			drawParamsBuffer, 
-			drawParamsOffset + offsetof(MeshletDrawParamsBuffer, MeshletDrawParamsBuffer::m_drawCount), 
+			drawParamsOffset + offsetof(MeshletDrawParamsBuffer, m_drawCount),
 			MaxDrawCount, 
 			sizeof(PB::DrawMeshTasksIndirectParams)
 		);

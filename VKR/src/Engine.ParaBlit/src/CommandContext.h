@@ -62,11 +62,11 @@ namespace PB
 		PARABLIT_API void CmdEndRenderPass() override;
 		PARABLIT_API void CmdClearColorTargets(ClearDesc* clearColors, u32 targetCount) override;
 		PARABLIT_API void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange) override;
-		void CmdGraphicsBarrier(EMemoryBarrierType type) override;
+		void CmdTextureBarrier(ITexture* texture, EMemoryBarrierType barrierType, const SubresourceRange& subResourceRange) override;
+		void CmdGraphicsToComputeBarrier() override;
 		void CmdComputeBarrier(EMemoryBarrierType type) override;
-		void CmdComputeBufferBarrier(BufferMemoryBarrier* barriers, u32 barrierCount);
+		void CmdBufferBarrier(BufferMemoryBarrier* barriers, u32 barrierCount) override;
 		void CmdDrawIndirectBarrier(const PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount) override;
-		void CmdComputeToBuildAccelerationStructureBufferBarrier(const PB::IBufferObject** buffers, u32 bufferCount) override;
 		void CmdBuildAccelerationStructureToTraceRaysBarrier(const IAccelerationStructure** accStructures, u32 accStructureCount) override;
 		PARABLIT_API void CmdBindPipeline(Pipeline pipeline) override;
 		void CmdSetViewport(PB::Rect viewRect, float minDepth, float maxDepth) override;

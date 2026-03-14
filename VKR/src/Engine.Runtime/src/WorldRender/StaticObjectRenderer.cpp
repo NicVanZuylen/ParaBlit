@@ -1,4 +1,4 @@
-#pragma once
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "Entity/Component/RenderDefinition.h"
 #include "StaticObjectRenderer.h"
 
@@ -32,7 +32,7 @@ namespace Eng
 		m_updateRequired = true;
 	}
 
-	void StaticObjectRenderer::UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullConstants)
+	void StaticObjectRenderer::UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullViewPlanes, PB::UniformBufferView lodViewPlanes, bool waitForPreviousDraw)
 	{
 		auto it = m_streamingObjects.begin();
 		while (it != m_streamingObjects.end())
@@ -59,7 +59,7 @@ namespace Eng
 			}
 		}
 
-		m_drawPool.UpdateComputeGPU(commandContext, cullConstants, !m_updateRequired);
+		m_drawPool.UpdateComputeGPU(commandContext, cullViewPlanes, lodViewPlanes, !m_updateRequired, waitForPreviousDraw);
 		m_updateRequired = false;
 	}
 

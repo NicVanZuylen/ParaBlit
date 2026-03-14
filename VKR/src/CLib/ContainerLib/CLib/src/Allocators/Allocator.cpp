@@ -1,4 +1,4 @@
-#include "Clib/Allocator.h"
+#include "CLib/Allocator.h"
 #include <cassert>
 
 #if CLIB_ALLOCATOR_DEBUG
@@ -19,6 +19,8 @@
 #else
 #define CLIB_ALLOCATOR_USE_MALLOC true // Use malloc on release builds to help diagnose heap corruption issues which debug builds do not report.
 #endif
+
+#define SEGSIZES_COUNT (sizeof(m_segSizes) / sizeof(m_segSizes[0]))
 
 namespace CLib
 {
@@ -116,7 +118,7 @@ namespace CLib
 		BlockNode*& freeList = m_freeLists[freeListIdx];
 		if (freeList)
 		{
-			if (freeListIdx == 0 || freeListIdx == _countof(m_segSizes) - 1)
+			if (freeListIdx == 0 || freeListIdx == SEGSIZES_COUNT - 1)
 			{
 				BlockNode** block = &freeList;
 
@@ -184,13 +186,13 @@ namespace CLib
 	void Allocator::AllocatePage()
 	{
 		// Allocate first page.
-		m_pages.PushBack({ malloc(m_pageSize)});
+		m_pages.PushBack({ malloc(m_pageSize) });
 		m_pages.Back().m_allocated = 0;
 	}
 
 	uint32_t Allocator::GetUpperFreeListIdx(const uint32_t& size)
 	{
-		constexpr uint32_t arraySize = _countof(m_segSizes);
+		constexpr uint32_t arraySize = SEGSIZES_COUNT;
 		constexpr uint32_t arrayEnd = arraySize - 1;
 		for (uint32_t i = 0; i < arrayEnd; ++i)
 		{
@@ -204,7 +206,7 @@ namespace CLib
 
 	uint32_t Allocator::GetLowerFreeListIdx(const uint32_t& size)
 	{
-		constexpr uint32_t arraySize = _countof(m_segSizes);
+		constexpr uint32_t arraySize = SEGSIZES_COUNT;
 		constexpr uint32_t arrayEnd = arraySize - 1;
 		for (uint32_t i = 0; i < arrayEnd; ++i)
 		{

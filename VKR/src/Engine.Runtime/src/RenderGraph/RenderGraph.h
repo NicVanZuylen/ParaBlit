@@ -7,6 +7,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <string>
 
 namespace Eng
 {
@@ -50,6 +51,7 @@ namespace Eng
 		PB::ETextureState m_finalUsage = PB::ETextureState::NONE;
 		uint8_t m_mipCount = 1;
 		uint8_t m_arraySize = 1;
+		bool m_noAlias = false; /* Prevent this texture from being aliased in a future pass. Can prevent artifacts if this image is not cleared before use. */
 	};
 
 	struct NodeDesc
@@ -121,6 +123,7 @@ namespace Eng
 			AttachmentFlags m_flags = 0;
 			uint32_t m_mipCount = 0;
 			uint32_t m_arraySize = 0;
+			bool m_noAlias = false;
 		};
 
 		RenderGraphBuilder(PB::IRenderer* renderer, CLib::Allocator* allocator);
@@ -172,6 +175,7 @@ namespace Eng
 		{
 			CLib::String m_name;
 			PB::ITexture* m_texture = nullptr;
+			PB::ITexture* m_baseTexture = nullptr;		// Original texture if this is an alias.
 			uint32_t m_firstPassIndex = ~0u;			// Index of the first pass where this texture is used.
 			uint32_t m_mostRecentPassIndex = ~0u;		// Index of the most recent pass this texture is used in so far (during build step).
 			PB::ETextureState m_firstUsageState;
@@ -188,7 +192,7 @@ namespace Eng
 
 		size_t GetSizeFromAttachMeta(const TransientTextureMeta& meta);
 
-		PB::ITexture* FindTexture(const TransientTextureMeta& meta, RenderGraph* graph);
+		std::pair<PB::ITexture*, PB::ITexture*> FindTexture(const TransientTextureMeta& meta, RenderGraph* graph);
 
 		PB::ITexture* CreateTexture(const TransientTextureMeta& meta);
 

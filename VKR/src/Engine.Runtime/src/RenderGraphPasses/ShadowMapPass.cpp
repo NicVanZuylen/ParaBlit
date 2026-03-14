@@ -1,4 +1,8 @@
 #include "ShadowMapPass.h"
+#include "Camera.h"
+#include "DebugLinePass.h"
+#include "Engine.Math/Vector3.h"
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "RenderGraph/RenderGraph.h"
 #include "WorldRender/RenderBoundingVolumeHierarchy.h"
 #include "WorldRender/BatchDispatcher.h"
@@ -53,6 +57,11 @@ namespace Eng
 		{
 			PB::GraphicsPipelineDesc pipelineDesc = GetBasePipelineDesc(m_shadowmapResolution);
 			{
+				if (m_cascadeIndex == 0) // Disable culling on cascade 0 ONLY to reduce light leaking.
+				{
+					pipelineDesc.m_cullMode = PB::EFaceCullMode::NONE;
+				}
+
 				pipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::TASK] = Eng::Shader(m_renderer, "Shaders/GLSL/ts_obj_meshlet_cull", 0, m_allocator, true).GetModule();
 
 				AssetEncoder::ShaderPermutationTable permTable{};
@@ -64,8 +73,17 @@ namespace Eng
 			m_shadowPipeline = m_renderer->GetPipelineCache()->GetPipeline(pipelineDesc);
 		}
 
-		m_hierarchyToDraw->GetDynamicDrawPool().UpdateComputeGPU(info.m_commandContext, m_viewPlanesView, true);
-		m_hierarchyToDraw->GetStaticObjectRenderer().UpdateComputeGPU(info.m_commandContext, m_shadowConstantsView);
+		if (m_cascadeIndex > 0)
+		{
+			PB::ITexture* shadowmap = transientTextures[0];
+
+			PB::SubresourceRange subresources{};
+			subresources.m_firstArrayElement = m_cascadeIndex;
+			info.m_commandContext->CmdTextureBarrier(shadowmap, PB::EMemoryBarrierType::GRAPHICS_ATTACHMENT_WRITE_TO_FRAGMENT_SHADER_READ, subresources);
+		}
+
+		m_hierarchyToDraw->GetDynamicDrawPool().UpdateComputeGPU(info.m_commandContext, m_viewPlanesView, m_mainCamViewPlanesView, true, true);
+		m_hierarchyToDraw->GetStaticObjectRenderer().UpdateComputeGPU(info.m_commandContext, m_viewPlanesView, m_mainCamViewPlanesView, true);
 
 		info.m_commandContext->CmdEndLastLabel();
 	}
@@ -116,6 +134,16 @@ namespace Eng
 		depthDesc.m_clearColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 		depthDesc.m_flags = EAttachmentFlags::CLEAR;
 
+		TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
+		depthReadDesc.m_format = PB::ETextureFormat::D16_UNORM;
+		depthReadDesc.m_width = shadowmapResolution;
+		depthReadDesc.m_height = shadowmapResolution;
+		depthReadDesc.m_arraySize = m_cascadeIndex + 1;
+		depthReadDesc.m_name = "WorldShadowmap";
+		depthReadDesc.m_initialUsage = PB::ETextureState::DEPTHTARGET;
+		depthReadDesc.m_finalUsage = PB::ETextureState::DEPTHTARGET;
+		depthReadDesc.m_usageFlags = PB::ETextureState::DEPTHTARGET;
+
 		nodeDesc.m_renderWidth = depthDesc.m_width;
 		nodeDesc.m_renderHeight = depthDesc.m_height;
 
@@ -127,9 +155,10 @@ namespace Eng
 		m_outputTexture = tex;
 	}
 
-	void ShadowMapPass::SetCamera(const Camera* camera, EntityHierarchy* hierarchyToDraw, const RenderBoundingVolumeHierarchy* rbvh, Vector3f viewDirection)
+	void ShadowMapPass::SetCamera(const Camera* camera, PB::UniformBufferView cameraViewPlanesView, EntityHierarchy* hierarchyToDraw, const RenderBoundingVolumeHierarchy* rbvh, Vector3f viewDirection)
 	{
 		m_camera = camera;
+		m_mainCamViewPlanesView = cameraViewPlanesView;
 		m_hierarchyToDraw = hierarchyToDraw;
 		m_rbvh = rbvh;
 
@@ -149,13 +178,16 @@ namespace Eng
 		Vector3f cascadeCentre(0.0f);
 		for (const auto& corner : cascadeFrustrumSection.m_frustrumCorners)
 			cascadeCentre += corner;
-		cascadeCentre /= 8;
 
-		Vector3f normalizedViewDir = m_localShadowConstants.m_shadowViewDirection;
+		constexpr size_t cornerCount = PB_ARRAY_LENGTH(cascadeFrustrumSection.m_frustrumCorners);
+		cascadeCentre /= float(cornerCount);
+
+		Vector3f normalizedViewDir = -m_localShadowConstants.m_shadowViewDirection;
 		const float cascadeViewDistance = 100.0f;
 
-		Vector3f eye = cascadeCentre + (normalizedViewDir * cascadeViewDistance);
-		Matrix4 viewMat = Matrix4::LookAt(eye, cascadeCentre, Vector3f(0.0f, 1.0f, 0.0f));
+		Vector3f eye = cascadeCentre - (normalizedViewDir * cascadeViewDistance);
+		Vector3f up = m_camera->Up();
+		Matrix4 viewMat = Matrix4::LookAt(eye, cascadeCentre, up);
 
 		float frustrumSectionLength = m_frustrumSectionFar - m_frustrumSectionNear;
 		float texelDistance = (frustrumSectionLength * 2) / m_shadowmapResolution;
@@ -175,11 +207,34 @@ namespace Eng
 			maxDepth = Max(maxDepth, -viewSpaceCorner.z - cascadeViewDistance);
 		}
 
+		static constexpr float ShadowFrustrumScaleBias = 1.05f;
+
+		minWidth *= ShadowFrustrumScaleBias;
+		maxWidth *= ShadowFrustrumScaleBias;
+		minHeight *= ShadowFrustrumScaleBias;
+		maxHeight *= ShadowFrustrumScaleBias;
+
 		const float farDistance = cascadeViewDistance + maxDepth;
 		Matrix4 proj = axisCorrection * glm::orthoZO(minWidth, maxWidth, minHeight, maxHeight, 1.0f, farDistance);
 
 		m_localShadowConstants.m_viewProjectionMatrix = proj * viewMat;
-		Camera::GetShadowCascadeFrustrum(m_shadowCascadeFrustrum, eye, normalizedViewDir, minWidth, maxWidth, minHeight, maxHeight, 1.0f, farDistance);
+
+		Camera::GetShadowCascadeFrustrum(m_shadowCascadeFrustrum, eye, normalizedViewDir, up, minWidth, maxWidth, minHeight, maxHeight, 1.0f, farDistance);
+
+#if SHADOW_MAP_PASS_DEBUG_DRAW_CASCADES
+		if (!m_debugFrustrumIsSet)
+		{
+			for (const auto& corner : m_shadowCascadeFrustrum.m_frustrumCorners)
+				cascadeCentre += corner;
+			cascadeCentre /= float(PB_ARRAY_LENGTH(m_shadowCascadeFrustrum.m_frustrumCorners));
+
+			m_debugCamFrustrum = cascadeFrustrumSection;
+			m_debugCascadeFrustrum = m_shadowCascadeFrustrum;
+			m_debugEye = eye;
+			m_debugCascadeCenter = cascadeCentre;
+			m_debugFrustrumIsSet = true;
+		}
+#endif
 
 		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[0] = m_shadowCascadeFrustrum.m_near;
 		m_localShadowPlaneConstants.m_shadowFrustrumPlanes[1] = m_shadowCascadeFrustrum.m_left;
@@ -198,6 +253,19 @@ namespace Eng
 		m_shadowConstantsRequireUpdate = true;
 	}
 
+	void ShadowMapPass::DebugDrawCascadeVolumes(DebugLinePass* linePass)
+	{
+#if SHADOW_MAP_PASS_DEBUG_DRAW_CASCADES
+		// Not recommended to draw all of these at once, as it becomes rather cluttered-looking.
+
+		linePass->DrawCube(m_debugEye - Vector3f(0.5f), Vector3f(1.0f), Vector3f(0.0f, 0.0f, 1.0f));
+		linePass->DrawCube(m_debugCascadeCenter - Vector3f(0.5f), Vector3f(1.0f), Vector3f(1.0f, 0.0f, 0.0f));
+
+		Camera::DrawFrustrum(linePass, m_debugCamFrustrum, Vector3f(0.0f, 1.0f, 0.0f));
+		Camera::DrawFrustrum(linePass, m_debugCascadeFrustrum, Vector3f(1.0f, 0.0f, 1.0f));
+#endif
+	}
+
 	PB::GraphicsPipelineDesc ShadowMapPass::GetBasePipelineDesc(uint32_t shadowMapResolution) const
 	{
 		assert(m_renderPass && "Cannot get optimal pipeline desc before adding this node to a RenderGraph.");
@@ -207,7 +275,7 @@ namespace Eng
 		pipelineDesc.m_subpass = 0;
 		pipelineDesc.m_renderArea = { 0, 0, shadowMapResolution, shadowMapResolution };
 		pipelineDesc.m_depthCompareOP = PB::ECompareOP::LEQUAL;
-		pipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
+		pipelineDesc.m_cullMode = PB::EFaceCullMode::BACK;
 
 		return pipelineDesc;
 	}

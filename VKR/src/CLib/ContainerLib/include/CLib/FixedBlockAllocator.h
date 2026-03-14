@@ -10,7 +10,7 @@ namespace CLib
 	{
 	public:
 
-		CLIB_API FixedBlockAllocator(uint32_t blockSize, uint32_t pageSize = 4096);
+		CLIB_API FixedBlockAllocator(uint32_t blockSize, uint32_t pageSize = 4096, uint32_t pageAlign = 1024);
 
 		CLIB_API ~FixedBlockAllocator();
 
@@ -67,6 +67,7 @@ namespace CLib
 		uint32_t m_blockSize;
 		uint32_t m_blockCount;
 		uint32_t m_pageSize;
+		uint32_t m_pageAlign;
 		Vector<Page, 32, 32> m_pages;
 	};
 }

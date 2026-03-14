@@ -2,6 +2,8 @@
 
 #include "../Renderer.h"
 #include "../PBUtil.h"
+#include "ParaBlitDefs.h"
+#include "ParaBlitImplUtil.h"
 
 namespace PB
 {
@@ -21,8 +23,8 @@ namespace PB
 
 		m_initInfo.DescriptorPool = VK_NULL_HANDLE;
 		m_initInfo.RenderPass = static_cast<VkRenderPass>(CreateImGUIRenderPass());
-		m_initInfo.MinImageCount = PB_FRAME_IN_FLIGHT_COUNT;
-		m_initInfo.ImageCount = PB_FRAME_IN_FLIGHT_COUNT + 1;
+		m_initInfo.MinImageCount = m_renderer->GetSwapchain()->GetImageCount();
+		m_initInfo.ImageCount = m_initInfo.MinImageCount + 1;
 		m_initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 		m_initInfo.DescriptorPoolSize = 8;
 		
@@ -74,7 +76,7 @@ namespace PB
 		AttachmentDesc& attachDesc = passDesc.m_attachments[0];
 		attachDesc.m_expectedState = PB::ETextureState::COLORTARGET;
 		attachDesc.m_finalState = PB::ETextureState::COLORTARGET;
-		attachDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+		attachDesc.m_format = Util::FormatToUnorm(m_renderer->GetSwapchain()->GetImageFormat());
 		attachDesc.m_keepContents = true;
 		attachDesc.m_loadAction = PB::EAttachmentAction::LOAD;
 

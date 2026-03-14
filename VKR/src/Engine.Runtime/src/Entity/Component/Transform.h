@@ -6,7 +6,6 @@
 #include "Engine.Math/Vector3.h"
 #include "Engine.Math/Quaternion.h"
 #include "Engine.Math/Matrix4.h"
-#include "Engine.Control/IDataClass.h"
 
 namespace Eng
 {
@@ -29,11 +28,11 @@ namespace Eng
 		inline void SetScale(const Vector3f& scale) { m_scale = scale; }
 		inline void Translate(const Vector3f& translation) { m_translation += translation; }
 		inline void ResetRotation() { m_quaternion = Quaternion::Identity(); }
-		void SetRotation(const Quaternion& quaternion) { m_quaternion = quaternion; }
+		inline void SetRotation(const Quaternion& quaternion) { m_quaternion = quaternion; }
 		void RotateEulerX(float angle);
 		void RotateEulerY(float angle);
 		void RotateEulerZ(float angle);
-		void Rotate(const Quaternion& quat) { m_quaternion *= quat; }
+		inline void Rotate(const Quaternion& quat) { m_quaternion *= quat; }
 		inline void Scale(const Vector3f& deltaScale) { m_scale += deltaScale; }
 
 		inline Vector3f GetPosition() const { return m_translation; }
@@ -44,13 +43,15 @@ namespace Eng
 		void GetMatrix(Matrix4& outMatrix) const;
 		Matrix4 GetMatrix() const;
 
+		virtual void OnFieldChanged(const ReflectronFieldData& field) override final;
+
 	private:
 
-		REFLECTRON_FIELD()
+		REFLECTRON_FIELD(display="Position")
 		Vector3f m_translation = Vector3f(0.0f);
-		REFLECTRON_FIELD()
+		REFLECTRON_FIELD(display="Rotation")
 		Quaternion m_quaternion = Quaternion::Identity();
-		REFLECTRON_FIELD()
+		REFLECTRON_FIELD(min=0.0)
 		Vector3f m_scale = Vector3f(1.0f);
 	};
 	CLIB_REFLECTABLE_CLASS(Transform)

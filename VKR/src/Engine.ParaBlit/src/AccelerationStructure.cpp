@@ -1,4 +1,5 @@
 #include "AccelerationStructure.h"
+#include "ParaBlitDefs.h"
 #include "Renderer.h"
 #include "Device.h"
 #include "CommandContext.h"
@@ -145,7 +146,7 @@ namespace PB
 		{
 			BufferObjectDesc storageBufferDesc{};
 			storageBufferDesc.m_name = m_desc.type == AccelerationStructureType::BOTTOM_LEVEL ? "PB::AccelerationStructure::blasBuffer" : "PB::AccelerationStructure::tlasBuffer";
-			storageBufferDesc.m_usage = PB::EBufferUsage::ACCELERATION_STRUCTURE_STORAGE;
+			storageBufferDesc.m_usage = PB::EBufferUsage::ACCELERATION_STRUCTURE_STORAGE | PB::EBufferUsage::MEMORY_ADDRESS_ACCESS;
 			storageBufferDesc.m_options = 0;
 			storageBufferDesc.m_bufferSize = buildSizesInfo.accelerationStructureSize;
 			m_structureStorageBuffer = reinterpret_cast<BufferObject*>(m_renderer->AllocateBuffer(storageBufferDesc));
@@ -206,6 +207,48 @@ namespace PB
 	void AccelerationStructure::Build(PB::ICommandContext* commandContext, u32* primitiveCounts)
 	{
 		CommandContext* cmdContextInternal = reinterpret_cast<CommandContext*>(commandContext);
+
+		// The input vertex and index buffers are assumed to be copied/loaded into to immediately before building the acceleration structure.
+		// Therefore we will make sure those copies are finished before building.
+		{
+			CLib::Vector<VkBufferMemoryBarrier, 2, 4> barriers;
+			for (uint32_t i = 0; i < m_desc.geometryInputCount; ++i)
+			{
+				BufferObject* vertexBuffer = reinterpret_cast<BufferObject*>(m_desc.geometryInputs[i].triangles.deviceVertexData);
+				BufferObject* indexBuffer = reinterpret_cast<BufferObject*>(m_desc.geometryInputs[i].triangles.deviceIndexData);
+
+				VkBufferMemoryBarrier& vertexCopyToBuildBarrier = barriers.PushBack();
+				vertexCopyToBuildBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+				vertexCopyToBuildBarrier.pNext = nullptr;
+				vertexCopyToBuildBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				vertexCopyToBuildBarrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+				vertexCopyToBuildBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				vertexCopyToBuildBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				vertexCopyToBuildBarrier.buffer = vertexBuffer->GetHandle();
+				vertexCopyToBuildBarrier.offset = 0;
+				vertexCopyToBuildBarrier.size = VK_WHOLE_SIZE;
+
+				// Also add an identical barrier for index data.
+				VkBufferMemoryBarrier& indexCopyToBuildBarrier = barriers.PushBack();
+				indexCopyToBuildBarrier = vertexCopyToBuildBarrier;
+				indexCopyToBuildBarrier.buffer = indexBuffer->GetHandle();
+			}
+
+			vkCmdPipelineBarrier
+			(
+				cmdContextInternal->GetCmdBuffer(),
+				VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+				0,
+				0,
+				nullptr, 
+				barriers.Count(), 
+				barriers.Data(),
+				0, 
+				nullptr
+			);
+		}
+
 		cmdContextInternal->CmdBuildAccelerationStructure(this, primitiveCounts ? primitiveCounts : m_primitiveCounts.Data());
 	}
 

@@ -8,9 +8,15 @@ set_target_properties(${_LIBRARY_} PROPERTIES OPTIMIZE_DEPENDENCIES TRUE)
 # --------------------------- Dependencies ---------------------------
 
 # Vulkan
+if(WIN32)
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/include")
 target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/lib")
 target_link_libraries(${_LIBRARY_} vulkan-1)
+elseif(LINUX)
+target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/x86_64/include")
+target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/x86_64/lib")
+target_link_libraries(${_LIBRARY_} vulkan)
+endif()
 
 # CLib
 target_include_directories(${_LIBRARY_} PRIVATE "${_SOURCE_DIR_}/CLib/ContainerLib/include")
@@ -42,18 +48,25 @@ set(CMAKE_CXX_FLAGS_MPCOMPILE "${CMAKE_CXX_FLAGS_MPCOMPILE} /MP")
 # Multi-threaded compilation
 set_target_properties(${_LIBRARY_} PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS_MPCOMPILE}")
 
+endif()
+
 # Output dir
 set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
 set_target_properties(${_LIBRARY_} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
 set_target_properties(${_LIBRARY_} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
-
-endif()
 # --------------------------------------------------------------------------
 
 # ------------------------- PREPROCESSOR DEFINITIONS -------------------------
 add_compile_definitions(PARABLIT_EXPORT)
 add_compile_definitions(PB_FRAME_IN_FLIGHT_COUNT=3)
+
+if(WIN32)
 add_compile_definitions(PARABLIT_WINDOWS)
+elseif(LINUX)
+add_compile_definitions(PARABLIT_LINUX)
+add_compile_definitions(PARABLIT_ENABLE_API_VALIDATION)
+add_compile_definitions(PB_USE_DEBUG_UTILS)
+endif()
 
 target_compile_definitions(${_LIBRARY_} PRIVATE
   $<$<CONFIG:Debug>:

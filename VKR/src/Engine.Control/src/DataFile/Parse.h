@@ -1,6 +1,6 @@
 #pragma once
 #include "Engine.Control/ISettingsParsers.h"
-#include "../src/pugixml/pugixml.hpp"
+#include "pugixml/pugixml.hpp"
 #include <unordered_map>
 
 namespace Ctrl

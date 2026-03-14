@@ -3,12 +3,12 @@
 #include "CLib/Vector.h"
 #include "ParaBlitApi.h"
 #include "ParaBlitDebug.h"
+#include "Texture.h"
 
 namespace PB 
 {
 	class Renderer;
 	class Device;
-	class Texture;
 
 	class Swapchain : public ISwapChain
 	{
@@ -62,7 +62,7 @@ namespace PB
 		u32 m_width = 0;
 		u32 m_height = 0;
 		CLib::Vector<VkImage, 3> m_swapchainImages;
-		Texture* m_wrappedSwapchainImages = nullptr;
+		CLib::Vector<Texture, 3, 1, true> m_wrappedSwapchainImages;
 		ETextureFormat m_imageFormat = ETextureFormat::UNKNOWN;
 		u8 m_imageCount = 0;
 	};

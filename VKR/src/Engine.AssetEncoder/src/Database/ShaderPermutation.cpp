@@ -1,4 +1,5 @@
 #include "Engine.AssetEncoder/ShaderPermutation.h"
+#include <cstring>
 #include <cassert>
 
 namespace AssetEncoder
@@ -15,22 +16,22 @@ namespace AssetEncoder
 		m_data.m_shaderBinarySize = shaderBinaryBlobSize;
 
 		// Fixed header data.
-		std::memcpy(dstData, &m_data, FixedHeaderSize);
+		memcpy(dstData, &m_data, FixedHeaderSize);
 		dstData += FixedHeaderSize;
 
 		// Permutation data.
 		size_t permutationDataSize = GetPermutationDataSize();
-		std::memcpy(dstData, permutationData, permutationDataSize);
+		memcpy(dstData, permutationData, permutationDataSize);
 		dstData += permutationDataSize;
 
 		// Shader binaries.
-		std::memcpy(dstData, shaderBinaryBlob, m_data.m_shaderBinarySize);
+		memcpy(dstData, shaderBinaryBlob, m_data.m_shaderBinarySize);
 	}
 
 	void ShaderHeader::Deserialize(const uint8_t* srcData)
 	{
 		// Fixed header data.
-		std::memcpy(&m_data, srcData, FixedHeaderSize);
+		memcpy(&m_data, srcData, FixedHeaderSize);
 		srcData += FixedHeaderSize;
 
 		// Validate data.

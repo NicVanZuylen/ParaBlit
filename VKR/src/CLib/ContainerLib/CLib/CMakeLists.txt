@@ -22,6 +22,12 @@ set_target_properties(${_LIBRARY_} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${_CLIB_B
 # ------------------------- PREPROCESSOR DEFINITIONS -------------------------
 add_compile_definitions(CLIB_EXPORT)
 
+if (WIN32)
+add_compile_definitions(CLIB_WINDOWS)
+elseif (LINUX)
+add_compile_definitions(CLIB_LINUX)
+endif()
+
 # ----------------------------------------------------------------------------
 
 # --------------------------- FUNC ---------------------------

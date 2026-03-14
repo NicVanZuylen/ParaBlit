@@ -1,10 +1,11 @@
 #pragma once
+#include "TimeMain.h"
 #include "CLib/Allocator.h"
+#include "Engine.ParaBlit/ISwapChain.h"
 
 namespace PB
 {
 	class IRenderer;
-	class ISwapChain;
 }
 
 struct GLFWwindow;
@@ -44,16 +45,18 @@ namespace Eng
 		PB::ISwapChain* m_swapchain = nullptr;
 		GLFWwindow* m_window = nullptr;
 		Input* m_input = nullptr;
-
+		
+		PB::SwapChainDesc m_swapchainDesc{};
 		uint32_t m_defaultWindowWidth = 1280;
 		uint32_t m_defaultWindowHeight = 720;
-		float m_fpsCap = 10000.0f;
-		float m_debugDisplayInterval = 0.5f;
-		float m_deltaTime = 0.0f;
-		float m_elapsedTime = 0.0f;
-		float m_debugDisplayTime = 0.0f;
+		double m_fpsCap = 10000.0f;
+		double m_debugDisplayInterval = 0.5f;
+		double m_deltaTime = 0.0f;
+		double m_totalElapsedTime = 0.0f;
+		double m_debugDisplayTime = 0.0f;
 
 		bool m_isfullScreen = false;
+		bool m_useVsync = false;
 		bool m_glfwInitialized = false;
 		bool m_displayPerfMetrics = false;
 		bool m_updateRendererResolution = false;

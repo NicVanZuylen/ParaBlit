@@ -26,7 +26,7 @@ namespace PB
 		// Free all frame pages.
 		for (u32 i = 0; i < MemoryTypeCount; ++i)
 		{
-			for (u32 j = 0; j < PB_FRAME_IN_FLIGHT_COUNT; ++j)
+			for (u32 j = 0; j < PB_FRAME_IN_FLIGHT_COUNT + 1; ++j)
 			{
 				m_freeLists[i].AppendList(m_pendingFreeLists[j][i]);
 				m_freeLists[i].AppendList(m_frameLists[j][i]);

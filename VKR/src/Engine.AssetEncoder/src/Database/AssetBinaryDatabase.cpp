@@ -1,10 +1,9 @@
 #include "Engine.AssetEncoder/AssetBinaryDatabase.h"
+#include "Engine.Control/GUID.h"
 
 #include <cassert>
-#include <exception>
 #include <iostream>
 #include <filesystem>
-#include <cmath>
 
 namespace AssetEncoder
 {
@@ -29,7 +28,7 @@ namespace AssetEncoder
 		m_assetAllocations.Clear();
 	}
 
-	void* AssetBinaryDatabaseWriter::AllocateAsset(const char* assetName, size_t userDataSize, size_t binarySize, size_t date, char** outUserData, AssetMeta* outMeta)
+	void* AssetBinaryDatabaseWriter::AllocateAsset(const char* assetName, const Ctrl::GUID& guid, size_t userDataSize, size_t binarySize, size_t date, char** outUserData, AssetMeta* outMeta)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -38,7 +37,8 @@ namespace AssetEncoder
 		size_t userDataOffset = sizeof(DatabaseStringHeader);
 
 		size_t stringLength = strlen(assetName) + 1; // Include null terminator.
-		char* strMem = reinterpret_cast<char*>(m_stringAllocator.Alloc(uint32_t(stringLength + stringOffset), 16));
+
+		char* strMem = reinterpret_cast<char*>(m_stringAllocator.Alloc(uint32_t(stringOffset + stringLength), 16));
 		m_stringAllocations.PushBack(strMem);
 
 		if(outUserData != nullptr)
@@ -65,9 +65,10 @@ namespace AssetEncoder
 		stringHeader->m_asset.m_location = pageOffset + assetLocalOffset;
 		stringHeader->m_asset.m_assetSize = binarySize;
 		stringHeader->m_asset.m_dateModified = date;
-		stringHeader->m_asset.m_dateBuilt = std::chrono::duration_cast<std::chrono::seconds>(std::filesystem::_File_time_clock::now().time_since_epoch()).count();;
+		stringHeader->m_asset.m_dateBuilt = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::file_clock::now().time_since_epoch()).count();
 		stringHeader->m_asset.m_userDataSize = userDataSize;
 		stringHeader->m_asset.m_userDataLocation = stringHeaderLocation + userDataOffset;
+		stringHeader->m_asset.m_guid = ((guid == Ctrl::nullGUID) ? Ctrl::GenerateGUID() : guid);
 
 		if (outMeta != nullptr)
 			*outMeta = stringHeader->m_asset;
@@ -91,12 +92,14 @@ namespace AssetEncoder
 		if (!std::filesystem::exists(path))
 			std::filesystem::create_directory(path);
 
-		std::ofstream dbFile(m_databasePath, std::ios::binary | std::ios::out | std::ios::beg);
+		std::ofstream dbFile(m_databasePath, std::ofstream::binary | std::ofstream::out);
 		auto fileExceptions = dbFile.exceptions();
 
 		assert(dbFile.good() && !fileExceptions);
 		if (dbFile.good() && !fileExceptions)
 		{
+			dbFile.seekp(std::ios::beg);
+
 			std::streampos beginPos = dbFile.tellp();
 			std::streampos currentPos = beginPos;
 

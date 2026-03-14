@@ -1,6 +1,14 @@
 #include "CLib/SubAllocator.h"
 #include <iostream>
 
+#if CLIB_WINDOWS
+#define CLIB_ALIGNED_MALLOC _aligned_malloc
+#define CLIB_ALIGNED_FREE _aligned_free
+#elif CLIB_LINUX
+#define CLIB_ALIGNED_MALLOC aligned_alloc
+#define CLIB_ALIGNED_FREE free
+#endif
+
 namespace CLib
 {
 	//const uint32_t SubAllocator::Page::PageSize = 1024 * 1024;
@@ -14,7 +22,7 @@ namespace CLib
 	SubAllocator::~SubAllocator()
 	{
 		for (uint32_t i = 0; i < m_pages.Count(); ++i)
-			_aligned_free(m_pages[i].m_base);
+			CLIB_ALIGNED_FREE(m_pages[i].m_base);
 	}
 
 	bool SubAllocator::DumpLeaks()
@@ -198,7 +206,7 @@ namespace CLib
 	{
 		auto& page = m_pages.PushBack();
 
-		page.m_base = reinterpret_cast<u8*>(_aligned_malloc(Page::PageSize, 4));
+		page.m_base = reinterpret_cast<u8*>(CLIB_ALIGNED_MALLOC(Page::PageSize, 4));
 
 		// Create first block.
 		BlockMeta* block = reinterpret_cast<BlockMeta*>(page.m_base);

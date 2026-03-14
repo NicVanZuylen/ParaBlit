@@ -106,10 +106,11 @@ namespace Eng
 		PB::IRenderer* m_renderer = nullptr;
 		PB::IBufferObject* m_buffer = nullptr;
 		PB::IBufferObject* m_counterBuffer = nullptr;
-		PB::IBufferObject* m_bitfieldBuffer = nullptr;
+		PB::IBufferObject* m_cullBitfieldBuffer = nullptr;
 		PB::Pipeline m_instanceCullPipeline = 0;
 		PB::Pipeline m_instancePopulatePipeline = 0;
 		CLib::Vector<PB::IBufferObject*, 3> m_stagingBuffers;
+		CLib::Vector<PB::IBufferObject*, 3> m_bitfieldBuffers;
 		CLib::Vector<ManagedInstance, 0, 16> m_freeInstances;
 		PB::u8* m_cpuInstanceData = nullptr;
 		PB::u32 m_currentStagingIndex = 0;

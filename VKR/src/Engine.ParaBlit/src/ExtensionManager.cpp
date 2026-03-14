@@ -2,8 +2,8 @@
 #include "ParaBlitLog.h"
 #include "ParaBlitDebug.h"
 
-#define PB_PRINT_AVAILABLE_EXT 0
-#define PB_PRINT_AVAILABLE_LAYERS 0
+#define PB_PRINT_AVAILABLE_EXT 1
+#define PB_PRINT_AVAILABLE_LAYERS 1
 
 namespace PB
 {

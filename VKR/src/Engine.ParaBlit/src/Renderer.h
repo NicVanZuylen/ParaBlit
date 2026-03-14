@@ -16,8 +16,10 @@
 #include "BufferObject.h"
 #include "ResourcePool.h"
 #include "ImGUIModule/ImGUIModule.h"
+#include "vulkan/vulkan_core.h"
 
 #include <mutex>
+#include <thread>
 
 namespace PB 
 {
@@ -40,10 +42,9 @@ namespace PB
 	{
 		VkImage m_presentImage = VK_NULL_HANDLE;
 		VkSemaphore m_imageAcquireSempahore = VK_NULL_HANDLE;															// Signalled when the swap chain image has been acquired, rendering will wait on this.
-		VkSemaphore m_frameSemaphore = VK_NULL_HANDLE;																	// Signalled when the frame is complete. This semaphore will be waited on before the image is presented.
 		VkFence m_frameFence = VK_NULL_HANDLE;																			// This semaphore indicates if this frame is currently in-flight.
 		EFrameState m_state = PB_FRAME_STATE_OPEN;																		// TODO: Evaluate if this state enum is even needed outside of validation.
-		u32 m_presentImageIdx = 0;																						// Swapchain image index.
+		u32 m_presentImageIdx = 0;																						// Swapchain image index. Also used to select the correct semaphore for frame execution and image presentation.
 		CLib::Vector<VkCommandBuffer, 8> m_submittedContextCmdBuffers;													// Command context command buffers submitted for this frame, these will be emptied when the frame is next ready for use.
 		CLib::Vector<VkCommandBuffer, 8> m_prioritySubmittedContextBuffers;												// Submitted context command buffers that will be executed before non-priority command buffers.
 		CLib::Vector<VkCommandBuffer, 8> m_submittedInternalCmdBuffers;													// Submitted context command buffers that will be executed before non-priority command buffers.
@@ -102,7 +103,7 @@ namespace PB
 
 		void AddThreadCommandContext(ThreadCommandContext* context);
 
-		PARABLIT_API void EndFrame(float& outStallTimeMs) override;
+		PARABLIT_API void EndFrame(double& outStallTimeMs) override;
 
 		PARABLIT_API void WaitIdle() override;
 
@@ -172,20 +173,22 @@ namespace PB
 			uint32_t m_allocatedCmdBufferCount = 0;
 		};
 
-		inline void CreateWindowSurface(WindowDesc* windowHandle) override;
+		void CreateWindowSurface(WindowDesc* windowHandle) override;
 
-		inline void CreateSyncObjects();
+		void CreateSyncObjects();
 
-		inline void CreatePoolAndSetLayouts();
+		void CreateUBODescriptorPool();
+
+		void CreateSetLayouts();
 
 		// Reset frame tracking to begin recording the next frame.
-		inline void BeginNextFrame();
+		void BeginNextFrame();
 
-		inline void SubmitFrame();
+		void SubmitFrame();
 
-		inline void FreeCommandBuffer(VkCommandBuffer cmdBuf);
+		void FreeCommandBuffer(VkCommandBuffer cmdBuf);
 
-		inline void Present();
+		void Present();
 
 		VulkanInstance m_vkInstance;
 		Device m_device;
@@ -209,10 +212,10 @@ namespace PB
 		VkDescriptorSetLayout m_masterSetLayout = VK_NULL_HANDLE;
 
 		// Shared descriptors
-		static constexpr const u32 MaxUBOBindings = 512;
-		static constexpr const u32 MaxAccelerationStructureBindings = 16;
+		static constexpr const u32 MaxUBOSetsPerPool = 128;
+		static constexpr const u32 MaxUBOBindings = 16;
+		static constexpr const u32 MaxAccelerationStructureBindings = 8;
 
-		VkDescriptorPool m_sharedDescPool = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_uboSetLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_asSetLayout = VK_NULL_HANDLE;
 
@@ -221,7 +224,9 @@ namespace PB
 		u64 m_currentFrame = 0;
 		u8 m_curFrameInfoIdx = 0;
 		bool m_resetSwapchain = false;
-		CLib::Vector<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT> m_frameInfos;
+		CLib::Vector<FrameInfo, PB_FRAME_IN_FLIGHT_COUNT + 1, 1, true> m_frameInfos;
+		CLib::Vector<VkSemaphore, PB_FRAME_IN_FLIGHT_COUNT + 1> m_frameSemaphores;
+		CLib::Vector<VkDescriptorPool, 4, 4> m_uboDescriptorPools;
 		CLib::Vector<VkDescriptorSet, 16> m_descriptorSets[u32(EDescriptorSetType::DESCRIPTOR_TYPE_COUNT)];
 		CLib::Vector<VkDescriptorSet, 16> m_usedDescriptorSets[u32(EDescriptorSetType::DESCRIPTOR_TYPE_COUNT)];
 		CLib::Vector<CommandPoolInfo*, 4, 4> m_freeCommandPools;
@@ -238,8 +243,6 @@ namespace PB
 		CLib::FixedBlockAllocator m_commandContextAllocator{ sizeof(CommandContext), sizeof(CommandContext) * 16 };
 		CLib::Vector<ThreadCommandContext*, 8, 8> m_threadCommandContexts;
 		CLib::Vector<CommandContext*, 8, 8> m_freeCommandContexts;
-
-		std::condition_variable m_conditionVar;
 	};
 }
 

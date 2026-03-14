@@ -5,11 +5,12 @@
 #include "GLFW/glfw3.h"
 #pragma warning (pop)
 
-namespace VKRClient
+namespace Eng
 {
 	// Get platform-native window information
 
 	void* GetWindowHandle(GLFWwindow* window);
 	void* GetWindowInstance();
+	void* GetWindowDisplay();
 };
 

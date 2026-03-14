@@ -7,7 +7,7 @@
 
 namespace Ctrl
 {
-	enum class EAttributeType
+	enum class EFieldType
 	{
 		UNKNOWN_OR_INVALID,
 		INT,
@@ -19,9 +19,9 @@ namespace Ctrl
 		GUID
 	};
 
-	struct Attribute
+	struct Field
 	{
-		EAttributeType m_type = EAttributeType::UNKNOWN_OR_INVALID;
+		EFieldType m_type = EFieldType::UNKNOWN_OR_INVALID;
 		CLib::Vector<uint8_t> m_data;
 	};
 
@@ -29,7 +29,7 @@ namespace Ctrl
 	{
 	public:
 
-		CONTROL_INTERFACE void PeekAttributes(std::function<void(const std::string&, const Attribute&)> peekFunc) const = 0;
+		CONTROL_INTERFACE void PeekFields(std::function<void(const std::string&, const Field&)> peekFunc) const = 0;
 
 		CONTROL_INTERFACE const int* GetInteger(const char* name, uint32_t& outCount) const = 0;
 		CONTROL_INTERFACE int GetInteger(const char* name, int fallbackValue = 0) const = 0;
@@ -72,7 +72,7 @@ namespace Ctrl
 		CONTROL_INTERFACE void SetGUID(const char* name, const char** value, uint32_t count = 1) = 0;
 		CONTROL_INTERFACE void SetGUID(const char* name, const char* value) = 0;
 
-		CONTROL_INTERFACE void RemoveAttributeOrNode(const char* name) = 0;
+		CONTROL_INTERFACE void RemoveFieldOrNode(const char* name) = 0;
 
 		CONTROL_INTERFACE void SetSelfGUID(const GUID& value) = 0;
 		CONTROL_INTERFACE const GUID& GetSelfGUID() const = 0;

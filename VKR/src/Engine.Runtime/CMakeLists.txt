@@ -1,5 +1,7 @@
 # ================================================================ BUILD STEPS =========================================================================
 # Reflectron Pre-build step
+if(WIN32)
+
 add_custom_command(
     OUTPUT ${_BUILD_DIR_}/dummy2.adb
     DEPENDS Engine.Reflectron
@@ -8,10 +10,24 @@ add_custom_command(
     COMMENT "Running Reflectron..."
 )
 
+elseif(LINUX)
+
+add_custom_command(
+    OUTPUT ${_BUILD_DIR_}/dummy2.adb
+    DEPENDS Engine.Reflectron
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${_BUILD_DIR_}/Engine.Reflectron -Path.SourceDir src/Engine.Runtime/
+    COMMENT "Running Reflectron..."
+)
+
+endif()
+
 add_custom_target(
     PRE_BUILD
     DEPENDS ${_BUILD_DIR_}/dummy2.adb
 )
+
+if(WIN32)
 
 # Pipeline Post-build step
 add_custom_command(
@@ -21,6 +37,18 @@ add_custom_command(
     COMMAND ${_BUILD_DIR_}/$(Configuration)/Engine.AssetPipeline.exe -Path.AssetsDir Assets/
     COMMENT "Running Build Pipeline..."
 )
+
+elseif(LINUX)
+
+add_custom_command(
+    OUTPUT ${_BUILD_DIR_}/dummy.adb
+    DEPENDS Engine.AssetPipeline
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${_BUILD_DIR_}/Engine.AssetPipeline -Path.AssetsDir Assets/
+    COMMENT "Running Build Pipeline..."
+)
+
+endif()
 
 add_custom_target(
     POST_BUILD
@@ -65,9 +93,15 @@ target_link_libraries(${_LIBRARY_} Engine.ParaBlit)
 add_dependencies(${_LIBRARY_} Engine.ParaBlit)
 
 # Vulkan
+if(WIN32)
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/include")
 target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/lib")
 target_link_libraries(${_LIBRARY_} vulkan-1)
+elseif(LINUX)
+target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/x86_64/include")
+target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/x86_64/lib")
+target_link_libraries(${_LIBRARY_} vulkan)
+endif()
 
 # stb_image
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/stb")
@@ -117,22 +151,30 @@ set(CMAKE_CXX_FLAGS_MPCOMPILE "${CMAKE_CXX_FLAGS_MPCOMPILE} /MP")
 # Multi-threaded compilation
 set_target_properties(${_LIBRARY_} PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS_MPCOMPILE}")
 
-# Output dir
-set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
-
 # Working dir
 set_target_properties(${_LIBRARY_} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+endif()
 
 add_dependencies(${_LIBRARY_} PRE_BUILD)
 add_dependencies(${_LIBRARY_} POST_BUILD)
 
-endif()
+# Output dir
+set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
 # --------------------------------------------------------------------------
 
 # ------------------------- PREPROCESSOR DEFINITIONS -------------------------
+add_compile_definitions(CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1)
+
+if(WIN32)
+add_compile_definitions(ENG_WINDOWS)
 add_compile_definitions(PARABLIT_WINDOWS)
 add_compile_definitions(GLFW_EXPOSE_NATIVE_WIN32)
-add_compile_definitions(CLIB_ALLOCATOR_DUMP_ON_DESTRUCTION=1)
+elseif(LINUX)
+add_compile_definitions(ENG_LINUX)
+add_compile_definitions(PARABLIT_LINUX)
+add_compile_definitions(GLFW_EXPOSE_NATIVE_X11)
+endif()
 
 if(${_LIBRARY_} STREQUAL "Engine.Editor")
 target_compile_definitions(${_LIBRARY_} PRIVATE ENG_EDITOR=1)
@@ -172,6 +214,7 @@ add_source("src/RenderGraph" "RenderGraph")
 add_source("src/RenderGraphPasses" "RenderGraphPasses")
 add_source("src/Entity" "Entity")
 add_source("src/Entity/Component" "Entity/Component")
+add_source("src/Editor" "Editor")
 
 endfunction()
 # ======================================================================================================================================================

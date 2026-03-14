@@ -2,14 +2,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "Resource/Texture.h"
 
-#include <random>
-
-#pragma warning(push, 0)
-#define GLM_FORCE_CTOR_INIT // Required to ensure glm constructors actually initialize vectors/matrices etc.
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
-#pragma warning(pop)
-
 namespace Eng
 {
 	DeferredLightingPass::DeferredLightingPass(PB::IRenderer* renderer, CLib::Allocator* allocator, bool useRaytracedShadows)
@@ -93,12 +85,12 @@ namespace Eng
 		{
 			GenSpecBDRFLut(info.m_commandContext);
 		}
+
+		info.m_commandContext->CmdBeginLabel("DeferredLightingPass", { 1.0f, 1.0f, 1.0f, 1.0f });
 	}
 
 	void DeferredLightingPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-		info.m_commandContext->CmdBeginLabel("DeferredLightingPass", { 1.0f, 1.0f, 1.0f, 1.0f });
-
 		if (m_mappedLightingBuffer)
 		{
 			m_lightingBuffer->EndPopulate();
@@ -181,9 +173,9 @@ namespace Eng
 				};
 
 				PB::BindingLayout skyBindingLayout{};
-				skyBindingLayout.m_uniformBufferCount = _countof(skyBufferViews);
+				skyBindingLayout.m_uniformBufferCount = PB_ARRAY_LENGTH(skyBufferViews);
 				skyBindingLayout.m_uniformBuffers = skyBufferViews;
-				skyBindingLayout.m_resourceCount = _countof(skyResourceViews);
+				skyBindingLayout.m_resourceCount = PB_ARRAY_LENGTH(skyResourceViews);
 				skyBindingLayout.m_resourceViews = skyResourceViews;
 
 				scopedContext->CmdBindPipeline(skyboxPipeline);
@@ -212,9 +204,9 @@ namespace Eng
 			};
 
 			PB::BindingLayout dirBindingLayout{};
-			dirBindingLayout.m_uniformBufferCount = _countof(dirBufferViews);
+			dirBindingLayout.m_uniformBufferCount = PB_ARRAY_LENGTH(dirBufferViews);
 			dirBindingLayout.m_uniformBuffers = dirBufferViews;
-			dirBindingLayout.m_resourceCount = _countof(dirResourceViews);
+			dirBindingLayout.m_resourceCount = PB_ARRAY_LENGTH(dirResourceViews);
 			dirBindingLayout.m_resourceViews = dirResourceViews;
 
 			if (m_dirLightingPipeline == 0)
@@ -277,9 +269,9 @@ namespace Eng
 				};
 
 				PB::BindingLayout pntBindingLayout{};
-				pntBindingLayout.m_uniformBufferCount = _countof(pntBufferViews);
+				pntBindingLayout.m_uniformBufferCount = PB_ARRAY_LENGTH(pntBufferViews);
 				pntBindingLayout.m_uniformBuffers = pntBufferViews;
-				pntBindingLayout.m_resourceCount = _countof(pntResourceViews);
+				pntBindingLayout.m_resourceCount = PB_ARRAY_LENGTH(pntResourceViews);
 				pntBindingLayout.m_resourceViews = pntResourceViews;
 
 				scopedContext->CmdBindPipeline(m_pointLightingPipeline);
@@ -295,12 +287,11 @@ namespace Eng
 			m_reusableCmdList = RecordPass();
 
 		info.m_commandContext->CmdExecuteList(m_reusableCmdList);
-		info.m_commandContext->CmdEndLastLabel();
 	}
 
 	void DeferredLightingPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-
+		info.m_commandContext->CmdEndLastLabel();
 	}
 
 	void DeferredLightingPass::AddToRenderGraph(RenderGraphBuilder* builder, Math::Vector2u targetResolution)
@@ -318,7 +309,7 @@ namespace Eng
 		// Read G Buffers
 		m_colorTextureIndex = nodeDesc.m_transientTextures.Count();
 		TransientTextureDesc& colorReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		colorReadDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+		colorReadDesc.m_format = PB::ETextureFormat::A2R10G10B10_UNORM;
 		colorReadDesc.m_width = targetResolution.x;
 		colorReadDesc.m_height = targetResolution.y;
 		colorReadDesc.m_name = "G_Color";
@@ -345,7 +336,7 @@ namespace Eng
 
 		m_depthTextureIndex = nodeDesc.m_transientTextures.Count();
 		TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthReadDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthReadDesc.m_width = targetResolution.x;
 		depthReadDesc.m_height = targetResolution.y;
 		depthReadDesc.m_name = "G_Depth";
@@ -355,8 +346,6 @@ namespace Eng
 		m_shadowMaskTextureIndex = nodeDesc.m_transientTextures.Count();
 		TransientTextureDesc& shadowMaskReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 		shadowMaskReadDesc.m_format = PB::ETextureFormat::R8_UNORM;
-		shadowMaskReadDesc.m_width = targetResolution.x;
-		shadowMaskReadDesc.m_height = targetResolution.y;
 		shadowMaskReadDesc.m_name = "ShadowMask";
 		shadowMaskReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
 		shadowMaskReadDesc.m_usageFlags = PB::ETextureState::SAMPLED;
@@ -391,7 +380,7 @@ namespace Eng
 		colorDesc.m_usage = PB::EAttachmentUsage::COLOR;
 
 		AttachmentDesc& depthDesc = nodeDesc.m_attachments.PushBackInit();
-		depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthDesc.m_width = targetResolution.x;
 		depthDesc.m_height = targetResolution.y;
 		depthDesc.m_name = "G_Depth";
@@ -422,7 +411,7 @@ namespace Eng
 			m_directionalLightCount = index + 1;
 
 		lights.m_lightCount = static_cast<int32_t>(m_directionalLightCount);
-		lights.m_emissionIntensityScale = 2.0f;
+		lights.m_emissionIntensityScale = 5.0f;
 	}
 
 	void DeferredLightingPass::SetPointLight(uint32_t index, PB::Float4 position, PB::Float3 color, float radius)

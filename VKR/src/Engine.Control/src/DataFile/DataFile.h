@@ -1,6 +1,7 @@
 #pragma once
+#include "CLib/Vector.h"
 #include "Engine.Control/IDataFile.h"
-#include "../src/pugixml/pugixml.hpp"
+#include "pugixml/pugixml.hpp"
 #include "CLib/Allocator.h"
 
 #include <sstream>
@@ -23,7 +24,7 @@ namespace Ctrl
 		void InitializeWithNode(const pugi::xml_node& node);
 		void WriteData(pugi::xml_node& parent, const char* name, bool includeSelf = true);
 
-		CONTROL_API void PeekAttributes(std::function<void(const std::string&, const Attribute&)> peekFunc) const override;
+		CONTROL_API void PeekFields(std::function<void(const std::string&, const Field&)> peekFunc) const override;
 
 		CONTROL_API const int* GetInteger(const char* name, uint32_t& outCount) const override;
 		CONTROL_API int GetInteger(const char* name, int fallbackValue) const override;
@@ -37,9 +38,12 @@ namespace Ctrl
 		CONTROL_API const char* GetString(const char* name, const char* fallbackValue) const override;
 		CONTROL_API IDataNode** GetDataNode(const char* name, uint32_t& outCount) override;
 		CONTROL_API const IDataNode* const* GetDataNode(const char* name, uint32_t& outCount) const override;
+		CONTROL_API const IDataNode* const* GetDataNode(const Field& field, uint32_t& outCount) const override;
 		CONTROL_API IDataNode* GetDataNode(const char* name) override;
 		CONTROL_API const IDataNode* GetDataNode(const char* name) const override;
+		CONTROL_API void GetAllChildDataNodes(CLib::Vector<IDataNode*>& outNodes) override;
 		CONTROL_API const GUID* GetGUID(const char* name, uint32_t& outCount) const override;
+		CONTROL_API const GUID* GetGUID(const Field& field, uint32_t& outCount) const override;
 		CONTROL_API const GUID* GetGUID(const char* name) const override;
 
 		CONTROL_API void SetInteger(const char* name, int* value, uint32_t count = 1) override;
@@ -57,7 +61,7 @@ namespace Ctrl
 		CONTROL_API void SetGUID(const char* name, const GUID* value, uint32_t count = 1) override;
 		CONTROL_API void SetGUID(const char* name, const GUID& value) override;
 
-		CONTROL_API void RemoveAttributeOrNode(const char* name, uint32_t index) override;
+		CONTROL_API void RemoveFieldOrNode(const char* name, uint32_t index) override;
 
 		CONTROL_API void SetSelfGUID(const GUID& value) override;
 		CONTROL_API const GUID& GetSelfGUID() const override;
@@ -69,7 +73,7 @@ namespace Ctrl
 		IDataNode* AddDataNode(const char* name, const pugi::xml_node* nodeData, const char* type = nullptr);
 
 		void ReadChildren(pugi::xml_node& node);
-		void FreeAttributeData(Attribute& attribute, uint32_t index = ~uint32_t(0));
+		void FreeFieldData(Field& field, uint32_t index = ~uint32_t(0));
 		void WriteIntArray(std::stringstream& outStr, int* data, uint32_t count);
 
 		template<typename T>
@@ -92,7 +96,7 @@ namespace Ctrl
 		
 		std::string m_type;
 		GUID m_guid = nullGUID;
-		std::map<const std::string, Attribute> m_attributes;
+		std::map<const std::string, Field> m_fields;
 	};
 
 	class DataFile : public IDataFile
@@ -105,8 +109,9 @@ namespace Ctrl
 		CONTROL_API EFileStatus Open(const char* fileName, EOpenMode openMode, bool allowFail) override;
 		CONTROL_API EFileStatus GetStatus() override { return m_status; };
 		CONTROL_API IDataNode* GetRoot() override { return m_base; };
+		CONTROL_API const IDataNode* GetRoot() const override { return m_base; };
 		CONTROL_API void ParseData() override;
-		CONTROL_API bool WriteData() override;
+		CONTROL_API bool WriteData(const char* dstFilename) override;
 		CONTROL_API void Close() override;
 
 	private:

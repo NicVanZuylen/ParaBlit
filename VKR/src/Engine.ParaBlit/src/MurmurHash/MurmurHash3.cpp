@@ -98,8 +98,8 @@ namespace PB
 
     //-----------------------------------------------------------------------------
 
-    void MurmurHash3_x86_32(const void* key, int len,
-        uint32_t seed, void* out)
+    u32 MurmurHash3_x86_32(const void* key, int len,
+        uint32_t seed)
     {
         const uint8_t* data = (const uint8_t*)key;
         const int nblocks = len / 4;
@@ -149,7 +149,7 @@ namespace PB
 
         h1 = fmix32(h1);
 
-        *(uint32_t*)out = h1;
+        return h1;
     }
 
     //-----------------------------------------------------------------------------

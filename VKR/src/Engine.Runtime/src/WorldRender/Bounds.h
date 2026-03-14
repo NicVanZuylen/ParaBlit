@@ -43,7 +43,7 @@ namespace Eng
 		inline float MaxY() const { return m_origin.y + m_extents.y; }
 		inline float MaxZ() const { return m_origin.z + m_extents.z; }
 
-		inline Vector3f Centre() const
+		inline Vector3f Center() const
 		{
 			return m_origin + (m_extents * 0.5f);
 		}
@@ -95,59 +95,54 @@ namespace Eng
 			m_extents -= m_origin;
 		}
 
-		inline void Transform(const Matrix4& matrix)
+		inline void Transform(const Eng::Math::Matrix4& matrix)
 		{
 			struct Vertices
 			{
-				union
-				{
-					struct
-					{
-						Vector4f botLeft;
-						Vector4f botRight;
-						Vector4f botBackLeft;
-						Vector4f botBackRight;
-						Vector4f topLeft;
-						Vector4f topRight;
-						Vector4f topBackLeft;
-						Vector4f topBackRight;
-					};
-					Vector4f vertices[8];
-				};
+				// union
+				// {
+				// 	struct
+				// 	{
+				// 		Eng::Math::Vector4f botLeft;
+				// 		Eng::Math::Vector4f botRight;
+				// 		Eng::Math::Vector4f botBackLeft;
+				// 		Eng::Math::Vector4f botBackRight;
+				// 		Eng::Math::Vector4f topLeft;
+				// 		Eng::Math::Vector4f topRight;
+				// 		Eng::Math::Vector4f topBackLeft;
+				// 		Eng::Math::Vector4f topBackRight;
+				// 	};
+				// 	Eng::Math::Vector4f vertices[8];
+				// };
+				Eng::Math::Vector4f vertices[8];
 			};
 
 			Vertices v
 			{
-				Vector4f(m_origin, 1.0f),
-				Vector4f(m_origin + Vector3f(m_extents.x, 0.0f, 0.0f), 1.0f),
-				Vector4f(m_origin + Vector3f(0.0f, 0.0f, m_extents.z), 1.0f),
-				Vector4f(m_origin + Vector3f(m_extents.x, 0.0f, m_extents.z), 1.0f)
+				Eng::Math::Vector4f(m_origin),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y, m_origin.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x, m_origin.y, m_origin.z + m_extents.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y, m_origin.z + m_extents.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x, m_origin.y + m_extents.y, m_origin.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y + m_extents.y, m_origin.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x, m_origin.y + m_extents.y, m_origin.z + m_extents.z, 1.0f),
+				Eng::Math::Vector4f(m_origin.x + m_extents.x, m_origin.y + m_extents.y, m_origin.z + m_extents.z, 1.0f)
 			};
 
-			v.topLeft = v.botLeft;
-			v.topLeft.y += m_extents.y;
-			v.topRight = v.botRight;
-			v.topRight.y += m_extents.y;
-			v.topBackLeft = v.botBackLeft;
-			v.topBackLeft.y += m_extents.y;
-			v.topBackRight = v.botBackRight;
-			v.topBackRight.y += m_extents.y;
-
-			Vector4f newOrigin(INFINITY);
-			Vector4f newExtents(-INFINITY);
-			for (Vector4f& vert : v.vertices)
+			Eng::Math::Vector3f newOrigin(INFINITY);
+			Eng::Math::Vector3f newExtents(-INFINITY);
+			for (Eng::Math::Vector4f& vert : v.vertices)
 			{
 				vert = matrix * vert;
-				newOrigin = Vector4f(Min(newOrigin.x, vert.x), Min(newOrigin.y, vert.y), Min(newOrigin.z, vert.z), 0.0f);
-				newExtents = Vector4f(Max(newExtents.x, vert.x), Max(newExtents.y, vert.y), Max(newExtents.z, vert.z), 0.0f);
+				newOrigin = Eng::Math::Vector3f(Eng::Math::Min(newOrigin.x, vert.x), Eng::Math::Min(newOrigin.y, vert.y), Eng::Math::Min(newOrigin.z, vert.z));
+				newExtents = Eng::Math::Vector3f(Eng::Math::Max(newExtents.x, vert.x), Eng::Math::Max(newExtents.y, vert.y), Eng::Math::Max(newExtents.z, vert.z));
 			}
 
 			m_origin = newOrigin;
-			m_extents = newExtents;
-			m_extents -= m_origin;
+			m_extents = newExtents - newOrigin;
 		}
 
-		inline bool IsIntersectingWithRay(const Vector3f& rayOrigin, const Vector3f& rayDirection, float& outDistance)
+		inline bool IsIntersectingWithRay(const Vector3f& rayOrigin, const Vector3f& rayDirection, float& outDistance) const
 		{
 			// Cyrus-Beck clipping method, where t = ray distance.
 
@@ -170,6 +165,57 @@ namespace Eng
 				return false;
 
 			return true;
+		}
+
+		// Returns which inner face of the AABB the ray intersects with (if any).
+		// 0 == MinX, 1 == MinY, 2 == MinZ, 3 == MaxX, 4 == MaxY, 5 == MaxZ.
+		// Returns -1 if the ray does not intersect with the AABB.
+		inline int GetInnerFaceIntersectingWithRay(const Vector3f& rayOrigin, const Vector3f& rayDirection, float& outDistance) const
+		{
+			// Cyrus-Beck clipping method, where t = ray distance.
+
+			float tMinX = (m_origin.x - rayOrigin.x) / rayDirection.x;
+			float tMaxX = (MaxX() - rayOrigin.x) / rayDirection.x;
+			float tMinY = (m_origin.y - rayOrigin.y) / rayDirection.y;
+			float tMaxY = (MaxY() - rayOrigin.y) / rayDirection.y;
+			float tMinZ = (m_origin.z - rayOrigin.z) / rayDirection.z;
+			float tMaxZ = (MaxZ() - rayOrigin.z) / rayDirection.z;
+
+			float tMin = Max(Max(Min(tMinX, tMaxX), Min(tMinY, tMaxY)), Min(tMinZ, tMaxZ));
+			float tMax = Min(Min(Max(tMinX, tMaxX), Max(tMinY, tMaxY)), Max(tMinZ, tMaxZ));
+
+			outDistance = Max(tMin, tMax);
+
+			if (tMax < 0.0f)
+				return -1;
+
+			if (tMin > tMax)
+				return -1;
+
+			if (outDistance == tMinX)
+			{
+				return 0;
+			}
+			else if (outDistance == tMinY)
+			{
+				return 1;
+			}
+			else if (outDistance == tMinZ)
+			{
+				return 2;
+			}
+			else if (outDistance == tMaxX)
+			{
+				return 3;
+			}
+			else if (outDistance == tMaxY)
+			{
+				return 4;
+			}
+			else
+			{
+				return 5;
+			}
 		}
 	};
 };

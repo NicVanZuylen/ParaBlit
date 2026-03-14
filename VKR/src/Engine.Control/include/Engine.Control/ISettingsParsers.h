@@ -1,8 +1,6 @@
 #pragma once
 #include "ControlLib.h"
 
-#include <cstdint>
-
 namespace Ctrl
 {
 	class IDataContainer

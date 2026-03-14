@@ -1,7 +1,7 @@
 #pragma once
 #include "ReflectronAPI.h"
-#include <string>
-#include <map>
+#include "CLib/Vector.h"
+#include <cmath>
 
 namespace Reflectron
 {
@@ -9,7 +9,7 @@ namespace Reflectron
 	{
 	public:
 
-		using ReflectionFields = std::map<std::string, const ReflectronFieldData>;
+		using ReflectionFields = CLib::Vector<ReflectronFieldData>;
 
 		Reflector()
 			: m_className(nullptr)
@@ -26,11 +26,48 @@ namespace Reflectron
 			m_address = reinterpret_cast<unsigned char*>(instance);
 
 			ReflectionDataType reflectionData{};
-			for (const ReflectronFieldData& field : reflectionData.m_fieldData)
+
+			constexpr uint32_t FieldCount = uint32_t(ReflectionDataType::FieldCount);
+			if constexpr (FieldCount == 1) // FieldCount is always at least 1, so ensure the first field is valid. If not, early exit before adding the invalid field.
 			{
+				if (reflectionData.m_fieldData[0].m_size == 0)
+					return;
+			}
+
+			m_fields.SetCount(FieldCount);
+
+			for(uint32_t i = 0; i < FieldCount; ++i)
+			{
+				const ReflectronFieldData& field = reflectionData.m_fieldData[i];
 				if (field.m_name != nullptr)
 				{
-					m_fields.insert({ field.m_name, field });
+					m_fields[i] = field;
+				}
+			}
+		}
+
+		template<typename T>
+		void AddFields(T* instance)
+		{
+			using ReflectionDataType = typename T::Reflectron_Generated;
+
+			ReflectionDataType reflectionData{};
+
+			constexpr uint32_t AdditionalFieldCount = uint32_t(ReflectionDataType::FieldCount);
+			if constexpr (AdditionalFieldCount == 1) // AdditionalFieldCount is always at least 1, so ensure the first field is valid. If not, set the field count to zero.
+			{
+				if (reflectionData.m_fieldData[0].m_size == 0)
+					return;
+			}
+
+			m_fields.Reserve(m_fields.Count() + AdditionalFieldCount);
+
+			for(uint32_t i = 0; i < AdditionalFieldCount; ++i)
+			{
+				const ReflectronFieldData& field = reflectionData.m_fieldData[i];
+				if (field.m_name != nullptr)
+				{
+					m_fields.PushBack() = field;
 				}
 			}
 		}
@@ -42,47 +79,52 @@ namespace Reflectron
 		}
 
 		template<typename FieldType = void>
-		FieldType* GetFieldWithName(const char* name, size_t* fieldSize = nullptr)
+		FieldType* GetFieldValueWithName(const char* name)
 		{
-			auto fieldDataIt = m_fields.find(name);
-			if (fieldDataIt != m_fields.end())
+			for (auto& field : m_fields)
 			{
-				const ReflectronFieldData& field = fieldDataIt->second;
-				if (fieldSize != nullptr)
+				if (strcmp(field.m_name, name) == 0)
 				{
-					*fieldSize = field.m_size;
+					return GetFieldValue<FieldType>(field);
 				}
-				return GetFieldAtOffset<FieldType>(field.m_offset);
 			}
 
 			return nullptr;
 		}
 
 		template<typename FieldType = void>
-		const FieldType* GetFieldWithName(const char* name, size_t* fieldSize = nullptr) const
+		const FieldType* GetFieldValueWithName(const char* name) const
 		{
-			return GetFieldWithName<FieldType>(name, fieldSize);
+			return GetFieldValueWithName<FieldType>(name);
 		}
 
-		const ReflectronFieldData& GetFieldDataWithName(const char* name) const
+		const ReflectronFieldData* GetFieldWithName(const char* name) const
 		{
-			auto it = m_fields.find(name);
-			if (it != m_fields.end())
+			for (auto& field : m_fields)
 			{
-				return it->second;
+				if (strcmp(field.m_name, name) == 0)
+				{
+					return &field;
+				}
 			}
 
-			return {};
+			return nullptr;
 		}
 
 		template<typename FieldType = void>
-		FieldType* GetFieldAtOffset(size_t offset) const
+		FieldType* GetFieldValue(const ReflectronFieldData& field) const
+		{
+			return reinterpret_cast<FieldType*>(m_address + field.m_offset);
+		}
+
+		template<typename FieldType = void>
+		FieldType* GetFieldValueAtOffset(size_t offset) const
 		{
 			return reinterpret_cast<FieldType*>(m_address + offset);
 		}
 
 		const ReflectionFields& GetReflectionFields() const { return m_fields; }
-		const size_t FieldCount() const { return m_fields.size(); }
+		const size_t FieldCount() const { return m_fields.Count(); }
 
 		template<typename T>
 		T* GetAddress() { return reinterpret_cast<T*>(m_address); }
@@ -93,6 +135,11 @@ namespace Reflectron
 		const unsigned char* GetAddress() const { return m_address; }
 
 		const char* GetTypeName() const { return m_className; }
+
+		static bool FieldIsBoundedBothEnds(const ReflectronFieldData& field)
+		{
+			return std::isfinite(field.m_editMinValue) && std::isfinite(field.m_editMaxValue);
+		}
 
 	private:
 

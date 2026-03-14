@@ -16,12 +16,27 @@ void* GetWindowHandle(GLFWwindow* window)
 {
 #ifdef GLFW_EXPOSE_NATIVE_WIN32
 	return (void*)glfwGetWin32Window(window);
+#elif GLFW_EXPOSE_NATIVE_X11
+	return (void*)glfwGetX11Window(window);
 #endif
 }
 
 void* GetWindowInstance()
 {
+#if ASSETPIPELINE_WINDOWS
 	return (void*)GetModuleHandle(NULL);
+#else
+	return nullptr;
+#endif
+}
+
+void* GetWindowDisplay()
+{
+#if ASSETPIPELINE_LINUX
+	return (void*)glfwGetX11Display();
+#else
+	return nullptr;
+#endif
 }
 
 namespace AssetPipeline
@@ -57,7 +72,11 @@ namespace AssetPipeline
 			uint32_t extensionCount = 0;
 			const char** extensionNames = glfwGetRequiredInstanceExtensions(&extensionCount);
 
+#if ASSETPIPELINE_WINDOWS
 			PB::WindowDesc windowInfo = { (HINSTANCE)GetWindowInstance(), (HWND)GetWindowHandle(m_window) };
+#elif ASSETPIPELINE_LINUX
+			PB::WindowDesc windowInfo = { (Display*)GetWindowDisplay(), (Window)GetWindowHandle(m_window) };
+#endif
 			rendererDesc.m_extensionCount = extensionCount;
 			rendererDesc.m_extensionNames = extensionNames;
 			rendererDesc.m_windowInfo = &windowInfo;
@@ -110,8 +129,8 @@ namespace AssetPipeline
 
 		std::string assetRootDir = settings->GetStringValue("Path.AssetsDir");
 		std::string workingDir = std::filesystem::current_path().string();
-		std::string pipelineDbDir = workingDir + "\\" + "PipelineAssets\\";
-		std::string dbDir = workingDir + "\\" + assetRootDir;
+		std::string pipelineDbDir = workingDir + "/" + "PipelineAssets/";
+		std::string dbDir = workingDir + "/" + assetRootDir;
 
 		printf("Working Directory: %s\n", workingDir.c_str());
 		printf("Pipeline Assets Directory: %s\n\n", pipelineDbDir.c_str());

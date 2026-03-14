@@ -27,6 +27,7 @@ namespace PB
 		IBufferObject* m_buffer = nullptr;
 		u32 m_offset = 0;
 		u32 m_size = ~0u;
+		u64 m_pad0[2]{};
 
 		bool operator == (const BufferViewDesc& other) const;
 	};

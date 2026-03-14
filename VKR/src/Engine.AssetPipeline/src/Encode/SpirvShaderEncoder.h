@@ -68,7 +68,7 @@ namespace AssetPipeline
 
 		CLib::Allocator m_allocator{ 16384 };
 		IncludeData m_includeData{};
-		CLib::Vector<std::pair<shaderc_compilation_result*, AssetEncoder::PermutationKey>, 0, 8> m_compiledPermutations;
+		CLib::Vector<std::pair<shaderc_compilation_result*, AssetEncoder::PermutationKey>, 0, 8, true> m_compiledPermutations;
 	};
 }
 

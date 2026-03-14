@@ -6,7 +6,7 @@
 
 #include "Engine.ParaBlit/IRenderer.h"
 #include "WorldRender/DrawBatch.h"
-#include "Engine.AssetEncoder/AssetDatabaseReader.h"
+#include "Engine.AssetEncoder/AssetBinaryDatabaseReader.h"
 #include "Engine.AssetPipeline/MeshShared.h"
 #include "Engine.Math/Vectors.h"
 #include "Utility/ManagedInstanceBuffer.h"

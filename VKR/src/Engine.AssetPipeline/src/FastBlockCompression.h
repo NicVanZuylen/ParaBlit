@@ -1,11 +1,12 @@
 #pragma once
-#include "bc7Enc/bc7enc.h"
+#include "bc7enc/bc7enc.h"
 #include "cmp_core.h"
 
 #include <cstdint>
 #include <cstring>
 #include <thread>
 #include <vector>
+#include <cassert>
 
 namespace FastBlockCompression
 {

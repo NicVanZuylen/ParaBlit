@@ -104,12 +104,12 @@ namespace PB
 
 		PARABLIT_INTERFACE void CmdTransitionTexture(ITexture* texture, ETextureState oldState, ETextureState newState, const SubresourceRange& subResourceRange = SubresourceRange::All()) = 0;
 
+		PARABLIT_INTERFACE void CmdTextureBarrier(ITexture* texture, EMemoryBarrierType barrierType, const SubresourceRange& subResourceRange = SubresourceRange::All()) = 0;
+
 		/*
-		Description: Issue a barrier between graphics pipeline stages of a specified type.
-		Param:
-			EMemoryBarrierType type: The type/nature of the memory barrier to issue.
+		Description: Wait for all graphics work to complete before issuing compute work.
 		*/
-		PARABLIT_INTERFACE void CmdGraphicsBarrier(EMemoryBarrierType type) = 0;
+		PARABLIT_INTERFACE void CmdGraphicsToComputeBarrier() = 0;
 
 		/*
 		Description: Issue a barrier between compute dispatches of a specified type.
@@ -118,11 +118,9 @@ namespace PB
 		*/
 		PARABLIT_INTERFACE void CmdComputeBarrier(EMemoryBarrierType type) = 0;
 
-		PARABLIT_INTERFACE void CmdComputeBufferBarrier(BufferMemoryBarrier* barriers, u32 barrierCount) = 0;
+		PARABLIT_INTERFACE void CmdBufferBarrier(BufferMemoryBarrier* barriers, u32 barrierCount) = 0;
 
 		PARABLIT_INTERFACE void CmdDrawIndirectBarrier(const PB::IBufferObject** drawParamBuffers, u32 drawParamBufferCount) = 0;
-
-		PARABLIT_INTERFACE void CmdComputeToBuildAccelerationStructureBufferBarrier(const PB::IBufferObject** buffers, u32 bufferCount) = 0;
 
 		PARABLIT_INTERFACE void CmdBuildAccelerationStructureToTraceRaysBarrier(const IAccelerationStructure** accStructures, u32 accStructureCount) = 0;
 
@@ -204,7 +202,7 @@ namespace PB
 
 		PARABLIT_API ~SCommandContext();
 
-		PARABLIT_API inline ICommandContext* operator -> ();
+		PARABLIT_API ICommandContext* operator -> ();
 
 		inline ICommandContext* GetContext() { return m_ptr; }
 

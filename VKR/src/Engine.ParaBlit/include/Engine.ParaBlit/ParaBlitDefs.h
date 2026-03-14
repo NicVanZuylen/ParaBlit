@@ -1,15 +1,18 @@
 #pragma once
+#include <cstdint>
+
+#define PB_ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
 
 namespace PB
 {
 	// Shorthand for unsigned 8-bit integer.
-	typedef unsigned char u8;
+	typedef uint8_t u8;
 	// Shorthand for unsigned 16-bit integer.
-	typedef unsigned short u16;
+	typedef uint16_t u16;
 	// Shorthand for unsigned 32-bit integer.
-	typedef unsigned int u32;
+	typedef uint32_t u32;
 	// Shorthand for unsigned 64-bit integer.
-	typedef unsigned long long u64;
+	typedef uint64_t u64;
 
 	// Bitmask helper class for strongly typed 'enum class' enums.
 	// Intended to replace C enums where ever possible, since C enums generate unscoped enum warnings in VS 2019+.
@@ -94,12 +97,12 @@ namespace PB
 		R8G8B8_UNORM,
 		R8G8B8A8_UNORM,
 		B8G8R8A8_UNORM,
+		A2R10G10B10_UNORM,
 		R8_SRGB,
 		R8G8_SRGB,
 		R8G8B8_SRGB,
 		R8G8B8A8_SRGB,
 		B8G8R8A8_SRGB,
-		A2R10G10B10_UNORM,
 
 		// HDR Formats
 		R16_FLOAT = HDRStart,
@@ -298,9 +301,14 @@ namespace PB
 
 	enum EMemoryBarrierType
 	{
-		SHADER_WRITE_TO_SHADER_READ,
-		SHADER_WRITE_INDIRECT_PARAMS_TO_INDIRECT_READ,
-		SHADER_WRITE_TO_ACCELERATION_STRUCTURE_READ
+		COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ,
+		COMPUTE_SHADER_WRITE_TO_GRAPHICS_GEOMETRY_READ,
+		COMPUTE_SHADER_WRITE_TO_INDIRECT_PARAMS_READ,
+		COMPUTE_SHADER_WRITE_TO_ACCELERATION_STRUCTURE_BUILD,
+		GRAPHICS_GEOMETRY_READ_TO_COMPUTE_SHADER_WRITE,
+		GRAPHICS_FRAGMENT_READ_TO_COMPUTE_SHADER_WRITE,
+		GRAPHICS_ATTACHMENT_WRITE_TO_FRAGMENT_SHADER_READ,
+		INDIRECT_PARAMS_READ_TO_COMPUTE_SHADER_WRITE
 	};
 
 	enum class EDescriptorSetType

@@ -178,14 +178,14 @@ namespace PB
 		return &m_physDeviceDescIndexingProps;
 	}
 
-	const VkPhysicalDeviceDynamicRenderingFeaturesKHR* Device::GetDynamicRenderingFeatures()
-	{
-		return &m_physDeviceDynamicRenderingFeatures;
-	}
-
 	const VkPhysicalDeviceVulkan12Features* Device::GetVulkan12Features()
 	{
 		return &m_physDeviceVulkan12Features;
+	}
+
+	const VkPhysicalDeviceVulkan13Features* Device::GetVulkan13Features()
+	{
+		return &m_physDeviceVulkan13Features;
 	}
 
 	void Device::EnumDevice()
@@ -204,17 +204,17 @@ namespace PB
 
 			// Get device features & properties, used to calculate a suitablility score.
 			VkPhysicalDeviceFeatures2 deviceFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-			m_physDeviceDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
 			m_physDeviceVulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
 			m_physDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+			m_physDeviceVulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 			m_physDeviceMeshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
 			m_physDeviceRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
 			m_physDeviceAccelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 
-			deviceFeatures.pNext = &m_physDeviceDynamicRenderingFeatures;
-			m_physDeviceDynamicRenderingFeatures.pNext = &m_physDeviceVulkan11Features;
+			deviceFeatures.pNext = &m_physDeviceVulkan11Features;
 			m_physDeviceVulkan11Features.pNext = &m_physDeviceVulkan12Features;
-			m_physDeviceVulkan12Features.pNext = &m_physDeviceMeshShaderFeatures;
+			m_physDeviceVulkan12Features.pNext = &m_physDeviceVulkan13Features;
+			m_physDeviceVulkan13Features.pNext = &m_physDeviceMeshShaderFeatures;
 			m_physDeviceMeshShaderFeatures.pNext = &m_physDeviceAccelerationStructureFeatures;
 
 			if (m_desc.enableRaytracingCapabilities)
@@ -396,9 +396,12 @@ namespace PB
 		m_physDeviceVulkan12Features.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_FALSE;
 		m_physDeviceVulkan12Features.descriptorBindingUpdateUnusedWhilePending = VK_FALSE;
 
+		m_physDeviceVulkan13Features.dynamicRendering = VK_FALSE;
+		m_physDeviceVulkan13Features.synchronization2 = VK_TRUE;
+
 		m_physDeviceVulkan12Features.drawIndirectCount = VK_TRUE; // For GPU-driven frustrum culling.
 
-		m_physDeviceDynamicRenderingFeatures.dynamicRendering = VK_FALSE; // TODO: Try this out when Vk_KHR_dynamic_rendering extension is complete.
+		m_physDeviceMeshShaderFeatures.primitiveFragmentShadingRateMeshShader = VK_FALSE;
 
 		m_physDeviceRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
 		m_physDeviceRayTracingPipelineFeatures.rayTracingPipelineShaderGroupHandleCaptureReplay = VK_FALSE;

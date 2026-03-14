@@ -1,13 +1,20 @@
+#pragma once
+#include "Engine.Control/IDataClass.h"
 #include "Entity/Entity.h"
 #include "RenderDefinition_generated.h"
 #include "Engine.Reflectron/ReflectronAPI.h"
-#include "Mesh.h"
+#include "WorldRender/Bounds.h"
 #include "Material.h"
+#include "WorldRender/DrawBatch.h"
 #include "Resource/AssetStreamer.h"
+#include "Engine.Math/Vector3.h"
+#include "Engine.Math/Quaternion.h"
+#include "Engine.AssetPipeline/MeshAsset.h"
 
 namespace Eng
 {
 	class DynamicDrawPool;
+	class DynamicEntityTracker;
 
 	class RenderDefinition : public EntityComponent
 	{
@@ -20,7 +27,7 @@ namespace Eng
 			: EntityComponent(this)
 		{}
 
-		RenderDefinition(const char* meshName, TObjectPtr<Material> material, EEntityUpdateMethod updateMethod);
+		RenderDefinition(TObjectPtr<Material> material, EEntityUpdateMethod updateMethod);
 
 		~RenderDefinition() = default;
 
@@ -30,31 +37,52 @@ namespace Eng
 		void GetMeshBounds(Bounds& bounds);
 
 		void CommitRenderEntity(DynamicDrawPool* drawPool);
-		void UpdateRenderEntity();
+		void UpdateRenderEntity(const float& interpT);
 		void UpdateStaticRenderEntity();
 		void UncommitRenderEntity();
 		void SetDynamicInstanceEnable(bool enable);
+
+		inline void SetPriorFrameTransform(const Vector3f& position, const Quaternion& quaternion, const Vector3f& scale)
+		{
+			m_priorFramePosition = m_framePosition;
+			m_framePosition = position;
+			m_priorFrameScale = m_frameScale;
+			m_frameScale = scale;
+			m_priorFrameQuaternion = m_frameQuaternion;
+			m_frameQuaternion = quaternion;
+		}
+
+		virtual void OnReferenceChanged(const ObjectPtr& ref) override final;
+
+		virtual void OnFieldChanged(const ReflectronFieldData& field) override final;
 
 	private:
 
 		void GetMeshData();
 		void OnStreamingComplete(DrawBatch::DrawBatchInstanceData*& dynamicInstanceData);
 
-		REFLECTRON_FIELD()
-		std::string m_meshName;
+		Vector3f m_framePosition;
+		Vector3f m_frameScale;
+		Vector3f m_priorFramePosition;
+		Vector3f m_priorFrameScale;
+		Quaternion m_frameQuaternion;
+		Quaternion m_priorFrameQuaternion;
+
+		CLib::Vector<PB::ResourceView, 0, 8> m_batchBindingsDst;
+		Bounds m_meshBounds;
 		REFLECTRON_FIELD()
 		TObjectPtr<Material> m_material;
+		StreamingBatch* m_streamingBatch = nullptr;
+		DynamicDrawPool* m_drawPool = nullptr;
 		REFLECTRON_FIELD(enum)
 		EEntityUpdateMethod m_updateMethod = EEntityUpdateMethod::STATIC;
-
-		DynamicDrawPool* m_drawPool = nullptr;
-		StreamingBatch* m_streamingBatch = nullptr;
-		AssetPipeline::MeshCacheData m_meshData;
-		CLib::Vector<PB::ResourceView, 0, 8> m_batchBindingsDst;
-		AssetEncoder::AssetID m_meshID = 0;
 		PB::u32 m_drawInstanceID = ~PB::u32(0);
+		AssetEncoder::AssetID m_meshID = 0;
 		bool m_committed = false;
 		bool m_streamingComplete = false;
+
+		REFLECTRON_FIELD()
+		TObjectPtr<AssetPipeline::MeshAsset> m_mesh;
 	};
 	CLIB_REFLECTABLE_CLASS(RenderDefinition)
 }

@@ -30,7 +30,7 @@ namespace Eng
 
 	private:
 
-		static constexpr const uint32_t GaussianKernelSize = 4;
+		static constexpr const uint32_t GaussianKernelSize = 8;
 		struct BlurConstants
 		{
 			float m_guassianNormPart;

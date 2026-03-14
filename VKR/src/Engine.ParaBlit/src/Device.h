@@ -122,16 +122,16 @@ namespace PB
 		const VkPhysicalDeviceDescriptorIndexingProperties* GetDescriptorIndexingProperties();
 
 		/*
-		Description: Gets the feature toggle for dynamic rendering.
-		Return Type const VkPhysicalDeviceDynamicRenderingFeaturesKHR*
-		*/
-		const VkPhysicalDeviceDynamicRenderingFeaturesKHR* GetDynamicRenderingFeatures();
-
-		/*
 		Description: Gets the feature toggles for Vulkan 1.2 core features.
-		Return Type const VkPhysicalDeviceDynamicRenderingFeaturesKHR*
+		Return Type const VkPhysicalDeviceVulkan12Features*
 		*/
 		const VkPhysicalDeviceVulkan12Features* GetVulkan12Features();
+
+		/*
+		Description: Gets the feature toggles for Vulkan 1.3 core features.
+		Return Type const VkPhysicalDeviceVulkan13Features*
+		*/
+		const VkPhysicalDeviceVulkan13Features* GetVulkan13Features();
 
 		/*
 		Description: Gets the properties defining ray tracing limitations of the device.
@@ -171,7 +171,7 @@ namespace PB
 		VkPhysicalDeviceVulkan11Properties m_physDeviceVulkan11Properties = {};
 		VkPhysicalDeviceVulkan11Features m_physDeviceVulkan11Features = {};
 		VkPhysicalDeviceVulkan12Features m_physDeviceVulkan12Features = {};
-		VkPhysicalDeviceDynamicRenderingFeaturesKHR m_physDeviceDynamicRenderingFeatures = {};
+		VkPhysicalDeviceVulkan13Features m_physDeviceVulkan13Features = {};
 		VkPhysicalDeviceMeshShaderFeaturesEXT m_physDeviceMeshShaderFeatures = {};
 		VkPhysicalDeviceAccelerationStructureFeaturesKHR m_physDeviceAccelerationStructureFeatures = {};
 		VkPhysicalDeviceRayTracingPipelineFeaturesKHR m_physDeviceRayTracingPipelineFeatures = {};

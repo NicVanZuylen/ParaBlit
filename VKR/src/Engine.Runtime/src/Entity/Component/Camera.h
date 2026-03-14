@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine.Math/Vector3.h"
 #include "Entity/Entity.h"
 #include "Camera_generated.h"
 #include "Entity/Component/Transform.h"
@@ -55,36 +56,28 @@ namespace Eng
 			}
 
 			using Plane = Vector4f;
-			union
-			{
-				struct
-				{
-					Plane m_left;
-					Plane m_right;
-					Plane m_top;
-					Plane m_bottom;
-					Plane m_near;
-					Plane m_far;
-				};
-				Plane m_planes[6]{};
-			};
 
-			union
-			{
-				struct
-				{
-					Vector3f m_nearTopLeft;
-					Vector3f m_nearTopRight;
-					Vector3f m_nearBottomLeft;
-					Vector3f m_nearBottomRight;
+			Plane m_planes[6]{};
 
-					Vector3f m_farTopLeft;
-					Vector3f m_farTopRight;
-					Vector3f m_farBottomLeft;
-					Vector3f m_farBottomRight;
-				};
-				Vector3f m_frustrumCorners[8]{};
-			};
+			Plane& m_left = m_planes[0];
+			Plane& m_right = m_planes[1];
+			Plane& m_top = m_planes[2];
+			Plane& m_bottom = m_planes[3];
+			Plane& m_near = m_planes[4];
+			Plane& m_far = m_planes[5];
+			
+
+			Vector3f m_frustrumCorners[8]{};
+
+			Vector3f& m_nearTopLeft = m_frustrumCorners[0];
+			Vector3f& m_nearTopRight = m_frustrumCorners[1];
+			Vector3f& m_nearBottomLeft = m_frustrumCorners[2];
+			Vector3f& m_nearBottomRight = m_frustrumCorners[3];
+
+			Vector3f& m_farTopLeft = m_frustrumCorners[4];
+			Vector3f& m_farTopRight = m_frustrumCorners[5];
+			Vector3f& m_farBottomLeft = m_frustrumCorners[6];
+			Vector3f& m_farBottomRight = m_frustrumCorners[7];
 		};
 
 		Camera();
@@ -133,7 +126,7 @@ namespace Eng
 
 		void GetFrustrumSection(CameraFrustrum& outFrustrum, float nearDistance, float farDistance) const;
 
-		static void GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, Vector3f position, Vector3f forward, float leftBound, float rightBound, float bottomBound, float topBound, float nearDistance, float farDistance);
+		static void GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, Vector3f position, Vector3f forward, Vector3f trueUp, float leftBound, float rightBound, float bottomBound, float topBound, float nearDistance, float farDistance);
 
 		static void DrawFrustrum(DebugLinePass* linePass, const CameraFrustrum& frustrum, Vector3f color);
 
@@ -157,7 +150,7 @@ namespace Eng
 		REFLECTRON_FIELD(enum)
 		EProjectionType m_projectionType = EProjectionType::PERSPECTIVE;
 
-		REFLECTRON_FIELD()
+		REFLECTRON_FIELD(min=0.01, max=5.0)
 		float m_sensitivity = 0.1f;
 
 		REFLECTRON_FIELD()
@@ -169,13 +162,13 @@ namespace Eng
 		REFLECTRON_FIELD()
 		float m_height = 1080.0f;
 
-		REFLECTRON_FIELD()
+		REFLECTRON_FIELD(min=0.01, max=0.5)
 		float m_zNear = 0.1f;
 
-		REFLECTRON_FIELD()
+		REFLECTRON_FIELD(min=500.0, max=10000.0)
 		float m_zFar = 1000.0f;
 
-		REFLECTRON_FIELD()
+		REFLECTRON_FIELD(min=1.0, max=110.0)
 		float m_fovY = 45.0f;
 
 		Transform* m_transform = nullptr;

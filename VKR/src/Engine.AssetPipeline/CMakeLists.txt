@@ -1,3 +1,49 @@
+# ================================================================ BUILD STEPS =========================================================================
+# Reflectron Pre-build step
+
+if(WIN32)
+
+add_custom_command(
+    OUTPUT ${_BUILD_DIR_}/AssetPipeline_reflectron_dummy.adb
+    DEPENDS Engine.Reflectron
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${_BUILD_DIR_}/${Configuration}/Engine.Reflectron.exe -Path.SourceDir src/Engine.AssetPipeline/
+    COMMENT "[Engine.AssetPipeline] Running Reflectron..."
+)
+
+elseif(LINUX)
+
+add_custom_command(
+    OUTPUT ${_BUILD_DIR_}/AssetPipeline_reflectron_dummy.adb
+    DEPENDS Engine.Reflectron
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${_BUILD_DIR_}/Engine.Reflectron -Path.SourceDir src/Engine.AssetPipeline/
+    COMMENT "[Engine.AssetPipeline] Running Reflectron..."
+)
+
+endif()
+
+add_custom_target(
+    PRE_BUILD_REFLECTRON
+    DEPENDS ${_BUILD_DIR_}/AssetPipeline_reflectron_dummy.adb
+)
+
+# Copy Dependency DLLs
+set(_COPY_DIR_ "${_EXTERNAL_DIR_}/build/shaderc/libshaderc/Release")
+add_custom_command(
+    OUTPUT ${_BUILD_DIR_}/AssetPipeline_copy_dlls_dummy.adb
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND \ncopy /y "\"${_COPY_DIR_}/\\shaderc_shared.dll\"" "\"${_BUILD_DIR_}/${Configuration}\""
+    COMMENT "Copying dependent DLLs..."
+)
+
+add_custom_target(
+    PRE_BUILD_COPY_DEPENDENT_DLLS
+    DEPENDS ${_BUILD_DIR_}/AssetPipeline_copy_dlls_dummy.adb
+)
+
+# ======================================================================================================================================================
+
 # add the library
 set(_LIBRARY_ Engine.AssetPipeline)
 
@@ -24,14 +70,23 @@ target_include_directories(${_LIBRARY_} PRIVATE "${_SOURCE_DIR_}/Engine.Control/
 target_link_libraries(${_LIBRARY_} Engine.Control)
 add_dependencies(${_LIBRARY_} Engine.Control)
 
+# Engine.Reflectron
+target_include_directories(${_LIBRARY_} PRIVATE "${_SOURCE_DIR_}/Engine.Reflectron/include")
+add_dependencies(${_LIBRARY_} Engine.Reflectron)
+
 # Engine.Parablit
 target_include_directories(${_LIBRARY_} PRIVATE "${_SOURCE_DIR_}/Engine.ParaBlit/include")
 target_link_libraries(${_LIBRARY_} Engine.ParaBlit)
 add_dependencies(${_LIBRARY_} Engine.ParaBlit)
 
 # Vulkan
+if(WIN32)
 target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/lib")
 target_link_libraries(${_LIBRARY_} vulkan-1)
+elseif(LINUX)
+target_link_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/VulkanSDK/${_PLATFORM_}/${_VK_VERSION_}/x86_64/lib")
+target_link_libraries(${_LIBRARY_} vulkan)
+endif()
 
 # stb_image
 target_include_directories(${_LIBRARY_} PRIVATE "${_EXTERNAL_DIR_}/stb")
@@ -73,30 +128,33 @@ set(CMAKE_CXX_FLAGS_MPCOMPILE "${CMAKE_CXX_FLAGS_MPCOMPILE} /MP")
 # Multi-threaded compilation
 set_target_properties(${_LIBRARY_} PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS_MPCOMPILE}")
 
-# Output dir
-set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
-
 # Working dir
 set_target_properties(${_LIBRARY_} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Default command line arguments
 set_target_properties(${_LIBRARY_} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "-Path.AssetsDir Assets/")
 
-# Copy Dependency DLLs
-add_custom_command(
-    TARGET ${_LIBRARY_}
-    PRE_BUILD
-    COMMAND \ncopy /y "\"${_SHADERC_BUILD_DIR_}/\\shaderc_shared.dll\"" "\"${_BUILD_DIR_}/$(Configuration)\""
-    COMMENT "Copying dependent DLLs..."
-)
-
-
+add_dependencies(${_LIBRARY_} PRE_BUILD_COPY_DEPENDENT_DLLS)
 endif()
+
+add_dependencies(${_LIBRARY_} PRE_BUILD_REFLECTRON)
+
+# Output dir
+set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
 # --------------------------------------------------------------------------
 
 # ------------------------- PREPROCESSOR DEFINITIONS -------------------------
+
+if(WIN32)
+add_compile_definitions(ASSETPIPELINE_WINDOWS)
 add_compile_definitions(PARABLIT_WINDOWS)
 add_compile_definitions(GLFW_EXPOSE_NATIVE_WIN32)
+elseif(LINUX)
+add_compile_definitions(ASSETPIPELINE_LINUX)
+add_compile_definitions(PARABLIT_LINUX)
+add_compile_definitions(GLFW_EXPOSE_NATIVE_X11)
+endif()
+
 # ----------------------------------------------------------------------------
 
 # --------------------------- FUNC ---------------------------

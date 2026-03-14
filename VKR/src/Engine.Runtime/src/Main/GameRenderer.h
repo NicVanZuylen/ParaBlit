@@ -100,7 +100,7 @@ namespace Eng
 		// -------------------------------------------------------------------------
 		// Render Graph
 		static constexpr const uint32_t ShadowmapResolution = 2048;
-		static constexpr const uint32_t ShadowCascadeCount = 4;
+		static constexpr const uint32_t ShadowCascadeCount = 5;
 
 		class RayTracingPrePass* m_rtPrePass = nullptr;
 		class PathTracingMainPass* m_pathTracingMainPass = nullptr;
@@ -140,13 +140,24 @@ namespace Eng
 		float m_shadowCascadeSectionRanges[ShadowCascadeCount * 2]
 		{
 			0.0f,
-			10.0f,
-			10.0f,
-			30.0f,
-			30.0f,
-			80.0f,
-			80.0f,
-			150.0f
+			5.0f,
+			5.0f,
+			15.0f,
+			15.0f,
+			50.0f,
+			50.0f,
+			160.0f,
+			160.0f,
+			300.0f
+		};
+
+		static constexpr float m_shadowCascadeBiasValues[ShadowCascadeCount]
+		{
+			0.05f,
+			0.1f,
+			0.3f,
+			0.5f,
+			1.0f
 		};
 
 		// -------------------------------------------------------------------------

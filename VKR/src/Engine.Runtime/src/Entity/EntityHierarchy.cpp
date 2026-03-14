@@ -46,34 +46,27 @@ namespace Eng
 		// Load entity data.
 		InitDefaultResources();
 
-		if (entityData != nullptr)
+		m_entityMap.insert(m_entities.begin(), m_entities.end());
+		m_entities.Clear();
+
+		for (TObjectPtr<Entity> entity : m_entityMap)
 		{
-			DataClass::InstantiateNodeTree(entityData);
-
-			uint32_t entityCount = 0;
-			auto entities = entityData->GetDataNode("Entity", entityCount);
-
-			for (uint32_t i = 0; i < entityCount; ++i)
+			if (entity->GetComponent<StaticEntityTracker>() != nullptr)
 			{
-				TObjectPtr<Entity> entity(entities[i]->GetSelfGUID());
-				if (entity->GetComponent<StaticEntityTracker>() != nullptr)
-				{
-					entity->BindToHierarchy(this);
-					CommitEntity(entity);
-					m_entities.insert(entity);
-				}
-				else if (entity->GetComponent<DynamicEntityTracker>() != nullptr)
-				{
-					entity->BindToHierarchy(this);
-					CommitEntity(entity);
-					m_entities.insert(entity);
-					m_dynamicEntities.insert(entity);
-				}
+				entity->BindToHierarchy(this);
+				CommitEntity(entity);
+			}
+			else if (entity->GetComponent<DynamicEntityTracker>() != nullptr)
+			{
+				entity->BindToHierarchy(this);
+				CommitEntity(entity);
+				m_dynamicEntities.push_back(entity);
 			}
 		}
 
+
 		// With all entities and components constructed and linked, call OnInitialize for all entity components with everything now linked.
-		for (auto entity : m_entities)
+		for (TObjectPtr<Entity> entity : m_entityMap)
 		{
 			auto& components = entity->GetAllComponents();
 			for (auto component : components)
@@ -85,46 +78,51 @@ namespace Eng
 
 	void EntityHierarchy::SaveState(Ctrl::IDataFile* file, Ctrl::IDataNode* entityRoot)
 	{
+		for (TObjectPtr<Entity> entity : m_entityMap)
+		{
+			m_entities.PushBack(entity);
+		}
+
 		DataClass::SaveNodeTree(entityRoot);
 		file->WriteData();
+
+		m_entities.Clear();
 	}
 
 	void EntityHierarchy::Destroy()
 	{
-		m_entities.clear();
+		m_entityMap.clear();
 		m_entityBoundingVolumeHierarchy.Destroy();
 		m_renderHierarchy.Destroy();
 	}
 
-	TObjectPtr<Entity> EntityHierarchy::CreateEntity(EEntityUpdateMethod updateMethod, bool initializeRendering, const char* meshName)
+	TObjectPtr<Entity> EntityHierarchy::CreateEntity(EEntityUpdateMethod updateMethod, bool initializeRendering)
 	{
 		// Setup Entity.
 		TObjectPtr<Entity> newEntity = CLib::Reflection::InstantiateClass<Entity>("Entity");
-		newEntity->SaveToDataNode(m_entityRoot, m_entityRoot->AddDataNode("Entity", "Entity"));
+		newEntity->SaveToDataNode(m_entityRoot->AddDataNode("Entity", "Entity"));
 		newEntity->BindToHierarchy(this);
 
-		const char* finalMeshName = meshName != nullptr ? meshName : "Meshes/Objects/Stanford/Bunny";
-
-		newEntity->AddComponent<Transform>()->SaveToDataNode(m_entityRoot, m_entityRoot->AddDataNode("Transform", "Transform"));
+		newEntity->AddComponent<Transform>()->SaveToDataNode(m_entityRoot->AddDataNode("Transform", "Transform"));
 
 		if (initializeRendering == true)
 		{
-			newEntity->AddComponent<RenderDefinition>(finalMeshName, m_defaultMaterial, updateMethod)->SaveToDataNode(m_entityRoot, m_entityRoot->AddDataNode("RenderDefinition", "RenderDefinition"));;
+			newEntity->AddComponent<RenderDefinition>(m_defaultMaterial, updateMethod)->SaveToDataNode(m_entityRoot->AddDataNode("RenderDefinition", "RenderDefinition"));
 		}
 
 		if (updateMethod == EEntityUpdateMethod::STATIC)
 		{
-			newEntity->AddComponent<StaticEntityTracker>()->SaveToDataNode(m_entityRoot, m_entityRoot->AddDataNode("StaticEntityTracker", "StaticEntityTracker"));;
+			newEntity->AddComponent<StaticEntityTracker>()->SaveToDataNode(m_entityRoot->AddDataNode("StaticEntityTracker", "StaticEntityTracker"));
 		}
 		else
 		{
-			newEntity->AddComponent<DynamicEntityTracker>()->SaveToDataNode(m_entityRoot, m_entityRoot->AddDataNode("DynamicEntityTracker", "DynamicEntityTracker"));;
+			newEntity->AddComponent<DynamicEntityTracker>()->SaveToDataNode(m_entityRoot->AddDataNode("DynamicEntityTracker", "DynamicEntityTracker"));
 		}
 
 		CommitEntity(newEntity);
 
 		// Update hierarchy.
-		m_entities.insert(newEntity);
+		m_entityMap.insert(newEntity);
 
 		if (updateMethod == EEntityUpdateMethod::STATIC)
 		{
@@ -132,15 +130,15 @@ namespace Eng
 		}
 		else
 		{
-			m_dynamicEntities.insert(newEntity);
+			m_dynamicEntities.push_back(newEntity);
 		}
 
 		return newEntity;
 	}
 
-	void EntityHierarchy::DestroyEntity(Entity* entity)
+	void EntityHierarchy::UncommitEntity(Entity* entity)
 	{
-		TObjectPtr<StaticEntityTracker> tracker = entity->GetComponent<StaticEntityTracker>();
+		StaticEntityTracker* tracker = entity->GetComponent<StaticEntityTracker>();
 		if (tracker != nullptr)
 		{
 			tracker->UncommitEntity();
@@ -159,13 +157,31 @@ namespace Eng
 				dynamicTracker->UncommitEntity();
 			}
 		}
+	}
 
-		m_entities.erase(entity);
+	void EntityHierarchy::DestroyEntity(Entity* entity)
+	{
+		UncommitEntity(entity);
+
+		DynamicEntityTracker* dynamicTracker = entity->GetComponent<DynamicEntityTracker>();
+		if(dynamicTracker != nullptr)
+		{
+			for (auto it = m_dynamicEntities.begin(); it != m_dynamicEntities.end(); ++it)
+			{
+				if (it->GetPtr() == entity)
+				{
+					m_dynamicEntities.erase(it);
+					break;
+				}
+			}
+		}
+
+		m_entityMap.erase(entity);
 	}
 
 	TObjectPtr<Entity> EntityHierarchy::FindEntity(const char* name)
 	{
-		for (auto entity : m_entities)
+		for (auto entity : m_entityMap)
 		{
 			if (std::strcmp(entity->GetName(), name) == 0)
 			{
@@ -211,11 +227,45 @@ namespace Eng
 		m_staticObjectRenderer.ForceUpdate();
 	}
 
-	void EntityHierarchy::DynamicUpdate()
+	void EntityHierarchy::SimUpdate()
 	{
-		for (TObjectPtr<Entity> entity : m_dynamicEntities)
+		// ------------------------------------------------------------------------------------------------------------------
+		// Simulation update
+		if (m_simulationEnabled == true)
 		{
-			entity->GetComponent<DynamicEntityTracker>()->UpdateEntity();
+			for (TObjectPtr<Entity>& entity : m_dynamicEntities)
+			{
+				auto& components = entity->GetAllComponents();
+				for (EntityComponent* component : components)
+				{
+					component->OnSimUpdate();
+				}
+			}
+		}
+		// ------------------------------------------------------------------------------------------------------------------
+
+		// ------------------------------------------------------------------------------------------------------------------
+		// Spatial hash table update
+		m_entitySpatialHashTable.Reset();
+		for (Entity* entity : m_dynamicEntities)
+		{
+			DynamicEntityTracker* tracker = entity->GetComponentPtr<DynamicEntityTracker>();
+
+			tracker->UpdateEntity();
+			m_entitySpatialHashTable.Insert(entity, tracker);
+		}
+		// ------------------------------------------------------------------------------------------------------------------
+	}
+
+	void EntityHierarchy::RenderUpdate(const float& interpT)
+	{
+		for (TObjectPtr<Entity>& entity : m_dynamicEntities)
+		{
+			RenderDefinition* renderDef = entity->GetComponentPtr<RenderDefinition>();
+			if (renderDef != nullptr)
+			{
+				renderDef->UpdateRenderEntity(interpT);
+			}
 		}
 	}
 
@@ -227,9 +277,9 @@ namespace Eng
 		if (defaultMaterialNode->GetSelfGUID() == Ctrl::nullGUID)
 		{
 			m_defaultMaterial = defaultMat;
-			*m_defaultMaterial->GetReflection().GetFieldWithName<std::string>("m_name") = "mat_default";
+			*m_defaultMaterial->GetReflection().GetFieldValueWithName<std::string>("m_name") = "mat_default";
 
-			m_defaultMaterial->SaveToDataNode(defaultResourcesRoot, defaultMaterialNode);
+			m_defaultMaterial->SaveToDataNode(defaultMaterialNode);
 		}
 		else
 		{

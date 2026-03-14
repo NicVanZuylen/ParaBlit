@@ -1,7 +1,11 @@
 #pragma once
 #include "Engine.AssetEncoder/AssetEncoderLib.h"
+#include "Engine.Control/GUID.h"
 #include <unordered_map>
 #include <fstream>
+#include <cstdint>
+#include <cstring>
+#include <mutex>
 
 namespace AssetEncoder
 {
@@ -25,6 +29,7 @@ namespace AssetEncoder
 		uint64_t m_dateBuilt;		 // Date asset was built in OS time. Used to check if a file has changed to skip redundant builds.
 		size_t m_userDataSize;
 		size_t m_userDataLocation;
+		Ctrl::GUID m_guid;
 	};
 
 	struct DatabaseStringHeader
@@ -51,7 +56,7 @@ namespace AssetEncoder
 
 	private:
 
-		const char* m_assetName;
+		const char* m_assetName; // Can be either an asset name or an asset GUID.
 		AssetID m_id = ~AssetID(0);
 	};
 
@@ -104,11 +109,13 @@ namespace AssetEncoder
 
 		std::unordered_map<AssetID, DatabaseStringHeader> m_assetMap;
 		AssetID m_currentFreeId = 1;
+		std::unordered_map<Ctrl::GUID, AssetID> m_idToGUIDMap;
 		std::unordered_map<AssetString, AssetID, AssetStringHasher> m_idToStringMap;
 		std::unordered_map<AssetID, AssetString> m_stringToIDMap;
 		char* m_stringCache = nullptr;
 		AssetDatabaseIndex m_index{};
 		std::streampos m_startPos{};
 		std::ifstream m_dbFile;
+		std::mutex m_readLock;
 	};
 }

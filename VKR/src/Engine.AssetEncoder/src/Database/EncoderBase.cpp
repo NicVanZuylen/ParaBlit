@@ -111,7 +111,7 @@ namespace AssetEncoder
 	void EncoderBase::WriteUnmodifiedAsset(const AssetStatus& status)
 	{
 		char* userData = nullptr;
-		void* storage = m_dbWriter->AllocateAsset(status.m_dbPath.c_str(), status.m_info.m_userDataSize, status.m_info.m_binarySize, status.m_info.m_dateModified, &userData);
+		void* storage = m_dbWriter->AllocateAsset(status.m_dbPath.c_str(), status.m_info.m_guid, status.m_info.m_userDataSize, status.m_info.m_binarySize, status.m_info.m_dateModified, &userData);
 		m_dbReader->GetAssetUserData(status.m_info, userData);
 
 		AssetHandle handle(status.m_dbPath.c_str());
@@ -124,7 +124,7 @@ namespace AssetEncoder
 		auto meta = m_dbReader->GetAssetInfo(handle);
 
 		char* userData = nullptr;
-		void* storage = m_dbWriter->AllocateAsset(assetDBName, meta.m_userDataSize, meta.m_binarySize, meta.m_dateModified, &userData);
+		void* storage = m_dbWriter->AllocateAsset(assetDBName, meta.m_guid, meta.m_userDataSize, meta.m_binarySize, meta.m_dateModified, &userData);
 		m_dbReader->GetAssetUserData(meta, userData);
 		m_dbReader->GetAssetBinary(handle , storage);
 	}

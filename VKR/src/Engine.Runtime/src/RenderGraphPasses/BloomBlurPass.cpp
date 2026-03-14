@@ -1,11 +1,10 @@
 #include "BloomBlurPass.h"
+#include "Engine.ParaBlit/IPipelineCache.h"
+#include "Engine.ParaBlit/ParaBlitDefs.h"
+#include "Engine.ParaBlit/ParaBlitImplUtil.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Resource/Shader.h"
 #include "WorldRender/BlurHelper.h"
-
-#pragma warning(push, 0)
-#include "glm/glm.hpp"
-#pragma warning(pop)
 
 namespace Eng
 {
@@ -33,16 +32,20 @@ namespace Eng
 
 	BloomBlurPass::~BloomBlurPass()
 	{
-		if (m_reusableCmdList)
-			m_renderer->FreeCommandList(m_reusableCmdList);
+		if (m_blurCmdList)
+		{
+			m_renderer->FreeCommandList(m_blurCmdList);
+			m_blurCmdList = nullptr;
+		}
+
+		if (m_mergeCmdList)
+		{
+			m_renderer->FreeCommandList(m_mergeCmdList);
+			m_mergeCmdList = nullptr;
+		}
 	}
 
 	void BloomBlurPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
-	{
-
-	}
-
-	void BloomBlurPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
 		info.m_commandContext->CmdBeginLabel("BloomBlurPass", { 1.0f, 1.0f, 1.0f, 1.0f });
 
@@ -73,7 +76,7 @@ namespace Eng
 				blurParams.m_buffer0Mip = i;
 				blurParams.m_buffer1 = transientTextures[2];
 				blurParams.m_buffer1Mip = i;
-				blurParams.m_imageFormat = info.m_renderer->GetSwapchain()->GetImageFormat();
+				blurParams.m_imageFormat = PB::ETextureFormat::R8G8B8A8_UNORM;
 
 				PB::Uint2 mipDimensions(renderWidth >> i, renderHeight >> i);
 				m_blurHelper.Encode(scopedContext.GetContext(), mipDimensions, blurParams);
@@ -86,13 +89,55 @@ namespace Eng
 				scopedContext->CmdTransitionTexture(transientTextures[2], PB::ETextureState::SAMPLED, PB::ETextureState::STORAGE, subresources);
 			}
 
-			PB::ComputePipelineDesc mergePipelineDesc{};
-			mergePipelineDesc.m_computeModule = Shader(m_renderer, "Shaders/GLSL/cs_merge_bloom", 0, m_allocator, true).GetModule();
-			PB::Pipeline mergePipeline = m_renderer->GetPipelineCache()->GetPipeline(mergePipelineDesc);
+			scopedContext->End();
+			return scopedContext->Return();
+		};		
+		if (!m_blurCmdList)
+			m_blurCmdList = RecordPass();
+
+		info.m_commandContext->CmdExecuteList(m_blurCmdList);
+		info.m_commandContext->CmdEndLastLabel();
+
+		// Merge pass label...
+		info.m_commandContext->CmdBeginLabel("BloomMergePass", { 1.0f, 1.0f, 1.0f, 1.0f });
+	}
+
+	void BloomBlurPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
+	{
+		auto RecordPass = [&]()
+		{
+			PB::CommandContextDesc scopedContextDesc{};
+			scopedContextDesc.m_renderer = m_renderer;
+			scopedContextDesc.m_usage = PB::ECommandContextUsage::GRAPHICS;
+			scopedContextDesc.m_flags = PB::ECommandContextFlags::REUSABLE;
+
+			PB::SCommandContext scopedContext(m_renderer);
+			scopedContext->Init(scopedContextDesc);
+			scopedContext->Begin(info.m_renderPass, info.m_frameBuffer);
+
+			PB::Pipeline mergePipeline = 0;
+			{
+				PB::GraphicsPipelineDesc mergePipelineDesc{};
+				mergePipelineDesc.m_renderPass = info.m_renderPass;
+				mergePipelineDesc.m_subpass = 0;
+				mergePipelineDesc.m_renderArea = { 0, 0, 0, 0 };
+				mergePipelineDesc.m_depthWriteEnable = false;
+				mergePipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS;
+				mergePipelineDesc.m_attachmentCount = 1;
+				mergePipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
+				mergePipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::VERTEX] = Eng::Shader(m_renderer, "Shaders/GLSL/vs_screenQuad", 0, m_allocator, true).GetModule();
+				mergePipelineDesc.m_shaderModules[PB::EGraphicsShaderStage::FRAGMENT] = Eng::Shader(m_renderer, "Shaders/GLSL/fs_merge_bloom", 0, m_allocator, true).GetModule();
+
+				mergePipeline = m_renderer->GetPipelineCache()->GetPipeline(mergePipelineDesc);
+			}
+
+			scopedContext->CmdBindPipeline(mergePipeline);
+			scopedContext->CmdSetViewport({ 0, 0, m_targetResolution.x, m_targetResolution.y }, 0.0f, 1.0f);
+			scopedContext->CmdSetScissor({ 0, 0, m_targetResolution.x, m_targetResolution.y });
 
 			PB::TextureViewDesc mergeSrcView{};
 			mergeSrcView.m_texture = transientTextures[1];
-			mergeSrcView.m_format = info.m_renderer->GetSwapchain()->GetImageFormat();
+			mergeSrcView.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 			mergeSrcView.m_expectedState = PB::ETextureState::SAMPLED;
 			mergeSrcView.m_subresources.m_mipCount = BlurTargetMipCount;
 
@@ -101,35 +146,30 @@ namespace Eng
 				transientTextures[0]->GetDefaultSRV(),
 				transientTextures[1]->GetView(mergeSrcView),
 				m_mergeSampler,
-				transientTextures[3]->GetDefaultSIV()
 			};
 
 			PB::BindingLayout mergeBindings;
 			mergeBindings.m_uniformBufferCount = 0;
 			mergeBindings.m_uniformBuffers = nullptr;
-			mergeBindings.m_resourceCount = _countof(mergeResources);
+			mergeBindings.m_resourceCount = PB_ARRAY_LENGTH(mergeResources);
 			mergeBindings.m_resourceViews = mergeResources;
 
-			constexpr const uint32_t MergeWorkGroupSizeXY = 32;
-			uint32_t mergeWorkGroupCountW = ((renderWidth * halfResDenom) / MergeWorkGroupSizeXY) + 1;
-			uint32_t mergeWorkGroupCountH = ((renderHeight * halfResDenom) / MergeWorkGroupSizeXY) + 1;
-
-			scopedContext->CmdBindPipeline(mergePipeline);
 			scopedContext->CmdBindResources(mergeBindings);
-			scopedContext->CmdDispatch(mergeWorkGroupCountW, mergeWorkGroupCountH, 1);
+			scopedContext->CmdDraw(6, 1);
 
 			scopedContext->End();
 			return scopedContext->Return();
 		};
-		if (!m_reusableCmdList)
-			m_reusableCmdList = RecordPass();
+		if (!m_mergeCmdList)
+			m_mergeCmdList = RecordPass();
 
-		info.m_commandContext->CmdExecuteList(m_reusableCmdList);
-		info.m_commandContext->CmdEndLastLabel();
+		info.m_commandContext->CmdExecuteList(m_mergeCmdList);
 	}
-
+	
 	void BloomBlurPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
+		info.m_commandContext->CmdEndLastLabel(); // Merge pass label...
+
 		if (!m_outputTexture)
 			return;
 
@@ -146,16 +186,22 @@ namespace Eng
 
 	void BloomBlurPass::AddToRenderGraph(RenderGraphBuilder* builder, Math::Vector2u targetResolution)
 	{
-		if (m_reusableCmdList)
+		if (m_blurCmdList)
 		{
-			m_renderer->FreeCommandList(m_reusableCmdList);
-			m_reusableCmdList = nullptr;
+			m_renderer->FreeCommandList(m_blurCmdList);
+			m_blurCmdList = nullptr;
+		}
+
+		if (m_mergeCmdList)
+		{
+			m_renderer->FreeCommandList(m_mergeCmdList);
+			m_mergeCmdList = nullptr;
 		}
 
 		NodeDesc nodeDesc{};
 		nodeDesc.m_behaviour = this;
 		nodeDesc.m_useReusableCommandLists = true;
-		nodeDesc.m_computeOnlyPass = true;
+		nodeDesc.m_computeOnlyPass = false;
 
 		PB::ISwapChain* swapchain = m_renderer->GetSwapchain();
 		PB::u32 halfResDenom = m_halfRes ? 2u : 1u;
@@ -171,7 +217,7 @@ namespace Eng
 		colorDesc.m_usageFlags = colorDesc.m_initialUsage;
 
 		TransientTextureDesc& outColorDesc = nodeDesc.m_transientTextures.PushBackInit();
-		outColorDesc.m_format = swapchain->GetImageFormat();
+		outColorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 		outColorDesc.m_width = renderWidth;
 		outColorDesc.m_height = renderHeight;
 		outColorDesc.m_mipCount = BlurTargetMipCount;
@@ -181,7 +227,7 @@ namespace Eng
 		outColorDesc.m_usageFlags = PB::ETextureState::SAMPLED | PB::ETextureState::STORAGE;
 
 		TransientTextureDesc& blurColorBufferDesc = nodeDesc.m_transientTextures.PushBackInit();
-		blurColorBufferDesc.m_format = swapchain->GetImageFormat();
+		blurColorBufferDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 		blurColorBufferDesc.m_width = renderWidth;
 		blurColorBufferDesc.m_height = renderHeight;
 		blurColorBufferDesc.m_mipCount = BlurTargetMipCount;
@@ -189,17 +235,15 @@ namespace Eng
 		blurColorBufferDesc.m_initialUsage = PB::ETextureState::STORAGE;
 		blurColorBufferDesc.m_usageFlags = PB::ETextureState::SAMPLED | PB::ETextureState::STORAGE;
 
-		TransientTextureDesc& mergedOutputDesc = nodeDesc.m_transientTextures.PushBackInit();
-		mergedOutputDesc.m_format = swapchain->GetImageFormat();
+		AttachmentDesc& mergedOutputDesc = nodeDesc.m_attachments.PushBackInit();
+		mergedOutputDesc.m_format = PB::Util::FormatToUnorm(swapchain->GetImageFormat());
 		mergedOutputDesc.m_width = targetResolution.x;
 		mergedOutputDesc.m_height = targetResolution.y;
 		mergedOutputDesc.m_name = "MergedOutput";
-		mergedOutputDesc.m_initialUsage = PB::ETextureState::STORAGE;
-		mergedOutputDesc.m_finalUsage = PB::ETextureState::STORAGE;
-		mergedOutputDesc.m_usageFlags = PB::ETextureState::STORAGE;
+		mergedOutputDesc.m_usage = PB::EAttachmentUsage::COLOR;
 
-		nodeDesc.m_renderWidth = outColorDesc.m_width;
-		nodeDesc.m_renderHeight = outColorDesc.m_height;
+		nodeDesc.m_renderWidth = targetResolution.x;
+		nodeDesc.m_renderHeight = targetResolution.y;
 		m_targetResolution = targetResolution;
 
 		builder->AddNode(nodeDesc);

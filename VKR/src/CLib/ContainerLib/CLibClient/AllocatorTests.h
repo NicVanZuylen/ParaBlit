@@ -52,7 +52,7 @@ namespace CLibTest
 
 			for (auto& ptr : ptrs)
 			{
-				delete ptr;
+				delete (unsigned char*)ptr;
 				ptr = nullptr;
 			}
 			ptrs.Clear();
@@ -62,7 +62,7 @@ namespace CLibTest
 
 			for (auto& ptr : ptrs)
 			{
-				delete ptr;
+				delete (TestClass*)ptr;
 				ptr = nullptr;
 			}
 			ptrs.Clear();

@@ -128,9 +128,9 @@ namespace Eng
 		};
 
 		PB::BindingLayout bindings{};
-		bindings.m_uniformBufferCount = _countof(uniformViews);
+		bindings.m_uniformBufferCount = PB_ARRAY_LENGTH(uniformViews);
 		bindings.m_uniformBuffers = uniformViews;
-		bindings.m_resourceCount = _countof(resources);
+		bindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
 		bindings.m_resourceViews = resources;
 
 		info.m_commandContext->CmdBindResources(bindings);
@@ -198,7 +198,7 @@ namespace Eng
 
 			m_depthBufferIndex = uint8_t(nodeDesc.m_transientTextures.Count());
 			TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-			depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+			depthReadDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 			depthReadDesc.m_width = m_renderWidth;
 			depthReadDesc.m_height = m_renderHeight;
 			depthReadDesc.m_name = "G_Depth";

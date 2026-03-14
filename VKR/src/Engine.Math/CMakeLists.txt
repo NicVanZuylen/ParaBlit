@@ -36,14 +36,14 @@ set(CMAKE_CXX_FLAGS_MPCOMPILE "${CMAKE_CXX_FLAGS_MPCOMPILE} /MP")
 # Multi-threaded compilation
 set_target_properties(${_LIBRARY_} PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS_MPCOMPILE}")
 
+endif()
+
+target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include/")
+
 # Output dir
 set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
 set_target_properties(${_LIBRARY_} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
 set_target_properties(${_LIBRARY_} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
-
-endif()
-
-target_include_directories(${_LIBRARY_} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include/")
 
 # --------------------------------------------------------------------------
 

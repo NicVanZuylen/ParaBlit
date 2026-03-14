@@ -1,9 +1,10 @@
 #include "Engine.Control/GUID.h"
-#include "../MurmurHash/MurmurHash3.h"
+#include "MurmurHash/MurmurHash3.h"
 #include <random>
 #include <sstream>
 #include <iomanip>
 #include <cassert>
+#include <cstring>
 
 #pragma warning (push)
 #pragma warning (disable : 26495) // m_data member of GUID is intentionally uninitialized.
@@ -20,6 +21,7 @@ namespace Ctrl
 
 	GUID::GUID()
 	{
+		memset(m_data, 0, GUIDLength);
 		m_data[GUIDLength] = '\0'; // Null terminator character is used for validation.
 	}
 
@@ -28,7 +30,7 @@ namespace Ctrl
 		if (guidStr == nullptr)
 			return;
 
-		std::memcpy(m_data, guidStr, GUIDLength);
+		memcpy(m_data, guidStr, GUIDLength);
 		m_data[GUIDLength] = '\0';
 	}
 

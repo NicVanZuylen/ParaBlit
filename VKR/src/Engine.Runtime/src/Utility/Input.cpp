@@ -1,5 +1,6 @@
 #include "Input.h"
 #include <memory>
+#include <cstring>
 
 #include "Engine.Math/Scalar.h"
 
@@ -67,56 +68,56 @@ namespace Eng
 		return m_currentMouseState;
 	}
 
-	int Input::GetKey(int keyCode, EInputState state)
+	int Input::GetKey(EKeyboardKey keyCode, EInputState state) const
 	{
 		// Return the keycode state of the selected state.
 		return m_keyStates[state][keyCode];
 	}
 
-	bool Input::GetKeyPressed(int keyCode)
+	bool Input::GetKeyPressed(EKeyboardKey keyCode) const
 	{
 		return GetKey(keyCode, INPUTSTATE_PREVIOUS) == 0 && GetKey(keyCode, INPUTSTATE_CURRENT) != 0;
 	}
 
-	bool Input::GetKeyReleased(int keyCode)
+	bool Input::GetKeyReleased(EKeyboardKey keyCode) const
 	{
 		return GetKey(keyCode, INPUTSTATE_PREVIOUS) != 0 && GetKey(keyCode, INPUTSTATE_CURRENT) == 0;
 	}
 
-	int Input::GetMouseButton(EMouseButton button, EInputState state)
+	int Input::GetMouseButton(EMouseButton button, EInputState state) const
 	{
 		// Return the mouse button state of selected state.
 		return m_mouseStates[state]->m_buttons[button] + 1;
 	}
 
-	float Input::GetRawCursorX(EInputState state)
+	float Input::GetRawCursorX(EInputState state) const
 	{
 		return static_cast<float>(m_mouseStates[state]->m_fMouseAxes[0]);
 	}
 
-	float Input::GetRawCursorY(EInputState state)
+	float Input::GetRawCursorY(EInputState state) const
 	{
 		return static_cast<float>(m_mouseStates[state]->m_fMouseAxes[1]);
 	}
 
-	float Input::GetCursorX(EInputState state)
+	float Input::GetCursorX(EInputState state) const
 	{
 		float rawX = GetRawCursorX(state);
 		return Clamp((rawX - m_mouseOrigin.x) / m_mouseExtent.x, 0.0f, 1.0f);
 	}
 
-	float Input::GetCursorY(EInputState state)
+	float Input::GetCursorY(EInputState state) const
 	{
 		float rawY = GetRawCursorY(state);
 		return Clamp((rawY - m_mouseOrigin.y) / m_mouseExtent.y, 0.0f, 1.0f);
 	}
 
-	float Input::GetScrollX(EInputState state)
+	float Input::GetScrollX(EInputState state) const
 	{
 		return static_cast<float>(m_mouseStates[state]->m_fMouseAxes[2]);
 	}
 
-	float Input::GetScrollY(EInputState state)
+	float Input::GetScrollY(EInputState state) const
 	{
 		return static_cast<float>(m_mouseStates[state]->m_fMouseAxes[3]);
 	}
@@ -124,10 +125,10 @@ namespace Eng
 	void Input::EndFrame()
 	{
 		// Copy current state to previous state.
-		memcpy_s(m_prevState, sizeof(char) * 512, m_currentState, sizeof(char) * 512);
+		memcpy(m_prevState, m_currentState, sizeof(char) * 512);
 
 		// Copy current mouse state to previous mouse state.
-		memcpy_s(m_prevMouseState, sizeof(MouseState), m_currentMouseState, sizeof(MouseState));
+		memcpy(m_prevMouseState, m_currentMouseState, sizeof(MouseState));
 
 		// Reset scroll values.
 		memset(&m_currentMouseState->m_fMouseAxes[2], 0, sizeof(double) * 2);

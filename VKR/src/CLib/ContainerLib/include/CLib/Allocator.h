@@ -112,7 +112,7 @@ namespace CLib
 		uint32_t m_pageSize;
 		std::mutex m_mutex;
 		bool m_threadSafe;
-		BlockNode* m_freeLists[_countof(m_segSizes)];
+		BlockNode* m_freeLists[sizeof(m_segSizes) / sizeof(m_segSizes[0])];
 		Vector<Page, 32> m_pages;
 	};
 }

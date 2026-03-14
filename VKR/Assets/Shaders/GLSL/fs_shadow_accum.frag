@@ -11,12 +11,17 @@ struct FS_IN
     vec2 pad0;
 };
 
-#define SHADOW_CASCADE_COUNT 4
+#define SHADOW_CASCADE_COUNT 5
 
 layout(push_constant) uniform Bindings
 {
+    //uint shadowCascadeViewIndices[SHADOW_CASCADE_COUNT]; // Lesson learned. DON'T use arrays in push constants. AMD doesn't like it...
+    uint shadowConst0; // TODO: Can we scale the amount of cascade indices to 'SHADOW_CASCADE_COUNT' without using an array?
+    uint shadowConst1;
+    uint shadowConst2;
+    uint shadowConst3;
+    uint shadowConst4;
     uint mvpIndex;
-    uint shadowCascadeViewIndices[SHADOW_CASCADE_COUNT];
     uint gDepthIndex;
     uint gNormalIndex;
     uint gBufferSamplerIdx;
@@ -43,10 +48,10 @@ layout(set = 0, binding = 0) uniform texture2DArray texturesArray[];
 
 layout(location = 0) in FS_IN fsInput;
 
-layout(location = 0) out vec4 outColor;
+layout(location = 0) out float outColor;
 
 #define MVP_CONST PB_UBO(mvp, mvpIndex)
-#define SHAD_CONST(cascade) PB_UBO(shadowConstants, shadowCascadeViewIndices[cascade])
+#define SHAD_CONST(cascadeConstIdx) shadowConstants[nonuniformEXT(cascadeConstIdx)]
 
 vec3 ScreenPosFromWorld(vec3 worldPosition, in mat4 viewProj)
 {
@@ -63,6 +68,15 @@ float SampleShadowmapDepth(vec2 sampleCoord, uint cascade)
         SHADOWMAP_SAMPLER,
         vec3(sampleCoord, float(cascade))
     ).r;
+}
+
+vec4 SampleShadowmapDepth4(vec2 sampleCoord, uint cascade)
+{
+    return textureGather
+    (
+        SHADOWMAP_SAMPLER,
+        vec3(sampleCoord, float(cascade))
+    );
 }
 
 vec4 SampleShadowmap4(vec2 sampleCoord, float refDepth, uint cascade)
@@ -96,9 +110,11 @@ float BilinearShadow(vec3 shadowmapScreenPos, vec2 texelSize, float shadowBias, 
     return mix(mixA, mixB, fractPart.x);
 }
 
-#define BLOCKER_SEARCH_SAMPLE_COUNT 32
-#define DISK_PCF_SAMPLE_COUNT 32
+#define BLOCKER_SEARCH_SAMPLE_COUNT 8
+#define BLOCKER_SAMPLE_STRIDE (32 / BLOCKER_SEARCH_SAMPLE_COUNT)
+#define DISK_PCF_SAMPLE_COUNT 16
 #define DISK_PCF_INV_SAMPLE_COUNT (1.0 / DISK_PCF_SAMPLE_COUNT)
+#define PCF_SAMPLE_STRIDE (32 / DISK_PCF_SAMPLE_COUNT)
 
 const vec2 poissonSampleOffsets[] = vec2[]
 (
@@ -143,7 +159,7 @@ vec2 PCFDiskBlocker(vec3 shadowmapScreenPos, vec2 texelSize, vec2 diskRotation, 
 
     for(int i = 0; i < BLOCKER_SEARCH_SAMPLE_COUNT; ++i)
     {
-        vec2 diskSample = poissonSampleOffsets[i] * diskRotation * (texelSize * refPenumbraDistance);
+        vec2 diskSample = poissonSampleOffsets[i * BLOCKER_SAMPLE_STRIDE] * diskRotation * (texelSize * refPenumbraDistance);
         float depth = SampleShadowmapDepth(((shadowmapScreenPos.xy * 0.5) + 0.5) + (diskSample * 0.5), cascade) + shadowBias;
         float receiverDepth = shadowmapScreenPos.z;
 
@@ -163,14 +179,14 @@ float PCFDiskShadow(vec3 shadowmapScreenPos, vec2 texelSize, vec2 diskRotation, 
 
     for(int i = 0; i < DISK_PCF_SAMPLE_COUNT; ++i)
     {
-        vec2 diskSample = poissonSampleOffsets[i] * diskRotation * texelSize * penumbraDistance;
+        vec2 diskSample = poissonSampleOffsets[i * PCF_SAMPLE_STRIDE] * diskRotation * texelSize * penumbraDistance;
         shadowStrength += BilinearShadow(shadowmapScreenPos + vec3(diskSample, 0.0), texelSize, shadowBias, cascade);
     }
 
     return shadowStrength * DISK_PCF_INV_SAMPLE_COUNT;
 }
 
-float ShadowPCSS(vec3 shadowmapScreenPos, uint cascade, float shadowBias, float refPenumbraDistance, out float penumbraDistance)
+float ShadowPCSS(vec3 shadowmapScreenPos, uint cascade, float shadowBias, float refPenumbraDistance)
 {
     vec2 textureDimensions = textureSize(PB_TEXTURE(shadowmapIndex), 0);
     vec2 texelSize = 1.0 / textureDimensions;
@@ -183,12 +199,35 @@ float ShadowPCSS(vec3 shadowmapScreenPos, uint cascade, float shadowBias, float 
 
     vec2 blockerResults = PCFDiskBlocker(shadowmapScreenPos, texelSize, randomRotation, shadowBias, refPenumbraDistance, cascade);
     if(blockerResults.y == 0.0)
+    {
         return 1.0;
+    }
+    else if (blockerResults.y == float(BLOCKER_SEARCH_SAMPLE_COUNT))
+    {
+        return 0.0;
+    }
 
     float blockerAverage = blockerResults.x / blockerResults.y;
-    penumbraDistance = ((shadowmapScreenPos.z - blockerAverage) * 10 * refPenumbraDistance) / blockerAverage;
+    float penumbraDistance = ((shadowmapScreenPos.z - blockerAverage) * 10 * refPenumbraDistance) / blockerAverage;
 
     return PCFDiskShadow(shadowmapScreenPos, texelSize, randomRotation, shadowBias, penumbraDistance, refPenumbraDistance, cascade);
+}
+
+uint GetShadowConstantsIndex(uint cascade)
+{
+    switch (cascade)
+    {
+    case 0:
+        return PB_BINDINGS_NAME.shadowConst0;
+    case 1:
+        return PB_BINDINGS_NAME.shadowConst1;
+    case 2:
+        return PB_BINDINGS_NAME.shadowConst2;
+    case 3:
+        return PB_BINDINGS_NAME.shadowConst3;
+    }
+
+    return PB_BINDINGS_NAME.shadowConst0;
 }
 
 void main()
@@ -199,26 +238,29 @@ void main()
     vec3 position = WorldPosFromDepth(depth, fsInput.texCoord, MVP_CONST.invView, MVP_CONST.invProj);
 
     uint cascadeIdx = ~uint(0);
+    uint shadowConstIdx = ~uint(0);
     float viewZ = -ReconstructViewZFromDepth(depth, MVP_CONST.proj) * 2.0;
     for(uint i = 0; i < SHADOW_CASCADE_COUNT; ++i)
     {
-        vec2 range = SHAD_CONST(i).cascadeRange;
+        shadowConstIdx = GetShadowConstantsIndex(i);
+        vec2 range = SHAD_CONST(shadowConstIdx).cascadeRange;
         if(viewZ < range[1])
         {
             cascadeIdx = i;
             break;
         }
     }
+    
+    float biasMult = SHAD_CONST(shadowConstIdx).shadowBiasMultiplier;
 
-    float normalDotLight = dot(normal, SHAD_CONST(cascadeIdx).shadowViewDirection.xyz);
-    vec3 shadowmapScreenPos = ScreenPosFromWorld(position, SHAD_CONST(cascadeIdx).viewProj);
+    vec3 shadowmapScreenPos = ScreenPosFromWorld(position, SHAD_CONST(shadowConstIdx).viewProj);
 
-    float biasMult = SHAD_CONST(cascadeIdx).shadowBiasMultiplier;
-    float shadowBias = max((0.003 * biasMult) * (1.0 - normalDotLight), (0.0015 * biasMult));
+    const float minBias = 0.0001;
+    const float maxBias = 0.003;
+    float shadowBias = clamp(maxBias * biasMult, minBias, maxBias);
 
-    float refShadowPenumbraDistance = SHAD_CONST(cascadeIdx).shadowPenumbraDistance;
-    float shadowPenumbraDistance = 0.01;
-    float shadowMask = ShadowPCSS(shadowmapScreenPos, cascadeIdx, shadowBias, refShadowPenumbraDistance, shadowPenumbraDistance);
+    float refShadowPenumbraDistance = SHAD_CONST(shadowConstIdx).shadowPenumbraDistance;
+    float shadowMask = ShadowPCSS(shadowmapScreenPos, cascadeIdx, shadowBias, refShadowPenumbraDistance);
 
-    outColor = vec4(cascadeIdx < SHADOW_CASCADE_COUNT ? shadowMask : 1.0);
+    outColor = (cascadeIdx < SHADOW_CASCADE_COUNT) ? shadowMask : 1.0;
 }

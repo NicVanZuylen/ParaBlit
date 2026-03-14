@@ -1,11 +1,20 @@
-#include "Clib/FixedBlockAllocator.h"
+#include "CLib/FixedBlockAllocator.h"
+
+#if CLIB_WINDOWS
+#define CLIB_ALIGNED_MALLOC(size, align) _aligned_malloc(size, align)
+#define CLIB_ALIGNED_FREE _aligned_free
+#elif CLIB_LINUX
+#define CLIB_ALIGNED_MALLOC(size, align) malloc(size) // TODO: Figure out how to get aligned_malloc() to not fail.
+#define CLIB_ALIGNED_FREE free
+#endif
 
 namespace CLib
 {
-	FixedBlockAllocator::FixedBlockAllocator(uint32_t blockSize, uint32_t pageSize)
+	FixedBlockAllocator::FixedBlockAllocator(uint32_t blockSize, uint32_t pageSize, uint32_t pageAlign)
 	{
 		m_blockSize = blockSize;
 		m_pageSize = pageSize;
+		m_pageAlign = pageAlign;
 		m_freeList = nullptr;
 
 		uint32_t realBlockSize = m_blockSize + sizeof(BlockNode);
@@ -20,7 +29,7 @@ namespace CLib
 		// Free memory pages. Users should free any objects that are initialized by this allocator. Especially if they allocate memory on another allocator, otherwise it will be leaked.
 		for (auto& page : m_pages)
 		{
-			_aligned_free(page.m_block);
+			CLIB_ALIGNED_FREE(page.m_block);
 			page.m_block = nullptr;
 			page.m_remainingBlocks = 0;
 		}
@@ -71,7 +80,7 @@ namespace CLib
 	void FixedBlockAllocator::AllocatePage()
 	{
 		Page& newPage = m_pages.PushBack();
-		newPage.m_block = reinterpret_cast<uint8_t*>(_aligned_malloc(m_pageSize, 16));
+		newPage.m_block = reinterpret_cast<uint8_t*>(CLIB_ALIGNED_MALLOC(m_pageSize, m_pageAlign));
 		newPage.m_remainingBlocks = m_blockCount;
 	}
 }

@@ -123,7 +123,8 @@ namespace Eng
 		size_t meshletBufferSize = cacheData.m_meshletCount * sizeof(AssetPipeline::Meshlet);
 		size_t primitiveBufferSize = cacheData.m_meshletPrimitiveCount * sizeof(uint32_t);
 
-		bool hasBLAS = cacheData.m_blasIndexCount > 0;
+		bool supportRT = m_renderer->GetDeviceLimitations()->m_supportRaytracing;
+		bool hasBLAS = cacheData.m_blasIndexCount > 0 && supportRT;
 
 		std::string bufferName;
 		if constexpr (MESH_USE_BUFFER_LABELS)
@@ -139,7 +140,7 @@ namespace Eng
 		vertexBufferDesc.m_options = 0;
 		vertexBufferDesc.m_usage = PB::EBufferUsage::COPY_DST | PB::EBufferUsage::STORAGE;
 		{
-			if (hasBLAS)
+			if (hasBLAS == true)
 			{
 				vertexBufferDesc.m_usage |= PB::EBufferUsage::MEMORY_ADDRESS_ACCESS;
 			}
@@ -215,7 +216,7 @@ namespace Eng
 			m_meshletPrimitiveBuffer->EndPopulate();
 		}
 
-		if (hasBLAS && m_renderer->GetDeviceLimitations()->m_supportRaytracing)
+		if (hasBLAS == true)
 		{
 			size_t blasIndexBufferSize = cacheData.m_blasIndexCount * sizeof(MeshIndex);
 

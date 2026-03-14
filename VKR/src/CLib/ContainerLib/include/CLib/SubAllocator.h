@@ -1,6 +1,7 @@
 #pragma once
 #include "CLib/CLibAPI.h"
 #include "Vector.h"
+#include <cstdint>
 
 namespace CLib
 {

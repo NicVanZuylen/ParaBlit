@@ -44,6 +44,7 @@ namespace PB
 		m_hasDepthPlane = false;
 		m_hasStencilPlane = false;
 		m_isAlias = false;
+		m_isMapped = false;
 	}
 
 	Texture::~Texture()

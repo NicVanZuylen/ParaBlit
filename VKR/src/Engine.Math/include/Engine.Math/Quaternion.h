@@ -122,12 +122,6 @@ namespace Eng::Math
 		// -----------------------------------------------------------------
 		// Arithmetic
 
-		MATH_INLINE Self& operator * (const Self& other)
-		{
-			quat *= other.quat;
-			return *this;
-		}
-
 		MATH_INLINE Self operator * (const Self& other) const
 		{
 			return quat * other.quat;
@@ -239,6 +233,27 @@ namespace Eng::Math
 	MATH_INLINE void RotateZ(TQuaternion<T>& quat, T angle)
 	{
 		quat = glm::rotate(quat, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+	}
+
+	template<typename T>
+	MATH_INLINE TQuaternion<T> LookAt(const TVector3<T>& direction, const TVector3<T>& up)
+	{
+		using GLMT = TVector3<T>::GLMT;
+		return glm::quatLookAt((GLMT)direction, (GLMT)up);
+	}
+
+	template<typename T>
+	MATH_INLINE TQuaternion<T> Slerp(const TQuaternion<T>& a, const TQuaternion<T>& b, const T& t)
+	{
+		using GLMT = TQuaternion<T>::GLMT;
+		return glm::slerp((GLMT)a, (GLMT)b, t);
+	}
+
+	template<typename T>
+	MATH_INLINE TQuaternion<T> Inverse(const TQuaternion<T>& quat)
+	{
+		using GLMT = TQuaternion<T>::GLMT;
+		return glm::inverse((GLMT)quat);
 	}
 
 	using Quaternion = TQuaternion<float>;

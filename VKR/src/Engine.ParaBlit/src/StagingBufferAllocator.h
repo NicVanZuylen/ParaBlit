@@ -85,7 +85,7 @@ namespace PB
 		CLib::Allocator m_pageAllocator{ sizeof(PageListNode) * 8 };
 
 		PageList m_freeLists[MemoryTypeCount]{}; // Pool of pages available for any frame to use.
-		PageList m_pendingFreeLists[PB_FRAME_IN_FLIGHT_COUNT][MemoryTypeCount]{};
-		PageList m_frameLists[PB_FRAME_IN_FLIGHT_COUNT][MemoryTypeCount]{}; // Pages belonging to a frame in flight.
+		PageList m_pendingFreeLists[PB_FRAME_IN_FLIGHT_COUNT + 1][MemoryTypeCount]{};
+		PageList m_frameLists[PB_FRAME_IN_FLIGHT_COUNT + 1][MemoryTypeCount]{}; // Pages belonging to a frame in flight.
 	};
 }

@@ -77,6 +77,8 @@ PB_DEFINE_TEXTURE_BINDINGS;
 PB_DEFINE_TEXTURE_CUBE_BINDINGS;
 PB_DEFINE_SAMPLER_BINDINGS;
 
+const vec3 gamma = vec3(1.0 / 2.2);
+
 DEFINE_VIEW_CONSTANTS(viewConstants);
 #define VIEW_CONST PB_UBO(viewConstants, viewConstantsIndex)
 
@@ -164,13 +166,51 @@ vec3 FresnelShlick(float cosTheta, vec3 spec)
     return spec + (1.0 - spec) * pow(1.0 - cosTheta, 5.0);
 }
 
+vec3 CalcIndirectDiffuse(in vec3 kD, in vec3 surfaceColor, in vec3 surfaceNormal)
+{
+    vec3 envIrradiance = texture
+    (
+        samplerCube(PB_TEXTURE_CUBE(irradianceIdx), PB_SAMPLER(iblSamplerIdx)), 
+        surfaceNormal
+    ).rgb;
+    return pow(envIrradiance, gamma) * surfaceColor * kD;
+}
+
+vec3 CalcIndirectSpecular(in vec3 kS, in vec3 dirToCam, in vec3 surfaceNormal, in float normalDotCam, in float surfaceRoughness)
+{
+    vec3 reflectionVec = reflect(-dirToCam, surfaceNormal);
+
+#if PERMUTATION_UseRTReflections == 0
+    float prefilterMipCount = float(textureQueryLevels(samplerCube(PB_TEXTURE_CUBE(prefilteredEnvMapIdx), PB_SAMPLER(iblSamplerIdx))));
+    vec3 indirectSpecular = textureLod
+    (
+        samplerCube(PB_TEXTURE_CUBE(prefilteredEnvMapIdx), PB_SAMPLER(iblSamplerIdx)), 
+        reflectionVec,
+        surfaceRoughness * prefilterMipCount
+    ).rgb;
+#else
+    vec3 indirectSpecular = texture
+    (
+        sampler2D(PB_TEXTURE(reflectionTextureIndex), PB_SAMPLER(samplerIdx)), 
+        fsInput.texCoord
+    ).rgb;
+#endif
+
+    vec2 specBDRF = texture
+    (
+        sampler2D(PB_TEXTURE(specBDRFLutIdx), PB_SAMPLER(samplerIdx)), 
+        vec2(normalDotCam, surfaceRoughness)
+    ).rg;
+    indirectSpecular = pow(indirectSpecular, gamma);
+
+    return indirectSpecular * (kS * specBDRF.x + specBDRF.y);
+}
+
 void main() 
 {
     mat4 invView = VIEW_CONST.invView;
     mat4 invProj = VIEW_CONST.invProj;
     vec4 camPos  = VIEW_CONST.cameraPosition;
-
-    vec3 gamma = vec3(1.0 / 2.2);
 
     vec4 colorTexel = texture
     (
@@ -205,6 +245,8 @@ void main()
     vec3 dirToCam = -normalize(position - camPos.xyz);
     float normalDotCam = max(dot(normal, dirToCam), 0.0);
 
+    // TODO: Can shadow and AO exist in the same mask texture as different channels and be blurred together?
+    // This could save us an extra render target, blur pass and subsequent sample in this pass.
     float shadow = texture
     (
         sampler2D(PB_TEXTURE(shadowmaskIdx), PB_SAMPLER(samplerIdx)), 
@@ -217,44 +259,12 @@ void main()
         fsInput.texCoord
     ).r;
 
-    vec3 envIrradiance = texture
-    (
-        samplerCube(PB_TEXTURE_CUBE(irradianceIdx), PB_SAMPLER(iblSamplerIdx)), 
-        normal
-    ).rgb;
-    envIrradiance = pow(envIrradiance, gamma);
-
     vec3 kS = FresnelShlickRoughness(normalDotCam, specular, roughness);
     vec3 kD = (1.0 - kS) * (1.0 - specular);
-    vec3 ambientDiffuse = envIrradiance * color * kD;
+    vec3 ambientDiffuse = CalcIndirectDiffuse(kD, color, normal);
+    vec3 ambientSpecular = CalcIndirectSpecular(kS, dirToCam, normal, normalDotCam, roughness);
 
-    vec3 reflectionVec = reflect(-dirToCam, normal);
-
-#if PERMUTATION_UseRTReflections == 0
-    float prefilterMipCount = float(textureQueryLevels(samplerCube(PB_TEXTURE_CUBE(prefilteredEnvMapIdx), PB_SAMPLER(iblSamplerIdx))));
-    vec3 indirectSpecular = textureLod
-    (
-        samplerCube(PB_TEXTURE_CUBE(prefilteredEnvMapIdx), PB_SAMPLER(iblSamplerIdx)), 
-        reflectionVec,
-        roughness * prefilterMipCount
-    ).rgb;
-#else
-    vec3 indirectSpecular = texture
-    (
-        sampler2D(PB_TEXTURE(reflectionTextureIndex), PB_SAMPLER(samplerIdx)), 
-        fsInput.texCoord
-    ).rgb;
-#endif
-
-    vec2 specBDRF = texture
-    (
-        sampler2D(PB_TEXTURE(specBDRFLutIdx), PB_SAMPLER(samplerIdx)), 
-        vec2(normalDotCam, roughness)
-    ).rg;
-    indirectSpecular = pow(indirectSpecular, gamma);
-    vec3 ambientSpecular = indirectSpecular * (kS * specBDRF.x + specBDRF.y);
-
-    vec4 Lo = vec4((ambientDiffuse + ambientSpecular) * ao, 1.0);
+    vec4 lightingOutput = vec4((ambientDiffuse + ambientSpecular) * ao, 1.0);
 
     int count = LIGHTING_DATA.count;
     for(int i = 0; i < count; ++i)
@@ -265,17 +275,19 @@ void main()
         float normalDotLight = max(dot(normal, normLightDir), 0.0);
 
         vec3 radiance = light.color.xyz;
-        vec3 kS;
+        //vec3 kS;
         vec3 bdrfSpecular = CookTorranceDirect(normal, dirToCam, normLightDir, specular, kS, roughness, normalDotLight);
 
         vec3 kD = (1.0 - kS) * (1.0 - specular);
-        Lo.rgb += Reflectance(color, bdrfSpecular, radiance, kD, normalDotLight) * shadow;
+        lightingOutput.rgb += Reflectance(color, bdrfSpecular, radiance, kD, normalDotLight) * shadow;
     }
 
     float emissionIntensityScale = LIGHTING_DATA.emissionIntensityScale;
-    vec4 emissionOutput = vec4(color.rgb * emissionIntensityScale, 1.0);
 
-    outColor = emissionMask == 0.0 ? Lo : emissionOutput;
+    vec3 emissionDecoded = DecodeColorF(color.rgb, 10);
+    vec4 emissionOutput = vec4(emissionDecoded * emissionIntensityScale, 1.0);
+
+    outColor = emissionMask == 0.0 ? lightingOutput : emissionOutput;
 }
 
 // ********************************************************************************************************************************

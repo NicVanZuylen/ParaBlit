@@ -111,7 +111,7 @@ namespace Eng
 			PB::BindingLayout bindings;
 			bindings.m_uniformBufferCount = 1;
 			bindings.m_uniformBuffers = &blurConstantsView;
-			bindings.m_resourceCount = _countof(resourceViews);
+			bindings.m_resourceCount = PB_ARRAY_LENGTH(resourceViews);
 			bindings.m_resourceViews = resourceViews;
 
 			// The blur shader uses some of it's work group invocations to store excess off-edge samples of count: (GaussianKernelSize - 1) * 2.
@@ -191,7 +191,7 @@ namespace Eng
 
 		m_depthBufferIndex = nodeDesc.m_transientTextures.Count();
 		TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthReadDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthReadDesc.m_width = targetResolution.x;
 		depthReadDesc.m_height = targetResolution.y;
 		depthReadDesc.m_name = "G_Depth";

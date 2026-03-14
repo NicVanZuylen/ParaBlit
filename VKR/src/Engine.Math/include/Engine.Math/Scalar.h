@@ -53,6 +53,16 @@ namespace Eng::Math
 		return glm::min(a, b);
 	}
 
+	MATH_INLINE uint32_t Min(const uint32_t& a, const uint32_t& b)
+	{
+		return glm::min(a, b);
+	}
+
+	MATH_INLINE uint64_t Min(const uint64_t& a, const uint64_t& b)
+	{
+		return glm::min(a, b);
+	}
+
 	MATH_INLINE float Min(const float& a, const float& b)
 	{
 		return glm::min(a, b);
@@ -69,6 +79,26 @@ namespace Eng::Math
 	}
 
 	MATH_INLINE double Max(const double& a, const double& b)
+	{
+		return glm::max(a, b);
+	}
+
+	MATH_INLINE int32_t Max(const int32_t& a, const int32_t& b)
+	{
+		return glm::max(a, b);
+	}
+
+	MATH_INLINE int64_t Max(const int64_t& a, const int64_t& b)
+	{
+		return glm::max(a, b);
+	}
+
+	MATH_INLINE uint32_t Max(const uint32_t& a, const uint32_t& b)
+	{
+		return glm::max(a, b);
+	}
+
+	MATH_INLINE uint64_t Max(const uint64_t& a, const uint64_t& b)
 	{
 		return glm::max(a, b);
 	}
@@ -123,5 +153,29 @@ namespace Eng::Math
 	{
 		T mod = value % target;
 		return value + (mod > 0 ? target - mod : 0);
+	}
+
+	template<typename T>
+	MATH_INLINE T Floor(const T& value)
+	{
+		return glm::floor(value);
+	}
+
+	template<typename T>
+	MATH_INLINE T Ceil(const T& value)
+	{
+		return glm::ceil(value);
+	}
+
+	template<typename T>
+	MATH_INLINE uint32_t FloorToInt(const T& value)
+	{
+		return uint32_t(glm::floor(value));
+	}
+
+	template<typename T>
+	MATH_INLINE uint32_t CeilToInt(const T& value)
+	{
+		return uint32_t(glm::ceil(value));
 	}
 }

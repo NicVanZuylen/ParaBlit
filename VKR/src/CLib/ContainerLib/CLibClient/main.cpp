@@ -21,7 +21,9 @@ static void VectorFree(void* ptr)
 
 int main() 
 {
+#if CLIB_CLIENT_WINDOWS
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
 
 	CLibTest::ReflectionTest();
 	CLibTest::VectorTest();

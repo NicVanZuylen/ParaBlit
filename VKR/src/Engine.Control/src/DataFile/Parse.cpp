@@ -1,6 +1,7 @@
 #include "Parse.h"
 #include <fstream>
 #include <filesystem>
+#include <cstring>
 
 namespace Ctrl
 {
@@ -113,7 +114,7 @@ namespace Ctrl
 		switch (openMode)
 		{
 		case EOpenMode::OPEN_READ_ONLY:
-			openFlags = std::ios::in | std::ios::_Nocreate;
+			openFlags = std::ios::in;
 		case EOpenMode::OPEN_READ_WRITE:
 			openFlags = std::ios::in | std::ios::out;
 		default:
@@ -182,7 +183,7 @@ namespace Ctrl
 		directory.remove_filename();
 
 		std::filesystem::create_directory(directory);
-		std::ofstream outStream(m_filePath, std::ios::beg | std::ios::out);
+		std::ofstream outStream(m_filePath, std::ofstream::out);
 		if (outStream.good())
 		{
 			m_status = EFileStatus::OPENED_SUCCESSFULLY;

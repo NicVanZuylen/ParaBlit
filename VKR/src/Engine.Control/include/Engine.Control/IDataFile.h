@@ -7,7 +7,7 @@
 
 namespace Ctrl
 {
-	enum class EAttributeType
+	enum class EFieldType
 	{
 		UNKNOWN_OR_INVALID,
 		INT,
@@ -19,18 +19,17 @@ namespace Ctrl
 		GUID
 	};
 
-	struct Attribute
+	struct Field
 	{
-		EAttributeType m_type = EAttributeType::UNKNOWN_OR_INVALID;
+		EFieldType m_type = EFieldType::UNKNOWN_OR_INVALID;
 		CLib::Vector<uint8_t> m_data;
 	};
-
 
 	class IDataNode
 	{
 	public:
 
-		CONTROL_INTERFACE void PeekAttributes(std::function<void(const std::string&, const Attribute&)> peekFunc) const = 0;
+		CONTROL_INTERFACE void PeekFields(std::function<void(const std::string&, const Field&)> peekFunc) const = 0;
 
 		/* Array getter -- Pointer will be invalidated if array size is changed. */
 		CONTROL_INTERFACE const int* GetInteger(const char* name, uint32_t& outCount) const = 0;
@@ -60,13 +59,17 @@ namespace Ctrl
 		CONTROL_INTERFACE IDataNode** GetDataNode(const char* name, uint32_t& outCount) = 0;
 		/* Array getter -- Pointer will be invalidated if array size is changed. */
 		CONTROL_INTERFACE const IDataNode* const* GetDataNode(const char* name, uint32_t& outCount) const = 0;
+		CONTROL_INTERFACE const IDataNode* const* GetDataNode(const Field& field, uint32_t& outCount) const = 0;
 		/* Single getter -- Get a single value or first array element. */
 		CONTROL_INTERFACE IDataNode* GetDataNode(const char* name) = 0;
 		/* Single getter -- Get a single value or first array element. */
 		CONTROL_INTERFACE const IDataNode* GetDataNode(const char* name) const = 0;
 
+		CONTROL_INTERFACE void GetAllChildDataNodes(CLib::Vector<IDataNode*>& outNodes) = 0;
+
 		/* Array getter -- Pointer will be invalidated if array size is changed. */
 		CONTROL_INTERFACE const GUID* GetGUID(const char* name, uint32_t& outCount) const = 0;
+		CONTROL_INTERFACE const GUID* GetGUID(const Field& field, uint32_t& outCount) const = 0;
 		/* Single getter -- Get a single value or first array element. */
 		CONTROL_INTERFACE const GUID* GetGUID(const char* name) const = 0;
 
@@ -91,8 +94,8 @@ namespace Ctrl
 		CONTROL_INTERFACE void SetGUID(const char* name, const GUID* value, uint32_t count = 1) = 0;
 		CONTROL_INTERFACE void SetGUID(const char* name, const GUID& value) = 0;
 
-		// Remove attribute entirely unless a valid index is provided. Otherwise remove one array element at the index.
-		CONTROL_INTERFACE void RemoveAttributeOrNode(const char* name, uint32_t index = ~uint32_t(0)) = 0;
+		// Remove field entirely unless a valid index is provided. Otherwise remove one array element at the index.
+		CONTROL_INTERFACE void RemoveFieldOrNode(const char* name, uint32_t index = ~uint32_t(0)) = 0;
 
 		CONTROL_INTERFACE void SetSelfGUID(const GUID& value) = 0;
 		CONTROL_INTERFACE const GUID& GetSelfGUID() const = 0;
@@ -122,8 +125,9 @@ namespace Ctrl
 		CONTROL_INTERFACE EFileStatus Open(const char* fileName, EOpenMode openMode, bool allowFail = false) = 0;
 		CONTROL_INTERFACE EFileStatus GetStatus() = 0;
 		CONTROL_INTERFACE IDataNode* GetRoot() = 0;
+		CONTROL_INTERFACE const IDataNode* GetRoot() const = 0;
 		CONTROL_INTERFACE void ParseData() = 0;
-		CONTROL_INTERFACE bool WriteData() = 0;
+		CONTROL_INTERFACE bool WriteData(const char* dstFilename = nullptr) = 0;
 		CONTROL_INTERFACE void Close() = 0;
 	};
 }

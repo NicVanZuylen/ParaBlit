@@ -1,6 +1,10 @@
 #ifndef REFLECTRON_INCL_API
 #define REFLECTRON_INCL_API
 
+#include <cstdint>
+#include <cstddef>
+#include <limits>
+
 #define REFLECTRON_TIMESTAMP(...)
 
 /*
@@ -14,6 +18,8 @@ NOTE: If the field is an enum the 'enum' flag should be specified as an argument
 */
 #define REFLECTRON_FIELD(...)
 
+#define REFLECTRON_INFINITY std::numeric_limits<double>::infinity()
+
 struct ReflectronFieldData
 {
 	const char* m_name;
@@ -21,6 +27,9 @@ struct ReflectronFieldData
 	size_t m_offset;
 	size_t m_size;
 	size_t m_arrayCount;
+	double m_editMinValue;
+	double m_editMaxValue;
+	const char* m_displayName;
 };
 
 #endif

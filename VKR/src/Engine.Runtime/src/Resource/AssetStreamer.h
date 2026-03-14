@@ -4,11 +4,12 @@
 #include "CLib/Vector.h"
 #include "CLib/Allocator.h"
 #include "CLib/FixedBlockAllocator.h"
-#include "Engine.AssetEncoder/AssetDatabaseReader.h"
+#include "Engine.AssetEncoder/AssetBinaryDatabaseReader.h"
 
 #include <map>
 #include <mutex>
 #include <thread>
+#include <condition_variable>
 
 namespace Eng
 {

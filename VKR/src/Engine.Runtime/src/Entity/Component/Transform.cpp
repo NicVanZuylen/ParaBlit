@@ -1,5 +1,8 @@
 #include "Transform.h"
-#include "Engine.Math/Scalar.h"
+#include "Engine.Control/IDataClass.h"
+#include "EntityHierarchy.h"
+#include "StaticEntityTracker.h"
+#include <cstdio>
 
 namespace Eng
 {
@@ -32,5 +35,18 @@ namespace Eng
 		GetMatrix(mat);
 
 		return mat;
+	}
+
+	void Transform::OnFieldChanged(const ReflectronFieldData& field)
+	{
+		auto staticTracker = m_host->GetComponent<StaticEntityTracker>();
+		if(staticTracker != nullptr)
+		{
+			// Trigger host hot reload...
+			printf("Static entity %s's [%p] transform has been modified, triggering hot-reload.\n", m_host->GetName(), m_host);
+
+			staticTracker->UpdateEntity();
+			m_host->GetHierarchy()->UpdateTrees();
+		}
 	}
 }

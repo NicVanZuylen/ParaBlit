@@ -1,4 +1,5 @@
 #include "SpirvShaderEncoder.h"
+#include "Engine.Control/GUID.h"
 
 #include <shaderc/shaderc.h>
 #include <chrono>
@@ -63,7 +64,7 @@ namespace AssetPipeline
 			std::ifstream includeFile(pathString, std::ios::ate | std::ios::binary);
 			if (!includeFile.good())
 			{
-				printf_s("[%s]: Include file not found: %s\n", requesting_source, pathString.c_str());
+				printf("[%s]: Include file not found: %s\n", requesting_source, pathString.c_str());
 				assert(false);
 			}
 
@@ -121,7 +122,7 @@ namespace AssetPipeline
 				}
 
 				// Check include files included by this header.
-				std::ifstream glslFile(includePath, std::ios::ate | std::ios::binary | std::ios::_Nocreate | std::ios::in);
+				std::ifstream glslFile(includePath, std::ios::ate | std::ios::binary | std::ios::in);
 				auto fileExceptions = glslFile.exceptions();
 				assert(glslFile.good() && !fileExceptions);
 
@@ -260,7 +261,7 @@ namespace AssetPipeline
 		AssetEncoder::ShaderPermutationTable permTable{};
 
 		// Set current permutation macro values and generate key.
-		printf_s("%s: Compiling permutation with values:\n", m_name.c_str());
+		printf("%s: Compiling permutation with values:\n", m_name.c_str());
 		bool foundStagePermutation = determineStageWithPermutation == false && determineRTStageWithPermutation == false;
 		for (uint32_t j = 0; j < permutations.size(); ++j)
 		{
@@ -275,7 +276,7 @@ namespace AssetPipeline
 			static constexpr const char* RTShaderStagePermutationName = "PERMUTATION_RT_ShaderStage";
 			if (determineStageWithPermutation == true && p.first == ShaderStagePermutationName)
 			{
-				printf_s("> NOTE: %s is a reserved permutation name for selecting which shader stage (non-raytracing) to compile.\n", ShaderStagePermutationName);
+				printf("> NOTE: %s is a reserved permutation name for selecting which shader stage (non-raytracing) to compile.\n", ShaderStagePermutationName);
 
 				const char* stageStr = "UNKNOWN_STAGE";
 				switch (AssetEncoder::EShaderStagePermutation(currentPermutationState[j]))
@@ -302,12 +303,12 @@ namespace AssetPipeline
 					break;
 				}
 
-				printf_s("> %s: %s (%u)\n", p.first.c_str(), stageStr, uint32_t(currentPermutationState[j]));
+				printf("> %s: %s (%u)\n", p.first.c_str(), stageStr, uint32_t(currentPermutationState[j]));
 				foundStagePermutation = true;
 			}
 			else if (determineRTStageWithPermutation == true && p.first == RTShaderStagePermutationName)
 			{
-				printf_s("> NOTE: %s is a reserved permutation name for selecting which shader stage (ray tracing) to compile.\n", RTShaderStagePermutationName);
+				printf("> NOTE: %s is a reserved permutation name for selecting which shader stage (ray tracing) to compile.\n", RTShaderStagePermutationName);
 
 				const char* stageStr = "UNKNOWN_STAGE";
 				switch (AssetEncoder::ERTShaderStagePermutation(currentPermutationState[j]))
@@ -334,12 +335,12 @@ namespace AssetPipeline
 					break;
 				}
 
-				printf_s("> %s: %s (%u)\n", p.first.c_str(), stageStr, uint32_t(currentPermutationState[j]));
+				printf("> %s: %s (%u)\n", p.first.c_str(), stageStr, uint32_t(currentPermutationState[j]));
 				foundStagePermutation = true;
 			}
 			else
 			{
-				printf_s("> %s: %u\n", p.first.c_str(), uint32_t(currentPermutationState[j]));
+				printf("> %s: %u\n", p.first.c_str(), uint32_t(currentPermutationState[j]));
 			}
 		}
 
@@ -356,9 +357,9 @@ namespace AssetPipeline
 		if (errorCount == 0 && status == shaderc_compilation_status_success)
 		{
 			if (warningCount > 0)
-				printf_s("%s: Successfully compiled shader permutation: %s with %u warnings.\n", m_name.c_str(), asset.m_fullPath.c_str(), uint32_t(warningCount));
+				printf("%s: Successfully compiled shader permutation: %s with %u warnings.\n", m_name.c_str(), asset.m_fullPath.c_str(), uint32_t(warningCount));
 			else
-				printf_s("%s: Successfully compiled shader permutation: %s\n", m_name.c_str(), asset.m_fullPath.c_str());
+				printf("%s: Successfully compiled shader permutation: %s\n", m_name.c_str(), asset.m_fullPath.c_str());
 
 			if constexpr (GetAssembly) // Debug
 			{
@@ -378,22 +379,23 @@ namespace AssetPipeline
 				if (errorCount == 1 && (determineStageWithPermutation || determineRTStageWithPermutation) == true && std::strstr(errorMessage, "Missing entry point: Each stage requires one entry point"))
 				{
 					// Expected failure, the shader does not include the stage being compiled from the current permutation (no entry point for stage).
-					printf_s("%s: No entry point found, emitting null shader permutation.\n", m_name.c_str());
+					printf("%s: No entry point found, emitting null shader permutation.\n", m_name.c_str());
 					expectedFailure = true;
 				}
 				else
 				{
-					printf_s("%s: shaderc error: %s\n", m_name.c_str(), errorMessage);
+					printf("%s: shaderc error: %s\n", m_name.c_str(), errorMessage);
 				}
 			}
 			else if (status != shaderc_compilation_status_success)
 			{
-				printf_s("%s: shaderc error: %s\n", m_name.c_str(), "Unknown error.");
+				const char* errorMessage = shaderc_result_get_error_message(result);
+				printf("%s: shaderc error: %s\n", m_name.c_str(), errorMessage ? errorMessage : "Unknown error.");
 			}
 
 			if (expectedFailure == false)
 			{
-				printf_s("%s: Failed to compile shader permutation: %s\n", m_name.c_str(), asset.m_fullPath.c_str());
+				printf("%s: Failed to compile shader permutation: %s\n", m_name.c_str(), asset.m_fullPath.c_str());
 				assert(false);
 			}
 		}
@@ -409,7 +411,7 @@ namespace AssetPipeline
 
 		std::string glsl;
 		{
-			std::ifstream glslFile(asset.m_fullPath.c_str(), std::ios::ate | std::ios::_Nocreate | std::ios::binary | std::ios::in);
+			std::ifstream glslFile(asset.m_fullPath.c_str(), std::ios::ate | std::ios::binary | std::ios::in);
 			auto fileExceptions = glslFile.exceptions();
 			assert(glslFile.good() && !fileExceptions);
 
@@ -497,7 +499,7 @@ namespace AssetPipeline
 		AssetEncoder::ShaderHeader header{};
 
 		size_t dataSize = AssetEncoder::ShaderHeader::FixedHeaderSize + (permutationData.size() * sizeof(AssetEncoder::PermutationData)) + permutationBinaryBlob.size();
-		void* dstStorage = m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), 0, dataSize, asset.m_lastModifiedTime);
+		void* dstStorage = m_dbWriter->AllocateAsset(asset.m_dbPath.c_str(), Ctrl::nullGUID, 0, dataSize, asset.m_lastModifiedTime);
 		header.Serialize
 		(
 			reinterpret_cast<uint8_t*>(dstStorage),

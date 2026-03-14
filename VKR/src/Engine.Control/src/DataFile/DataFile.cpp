@@ -1,5 +1,7 @@
 #include "DataFile.h"
+#include "CLib/Vector.h"
 #include "Engine.Control/GUID.h"
+#include "Engine.Control/IDataFile.h"
 #include <fstream>
 #include <cassert>
 #include <filesystem>
@@ -18,23 +20,23 @@ namespace Ctrl
 
 	DataNode::~DataNode()
 	{
-		for (auto& attribute : m_attributes)
+		for (auto& field : m_fields)
 		{
-			FreeAttributeData(attribute.second);
+			FreeFieldData(field.second);
 		}
 	}
 
 	void DataNode::InitializeWithNode(const pugi::xml_node& node)
 	{
-		for (auto& attrib : node.attributes())
+		for (auto& field : node.attributes())
 		{
-			if (strcmp(attrib.name(), "TYPE") == 0)
+			if (strcmp(field.name(), "TYPE") == 0)
 			{
-				m_type = attrib.value();
+				m_type = field.value();
 			}
-			else if(strcmp(attrib.name(), "GUID") == 0)
+			else if(strcmp(field.name(), "GUID") == 0)
 			{
-				SetSelfGUID(attrib.value());
+				SetSelfGUID(field.value());
 			}
 		}
 
@@ -56,50 +58,50 @@ namespace Ctrl
 			thisNode.append_attribute("GUID").set_value(m_guid.AsCString());
 		}
 
-		for (auto& a : m_attributes)
+		for (auto& a : m_fields)
 		{
 			std::stringstream valueStr;
 
-			Attribute& attribute = a.second;
-			switch (attribute.m_type)
+			Field& field = a.second;
+			switch (field.m_type)
 			{
-				case EAttributeType::INT:
+				case EFieldType::INT:
 				{
 					pugi::xml_node newNode = thisNode.append_child(a.first.c_str());
 					newNode.append_attribute("TYPE").set_value("int");
 
-					StringifyArray<int>(valueStr, attribute.m_data.Data(), attribute.m_data.Count());
+					StringifyArray<int>(valueStr, field.m_data.Data(), field.m_data.Count());
 					newNode.append_attribute("VALUE").set_value(valueStr.str().c_str());
 					break;
 				}
-				case EAttributeType::FLOAT:
+				case EFieldType::FLOAT:
 				{
 					pugi::xml_node newNode = thisNode.append_child(a.first.c_str());
 					newNode.append_attribute("TYPE").set_value("float");
 
-					StringifyArray<float>(valueStr, attribute.m_data.Data(), attribute.m_data.Count());
+					StringifyArray<float>(valueStr, field.m_data.Data(), field.m_data.Count());
 					newNode.append_attribute("VALUE").set_value(valueStr.str().c_str());
 					break;
 				}
-				case EAttributeType::DOUBLE:
+				case EFieldType::DOUBLE:
 				{
 					pugi::xml_node newNode = thisNode.append_child(a.first.c_str());
 					newNode.append_attribute("TYPE").set_value("double");
 
-					StringifyArray<double>(valueStr, attribute.m_data.Data(), attribute.m_data.Count());
+					StringifyArray<double>(valueStr, field.m_data.Data(), field.m_data.Count());
 					newNode.append_attribute("VALUE").set_value(valueStr.str().c_str());
 					break;
 				}
-				case EAttributeType::BOOL:
+				case EFieldType::BOOL:
 				{
 					pugi::xml_node newNode = thisNode.append_child(a.first.c_str());
 					newNode.append_attribute("TYPE").set_value("bool");
 
-					StringifyArray<bool>(valueStr, attribute.m_data.Data(), attribute.m_data.Count());
+					StringifyArray<bool>(valueStr, field.m_data.Data(), field.m_data.Count());
 					newNode.append_attribute("VALUE").set_value(valueStr.str().c_str());
 					break;
 				}
-				case EAttributeType::STRING:
+				case EFieldType::STRING:
 				{
 					pugi::xml_node newNode = thisNode.append_child(a.first.c_str());
 					newNode.append_attribute("TYPE").set_value("string");
@@ -110,7 +112,7 @@ namespace Ctrl
 					newNode.append_attribute("VALUE").set_value(valueStr.str().c_str());
 					break;
 				}
-				case EAttributeType::GUID:
+				case EFieldType::GUID:
 				{
 					pugi::xml_node newNode = thisNode.append_child(a.first.c_str());
 					newNode.append_attribute("TYPE").set_value("GUID");
@@ -121,12 +123,12 @@ namespace Ctrl
 					newNode.append_attribute("VALUE").set_value(valueStr.str().c_str());
 					break;
 				}
-				case EAttributeType::DATA_NODE:
+				case EFieldType::DATA_NODE:
 				{
-					uint32_t dataNodeCount = attribute.m_data.Count() / sizeof(DataNode*);
+					uint32_t dataNodeCount = field.m_data.Count() / sizeof(DataNode*);
 					for (uint32_t i = 0; i < dataNodeCount; ++i)
 					{
-						DataNode** n = reinterpret_cast<DataNode**>(attribute.m_data.Data()) + i;
+						DataNode** n = reinterpret_cast<DataNode**>(field.m_data.Data()) + i;
 						(*n)->WriteData(thisNode, a.first.c_str());
 					}
 					break;
@@ -137,20 +139,20 @@ namespace Ctrl
 		}
 	}
 
-	void DataNode::PeekAttributes(std::function<void(const std::string&, const Attribute&)> peekFunc) const
+	void DataNode::PeekFields(std::function<void(const std::string&, const Field&)> peekFunc) const
 	{
-		for (auto& attrib : m_attributes)
-			peekFunc(attrib.first, attrib.second);
+		for (auto& field : m_fields)
+			peekFunc(field.first, field.second);
 	}
 
 	const int* DataNode::GetInteger(const char* name, uint32_t& outCount) const
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			const Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::INT);
-			outCount = attrib.m_data.Count() / sizeof(int);
+			const Field& field = it->second;
+			assert(field.m_type == EFieldType::INT);
+			outCount = field.m_data.Count() / sizeof(int);
 			return reinterpret_cast<const int*>(it->second.m_data.Data());
 		}
 
@@ -166,12 +168,12 @@ namespace Ctrl
 
 	const float* DataNode::GetFloat(const char* name, uint32_t& outCount) const
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			const Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::FLOAT);
-			outCount = attrib.m_data.Count() / sizeof(float);
+			const Field& field = it->second;
+			assert(field.m_type == EFieldType::FLOAT);
+			outCount = field.m_data.Count() / sizeof(float);
 			return reinterpret_cast<const float*>(it->second.m_data.Data());
 		}
 		
@@ -187,12 +189,12 @@ namespace Ctrl
 
 	const double* DataNode::GetDouble(const char* name, uint32_t& outCount) const
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			const Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::DOUBLE);
-			outCount = attrib.m_data.Count() / sizeof(double);
+			const Field& field = it->second;
+			assert(field.m_type == EFieldType::DOUBLE);
+			outCount = field.m_data.Count() / sizeof(double);
 			return reinterpret_cast<const double*>(it->second.m_data.Data());
 		}
 
@@ -208,12 +210,12 @@ namespace Ctrl
 
 	const bool* DataNode::GetBool(const char* name, uint32_t& outCount) const
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			const Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::BOOL);
-			outCount = attrib.m_data.Count() / sizeof(bool);
+			const Field& field = it->second;
+			assert(field.m_type == EFieldType::BOOL);
+			outCount = field.m_data.Count() / sizeof(bool);
 			return reinterpret_cast<const bool*>(it->second.m_data.Data());
 		}
 
@@ -229,12 +231,12 @@ namespace Ctrl
 
 	void DataNode::GetString(const char* name, CLib::Vector<const char*>& outStr) const
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			const Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::STRING);
-			const char* currentStr = reinterpret_cast<const char*>(attrib.m_data.Data());
+			const Field& field = it->second;
+			assert(field.m_type == EFieldType::STRING);
+			const char* currentStr = reinterpret_cast<const char*>(field.m_data.Data());
 			uint32_t length = strlen(currentStr);
 			while (*currentStr != '\0')
 			{
@@ -258,14 +260,14 @@ namespace Ctrl
 
 	IDataNode** DataNode::GetDataNode(const char* name, uint32_t& outCount)
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::DATA_NODE);
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::DATA_NODE);
 			
-			outCount = attrib.m_data.Count() / sizeof(DataNode*);
-			return reinterpret_cast<IDataNode**>(attrib.m_data.Data());
+			outCount = field.m_data.Count() / sizeof(DataNode*);
+			return reinterpret_cast<IDataNode**>(field.m_data.Data());
 		}
 
 		return nullptr;
@@ -273,25 +275,31 @@ namespace Ctrl
 
 	const IDataNode* const* DataNode::GetDataNode(const char* name, uint32_t& outCount) const
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			const Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::DATA_NODE);
+			const Field& field = it->second;
+			assert(field.m_type == EFieldType::DATA_NODE);
 
-			outCount = attrib.m_data.Count() / sizeof(DataNode*);
-			return reinterpret_cast<const IDataNode* const*>(attrib.m_data.Data());
+			outCount = field.m_data.Count() / sizeof(DataNode*);
+			return reinterpret_cast<const IDataNode* const*>(field.m_data.Data());
 		}
 
 		return nullptr;
 	}
 
+	const IDataNode* const* DataNode::GetDataNode(const Field& field, uint32_t& outCount) const
+	{
+		outCount = field.m_data.Count() / sizeof(DataNode*);
+		return reinterpret_cast<const IDataNode* const*>(field.m_data.Data());
+	}
+
 	IDataNode* DataNode::GetDataNode(const char* name)
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			assert(it->second.m_type == EAttributeType::DATA_NODE);
+			assert(it->second.m_type == EFieldType::DATA_NODE);
 			return *reinterpret_cast<IDataNode**>(it->second.m_data.Data());
 		}
 
@@ -303,18 +311,41 @@ namespace Ctrl
 		return GetDataNode(name);
 	}
 
+	void DataNode::GetAllChildDataNodes(CLib::Vector<IDataNode*>& outNodes)
+	{
+		for(auto& it : m_fields)
+		{
+			const Field& field = it.second;
+			if(field.m_type == EFieldType::DATA_NODE)
+			{
+				uint32_t count = field.m_data.Count() / sizeof(DataNode*);
+				auto nodes = reinterpret_cast<IDataNode* const*>(field.m_data.Data());
+				for(uint32_t i = 0; i < count; ++i)
+				{
+					outNodes.PushBack(nodes[i]);
+				}
+			}
+		}
+	};
+
 	const GUID* DataNode::GetGUID(const char* name, uint32_t& outCount) const
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			const Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::GUID);
-			outCount = attrib.m_data.Count() / sizeof(GUID);
+			const Field& field = it->second;
+			assert(field.m_type == EFieldType::GUID);
+			outCount = field.m_data.Count() / sizeof(GUID);
 			return reinterpret_cast<const GUID*>(it->second.m_data.Data());
 		}
 
 		return nullptr;
+	}
+
+	const GUID* DataNode::GetGUID(const Field& field, uint32_t& outCount) const
+	{
+		outCount = field.m_data.Count() / sizeof(GUID);
+		return (const GUID*)field.m_data.Data();
 	}
 
 	const GUID* DataNode::GetGUID(const char* name) const
@@ -327,20 +358,20 @@ namespace Ctrl
 	{
 		std::string nameStr = name;
 
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::INT);
-			attrib.m_data.SetCount(sizeof(int) * count);
-			std::memcpy(attrib.m_data.Data(), value, sizeof(int) * count);
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::INT);
+			field.m_data.SetCount(sizeof(int) * count);
+			std::memcpy(field.m_data.Data(), value, sizeof(int) * count);
 		}
 
-		Attribute& newAttribute = m_attributes.emplace(std::pair<std::string, Attribute>(nameStr, {})).first->second;
-		newAttribute.m_type = EAttributeType::INT;
-		newAttribute.m_data.SetCount(sizeof(int) * count);
+		Field& newField = m_fields.emplace(std::pair<std::string, Field>(nameStr, {})).first->second;
+		newField.m_type = EFieldType::INT;
+		newField.m_data.SetCount(sizeof(int) * count);
 
-		std::memcpy(newAttribute.m_data.Data(), value, sizeof(int) * count);
+		std::memcpy(newField.m_data.Data(), value, sizeof(int) * count);
 	}
 
 	void DataNode::SetInteger(const char* name, int value)
@@ -352,20 +383,20 @@ namespace Ctrl
 	{
 		std::string nameStr = name;
 
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::FLOAT);
-			attrib.m_data.SetCount(sizeof(float) * count);
-			std::memcpy(attrib.m_data.Data(), value, sizeof(float) * count);
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::FLOAT);
+			field.m_data.SetCount(sizeof(float) * count);
+			std::memcpy(field.m_data.Data(), value, sizeof(float) * count);
 		}
 
-		Attribute& newAttribute = m_attributes.emplace(std::pair<std::string, Attribute>(nameStr, {})).first->second;
-		newAttribute.m_type = EAttributeType::FLOAT;
-		newAttribute.m_data.SetCount(sizeof(float) * count);
+		Field& newField = m_fields.emplace(std::pair<std::string, Field>(nameStr, {})).first->second;
+		newField.m_type = EFieldType::FLOAT;
+		newField.m_data.SetCount(sizeof(float) * count);
 
-		std::memcpy(newAttribute.m_data.Data(), value, sizeof(float) * count);
+		std::memcpy(newField.m_data.Data(), value, sizeof(float) * count);
 	}
 
 	void DataNode::SetFloat(const char* name, float value)
@@ -377,20 +408,20 @@ namespace Ctrl
 	{
 		std::string nameStr = name;
 
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::DOUBLE);
-			attrib.m_data.SetCount(sizeof(double) * count);
-			std::memcpy(attrib.m_data.Data(), value, sizeof(double) * count);
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::DOUBLE);
+			field.m_data.SetCount(sizeof(double) * count);
+			std::memcpy(field.m_data.Data(), value, sizeof(double) * count);
 		}
 
-		Attribute& newAttribute = m_attributes.emplace(std::pair<std::string, Attribute>(nameStr, {})).first->second;
-		newAttribute.m_type = EAttributeType::DOUBLE;
-		newAttribute.m_data.SetCount(sizeof(double) * count);
+		Field& newField = m_fields.emplace(std::pair<std::string, Field>(nameStr, {})).first->second;
+		newField.m_type = EFieldType::DOUBLE;
+		newField.m_data.SetCount(sizeof(double) * count);
 
-		std::memcpy(newAttribute.m_data.Data(), value, sizeof(double) * count);
+		std::memcpy(newField.m_data.Data(), value, sizeof(double) * count);
 	}
 
 	void DataNode::SetDouble(const char* name, double value)
@@ -402,20 +433,20 @@ namespace Ctrl
 	{
 		std::string nameStr = name;
 
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::BOOL);
-			attrib.m_data.SetCount(sizeof(bool) * count);
-			std::memcpy(attrib.m_data.Data(), value, sizeof(bool) * count);
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::BOOL);
+			field.m_data.SetCount(sizeof(bool) * count);
+			std::memcpy(field.m_data.Data(), value, sizeof(bool) * count);
 		}
 
-		Attribute& newAttribute = m_attributes.emplace(std::pair<std::string, Attribute>(nameStr, {})).first->second;
-		newAttribute.m_type = EAttributeType::BOOL;
-		newAttribute.m_data.SetCount(sizeof(bool) * count);
+		Field& newField = m_fields.emplace(std::pair<std::string, Field>(nameStr, {})).first->second;
+		newField.m_type = EFieldType::BOOL;
+		newField.m_data.SetCount(sizeof(bool) * count);
 
-		std::memcpy(newAttribute.m_data.Data(), value, sizeof(bool) * count);
+		std::memcpy(newField.m_data.Data(), value, sizeof(bool) * count);
 	}
 
 	void DataNode::SetBool(const char* name, bool value)
@@ -427,11 +458,11 @@ namespace Ctrl
 	{
 		std::string nameStr = name;
 
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::STRING);
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::STRING);
 			
 			uint32_t totalCharCount = 0;
 			for (uint32_t i = 0; i < count; ++i)
@@ -440,14 +471,14 @@ namespace Ctrl
 				uint32_t pos = totalCharCount;
 				totalCharCount += charCount;
 
-				attrib.m_data.SetCount(totalCharCount);
-				std::memcpy(attrib.m_data.Data() + pos, value[i], charCount);
+				field.m_data.SetCount(totalCharCount);
+				std::memcpy(field.m_data.Data() + pos, value[i], charCount);
 			}
-			attrib.m_data.PushBack(uint8_t('\0')); // Push another null terminator to terminate array with a double null terminator.
+			field.m_data.PushBack(uint8_t('\0')); // Push another null terminator to terminate array with a double null terminator.
 		}
 
-		Attribute& newAttribute = m_attributes.emplace(std::pair<std::string, Attribute>(nameStr, {})).first->second;
-		newAttribute.m_type = EAttributeType::STRING;
+		Field& newField = m_fields.emplace(std::pair<std::string, Field>(nameStr, {})).first->second;
+		newField.m_type = EFieldType::STRING;
 		
 		uint32_t totalCharCount = 0;
 		for (uint32_t i = 0; i < count; ++i)
@@ -456,10 +487,10 @@ namespace Ctrl
 			uint32_t pos = totalCharCount;
 			totalCharCount += charCount;
 
-			newAttribute.m_data.SetCount(totalCharCount);
-			std::memcpy(newAttribute.m_data.Data() + pos, value[i], charCount);
+			newField.m_data.SetCount(totalCharCount);
+			std::memcpy(newField.m_data.Data() + pos, value[i], charCount);
 		}
-		newAttribute.m_data.PushBack(uint8_t('\0')); // Push another null terminator to terminate array with a double null terminator.
+		newField.m_data.PushBack(uint8_t('\0')); // Push another null terminator to terminate array with a double null terminator.
 	}
 
 	void DataNode::SetString(const char* name, const char* value)
@@ -471,29 +502,29 @@ namespace Ctrl
 	{
 		std::string nameStr = name;
 
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::GUID);
-			attrib.m_data.SetCount(count * sizeof(GUID));
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::GUID);
+			field.m_data.SetCount(count * sizeof(GUID));
 
 			for (uint32_t i = 0; i < count; ++i)
 			{
 				uint32_t pos = i * sizeof(GUID);
-				GUID* val = reinterpret_cast<GUID*>(attrib.m_data.Data() + pos);
+				GUID* val = reinterpret_cast<GUID*>(field.m_data.Data() + pos);
 				*val = value[i];
 			}
 		}
 
-		Attribute& newAttribute = m_attributes.emplace(std::pair<std::string, Attribute>(nameStr, {})).first->second;
-		newAttribute.m_type = EAttributeType::GUID;
-		newAttribute.m_data.SetCount(count * sizeof(GUID));
+		Field& newField = m_fields.emplace(std::pair<std::string, Field>(nameStr, {})).first->second;
+		newField.m_type = EFieldType::GUID;
+		newField.m_data.SetCount(count * sizeof(GUID));
 
 		for (uint32_t i = 0; i < count; ++i)
 		{
 			uint32_t pos = i * sizeof(GUID);
-			GUID* val = reinterpret_cast<GUID*>(newAttribute.m_data.Data() + pos);
+			GUID* val = reinterpret_cast<GUID*>(newField.m_data.Data() + pos);
 			*val = value[i];
 		}
 	}
@@ -503,16 +534,16 @@ namespace Ctrl
 		SetGUID(name, &value);
 	}
 
-	void DataNode::RemoveAttributeOrNode(const char* name, uint32_t index)
+	void DataNode::RemoveFieldOrNode(const char* name, uint32_t index)
 	{
-		auto it = m_attributes.find(name);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(name);
+		if (it != m_fields.end())
 		{
-			Attribute& attribute = it->second;
-			FreeAttributeData(attribute, index);
-			if (attribute.m_data.Count() == 0)
+			Field& field = it->second;
+			FreeFieldData(field, index);
+			if (field.m_data.Count() == 0)
 			{
-				m_attributes.erase(it);
+				m_fields.erase(it);
 			}
 		}
 	}
@@ -535,15 +566,15 @@ namespace Ctrl
 	IDataNode* DataNode::AddDataNode(const char* name, const pugi::xml_node* nodeData, const char* type)
 	{
 		std::string nameStr = name;
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			uint32_t pos = attrib.m_data.Count();
-			attrib.m_data.SetCount(attrib.m_data.Count() + sizeof(DataNode*));
-			assert(attrib.m_type == EAttributeType::DATA_NODE);
+			Field& field = it->second;
+			uint32_t pos = field.m_data.Count();
+			field.m_data.SetCount(field.m_data.Count() + sizeof(DataNode*));
+			assert(field.m_type == EFieldType::DATA_NODE);
 
-			uint8_t* data = attrib.m_data.Data();
+			uint8_t* data = field.m_data.Data();
 			DataNode* newNode = nullptr;
 			if (nodeData != nullptr)
 			{
@@ -556,11 +587,11 @@ namespace Ctrl
 			return newNode;
 		}
 
-		Attribute& newAttribute = m_attributes.emplace(std::pair<std::string, Attribute>(nameStr, {})).first->second;
-		newAttribute.m_type = EAttributeType::DATA_NODE;
-		newAttribute.m_data.SetCount(sizeof(DataNode*));
+		Field& newField = m_fields.emplace(std::pair<std::string, Field>(nameStr, {})).first->second;
+		newField.m_type = EFieldType::DATA_NODE;
+		newField.m_data.SetCount(sizeof(DataNode*));
 
-		DataNode*& nodePtr = *reinterpret_cast<DataNode**>(newAttribute.m_data.Data());
+		DataNode*& nodePtr = *reinterpret_cast<DataNode**>(newField.m_data.Data());
 		if (nodeData != nullptr)
 		{
 			nodePtr = s_dataAllocator.Alloc<DataNode>(*nodeData);
@@ -581,13 +612,13 @@ namespace Ctrl
 	IDataNode* DataNode::GetOrAddDataNode(const char* name, const char* type)
 	{
 		std::string nameStr = name;
-		auto it = m_attributes.find(nameStr);
-		if (it != m_attributes.end())
+		auto it = m_fields.find(nameStr);
+		if (it != m_fields.end())
 		{
-			Attribute& attrib = it->second;
-			assert(attrib.m_type == EAttributeType::DATA_NODE);
+			Field& field = it->second;
+			assert(field.m_type == EFieldType::DATA_NODE);
 			
-			return *reinterpret_cast<DataNode**>(attrib.m_data.Data());
+			return *reinterpret_cast<DataNode**>(field.m_data.Data());
 		}
 
 		return AddDataNode(name, type);
@@ -606,16 +637,16 @@ namespace Ctrl
 		bool validType = false;
 		pugi::xml_attribute valueAttrib;
 		bool validValue = false;
-		for (auto& attrib : node.attributes())
+		for (auto& field : node.attributes())
 		{
-			if (strcmp(attrib.name(), "TYPE") == 0)
+			if (strcmp(field.name(), "TYPE") == 0)
 			{
-				typeAttrib = attrib;
+				typeAttrib = field;
 				validType = true;
 			}
-			else if (strcmp(attrib.name(), "VALUE") == 0)
+			else if (strcmp(field.name(), "VALUE") == 0)
 			{
-				valueAttrib = attrib;
+				valueAttrib = field;
 				validValue = true;
 			}
 		}
@@ -713,17 +744,30 @@ namespace Ctrl
 			}
 			else if (strcmp(typeAttrib.value(), "GUID") == 0)
 			{
-				CLib::Vector<GUID> guidArr;
+				CLib::Vector<GUID, 0, 8, true> guidArr;
 				std::string valueStr = valueAttrib.value();
+
 				size_t pos = 0;
-				while (pos != std::string::npos)
+				size_t term = 0;
+				while (term != std::string::npos)
 				{
-					const char* substr = valueStr.data() + pos;
-					guidArr.PushBack(substr);
-					size_t comma = valueStr.find_first_of(',', pos);
-					size_t lastSpace = valueStr.find_first_not_of(' ', comma + 1);
-					size_t end = lastSpace != std::string::npos ? std::max<size_t>(comma, lastSpace) : comma;
-					pos = end;
+					pos = valueStr.find_first_not_of(' ', pos);
+					term = valueStr.find_first_of(',', pos);
+
+					if (pos == std::string::npos)
+						break;
+
+					std::string substr = term != std::string::npos ? valueStr.substr(pos, term - pos) : valueStr.substr(pos);
+					if(substr.length() >= GUIDLength)
+					{
+						guidArr.PushBackInit(substr.c_str());
+					}
+					else
+					{
+						guidArr.PushBackInit();
+					}
+
+					pos = term + 1;
 				}
 
 				SetGUID(node.name(), guidArr.Data(), guidArr.Count());
@@ -736,14 +780,14 @@ namespace Ctrl
 		}
 	}
 
-	void DataNode::FreeAttributeData(Attribute& attribute, uint32_t index)
+	void DataNode::FreeFieldData(Field& field, uint32_t index)
 	{
-		switch (attribute.m_type)
+		switch (field.m_type)
 		{
-			case EAttributeType::DATA_NODE:
+			case EFieldType::DATA_NODE:
 			{
-				uint32_t count = attribute.m_data.Count() / sizeof(DataNode*);
-				DataNode** dataNodes = reinterpret_cast<DataNode**>(attribute.m_data.Data());
+				uint32_t count = field.m_data.Count() / sizeof(DataNode*);
+				DataNode** dataNodes = reinterpret_cast<DataNode**>(field.m_data.Data());
 				if (index < count)
 				{
 					// Remove a single node at the index.
@@ -753,22 +797,22 @@ namespace Ctrl
 						size_t copyCount = count - (index + 1);
 						std::memcpy(&dataNodes[index], &dataNodes[index + 1], sizeof(DataNode*) * copyCount);
 					}
-					attribute.m_data.SetCount(attribute.m_data.Count() - sizeof(DataNode*));
+					field.m_data.SetCount(field.m_data.Count() - sizeof(DataNode*));
 				}
 				else
 				{
-					// Delete all data of this attribute.
+					// Delete all data of this field.
 					for (uint32_t i = 0; i < count; ++i)
 					{
 						s_dataAllocator.Free(dataNodes[i]);
 					}
-					attribute.m_data.Clear();
+					field.m_data.Clear();
 				}
 				break;
 			}
 			default:
 				assert(index == ~uint32_t(0) && "NOT IMPLEMENTED!");
-				break; // Other attribute types do not dynamically allocate data (aside from the attribute's data vector which frees its memory upon destruction).
+				break; // Other field types do not dynamically allocate data (aside from the field's data vector which frees its memory upon destruction).
 		}
 	}
 
@@ -804,7 +848,10 @@ namespace Ctrl
 			{
 				outStr << ", ";
 			}
-			outStr.write(guidArray[i], GUIDLength);
+			if(guidArray[i].IsValid()) // Don't write a null GUID as that would involve writing null terminators into the string. This would prevent output of any GUIDs after the null one.
+			{
+				outStr.write(guidArray[i], GUIDLength);
+			}
 			outStr.seekp(0, std::ios::end);
 		}
 	}
@@ -820,7 +867,7 @@ namespace Ctrl
 		switch (openMode)
 		{
 		case EOpenMode::OPEN_READ_ONLY:
-			openFlags = std::ios::in | std::ios::_Nocreate;
+			openFlags = std::ios::in;
 			break;
 		case EOpenMode::OPEN_READ_WRITE:
 			openFlags = std::ios::in | std::ios::out;
@@ -856,7 +903,7 @@ namespace Ctrl
 		}
 	}
 
-	bool DataFile::WriteData()
+	bool DataFile::WriteData(const char* dstFilename)
 	{
 		if (m_base == nullptr)
 			return false;
@@ -866,14 +913,15 @@ namespace Ctrl
 
 		m_base->WriteData(root, "Base", false);
 
-		std::filesystem::path directory = m_fileName;
+		std::filesystem::path fileName = dstFilename ? dstFilename : m_fileName;
+		std::filesystem::path directory = fileName;
 		directory.remove_filename();
 
 		if (directory.empty() == false)
 		{
 			std::filesystem::create_directory(directory);
 		}
-		std::ofstream outStream(m_fileName, std::ios::beg | std::ios::out);
+		std::ofstream outStream(fileName, std::ofstream::out);
 		if (outStream.good())
 		{
 			m_status = EFileStatus::OPENED_SUCCESSFULLY;

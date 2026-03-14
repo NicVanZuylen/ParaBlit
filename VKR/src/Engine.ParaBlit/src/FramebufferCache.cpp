@@ -12,7 +12,7 @@ namespace PB
 		bool equal = m_renderPass == other.m_renderPass && m_width == other.m_width && m_height == other.m_height;
 		if (equal)
 		{
-			for (u32 i = 0; i < _countof(m_attachmentViews); ++i)
+			for (u32 i = 0; i < PB_ARRAY_LENGTH(m_attachmentViews); ++i)
 			{
 				equal &= (m_attachmentViews[i] == other.m_attachmentViews[i]);
 			}
@@ -51,7 +51,7 @@ namespace PB
 		{
 			auto& data = it->second;
 			bool validFramebuffer = true;
-			for (u32 i = 0; i < _countof(FramebufferDesc::m_attachmentViews); ++i)
+			for (u32 i = 0; i < PB_ARRAY_LENGTH(FramebufferDesc::m_attachmentViews); ++i)
 			{
 				u32 id = data.m_viewUniqueIds[i];
 				if (desc.m_attachmentViews[i] == 0)

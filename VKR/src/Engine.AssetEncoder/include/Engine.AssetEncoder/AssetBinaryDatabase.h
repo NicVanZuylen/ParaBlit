@@ -1,9 +1,8 @@
 #pragma once
 #include <mutex>
 #include <unordered_map>
-#include <fstream>
 
-#include "Engine.AssetEncoder/AssetDatabaseReader.h"
+#include "Engine.AssetEncoder/AssetBinaryDatabaseReader.h"
 #include "CLib/ExternalAllocator.h"
 #include "CLib/Vector.h"
 
@@ -17,7 +16,7 @@ namespace AssetEncoder
 
 		ASSET_ENCODER_API ~AssetBinaryDatabaseWriter();
 
-		ASSET_ENCODER_API void* AllocateAsset(const char* assetName, size_t userDataSize, size_t binarySize, size_t date, char** outUserData = nullptr, AssetMeta* outMeta = nullptr);
+		ASSET_ENCODER_API void* AllocateAsset(const char* assetName, const Ctrl::GUID& guid, size_t userDataSize, size_t binarySize, size_t date, char** outUserData = nullptr, AssetMeta* outMeta = nullptr);
 
 		ASSET_ENCODER_API void WriteDatabase();
 

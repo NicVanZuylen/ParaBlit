@@ -43,7 +43,8 @@ namespace Eng
 		PB::ResourceView m_mergeSampler = 0;
 
 		PB::ITexture* m_outputTexture = nullptr;
-		PB::ICommandList* m_reusableCmdList = nullptr;
+		PB::ICommandList* m_blurCmdList = nullptr;
+		PB::ICommandList* m_mergeCmdList = nullptr;
 
 		bool m_halfRes = false;
 	};

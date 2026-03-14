@@ -13,7 +13,8 @@ layout (local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
 layout(push_constant) uniform Bindings
 {
-    uint viewPlanesBuffer;
+    uint cullViewPlanesBuffer;
+    uint lodViewPlanesBuffer;
     uint srcInstanceBuffer;
     uint dstInstanceBuffer;
     uint bitfieldBuffer;
@@ -24,7 +25,8 @@ layout(push_constant) uniform Bindings
 } PB_BINDINGS_NAME;
 
 DEFINE_CULL_VIEW_CONSTANTS_UBO(viewPlanes);
-#define VIEW_PLANES PB_UBO(viewPlanes, viewPlanesBuffer)
+#define CULL_VIEW_PLANES PB_UBO(viewPlanes, cullViewPlanesBuffer)
+#define LOD_VIEW_PLANES PB_UBO(viewPlanes, lodViewPlanesBuffer)
 
 layout(set = 0, binding = 2) readonly buffer InstanceCullDataBuffer
 {
@@ -44,11 +46,17 @@ layout(set = 0, binding = 2) buffer DstInstanceBuffers
 } dstinstanceBuffer[];
 #define DST_INSTANCES dstinstanceBuffer[PB_BINDINGS_NAME.dstInstanceBuffer].instances
 
-layout(set = 0, binding = 2) buffer BitfieldBuffers
+layout(set = 0, binding = 2) readonly buffer BitfieldBuffers
 {
     uint bits[];
 } bitfieldBuffer[];
 #define BIT_FIELD bitfieldBuffer[PB_BINDINGS_NAME.bitfieldBuffer].bits
+
+layout(set = 0, binding = 2) buffer CullBitfieldBuffers
+{
+    uint bits[];
+} cullBitfieldBuffer[];
+#define CULL_STATE_BIT_FIELD cullBitfieldBuffer[PB_BINDINGS_NAME.cullStateBitfieldBuffer].bits
 
 layout(set = 0, binding = 2) buffer CounterBuffer
 {
@@ -61,8 +69,6 @@ layout(set = 0, binding = 2) readonly buffer MeshLibraryBuffer
     MeshLibraryEntry entries[];
 } meshLibraryBuffer[];
 #define MESH_LIBRARY_ENTRIES meshLibraryBuffer[PB_BINDINGS_NAME.meshLibraryBuffer].entries
-
-#define CULL_STATE_BIT_FIELD bitfieldBuffer[PB_BINDINGS_NAME.cullStateBitfieldBuffer].bits
 
 bool IsActiveBit(uint instanceIndex)
 {
@@ -107,17 +113,17 @@ bool FrustrumCullCheck(in VS_INSTANCE instance, uint instanceIndex)
     vec4 cullData;
     GetCullData(instanceIndex, instance.model, cullData);
 
-    return IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[0], cullData.xyz, cullData.w)      // Near
-		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[1], cullData.xyz, cullData.w)    // Left
-		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[2], cullData.xyz, cullData.w)    // Right
-		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[3], cullData.xyz, cullData.w)    // Top
-		    && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[4], cullData.xyz, cullData.w)    // Bottom
-            && IsInFrontOfPlane(VIEW_PLANES.mainFrustrumPlanes[5], cullData.xyz, cullData.w);   // Far
+    return IsInFrontOfPlane(CULL_VIEW_PLANES.mainFrustrumPlanes[0], cullData.xyz, cullData.w)    // Near
+	    && IsInFrontOfPlane(CULL_VIEW_PLANES.mainFrustrumPlanes[1], cullData.xyz, cullData.w)    // Left
+	    && IsInFrontOfPlane(CULL_VIEW_PLANES.mainFrustrumPlanes[2], cullData.xyz, cullData.w)    // Right
+	    && IsInFrontOfPlane(CULL_VIEW_PLANES.mainFrustrumPlanes[3], cullData.xyz, cullData.w)    // Top
+	    && IsInFrontOfPlane(CULL_VIEW_PLANES.mainFrustrumPlanes[4], cullData.xyz, cullData.w)    // Bottom
+        && IsInFrontOfPlane(CULL_VIEW_PLANES.mainFrustrumPlanes[5], cullData.xyz, cullData.w);   // Far
 }
 
 bool IsTooFar(in VS_INSTANCE instance, uint lodData)
 {
-    return GetLODLevel(instance.model[3].xyz, lodData, VIEW_PLANES.mainFrustrumPlanes[0]) >= GetLODCount(lodData);
+    return GetLODLevel(instance.model[3].xyz, lodData, LOD_VIEW_PLANES.mainFrustrumPlanes[0]) >= GetLODCount(lodData);
 }
 
 bool CullCheck(in VS_INSTANCE instance, uint lodData, uint instanceIndex)
@@ -190,10 +196,9 @@ void main()
     uint lodData = MESH_LIBRARY_ENTRIES[instance.meshID].lodData;
 
     // Determine LOD level
-    vec4 nearPlane = VIEW_PLANES.mainFrustrumPlanes[0];
     vec3 worldPosition = instance.model[3].xyz;
 
-	uint lod = GetLODLevel(worldPosition, lodData, VIEW_PLANES.mainFrustrumPlanes[0]);
+	uint lod = GetLODLevel(worldPosition, lodData, LOD_VIEW_PLANES.mainFrustrumPlanes[0]);
     lod = clamp(lod, 0, GetLODCount(lodData));
 
     if(IsCulledBit(instanceIndex) == false)

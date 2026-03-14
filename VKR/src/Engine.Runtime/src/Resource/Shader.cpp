@@ -85,7 +85,7 @@ namespace Eng
 			}
 			else
 			{
-				printf_s("Shader: Successfully loaded shader asset [%s], PERMUTATION: %llX, (%llu bytes) from database: %s\n", path, permutationKey, chosenPermutationBinarySize, ShaderDatabaseDir);
+				printf("Shader: Successfully loaded shader asset [%s], PERMUTATION: %llX, (%llu bytes) from database: %s\n", path, permutationKey, chosenPermutationBinarySize, ShaderDatabaseDir);
 			}
 
 			if (allocator)

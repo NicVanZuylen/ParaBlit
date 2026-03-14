@@ -1,4 +1,5 @@
 #include "DynamicDrawPool.h"
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "Resource/Shader.h"
 #include "Resource/Mesh.h"
 
@@ -172,11 +173,11 @@ namespace Eng
 
 	void DynamicDrawPool::UpdateTLASInstances
 	(
-		PB::ICommandContext* commandContext, 
-		PB::IBufferObject* dstBuffer, 
-		PB::IBufferObject* dstInstanceIndexBuffer, 
-		PB::u32 dstIndex, 
-		PB::UniformBufferView cullConstants, 
+		PB::ICommandContext* commandContext,
+		PB::IBufferObject* dstBuffer,
+		PB::IBufferObject* dstInstanceIndexBuffer,
+		PB::u32 dstIndex,
+		PB::UniformBufferView cullConstants,
 		uint32_t& outInstanceCount
 	)
 	{
@@ -194,7 +195,7 @@ namespace Eng
 		PB::BindingLayout additionalFlushBindings;
 		additionalFlushBindings.m_uniformBufferCount = 1;
 		additionalFlushBindings.m_uniformBuffers = &cullConstants;
-		additionalFlushBindings.m_resourceCount = _countof(resources);
+		additionalFlushBindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
 		additionalFlushBindings.m_resourceViews = resources;
 
 		ManagedInstanceBuffer::FlushDesc flushDesc;
@@ -209,7 +210,7 @@ namespace Eng
 		outInstanceCount = m_instanceBuffer.GetInstanceCount();
 	}
 
-	void DynamicDrawPool::UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullConstants, bool keepFrameInstanceData)
+	void DynamicDrawPool::UpdateComputeGPU(PB::ICommandContext* commandContext, PB::UniformBufferView cullViewPlanes, PB::UniformBufferView lodViewPlanes, bool keepFrameInstanceData, bool waitForPreviousDraw)
 	{
 		if (m_cullDataNeedsUpload == true)
 		{
@@ -237,15 +238,40 @@ namespace Eng
 			cullDataView
 		};
 
-		PB::BindingLayout additionalFlushBindings;
-		additionalFlushBindings.m_uniformBufferCount = 1;
-		additionalFlushBindings.m_uniformBuffers = &cullConstants;
-		additionalFlushBindings.m_resourceCount = _countof(flushResources);
-		additionalFlushBindings.m_resourceViews = flushResources;
-		m_instanceBuffer.FlushChanges(nullptr, keepFrameInstanceData, &additionalFlushBindings);
-
-		// Setup/fill drawbatch buffers
+		PB::UniformBufferView uboViews[]
 		{
+			cullViewPlanes,
+			lodViewPlanes ? lodViewPlanes : cullViewPlanes
+		};
+
+		if (waitForPreviousDraw == true)
+		{
+			PB::BufferMemoryBarrier waitDrawBarriers[]
+			{
+				{ m_drawInstancesBuffer, PB::EMemoryBarrierType::GRAPHICS_GEOMETRY_READ_TO_COMPUTE_SHADER_WRITE },
+				{ m_meshletRangesBuffer, PB::EMemoryBarrierType::GRAPHICS_GEOMETRY_READ_TO_COMPUTE_SHADER_WRITE },
+				{ m_drawRangesBuffer, PB::EMemoryBarrierType::GRAPHICS_GEOMETRY_READ_TO_COMPUTE_SHADER_WRITE },
+				{ m_drawParamsBuffer, PB::EMemoryBarrierType::INDIRECT_PARAMS_READ_TO_COMPUTE_SHADER_WRITE },
+			};
+			commandContext->CmdBufferBarrier(waitDrawBarriers, PB_ARRAY_LENGTH(waitDrawBarriers));
+		}
+
+		PB::BindingLayout additionalFlushBindings;
+		additionalFlushBindings.m_uniformBufferCount = PB_ARRAY_LENGTH(uboViews);
+		additionalFlushBindings.m_uniformBuffers = uboViews;
+		additionalFlushBindings.m_resourceCount = PB_ARRAY_LENGTH(flushResources);
+		additionalFlushBindings.m_resourceViews = flushResources;
+		m_instanceBuffer.FlushChanges(commandContext, keepFrameInstanceData, &additionalFlushBindings);
+
+		commandContext->CmdBeginLabel("DynamicDrawPool::setupDrawBatch", { 1.0f, 1.0f, 1.0f, 1.0f });
+		{
+			PB::BufferMemoryBarrier preSetupBarriers[] // Barrier instance buffer after flush.
+			{
+				{ m_instanceBuffer.GetBuffer(), PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ }
+			};
+			commandContext->CmdBufferBarrier(preSetupBarriers, PB_ARRAY_LENGTH(preSetupBarriers));
+
+			// Setup/fill drawbatch buffers
 			commandContext->CmdBindPipeline(m_batchSetupPipeline);
 
 			PB::ResourceView resources[]
@@ -257,18 +283,26 @@ namespace Eng
 				m_drawRangesBuffer->GetViewAsStorageBuffer(),
 				m_drawParamsBuffer->GetViewAsStorageBuffer()
 			};
-
+			
 			PB::BindingLayout bindings;
 			bindings.m_uniformBufferCount = 0;
 			bindings.m_uniformBuffers = nullptr;
-			bindings.m_resourceCount = _countof(resources);
+			bindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
 			bindings.m_resourceViews = resources;
 			commandContext->CmdBindResources(bindings);
 			commandContext->CmdDispatch(m_batchCount, 1, 1);
+
+			PB::BufferMemoryBarrier preDrawBarriers[]
+			{
+				{ m_drawInstancesBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_GRAPHICS_GEOMETRY_READ },
+				{ m_meshletRangesBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_GRAPHICS_GEOMETRY_READ },
+				{ m_drawRangesBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_GRAPHICS_GEOMETRY_READ },
+				{ m_drawParamsBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_INDIRECT_PARAMS_READ },
+			};
+			commandContext->CmdBufferBarrier(preDrawBarriers, PB_ARRAY_LENGTH(preDrawBarriers));
 		}
 
-		const PB::IBufferObject* drawParams = m_drawParamsBuffer;
-		commandContext->CmdDrawIndirectBarrier(&drawParams, 1);
+		commandContext->CmdEndLastLabel();
 	}
 
 	void DynamicDrawPool::Draw(PB::ICommandContext* commandContext, PB::UniformBufferView viewConstants, PB::UniformBufferView cullConstants) const
@@ -294,7 +328,7 @@ namespace Eng
 			PB::UniformBufferView uniformBuffers[] = { viewConstants };
 
 			PB::BindingLayout batchBindings{};
-			batchBindings.m_uniformBufferCount = _countof(uniformBuffers);
+			batchBindings.m_uniformBufferCount = PB_ARRAY_LENGTH(uniformBuffers);
 			batchBindings.m_uniformBuffers = uniformBuffers;
 
 			for (uint32_t i = 0; i < m_batchCount; ++i)

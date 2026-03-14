@@ -55,6 +55,10 @@ namespace Eng
 		PB::ResourceView m_shadowSampler = 0;
 		PB::ResourceView m_randomRotationSampler = 0;
 
+		PB::u32 m_depthIndex = 0;
+		PB::u32 m_normalIndex = 1;
+		PB::u32 m_shadowmapIndex = 2;
+
 		PB::ICommandList* m_reusableCmdList = nullptr;
 	};
 };

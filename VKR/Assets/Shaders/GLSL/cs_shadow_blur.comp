@@ -45,8 +45,7 @@
 #define GAUSSIAN_KERNEL_SIZE 128
 #endif
 
-#define GAUSSIAN_KERNEL_SIZE_MINUS_ONE (GAUSSIAN_KERNEL_SIZE - 1)
-#define BLUR_TILE_SIZE (KERNEL_AXIS_SIZE - (2 * GAUSSIAN_KERNEL_SIZE_MINUS_ONE))
+#define BLUR_TILE_SIZE (KERNEL_AXIS_SIZE - (2 * GAUSSIAN_KERNEL_SIZE))
 
 layout (local_size_x = WORKGROUP_SIZE_X, local_size_y = WORKGROUP_SIZE_Y, local_size_z = 1) in;
 
@@ -121,20 +120,22 @@ void main()
 
 #if PERMUTATION_Horizontal == 0
 
-    int tileStart = int((gl_WorkGroupID.y * BLUR_TILE_SIZE) + localReadLocation.y);
-    int edgeStart = tileStart - GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
-
     int locationX = int((gl_WorkGroupID.x * WORKGROUP_SIZE_X) + gl_LocalInvocationID.x);
+
+    int tileStart = int(gl_WorkGroupID.y * BLUR_TILE_SIZE);
+    int edgeStart = tileStart + (int(localReadLocation.y) - GAUSSIAN_KERNEL_SIZE);
+
     ivec2 writeLocation = ivec2(locationX, edgeStart);
-    vec2 screenTexCoord = vec2(writeLocation.x, writeLocation.y - GAUSSIAN_KERNEL_SIZE_MINUS_ONE) / dstSize;
+    vec2 screenTexCoord = vec2(writeLocation.x, writeLocation.y) / dstSize;
 #else
 
-    int tileStart = int((gl_WorkGroupID.x * BLUR_TILE_SIZE) + localReadLocation.x);
-    int edgeStart = tileStart - GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
-
     int locationY = int((gl_WorkGroupID.y * WORKGROUP_SIZE_Y) + gl_LocalInvocationID.y);
+
+    int tileStart = int(gl_WorkGroupID.x * BLUR_TILE_SIZE);
+    int edgeStart = tileStart + (int(localReadLocation.x) - GAUSSIAN_KERNEL_SIZE);
+
     ivec2 writeLocation = ivec2(edgeStart, locationY);
-    vec2 screenTexCoord = vec2(writeLocation.x - GAUSSIAN_KERNEL_SIZE_MINUS_ONE, writeLocation.y) / dstSize;
+    vec2 screenTexCoord = vec2(writeLocation.x, writeLocation.y) / dstSize;
 #endif
 
     screenTexCoord += texelSize * 0.5;
@@ -154,12 +155,6 @@ void main()
     memoryBarrierShared();
     barrier();
 
-#if PERMUTATION_Horizontal == 0
-    localReadLocation.y += GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
-#else
-    localReadLocation.x += GAUSSIAN_KERNEL_SIZE_MINUS_ONE;
-#endif
-
     vec2 centreSample = GetSample(localReadLocation);
     srcColor = centreSample.r;
     srcDepth = centreSample.g;
@@ -177,9 +172,9 @@ void main()
 #endif
 
 #if PERMUTATION_Horizontal == 0
-    if(gl_LocalInvocationID.y >= WORKGROUP_SIZE_Y - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
+    if(edgeStart < tileStart || edgeStart >= tileStart + BLUR_TILE_SIZE)
 #else
-    if(gl_LocalInvocationID.x >= WORKGROUP_SIZE_X - GAUSSIAN_KERNEL_SIZE_MINUS_ONE - GAUSSIAN_KERNEL_SIZE_MINUS_ONE)
+    if(edgeStart < tileStart || edgeStart >= tileStart + BLUR_TILE_SIZE)
 #endif
     {
         return;

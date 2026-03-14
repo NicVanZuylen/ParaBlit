@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 namespace CLib
 {
@@ -7,8 +8,8 @@ namespace CLib
 
 namespace QIO
 {
-	bool Load(const char* path, char** data, unsigned long long* fileSize);
+	bool Load(const char* path, char** data, uint64_t* fileSize);
 
-	bool LoadAlloc(const char* path, char** data, unsigned long long* fileSize, CLib::Allocator* allocator);
+	bool LoadAlloc(const char* path, char** data, uint64_t* fileSize, CLib::Allocator* allocator);
 }
 

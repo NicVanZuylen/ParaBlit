@@ -70,7 +70,7 @@ namespace Eng
 		PB::BindingLayout bindings{};
 		bindings.m_uniformBufferCount = 1;
 		bindings.m_uniformBuffers = &constantsView;
-		bindings.m_resourceCount = _countof(resources);
+		bindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
 		bindings.m_resourceViews = resources;
 
 		info.m_commandContext->CmdBindResources(bindings);

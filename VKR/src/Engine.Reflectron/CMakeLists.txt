@@ -33,22 +33,27 @@ set(CMAKE_CXX_FLAGS_MPCOMPILE "${CMAKE_CXX_FLAGS_MPCOMPILE} /MP")
 # Multi-threaded compilation
 set_target_properties(${_LIBRARY_} PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS_MPCOMPILE}")
 
-# Output dir
-set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
-
 # Working dir
 set_target_properties(${_LIBRARY_} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Default command line arguments
 set_target_properties(${_LIBRARY_} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "")
 
-
 endif()
+
+# Output dir
+set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${_BUILD_DIR_}")
+
 # --------------------------------------------------------------------------
 
 # ------------------------- PREPROCESSOR DEFINITIONS -------------------------
-add_compile_definitions(PARABLIT_WINDOWS)
+
+if (WIN32)
+add_compile_definitions(REFLECTRON_WINDOWS)
 add_compile_definitions(GLFW_EXPOSE_NATIVE_WIN32)
+elseif(LINUX)
+add_compile_definitions(REFLECTRON_LINUX)
+endif()
 # ----------------------------------------------------------------------------
 
 # --------------------------- FUNC ---------------------------

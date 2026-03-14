@@ -50,20 +50,19 @@ namespace CLibTest
 		CLib::Reflection::PlacedConstructClass("ReflectionTestClass", testClass.Get());
 
 		CLib::Reflection::Reflector testReflector(&testClass);
-
-		float* testArrValues = testReflector.GetFieldWithName<float>("m_testArray");
+		float* testArrValues = testReflector.GetFieldValueWithName<float>("m_testArray");
 		for (uint32_t i = 0; i < 4; ++i)
 		{
 			std::cout << "Test Array Value " << i << ": " << testArrValues[i] << "\n";
 		}
 
-		auto& fieldData = testReflector.GetFieldDataWithName("m_testInt");
-		if (fieldData.m_typeHash == typeid(int).hash_code())
+		auto* fieldData = testReflector.GetFieldWithName("m_testInt");
+		if (fieldData->m_typeHash == typeid(int).hash_code())
 		{
 			std::cout << "m_testInt is an int!" << "\n";
 		}
 
-		const char** testStringValue = testReflector.GetFieldWithName<const char*>("m_testString");
+		const char** testStringValue = testReflector.GetFieldValueWithName<const char*>("m_testString");
 		std::cout << *testStringValue << "\n";
 
 		CLib::Reflection::PlacedDestructClass("ReflectionTestClass", testClass.Get());

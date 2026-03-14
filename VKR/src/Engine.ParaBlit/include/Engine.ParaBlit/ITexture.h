@@ -74,6 +74,7 @@ namespace PB
 		ETextureState m_expectedState = ETextureState::NONE;
 		ETextureViewType m_type = ETextureViewType::VIEW_TYPE_2D;
 		u32 m_pad0 = 0;
+		u32 m_pad1 = 0;
 		// TODO: ONGOING: Add additional view parameters as needed.
 
 		bool operator == (const TextureViewDesc& other) const;
@@ -108,6 +109,7 @@ namespace PB
 		float m_anisotropyLevels = 0.0f;
 		float minLod = 0.0f;
 		float maxLod = 1.0f;
+		u64 m_pad0[2]{};
 
 		bool operator == (const SamplerDesc& other) const;
 	};

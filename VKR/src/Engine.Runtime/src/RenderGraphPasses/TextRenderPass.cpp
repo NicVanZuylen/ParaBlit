@@ -1,4 +1,5 @@
 #include "TextRenderPass.h"
+#include "Engine.ParaBlit/ParaBlitImplUtil.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Resource/FontTexture.h"
 
@@ -140,7 +141,7 @@ namespace Eng
 		PB::BindingLayout bindings{};
 		bindings.m_uniformBufferCount = 1;
 		bindings.m_uniformBuffers = &constantsView;
-		bindings.m_resourceCount = _countof(textResources);
+		bindings.m_resourceCount = PB_ARRAY_LENGTH(textResources);
 		bindings.m_resourceViews = textResources;
 
 		info.m_commandContext->CmdBindResources(bindings);
@@ -174,7 +175,7 @@ namespace Eng
 		m_targetResolution = targetResolution;
 
 		AttachmentDesc& targetDesc = nodeDesc.m_attachments.PushBackInit();
-		targetDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+		targetDesc.m_format = PB::Util::FormatToUnorm(m_renderer->GetSwapchain()->GetImageFormat());
 		targetDesc.m_width = nodeDesc.m_renderWidth;
 		targetDesc.m_height = nodeDesc.m_renderHeight;
 		targetDesc.m_name = "MergedOutput";
@@ -182,7 +183,7 @@ namespace Eng
 
 		// Declaring this should allow the texture to be used as a copy source after rendering.
 		TransientTextureDesc& targetReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		targetReadDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+		targetReadDesc.m_format = targetDesc.m_format;
 		targetReadDesc.m_width = nodeDesc.m_renderWidth;
 		targetReadDesc.m_height = nodeDesc.m_renderHeight;
 		targetReadDesc.m_name = "MergedOutput";

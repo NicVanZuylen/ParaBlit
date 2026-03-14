@@ -24,20 +24,20 @@ namespace PB
 
 	size_t TextureViewDescHasher::operator()(const TextureViewDesc& desc) const
 	{
-		PB_STATIC_ASSERT(sizeof(TextureViewDesc) % 16 == 0, "TextureViewDesc does not meet optimal alignment requirements for hashing.");
-		return MurmurHash3_x64_64(&desc, sizeof(TextureViewDesc), 0);
+		PB_STATIC_ASSERT(sizeof(TextureViewDesc) % 32 == 0, "TextureViewDesc does not meet optimal alignment requirements for hashing.");
+		return MurmurHash3_x86_32(&desc, sizeof(TextureViewDesc), 0);
 	}
 
 	size_t BufferViewDescHasher::operator()(const BufferViewDesc& desc) const
 	{
-		PB_STATIC_ASSERT(sizeof(BufferViewDesc) % 16 == 0, "BufferViewDesc does not meet optimal alignment requirements for hashing.");
-		return MurmurHash3_x64_64(&desc, sizeof(BufferViewDesc), 0);
+		PB_STATIC_ASSERT(sizeof(BufferViewDesc) % 32 == 0, "BufferViewDesc does not meet optimal alignment requirements for hashing.");
+		return MurmurHash3_x86_32(&desc, sizeof(BufferViewDesc), 0);
 	}
 
 	size_t SamplerDescHasher::operator()(const SamplerDesc& desc) const
 	{
-		PB_STATIC_ASSERT(sizeof(SamplerDesc) % 16 == 0, "SamplerDesc does not meet optimal alignment requirements for hashing.");
-		return MurmurHash3_x64_64(&desc, sizeof(SamplerDesc), 0);
+		PB_STATIC_ASSERT(sizeof(SamplerDesc) % 32 == 0, "SamplerDesc does not meet optimal alignment requirements for hashing.");
+		return MurmurHash3_x86_32(&desc, sizeof(SamplerDesc), 0);
 	}
 
 	ViewCache::ViewCache()

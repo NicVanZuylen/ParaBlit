@@ -111,7 +111,7 @@ namespace Eng
 		nodeDesc.m_useReusableCommandLists = false;
 
 		AttachmentDesc& colorDesc = nodeDesc.m_attachments.PushBackInit();
-		colorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
+		colorDesc.m_format = PB::ETextureFormat::A2R10G10B10_UNORM;
 		colorDesc.m_width = targetResolution.x;
 		colorDesc.m_height = targetResolution.y;
 		colorDesc.m_name = "G_Color";
@@ -144,7 +144,7 @@ namespace Eng
 		motionVectorsDesc.m_flags = EAttachmentFlags::CLEAR;
 
 		AttachmentDesc& depthDesc = nodeDesc.m_attachments.PushBackInit();
-		depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthDesc.m_width = targetResolution.x;
 		depthDesc.m_height = targetResolution.y;
 		depthDesc.m_name = "G_Depth";

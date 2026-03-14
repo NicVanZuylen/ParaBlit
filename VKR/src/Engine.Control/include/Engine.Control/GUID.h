@@ -5,7 +5,7 @@
 namespace Ctrl
 {
 	const uint32_t GUIDLength = 36;
-	struct GUID
+	struct alignas(64) GUID
 	{
 		CONTROL_API GUID();
 		CONTROL_API GUID(const char* guidStr);
@@ -26,9 +26,10 @@ namespace Ctrl
 		CONTROL_API size_t operator () () const;
 
 		char m_data[GUIDLength + 1];
-		char m_pad[3];
+		char m_pad[27]{};
 	};
 	static_assert(sizeof(GUID) % 8 == 0);
+	static_assert(sizeof(GUID) == 64);
 
 	inline GUID nullGUID = {};
 
@@ -39,7 +40,7 @@ namespace Ctrl
 namespace std
 {
 	template <>
-	struct std::hash<Ctrl::GUID>
+	struct hash<Ctrl::GUID>
 	{
 		CONTROL_API size_t operator () (const Ctrl::GUID& guid) const;
 	};

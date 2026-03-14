@@ -132,7 +132,7 @@ namespace Eng::Math
 
 		MATH_INLINE TVector4<T> operator * (const TVector4<T>& vec) const
 		{
-			return mat * (const TVector4<T>::GLMT&)vec;
+			return mat * reinterpret_cast<const TVector4<T>::GLMT&>(vec);
 		}
 
 		MATH_INLINE Self& operator *= (const Self& other)
@@ -170,29 +170,29 @@ namespace Eng::Math
 
 		MATH_INLINE Self& Translate(const TVector3<T>& translation)
 		{
-			mat = glm::translate(mat, (const TVector3<T>::GLMT&)translation);
+			mat = glm::translate(mat, reinterpret_cast<const TVector3<T>::GLMT&>(translation));
 			return *this;
 		}
 
 		MATH_INLINE Self Translated(const TVector3<T>& translation) const
 		{
-			return glm::translate(mat, (const TVector3<T>::GLMT&)translation);
+			return glm::translate(mat, reinterpret_cast<const TVector3<T>::GLMT&>(translation));
 		}
 
 		MATH_INLINE Self& Scale(const TVector3<T>& scale)
 		{
-			mat = glm::scale(mat, (const TVector3<T>::GLMT&)scale);
+			mat = glm::scale(mat, reinterpret_cast<const TVector3<T>::GLMT&>(scale));
 			return *this;
 		}
 
 		MATH_INLINE Self Scaled(const TVector3<T>& scale) const
 		{
-			return glm::scale(mat, (const TVector3<T>::GLMT&)scale);
+			return glm::scale(mat, reinterpret_cast<const TVector3<T>::GLMT&>(scale));
 		}
 
 		MATH_INLINE Self& Rotate(T angle, const TVector3<T>& axis)
 		{
-			mat = glm::rotate(mat, angle, (const TVector3<T>::GLMT&)axis);
+			mat = glm::rotate(mat, angle, reinterpret_cast<const TVector3<T>::GLMT&>(axis));
 			return *this;
 		}
 
@@ -216,7 +216,7 @@ namespace Eng::Math
 
 		MATH_INLINE Self Rotated(T angle, const TVector3<T>& axis) const
 		{
-			return glm::rotate(mat, angle, (const TVector3<T>::GLMT&)axis);
+			return glm::rotate(mat, angle, reinterpret_cast<const TVector3<T>::GLMT&>(axis));
 		}
 
 		MATH_INLINE Self RotatedX(T angle) const

@@ -1,6 +1,8 @@
 #include "ImGUIRenderPass.h"
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Engine.ParaBlit/IImGUIModule.h"
+#include "Engine.ParaBlit/ParaBlitImplUtil.h"
 
 #include <Engine.Math/Vectors.h>
 #include <Engine.Math/Matrix4.h>
@@ -62,16 +64,19 @@ namespace Eng
 		nodeDesc.m_renderWidth = m_renderer->GetSwapchain()->GetWidth();
 		nodeDesc.m_renderHeight = m_renderer->GetSwapchain()->GetHeight();
 
+		// Currently only supporting this swapchain image format.
+		assert(m_renderer->GetSwapchain()->GetImageFormat() == PB::ETextureFormat::B8G8R8A8_SRGB);
+
 		AttachmentDesc& targetDesc = nodeDesc.m_attachments.PushBackInit();
-		targetDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+		targetDesc.m_format = PB::Util::FormatToUnorm(m_renderer->GetSwapchain()->GetImageFormat());
 		targetDesc.m_width = nodeDesc.m_renderWidth;
 		targetDesc.m_height = nodeDesc.m_renderHeight;
 		targetDesc.m_name = "MergedOutput";
 		targetDesc.m_usage = PB::EAttachmentUsage::COLOR;
-		targetDesc.m_flags = EAttachmentFlags::CLEAR;
+		targetDesc.m_flags = EAttachmentFlags::NONE;
 
 		TransientTextureDesc& targetReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		targetReadDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+		targetReadDesc.m_format = targetDesc.m_format;
 		targetReadDesc.m_width = nodeDesc.m_renderWidth;
 		targetReadDesc.m_height = nodeDesc.m_renderHeight;
 		targetReadDesc.m_name = "MergedOutput";

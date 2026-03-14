@@ -1,5 +1,7 @@
 #pragma once
+#include "Engine.Control/IDataClass.h"
 #include "MeshShared.h"
+#include "MeshAsset.h"
 #include "Engine.AssetEncoder/EncoderBase.h"
 #include "Engine.Control/IDataFile.h"
 
@@ -140,6 +142,6 @@ namespace AssetPipeline
 
 		inline void LoadOBJ(VertexBuffer& vertices, IndexBuffer& indices, glm::vec3& outOrigin, glm::vec3& outExtents, const char* path, bool cmToM);
 
-		inline void BuildMesh(const AssetStatus& asset, const Ctrl::IDataNode* properties);
+		inline void BuildMesh(const AssetStatus& asset, Ctrl::TObjectPtr<MeshAsset> assetData);
 	};
 }

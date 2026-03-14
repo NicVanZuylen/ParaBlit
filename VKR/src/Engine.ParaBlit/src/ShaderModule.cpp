@@ -31,7 +31,7 @@ namespace PB
 		auto it = m_moduleCache.find(desc);
 		if (it == m_moduleCache.end())
 		{
-			if (!desc.m_key || desc.m_size == 0)
+			if (desc.m_size == 0)
 			{
 				return 0;
 			}

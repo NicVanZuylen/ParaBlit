@@ -1,6 +1,6 @@
 #pragma once
 #include "Engine.ParaBlit/IRenderer.h"
-#include "Engine.AssetEncoder/AssetDatabaseReader.h"
+#include "Engine.AssetEncoder/AssetBinaryDatabaseReader.h"
 #include "Engine.AssetPipeline/TextureShared.h"
 
 namespace CLib

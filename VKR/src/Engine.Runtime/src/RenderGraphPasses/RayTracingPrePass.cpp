@@ -125,8 +125,8 @@ namespace Eng
 
 		// Barrier between updates.
 		{
-			PB::BufferMemoryBarrier barrier(m_asInstanceBuffer, PB::EMemoryBarrierType::SHADER_WRITE_TO_SHADER_READ);
-			info.m_commandContext->CmdComputeBufferBarrier(&barrier, 1);
+			PB::BufferMemoryBarrier barrier(m_asInstanceBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ);
+			info.m_commandContext->CmdBufferBarrier(&barrier, 1);
 		}
 
 		// Static
@@ -136,9 +136,10 @@ namespace Eng
 			m_instanceCount += staticInstanceCount;
 		}
 
+		// Update -> Build barrier
 		{
-			const PB::IBufferObject** buffers = const_cast<const PB::IBufferObject**>(&m_asInstanceBuffer);
-			info.m_commandContext->CmdComputeToBuildAccelerationStructureBufferBarrier(buffers, 1);
+			PB::BufferMemoryBarrier barrier(m_asInstanceBuffer, PB::EMemoryBarrierType::COMPUTE_SHADER_WRITE_TO_ACCELERATION_STRUCTURE_BUILD);
+			info.m_commandContext->CmdBufferBarrier(&barrier, 1);
 		}
 
 		// World constants update.
@@ -203,9 +204,9 @@ namespace Eng
 		};
 
 		PB::BindingLayout bindings{};
-		bindings.m_uniformBufferCount = _countof(uniformViews);
+		bindings.m_uniformBufferCount = PB_ARRAY_LENGTH(uniformViews);
 		bindings.m_uniformBuffers = uniformViews;
-		bindings.m_resourceCount = _countof(resources);
+		bindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
 		bindings.m_resourceViews = resources;
 
 		info.m_commandContext->CmdBindResources(bindings);

@@ -1,4 +1,7 @@
 #include "ShadowAccumPass.h"
+#include "CLib/Vector.h"
+#include "Engine.ParaBlit/ITexture.h"
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "RenderGraph/RenderGraph.h"
 
 #include <Engine.Math/Scalar.h>
@@ -41,7 +44,7 @@ namespace Eng
 			scopedContext->Return();
 		}
 
-		PB::SamplerDesc samplerDesc;
+		PB::SamplerDesc samplerDesc{};
 		samplerDesc.m_anisotropyLevels = 1.0f;
 		samplerDesc.m_filter = PB::ESamplerFilter::NEAREST;
 		samplerDesc.m_mipFilter = PB::ESamplerFilter::NEAREST;
@@ -70,13 +73,11 @@ namespace Eng
 
 	void ShadowAccumPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-
+		info.m_commandContext->CmdBeginLabel("ShadowAccumulationPass", { 1.0f, 1.0f, 1.0f, 1.0f });
 	}
 
 	void ShadowAccumPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-		info.m_commandContext->CmdBeginLabel("ShadowAccumulationPass", { 1.0f, 1.0f, 1.0f, 1.0f });
-
 		auto RecordPassA = [&]()
 		{
 			constexpr uint32_t WorkGroupSizeXY = 32;
@@ -93,6 +94,7 @@ namespace Eng
 			PB::GraphicsPipelineDesc accumPipelineDesc{};
 			accumPipelineDesc.m_attachmentCount = 1;
 			accumPipelineDesc.m_depthCompareOP = PB::ECompareOP::ALWAYS; // Always should disable depth testing.
+			accumPipelineDesc.m_depthWriteEnable = false;
 			accumPipelineDesc.m_renderArea = { 0, 0, 0, 0 };
 			accumPipelineDesc.m_stencilTestEnable = false;
 			accumPipelineDesc.m_cullMode = PB::EFaceCullMode::FRONT;
@@ -107,17 +109,17 @@ namespace Eng
 			scopedContext->CmdSetScissor({ 0, 0, m_targetResolution.x, m_targetResolution.y });
 
 			PB::TextureViewDesc shadowViewDesc{};
-			shadowViewDesc.m_texture = transientTextures[2];
+			shadowViewDesc.m_texture = transientTextures[m_shadowmapIndex];
 			shadowViewDesc.m_type = PB::ETextureViewType::VIEW_TYPE_2D_ARRAY;
 			shadowViewDesc.m_expectedState = PB::ETextureState::SAMPLED;
 			shadowViewDesc.m_format = PB::ETextureFormat::D16_UNORM;
 			shadowViewDesc.m_subresources.m_arrayCount = m_accumUniformViews.Count() - 1;
-			PB::ResourceView shadowView = transientTextures[2]->GetView(shadowViewDesc);
+			PB::ResourceView shadowView = transientTextures[m_shadowmapIndex]->GetView(shadowViewDesc);
 
 			PB::ResourceView resourceViews[]
 			{
-				transientTextures[0]->GetDefaultSRV(), // G Depth
-				transientTextures[1]->GetDefaultSRV(), // G Normal
+				transientTextures[m_depthIndex]->GetDefaultSRV(), // G Depth
+				transientTextures[m_normalIndex]->GetDefaultSRV(), // G Normal
 				m_gBufferSampler,
 				shadowView, // Shadow map
 				m_shadowSampler,
@@ -130,7 +132,7 @@ namespace Eng
 			PB::BindingLayout bindings;
 			bindings.m_uniformBufferCount = m_accumUniformViews.Count();
 			bindings.m_uniformBuffers = m_accumUniformViews.Data();
-			bindings.m_resourceCount = _countof(resourceViews);
+			bindings.m_resourceCount = PB_ARRAY_LENGTH(resourceViews);
 			bindings.m_resourceViews = resourceViews;
 			scopedContext->CmdBindResources(bindings);
 			scopedContext->CmdDraw(6, 1);
@@ -142,12 +144,11 @@ namespace Eng
 			m_reusableCmdList = RecordPassA();
 
 		info.m_commandContext->CmdExecuteList(m_reusableCmdList);
-		info.m_commandContext->CmdEndLastLabel();
 	}
 
 	void ShadowAccumPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-
+		info.m_commandContext->CmdEndLastLabel();
 	}
 
 	void ShadowAccumPass::AddToRenderGraph(RenderGraphBuilder* builder, uint32_t shadowmapResolution, Math::Vector2u targetResolution)
@@ -163,14 +164,16 @@ namespace Eng
 		nodeDesc.m_useReusableCommandLists = true;
 
 		// Depth is needed for shadowmap comparison and retreiving world-space position of texels.
+		m_depthIndex = nodeDesc.m_transientTextures.Count();
 		TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthReadDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthReadDesc.m_width = targetResolution.x;
 		depthReadDesc.m_height = targetResolution.y;
 		depthReadDesc.m_name = "G_Depth";
 		depthReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
 		depthReadDesc.m_usageFlags = depthReadDesc.m_initialUsage;
 
+		m_normalIndex = nodeDesc.m_transientTextures.Count();
 		TransientTextureDesc& normalReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 		normalReadDesc.m_format = PB::ETextureFormat::A2R10G10B10_UNORM;
 		normalReadDesc.m_width = targetResolution.x;
@@ -179,6 +182,7 @@ namespace Eng
 		normalReadDesc.m_initialUsage = PB::ETextureState::SAMPLED;
 		normalReadDesc.m_usageFlags = normalReadDesc.m_initialUsage;
 
+		m_shadowmapIndex = nodeDesc.m_transientTextures.Count();
 		TransientTextureDesc& shadowmapReadDesc = nodeDesc.m_transientTextures.PushBackInit();
 		shadowmapReadDesc.m_format = PB::ETextureFormat::D16_UNORM;
 		shadowmapReadDesc.m_width = shadowmapResolution;
@@ -195,9 +199,9 @@ namespace Eng
 		shadowMaskDesc.m_usage = PB::EAttachmentUsage::COLOR;
 		shadowMaskDesc.m_flags = EAttachmentFlags::NONE;
 
-		nodeDesc.m_renderWidth = depthReadDesc.m_width;
-		nodeDesc.m_renderHeight = depthReadDesc.m_height;
-		m_targetResolution = targetResolution;
+		nodeDesc.m_renderWidth = shadowMaskDesc.m_width;
+		nodeDesc.m_renderHeight = shadowMaskDesc.m_height;
+		m_targetResolution = Math::Vector2u(shadowMaskDesc.m_width, shadowMaskDesc.m_height);
 
 		builder->AddNode(nodeDesc);
 	}
@@ -215,9 +219,9 @@ namespace Eng
 	void ShadowAccumPass::SetCascadeViews(PB::UniformBufferView* views, uint32_t viewCount)
 	{
 		m_accumUniformViews.Clear();
-		m_accumUniformViews.SetCount(viewCount + 1);
-		m_accumUniformViews[0] = m_viewConstantsBuffer->GetViewAsUniformBuffer();
-		memcpy(&m_accumUniformViews[1], views, viewCount * sizeof(PB::UniformBufferView));
+		m_accumUniformViews.SetCount(viewCount);
+		memcpy(m_accumUniformViews.Data(), views, viewCount * sizeof(PB::UniformBufferView));
+		m_accumUniformViews.PushBack(m_viewConstantsBuffer->GetViewAsUniformBuffer());
 
 		if (m_reusableCmdList)
 		{

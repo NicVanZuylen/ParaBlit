@@ -38,7 +38,6 @@ namespace Eng
 
 	void ShadowBlurPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-
 	}
 
 	void ShadowBlurPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
@@ -124,7 +123,7 @@ namespace Eng
 			PB::BindingLayout bindings;
 			bindings.m_uniformBufferCount = 1;
 			bindings.m_uniformBuffers = &blurConstantsView;
-			bindings.m_resourceCount = _countof(resourceViews);
+			bindings.m_resourceCount = PB_ARRAY_LENGTH(resourceViews);
 			bindings.m_resourceViews = resourceViews;
 
 			// The blur shader uses some of it's work group invocations to store excess off-edge samples of count: (GaussianKernelSize - 1) * 2.
@@ -185,7 +184,7 @@ namespace Eng
 		nodeDesc.m_useReusableCommandLists = true;
 
 		TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthReadDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthReadDesc.m_width = targetResolution.x;
 		depthReadDesc.m_height = targetResolution.y;
 		depthReadDesc.m_name = "G_Depth";
@@ -203,19 +202,20 @@ namespace Eng
 
 		TransientTextureDesc& shadowMaskBlurBufferDesc = nodeDesc.m_transientTextures.PushBackInit();
 		shadowMaskBlurBufferDesc.m_format = shadowMaskDesc.m_format;
-		shadowMaskBlurBufferDesc.m_width = targetResolution.x;
-		shadowMaskBlurBufferDesc.m_height = targetResolution.y;
+		shadowMaskBlurBufferDesc.m_width = shadowMaskDesc.m_width;
+		shadowMaskBlurBufferDesc.m_height = shadowMaskDesc.m_height;
 		shadowMaskBlurBufferDesc.m_name = "ShadowMaskBlurBuffer";
 		shadowMaskBlurBufferDesc.m_initialUsage = PB::ETextureState::STORAGE;
 		shadowMaskBlurBufferDesc.m_finalUsage = PB::ETextureState::SAMPLED;
 		shadowMaskBlurBufferDesc.m_usageFlags = shadowMaskBlurBufferDesc.m_initialUsage | PB::ETextureState::SAMPLED;
+		shadowMaskBlurBufferDesc.m_noAlias = true;
 
 		if (m_blurRayTracedShadows)
 		{
 			TransientTextureDesc& penumbraDesc = nodeDesc.m_transientTextures.PushBackInit();
 			penumbraDesc.m_format = PB::ETextureFormat::R8_UNORM;
-			penumbraDesc.m_width = targetResolution.x;
-			penumbraDesc.m_height = targetResolution.y;
+			penumbraDesc.m_width = shadowMaskDesc.m_width;
+			penumbraDesc.m_height = shadowMaskDesc.m_height;
 			penumbraDesc.m_name = "ShadowPenumbraMask";
 			penumbraDesc.m_initialUsage = PB::ETextureState::SAMPLED;
 			penumbraDesc.m_finalUsage = PB::ETextureState::SAMPLED;
@@ -224,7 +224,7 @@ namespace Eng
 
 		nodeDesc.m_renderWidth = shadowMaskDesc.m_width;
 		nodeDesc.m_renderHeight = shadowMaskDesc.m_height;
-		m_targetResolution = targetResolution;
+		m_targetResolution = Math::Vector2u(shadowMaskDesc.m_width, shadowMaskDesc.m_height);
 		builder->AddNode(nodeDesc);
 	}
 

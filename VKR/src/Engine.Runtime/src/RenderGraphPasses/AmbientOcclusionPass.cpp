@@ -68,13 +68,11 @@ namespace Eng
 
 	void AmbientOcclusionPass::OnPrePass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-
+		info.m_commandContext->CmdBeginLabel("AmbientOcclusionPass", { 1.0f, 1.0f, 1.0f, 1.0f });
 	}
 
 	void AmbientOcclusionPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-		info.m_commandContext->CmdBeginLabel("AmbientOcclusionPass", { 1.0f, 1.0f, 1.0f, 1.0f });
-
 		auto RecordPassA = [&]()
 		{
 			PB::u32 halfResDenom = m_halfRes ? 2u : 1u;
@@ -85,9 +83,9 @@ namespace Eng
 			AOConstants* aoConstants = reinterpret_cast<AOConstants*>(m_aoConstantsBuffer->BeginPopulate());
 			aoConstants->m_sampleRadius = 0.05f;
 			aoConstants->m_depthBias = 0.001f;
-			aoConstants->m_depthSlopeBias = 0.005f;
-			aoConstants->m_depthSlopeThreshold = 0.05f;
-			aoConstants->m_intensity = 1.0f;
+			aoConstants->m_depthSlopeBias = 0.05f;
+			aoConstants->m_depthSlopeThreshold = 0.01f;
+			aoConstants->m_intensity = 2.0f;
 			aoConstants->m_renderWidth = renderWidth;
 			aoConstants->m_renderHeight = renderHeight;
 
@@ -130,9 +128,9 @@ namespace Eng
 			};
 
 			PB::BindingLayout bindings{};
-			bindings.m_uniformBufferCount = _countof(uboBindings);
+			bindings.m_uniformBufferCount = PB_ARRAY_LENGTH(uboBindings);
 			bindings.m_uniformBuffers = uboBindings;
-			bindings.m_resourceCount = _countof(resourceViews);
+			bindings.m_resourceCount = PB_ARRAY_LENGTH(resourceViews);
 			bindings.m_resourceViews = resourceViews;
 			scopedContext->CmdBindResources(bindings);
 
@@ -146,12 +144,11 @@ namespace Eng
 			m_reusableCmdList = RecordPassA();
 
 		info.m_commandContext->CmdExecuteList(m_reusableCmdList);
-		info.m_commandContext->CmdEndLastLabel();
 	}
 
 	void AmbientOcclusionPass::OnPostPass(const RenderGraphInfo& info, PB::RenderTargetView* renderTargetViews, PB::ITexture** transientTextures)
 	{
-
+		info.m_commandContext->CmdEndLastLabel();
 	}
 
 	void AmbientOcclusionPass::AddToRenderGraph(RenderGraphBuilder* builder, Math::Vector2u targetResolution)
@@ -172,7 +169,7 @@ namespace Eng
 		PB::u32 renderHeight = targetResolution.y / halfResDenom;
 
 		TransientTextureDesc& depthReadDesc = nodeDesc.m_transientTextures.PushBackInit();
-		depthReadDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthReadDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthReadDesc.m_width = targetResolution.x;
 		depthReadDesc.m_height = targetResolution.y;
 		depthReadDesc.m_name = "G_Depth";

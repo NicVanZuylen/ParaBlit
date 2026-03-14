@@ -4,7 +4,10 @@
 #include "CLib/Vector.h"
 #include "CLib/Allocator.h"
 
-class CLib::Allocator;
+namespace CLib
+{
+	class Allocator;
+};
 
 namespace Eng
 {

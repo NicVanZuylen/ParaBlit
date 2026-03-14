@@ -33,6 +33,11 @@ namespace Eng
 		*/
 		virtual void OnHostDestroy() {};
 
+		/*
+		Description: Called every update interval when game simulation is active. Real-time game logic should be implemented here.
+		*/
+		virtual void OnSimUpdate() {};
+
 		Entity* GetHost() { return m_host; }
 
 		const Entity* GetHost() const { return m_host; }
@@ -97,7 +102,9 @@ namespace Eng
 			newComponent->m_host = this;
 
 			m_components.PushBack(newComponent);
-			return m_components.Back();
+			newComponent->OnInitialize();
+
+			return newComponent;
 		}
 
 		/*
@@ -117,7 +124,8 @@ namespace Eng
 
 					// Shift components to close gap and preserve order.
 					uint32_t shiftCount = m_components.Count() - i;
-					memcpy(&m_components[i], &m_components[i + 1], shiftCount * sizeof(EntityComponent*));
+					//memcpy(&m_components[i], &m_components[i + 1], shiftCount * sizeof(TObjectPtr<EntityComponent>));
+					memcpy(m_components.Data() + i, m_components.Data() + i + 1, shiftCount * sizeof(TObjectPtr<EntityComponent>));
 					m_components.PopBack();
 
 					return true;
@@ -136,14 +144,14 @@ namespace Eng
 		bool RemoveComponent(uint32_t index);
 
 		/*
-		Description: Get the component instance attached to this entity or return nullptr if it doesn't exist.
-		Return Type: T* (Component Type)
+		Description: Get a tracked reference to the component instance attached to this entity or return nullptr if it doesn't exist.
+		Return Type: TObjectPtr<T> (Component Type)
 		*/
 		template <typename T>
 		inline TObjectPtr<T> GetComponent()
 		{
 			auto searchType = typeid(T).hash_code();
-			for (TObjectPtr<EntityComponent> component : m_components)
+			for (TObjectPtr<EntityComponent>& component : m_components)
 			{
 				auto componentType = component->m_typeHash;
 				if (componentType == searchType)
@@ -151,6 +159,24 @@ namespace Eng
 			}
 
 			return {};
+		}
+
+		/*
+		Description: Get the component instance attached to this entity or return nullptr if it doesn't exist.
+		Return Type: T* (Component Type)
+		*/
+		template <typename T>
+		inline T* GetComponentPtr()
+		{
+			auto searchType = typeid(T).hash_code();
+			for (TObjectPtr<EntityComponent>& component : m_components)
+			{
+				auto componentType = component->m_typeHash;
+				if (componentType == searchType)
+					return static_cast<T*>(component.GetPtr());
+			}
+
+			return nullptr;
 		}
 
 		uint32_t ChildCount() const { return m_children.Count(); }
@@ -183,6 +209,7 @@ namespace Eng
 			return false;
 		}
 
+		TObjectPtrArray<EntityComponent>& GetAllComponents() { return m_components; }
 		const TObjectPtrArray<EntityComponent>& GetAllComponents() const { return m_components; }
 
 		inline EntityHierarchy* GetHierarchy() { return m_hierarchy; }
@@ -190,15 +217,21 @@ namespace Eng
 		inline void Rename(const char* name) { m_name = name; }
 		inline const char* GetName() const { return m_name.c_str(); }
 
+		/*
+		Description: Uncommits and recommits a the entity if it is tracked.
+		*/
+		void SoftReload();
+
 	private:
 
 		REFLECTRON_FIELD()
-		std::string m_name;
-		REFLECTRON_FIELD()
 		TObjectPtrArray<EntityComponent> m_components;
 
-		EntityHierarchy* m_hierarchy;
 		CLib::Vector<Entity*, 4, 4> m_children;
+		EntityHierarchy* m_hierarchy;
+
+		REFLECTRON_FIELD()
+		std::string m_name;
 	};
 	CLIB_REFLECTABLE_CLASS(Entity)
 };

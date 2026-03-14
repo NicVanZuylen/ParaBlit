@@ -7,28 +7,26 @@ namespace Eng
 {
 	void DynamicEntityTracker::CommitEntity(DynamicDrawPool* drawPool)
 	{
+		m_transform = m_host->GetComponent<Transform>();
+
 		RenderDefinition* renderDef = m_host->GetComponent<RenderDefinition>();
 		if (renderDef != nullptr)
 		{
 			renderDef->CommitRenderEntity(drawPool);
+			renderDef->GetMeshBounds(m_meshBounds);
+
+			m_renderDefinition = renderDef;
 		}
 	}
 
 	void DynamicEntityTracker::UncommitEntity()
 	{
-		RenderDefinition* renderDef = m_host->GetComponent<RenderDefinition>();
-		if (renderDef != nullptr)
+		if (m_renderDefinition != nullptr)
 		{
-			renderDef->UncommitRenderEntity();
-		}
-	}
+			m_renderDefinition->UncommitRenderEntity();
 
-	void DynamicEntityTracker::UpdateEntity()
-	{
-		RenderDefinition* renderDef = m_host->GetComponent<RenderDefinition>();
-		if (renderDef != nullptr)
-		{
-			renderDef->UpdateRenderEntity();
+			m_transform.Invalidate();
+			m_renderDefinition.Invalidate();
 		}
 	}
 }

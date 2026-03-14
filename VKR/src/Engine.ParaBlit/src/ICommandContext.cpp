@@ -11,7 +11,7 @@ namespace PB
 		m_buffer = buffer;
 		m_barrierType = type;
 		m_offset = offset;
-		m_size = (size == ~u32(0)) ? buffer->GetSize() : size;
+		m_size = size;
 	}
 
 	ICommandContext::ICommandContext()

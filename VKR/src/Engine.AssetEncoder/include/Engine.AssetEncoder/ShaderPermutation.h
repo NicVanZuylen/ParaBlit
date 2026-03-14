@@ -1,5 +1,6 @@
 #pragma once
 #include "Engine.AssetEncoder/AssetEncoderLib.h"
+#include <cstdint>
 #include <string>
 
 namespace AssetEncoder
@@ -71,7 +72,7 @@ namespace AssetEncoder
 
 		ShaderPermutationTable& Reset()
 		{
-			std::memset(m_permutationKey, 0, sizeof(m_permutationKey));
+			memset(m_permutationKey, 0, sizeof(m_permutationKey));
 			return *this;
 		}
 

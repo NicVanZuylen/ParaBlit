@@ -46,10 +46,13 @@ PB_DEFINE_SAMPLER_BINDINGS;
 
 layout(location = 0) in FS_IN fsInput;
 
-layout(location = 0) out vec4 outColor;
+layout(location = 0) out float outColor;
 
 void main()
 {
+    // ---------------------------------------------------------------------------------
+    // Sample Paramters
+
     ivec2 rotationTileSize = textureSize(PB_TEXTURE(randomRotationTexIndex), 0);
     ivec2 dstSize = ivec2(AO_CONST.renderWidth, AO_CONST.renderHeight);
 
@@ -70,11 +73,27 @@ void main()
     vec3 bitangent = cross(normal, tangent);
     mat3 TBN = mat3(tangent, bitangent, normal);
 
+    // ---------------------------------------------------------------------------------
+
     float radius = AO_CONST.sampleRadius;
     float bias = AO_CONST.depthBias * (1.0 - viewPos.z); // Bias needs to vary based on Z. Since the view Z is linear, this expression does the trick.
-    float slope = 1.0 - abs(dot(normal, worldNormal));
-    if(slope <= AO_CONST.depthSlopeThreshold)
-        bias += mix(0.0, AO_CONST.depthSlopeBias, slope / AO_CONST.depthSlopeThreshold);
+
+    // ---------------------------------------------------------------------------------
+    // Slope Bias
+
+    const vec3 viewRight = vec3(1.0, 0.0, 0.0);
+    const vec3 viewForward = vec3(0.0, 0.0, 1.0);
+
+    const float depthSlopeThreshold = AO_CONST.depthSlopeThreshold;
+    float slope = abs(dot(normal, viewRight));
+    float angle = abs(dot(normal, viewForward));
+    if (slope <= depthSlopeThreshold && pow(angle, 10) < depthSlopeThreshold)
+    {
+        bias += AO_CONST.depthSlopeBias;
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Sampling
 
     float ao = float(AO_KERNEL_SIZE);
 
@@ -98,7 +117,9 @@ void main()
         }
     }
     ao /= AO_KERNEL_SIZE;
+    // ---------------------------------------------------------------------------------
+
     ao = pow(ao, AO_CONST.intensity);
 
-    outColor = vec4(ao, ao, ao, 1.0);
+    outColor = ao;
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cassert>
-#include <Engine.AssetEncoder/AssetDatabaseReader.h>
+#include <Engine.AssetEncoder/AssetBinaryDatabaseReader.h>
 #include <Engine.ParaBlit/IRenderer.h>
 
 namespace AssetPipeline

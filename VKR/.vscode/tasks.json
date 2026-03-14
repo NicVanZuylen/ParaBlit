@@ -1,0 +1,33 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build - Engine.AssetPipeline",
+			"command": "build",
+			"targets": ["Engine.AssetPipeline"],
+			"type": "cmake",
+			"group": "build"
+		},
+		{
+			"label": "Build - Engine.Runtime",
+			"command": "build",
+			"targets": ["Engine.Runtime"],
+			"type": "cmake",
+			"group": "build"
+		},
+		{
+			"label": "Build - Engine.Editor",
+			"command": "build",
+			"targets": ["Engine.Editor"],
+			"type": "cmake",
+			"group": "build"
+		},
+		{
+			"label": "Build - Engine.Control",
+			"command": "build",
+			"targets": ["Engine.Control"],
+			"type": "cmake",
+			"group": "build"
+		}
+	]
+}

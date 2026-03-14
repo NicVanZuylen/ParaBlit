@@ -297,6 +297,8 @@ namespace PB
             return VK_FORMAT_R8G8B8A8_UNORM;
         case ETextureFormat::B8G8R8A8_UNORM:
             return VK_FORMAT_B8G8R8A8_UNORM;
+        case ETextureFormat::A2R10G10B10_UNORM:
+            return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
         case ETextureFormat::R8_SRGB:
             return VK_FORMAT_R8_SRGB;
         case ETextureFormat::R8G8_SRGB:
@@ -307,8 +309,6 @@ namespace PB
             return VK_FORMAT_R8G8B8A8_SRGB;
         case ETextureFormat::B8G8R8A8_SRGB:
             return VK_FORMAT_B8G8R8A8_SRGB;
-        case ETextureFormat::A2R10G10B10_UNORM:
-            return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
         case ETextureFormat::R16_FLOAT:
             return VK_FORMAT_R16_SFLOAT;
         case ETextureFormat::R16G16_FLOAT:
@@ -583,28 +583,67 @@ namespace PB
 
 		switch (type)
 		{
-		case PB::SHADER_WRITE_TO_SHADER_READ:
-		{
-			srcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			outBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			outBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			return;
-		}
-		case PB::SHADER_WRITE_INDIRECT_PARAMS_TO_INDIRECT_READ:
-		{
-			srcStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
-			dstStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-			outBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-			outBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-			return;
-		}
-		default:
-			break;
+		    case GRAPHICS_ATTACHMENT_WRITE_TO_FRAGMENT_SHADER_READ:
+		    {
+		    	srcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		    	dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		    	outBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		    	outBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		    	return;
+		    }
+		    default:
+            {
+                PB_NOT_IMPLEMENTED;
+                break;
+            }
 		}
     }
 
-	void GetBufferMemoryBarrierOfType(EMemoryBarrierType type, VkBuffer bufferHandle, u32 offset, u32 size, VkBufferMemoryBarrier& outBarrier)
+    void GetImageMemoryBarrierOfType(EMemoryBarrierType type, VkImageMemoryBarrier& outBarrier, VkPipelineStageFlags& srcStage, VkPipelineStageFlags& dstStage, Texture* image, const SubresourceRange& subresources)
+    {
+		outBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		outBarrier.pNext = nullptr;
+
+        outBarrier.image = image->GetImage();
+        outBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        outBarrier.newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        outBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        outBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+		outBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		if (image->HasDepthPlane())
+		{
+			outBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		}
+		if (image->HasStencilPlane())
+		{
+			outBarrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+
+        outBarrier.subresourceRange.baseArrayLayer = subresources.m_firstArrayElement;
+        outBarrier.subresourceRange.baseMipLevel = subresources.m_baseMip;
+        outBarrier.subresourceRange.layerCount = subresources.m_arrayCount;
+        outBarrier.subresourceRange.levelCount = subresources.m_mipCount;
+
+		switch (type)
+		{
+		    case GRAPHICS_ATTACHMENT_WRITE_TO_FRAGMENT_SHADER_READ:
+		    {
+		    	srcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		    	dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		    	outBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		    	outBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		    	return;
+		    }
+		    default:
+            {
+                PB_NOT_IMPLEMENTED;
+		    	break;
+            }
+		}
+    }
+
+	void GetBufferMemoryBarrierOfType(EMemoryBarrierType type, VkBuffer bufferHandle, u32 offset, u32 size, VkBufferMemoryBarrier& outBarrier, VkPipelineStageFlags& srcStage, VkPipelineStageFlags& dstStage)
 	{
 		outBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 		outBarrier.pNext = nullptr;
@@ -612,30 +651,71 @@ namespace PB
 		outBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		outBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		outBarrier.offset = offset;
-		outBarrier.size = size;
+		outBarrier.size = (size == ~u32(0)) ? VK_WHOLE_SIZE : size;
 
 		switch (type)
 		{
-			case PB::SHADER_WRITE_TO_SHADER_READ:
+			case COMPUTE_SHADER_WRITE_TO_COMPUTE_SHADER_READ:
 			{
-				outBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-				outBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                srcStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                dstStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+				outBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+				outBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 				return;
 			}
-			case PB::SHADER_WRITE_INDIRECT_PARAMS_TO_INDIRECT_READ:
+            case COMPUTE_SHADER_WRITE_TO_GRAPHICS_GEOMETRY_READ:
+            {
+                srcStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                dstStage |= VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+				outBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+				outBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                return;
+            }
+            case COMPUTE_SHADER_WRITE_TO_INDIRECT_PARAMS_READ:
 			{
+                srcStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                dstStage |= VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
 				outBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 				outBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
 				return;
 			}
-			case PB::SHADER_WRITE_TO_ACCELERATION_STRUCTURE_READ:
-			{
+            case COMPUTE_SHADER_WRITE_TO_ACCELERATION_STRUCTURE_BUILD:
+            {
+                srcStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                dstStage |= VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
 				outBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 				outBarrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
 				return;
-			}
+            }
+            case GRAPHICS_GEOMETRY_READ_TO_COMPUTE_SHADER_WRITE:
+            {
+                srcStage |= VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+                dstStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+				outBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				outBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+				return;
+            }
+            case GRAPHICS_FRAGMENT_READ_TO_COMPUTE_SHADER_WRITE:
+            {
+                srcStage |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                dstStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+				outBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				outBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+				return;
+            }
+            case INDIRECT_PARAMS_READ_TO_COMPUTE_SHADER_WRITE:
+            {
+                srcStage |= VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+                dstStage |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                outBarrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+                outBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+                return;
+            }
 			default:
+            {
+                PB_NOT_IMPLEMENTED;
 				break;
+            }
 		}
 	}
 }

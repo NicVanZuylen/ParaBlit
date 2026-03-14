@@ -2,7 +2,7 @@
 #include "ParaBlitApi.h"
 #include "ParaBlitInterface.h"
 #include "ISwapChain.h"
-#include "IFramebufferCache.h"
+#include "IFrameBufferCache.h"
 #include "IRenderPassCache.h"
 #include "IShaderModule.h"
 #include "IPipelineCache.h"
@@ -15,19 +15,28 @@
 #pragma warning(push, 0)
 #include <Windows.h>
 #pragma warning(pop)
+#elif PARABLIT_LINUX
+#include <X11/Xlib.h>
 #endif
 
 struct ImGuiContext;
 
 namespace PB 
 {
-#ifdef PARABLIT_WINDOWS
+#if PARABLIT_WINDOWS
 	struct Win32WindowInfo
 	{
 		struct HINSTANCE__* m_instance;
 		struct HWND__* m_handle;
 	};
 	using WindowDesc = Win32WindowInfo;
+#elif PARABLIT_LINUX
+	struct XLibWindowInfo
+	{
+		Display* m_display;
+    	Window m_window;
+	};
+	using WindowDesc = XLibWindowInfo;
 #else
 	using WindowDesc = void*;
 #endif
@@ -71,9 +80,9 @@ namespace PB
 		/*
 		Description: Submit encoding for this frame and prepare the next frame.
 		Param:
-			float& outStallTimeMs: Amount of time in ms spent waiting for the corresponding frame-in-flight to complete.
+			double& outStallTimeMs: Amount of time in ms spent waiting for the corresponding frame-in-flight to complete.
 		*/
-		PARABLIT_INTERFACE void EndFrame(float& outStallTimeMs) = 0;
+		PARABLIT_INTERFACE void EndFrame(double& outStallTimeMs) = 0;
 		PARABLIT_INTERFACE void WaitIdle() = 0;
 
 		PARABLIT_INTERFACE u32 GetCurrentSwapchainImageIndex() = 0;

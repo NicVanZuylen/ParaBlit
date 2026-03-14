@@ -115,7 +115,7 @@ namespace Eng
 		CLib::Vector<const ObjectData*> objects;
 		RecursiveGetObjectData(objects, subtreeRoot);
 
-		printf_s("Rebuilding subtree at depth: %u\n", subtreeRoot->m_depth);
+		printf("Rebuilding subtree at depth: %u\n", subtreeRoot->m_depth);
 		BuildNode* newSubtree = this->BuildBottomUp(objects, subtreeRoot->m_depth);
 		newSubtree->m_parent = subtreeRoot->m_parent;
 
@@ -193,7 +193,7 @@ namespace Eng
 		{
 			if (b != a)
 			{
-				float dist = Distance(a->m_bounds.Centre(), b->m_bounds.Centre());
+				float dist = Distance(a->m_bounds.Center(), b->m_bounds.Center());
 				total -= dist;
 			}
 		}
@@ -616,7 +616,7 @@ namespace Eng
 
 	bool BoundingVolumeHierarchy::IsInFrontOfPlane(const Camera::CameraFrustrum::Plane& plane, const Bounds& bounds) const
 	{
-		const Vector3f centre = bounds.Centre();
+		const Vector3f centre = bounds.Center();
 		const Vector3f halfExtents = bounds.m_extents * 0.5f;
 
 		const float r = halfExtents.x * std::abs(plane.x) +

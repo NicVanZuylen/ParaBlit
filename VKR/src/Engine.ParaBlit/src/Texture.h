@@ -32,7 +32,7 @@ namespace PB
 
 		void Create(Renderer* renderer, WrappedTextureDesc desc);
 
-		inline void Destroy();
+		void Destroy();
 
 		VkImage GetImage();
 

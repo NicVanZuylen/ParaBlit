@@ -57,7 +57,7 @@ namespace PB
 
 	u64 PipelineDescHasher::operator()(const ComputePipelineDesc& desc) const
 	{
-		return MurmurHash3_x64_64(&desc, sizeof(ComputePipelineDesc), 0);
+		return MurmurHash3_x86_32(&desc, sizeof(ComputePipelineDesc), 0);
 	}
 
 	u64 PipelineDescHasher::operator()(const RayTracingPipelineDesc& desc) const
@@ -412,7 +412,7 @@ namespace PB
 
 		VkPipelineDynamicStateCreateInfo dynamicStatesInfo{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, nullptr };
 		dynamicStatesInfo.flags = 0;
-		dynamicStatesInfo.dynamicStateCount = _countof(dynamicStates);
+		dynamicStatesInfo.dynamicStateCount = PB_ARRAY_LENGTH(dynamicStates);
 		dynamicStatesInfo.pDynamicStates = dynamicStates;
 
 		CLib::Vector<VkPipelineShaderStageCreateInfo, static_cast<u32>(EGraphicsShaderStage::GRAPHICS_STAGE_COUNT)> shaderStages;
@@ -466,7 +466,7 @@ namespace PB
 		pipelineInfo.stageCount = shaderStages.Count();
 
 		VkPipelineRenderingCreateInfoKHR dynamicRenderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR, nullptr };
-		if (desc.m_renderPass && desc.m_attachmentCount > 0 && m_device->GetDynamicRenderingFeatures()->dynamicRendering == VK_TRUE)
+		if (desc.m_renderPass && desc.m_attachmentCount > 0 && m_device->GetVulkan13Features()->dynamicRendering == VK_TRUE)
 		{
 			pipelineInfo.renderPass = nullptr;
 			pipelineInfo.pNext = &dynamicRenderingInfo;

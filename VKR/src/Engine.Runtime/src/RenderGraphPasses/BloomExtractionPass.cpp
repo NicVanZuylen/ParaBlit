@@ -81,7 +81,7 @@ void BloomExtractionPass::OnPassBegin(const RenderGraphInfo& info, PB::RenderTar
 		PB::BindingLayout bindings;
 		bindings.m_uniformBufferCount = 1;
 		bindings.m_uniformBuffers = &bloomConstantsView;
-		bindings.m_resourceCount = _countof(resources);
+		bindings.m_resourceCount = PB_ARRAY_LENGTH(resources);
 		bindings.m_resourceViews = resources;
 
 		scopedContext->CmdBindPipeline(colorExtractionPipeline);
@@ -133,7 +133,7 @@ void BloomExtractionPass::AddToRenderGraph(RenderGraphBuilder* builder, Math::Ve
 	colorDesc.m_usageFlags = colorDesc.m_initialUsage;
 
 	TransientTextureDesc& outColorDesc = nodeDesc.m_transientTextures.PushBackInit();
-	outColorDesc.m_format = swapchain->GetImageFormat();
+	outColorDesc.m_format = PB::ETextureFormat::R8G8B8A8_UNORM;
 	outColorDesc.m_width = renderWidth;
 	outColorDesc.m_height = renderHeight;
 	outColorDesc.m_mipCount = BlurTargetMipCount;

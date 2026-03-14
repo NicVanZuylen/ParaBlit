@@ -16,6 +16,14 @@
 #include "imgui_internal.h"
 #include "backends/imgui_impl_glfw.h"
 
+#if ENG_WINDOWS
+#define ENG_USE_MANUAL_WINDOW_POSITION 1
+typedef std::chrono::steady_clock::time_point TimePoint;
+#else
+#define ENG_USE_MANUAL_WINDOW_POSITION 0
+typedef std::chrono::system_clock::time_point TimePoint;
+#endif
+
 namespace Eng
 {
 	bool Application::m_windowResize = false;
@@ -62,6 +70,8 @@ namespace Eng
 				m_fpsCap = (float)std::atoi(&arg.c_str()[5]);
 			else if (arg[1] == 'f' && arg[2] == 's' && arg[3] == 0)
 				m_isfullScreen = true;
+			else if (arg[1] == 'v' && arg[2] == 's' && arg[3] == '=')
+				m_useVsync = bool(std::atoi(&arg.c_str()[4]) != 0);
 		}
 
 		m_glfwInitialized = false;
@@ -78,15 +88,30 @@ namespace Eng
 		// Create window.
 		CreateWindowObject(m_defaultWindowWidth, m_defaultWindowHeight, m_isfullScreen);
 
-		printf_s("Window has been created.\n");
+		printf("[Main] Window has been created.\n");
 
-		uint32_t extCount = 0;
-		auto extNames = glfwGetRequiredInstanceExtensions(&extCount);
+		CLib::Vector<const char*, 8> requiredVkExtensions;
+		{
+			uint32_t extCount = 0;
+			const char** extNames = glfwGetRequiredInstanceExtensions(&extCount);
 
-		PB::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
+			for(uint32_t i = 0; i < extCount; ++i)
+			{
+				requiredVkExtensions.PushBack(extNames[i]);
+			}
+		}
+
+#if ENG_WINDOWS
+		PB::WindowDesc windowInfo = { (HINSTANCE)GetWindowInstance(), (HWND)GetWindowHandle(m_window) };
+#elif ENG_LINUX
+		PB::WindowDesc windowInfo = { (Display*)GetWindowDisplay(), (Window)GetWindowHandle(m_window) };
+
+		requiredVkExtensions.PushBack("VK_KHR_xlib_surface");
+#endif
+
 		PB::RendererDesc rendererDesc;
-		rendererDesc.m_extensionCount = extCount;
-		rendererDesc.m_extensionNames = extNames;
+		rendererDesc.m_extensionCount = requiredVkExtensions.Count();
+		rendererDesc.m_extensionNames = requiredVkExtensions.Data();
 		rendererDesc.m_windowInfo = &windowInfo;
 
 		PB::DeviceDesc& deviceDesc = rendererDesc.m_deviceDesc;
@@ -96,15 +121,10 @@ namespace Eng
 		m_renderer = PB::CreateRenderer();
 		m_renderer->Init(rendererDesc);
 
-		// -------- Render device validation --------
-		assert(m_renderer->GetDeviceLimitations()->m_subgroupSize >= 32 && "Subgroup/Warp sizes below 32 are not supported! See: Note 1 in cs_drawbatch_setup.comp");
-
-		// -------- Render device validation --------
-
-		PB::SwapChainDesc swapchainDesc;
+		PB::SwapChainDesc& swapchainDesc = m_swapchainDesc;
 		swapchainDesc.m_width = 0;  // Leaving zero will use the full width of the window.
 		swapchainDesc.m_height = 0;
-		swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
+		swapchainDesc.m_presentMode = m_useVsync ? PB::EPresentMode::FIFO : PB::EPresentMode::MAILBOX;
 		swapchainDesc.m_imageCount = 3;
 
 		m_swapchain = m_renderer->CreateSwapChain(swapchainDesc);
@@ -122,7 +142,7 @@ namespace Eng
 		Input::Create();
 		m_input = Input::GetInstance();
 
-		printf_s("Input initalized.\n");
+		printf("[Main] Input initalized.\n");
 
 		return 0;
 	}
@@ -133,17 +153,20 @@ namespace Eng
 		{
 			ImGui_ImplGlfw_NewFrame();
 		}
-		GameInstanceMain* playground = new GameInstanceMain(m_input, m_renderer, &m_allocator);
+		GameInstanceMain* gameMain = new GameInstanceMain(m_input, m_renderer, &m_allocator);
 
 		bool updateDebugMetrics = false;
-		float endFrameStallTime = 0.0f;
 		while (!glfwWindowShouldClose(m_window))
 		{
 			// Time
 			auto startTime = std::chrono::high_resolution_clock::now();
 
+			// Get deltatime and add to elapsed time.
+			m_totalElapsedTime += m_deltaTime;
+			m_debugDisplayTime -= m_deltaTime;
+
 			// Quit if escape is pressed.
-			if (m_input->GetKey(GLFW_KEY_ESCAPE))
+			if (m_input->GetKey(KEYBOARD_KEY_ESCAPE))
 				glfwSetWindowShouldClose(m_window, 1);
 
 			// ------------------------------------------------------------------------------------
@@ -173,19 +196,28 @@ namespace Eng
 					glfwGetWindowSize(m_window, &width, &height);
 
 					m_renderer->WaitIdle();
-					playground->UpdateResolution((uint32_t)width, (uint32_t)height);
+					gameMain->UpdateResolution((uint32_t)width, (uint32_t)height);
 					m_updateRendererResolution = false;
 				}
 
-				playground->Update(m_window, m_deltaTime, m_elapsedTime, endFrameStallTime, updateDebugMetrics);
-				updateDebugMetrics = false;
+				g_timeMain.m_deltaTimeMain = m_deltaTime;
+				g_timeMain.m_totalElapsedTime = m_totalElapsedTime;
+
+				while (g_timeMain.m_simStallTime >= TimeMain::SimUpdateInterval)
+				{
+					g_timeMain.m_simStallTime -= TimeMain::SimUpdateInterval;
+					gameMain->Update(m_window, updateDebugMetrics);
+					updateDebugMetrics = false;
+				}
+
+				gameMain->Render(m_window, g_timeMain.m_simStallTime / TimeMain::SimUpdateInterval);
 			}
 
 			// ------------------------------------------------------------------------------------
 			// Window Handling
 
 			// Fullscreen Toggle
-			if (ENG_EDITOR == 0 && m_input->GetKey(GLFW_KEY_F11) && !m_input->GetKey(GLFW_KEY_F11, INPUTSTATE_PREVIOUS))
+			if (ENG_EDITOR == 0 && m_input->GetKey(KEYBOARD_KEY_F11) && !m_input->GetKey(KEYBOARD_KEY_F11, INPUTSTATE_PREVIOUS))
 			{
 				// Get primary monitor and video mode.
 				GLFWmonitor* monitor = glfwGetPrimaryMonitor();
@@ -216,58 +248,58 @@ namespace Eng
 				m_isMinimized = (width * height == 0);
 				if (!m_isMinimized)
 				{
-					PB::SwapChainDesc swapchainDesc;
+					PB::SwapChainDesc& swapchainDesc = m_swapchainDesc;
 					swapchainDesc.m_width = (uint32_t)width;
 					swapchainDesc.m_height = (uint32_t)height;
-					swapchainDesc.m_presentMode = PB::EPresentMode::MAILBOX;
-					swapchainDesc.m_imageCount = 3;
 
-					PB::WindowDesc windowInfo = { (HINSTANCE)VKRClient::GetWindowInstance(), (HWND)VKRClient::GetWindowHandle(m_window) };
+#if ENG_WINDOWS
+					PB::WindowDesc windowInfo = { (HINSTANCE)GetWindowInstance(), (HWND)GetWindowHandle(m_window) };
 					m_renderer->RecreateSwapchain(swapchainDesc, &windowInfo);
+#elif ENG_LINUX
+					PB::WindowDesc windowInfo = { (Display*)GetWindowDisplay(), (Window)GetWindowHandle(m_window) };
+					m_renderer->RecreateSwapchain(swapchainDesc, &windowInfo);
+#endif
 					m_updateRendererResolution = true; // Signal resolution update for next frame.
 					m_windowResize = false;
 				}
 			}
 			// ------------------------------------------------------------------------------------
 
+			m_input->EndFrame();
+
 			// ------------------------------------------------------------------------------------
 			// Render End Frame
 			if (!m_isMinimized)
-				m_renderer->EndFrame(endFrameStallTime);
+				m_renderer->EndFrame(g_timeMain.m_renderStallTime);
 			// ------------------------------------------------------------------------------------
 
-			m_input->EndFrame();
-
 			// End time...
-			std::chrono::steady_clock::time_point endTime;
+			TimePoint endTime;
 
 			// Reset deltatime.
-			m_deltaTime = 0.0f;
+			m_deltaTime = 0.0;
 
 			// Framerate limitation...
 			// Wait for deltatime to reach value based upon frame cap.
-			uint64_t timeDuration;
-			float fpsCap = m_isMinimized ? std::fminf(10.0f, m_fpsCap) : m_fpsCap;
-			while (m_deltaTime < (1000.0f / fpsCap) / 1000.0f)
+			double fpsCap = m_isMinimized ? std::fmin(10.0, m_fpsCap) : m_fpsCap;
+			while (m_deltaTime < (1000.0 / fpsCap) / 1000.0)
 			{
 				endTime = std::chrono::high_resolution_clock::now();
-				timeDuration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count();
-				m_deltaTime = static_cast<float>(static_cast<double>(timeDuration) * 9.99999997e-07f);
-			}
 
-			// Get deltatime and add to elapsed time.
-			m_elapsedTime += m_deltaTime;
-			m_debugDisplayTime -= m_deltaTime;
+				auto timeDuration = std::chrono::duration<double>(endTime - startTime);
+				m_deltaTime = timeDuration.count();
+			}
+			g_timeMain.m_simStallTime += m_deltaTime;
 
 			// Display frametime and FPS.
-			if (m_debugDisplayTime <= 0.0f)
+			if (m_debugDisplayTime <= 0.0)
 			{
 				if (m_displayPerfMetrics)
 				{
-					double frameTime = double(m_deltaTime) * 1000.0;
-					printf_s("Frametime %f ms\n", frameTime);
-					printf_s("Elapsed Time: %f\n", m_elapsedTime);
-					printf_s("FPS: %i\n", (int)ceilf((1.0f / m_deltaTime)));
+					double frameTime = m_deltaTime * 1000.0;
+					printf("[Main] Frametime %f ms\n", float(frameTime));
+					printf("[Main] Elapsed Time: %f\n", float(m_totalElapsedTime));
+					printf("[Main] FPS: %i\n", (int)ceil((1.0 / m_deltaTime)));
 				}
 
 				m_debugDisplayTime = m_debugDisplayInterval;
@@ -275,9 +307,11 @@ namespace Eng
 			}
 		}
 
+		printf("[Main] Window closure requested. Shutting down...\n");
+
 		// Wait for idle before shutdown, to ensure no resources are deleted while in-flight.
 		m_renderer->WaitIdle();
-		delete playground;
+		delete gameMain;
 	}
 
 	void Application::CreateWindowObject(const unsigned int& nWidth, const unsigned int& nHeight, bool bFullScreen)
@@ -299,7 +333,10 @@ namespace Eng
 			uint32_t w = (uint32_t)vidMode->width;
 			uint32_t h = (uint32_t)vidMode->height;
 
-			glfwSetWindowPos(m_window, (w / 2) - (nWidth / 2), (h / 2) - (nHeight / 2));
+			if constexpr (ENG_USE_MANUAL_WINDOW_POSITION)
+			{
+				glfwSetWindowPos(m_window, (w / 2) - (nWidth / 2), (h / 2) - (nHeight / 2));
+			}
 			glfwShowWindow(m_window);
 		}
 
@@ -317,7 +354,7 @@ namespace Eng
 
 	void Application::ErrorCallBack(int error, const char* desc)
 	{
-		std::cout << "GLFW Error: " << desc << "\n";
+		std::cout << "[Main] GLFW Error: " << desc << "\n";
 	}
 
 	void Application::KeyCallBack(GLFWwindow* window, int key, int scancode, int action, int mods)

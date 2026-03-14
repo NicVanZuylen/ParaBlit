@@ -1,8 +1,13 @@
+#include "vulkan/vulkan_core.h"
+#if PARABLIT_WINDOWS
 #define VK_USE_PLATFORM_WIN32_KHR
+#elif PARABLIT_LINUX
+#define VK_USE_PLATFORM_XLIB_KHR
+#endif
+
 #include "Renderer.h"
-#include "ParaBlitApi.h"
 #include "ParaBlitDebug.h"
-#include "PBUtil.h"
+#include "ParaBlitLog.h"
 #include "BindingCache.h"
 #include "AccelerationStructure.h"
 
@@ -35,7 +40,7 @@ namespace PB
 
 	Renderer::Renderer()
 	{
-		for (u32 i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
+		for (u32 i = 0; i < PB_FRAME_IN_FLIGHT_COUNT + 1; ++i)
 		{
 			new (&m_frameInfos.PushBack()) FrameInfo();
 		}
@@ -63,7 +68,7 @@ namespace PB
 
 		// Pending deletions
 		{
-			for (uint32_t i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
+			for (uint32_t i = 0; i < m_frameInfos.Count(); ++i)
 			{
 				FrameInfo& frameInfo = m_frameInfos[i];
 				m_pendingDeletions.Append(frameInfo.m_deferredDeletions); // No frames are live anymore, dump deletions into pending deletions array for immediate deletion.
@@ -101,7 +106,7 @@ namespace PB
 		{
 			vkDestroyFence(m_device.GetHandle(), m_frameInfos[i].m_frameFence, nullptr);
 			vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAcquireSempahore, nullptr);
-			vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_frameSemaphore, nullptr);
+			vkDestroySemaphore(m_device.GetHandle(), m_frameSemaphores[i], nullptr);
 
 			m_frameInfos[i].~FrameInfo();
 		}
@@ -124,8 +129,12 @@ namespace PB
 			m_asSetLayout = VK_NULL_HANDLE;
 		}
 
-		vkDestroyDescriptorPool(m_device.GetHandle(), m_sharedDescPool, nullptr);
-		m_sharedDescPool = VK_NULL_HANDLE;
+		for(auto& pool : m_uboDescriptorPools)
+		{
+			vkDestroyDescriptorPool(m_device.GetHandle(), pool, nullptr);
+			pool = VK_NULL_HANDLE;
+		}
+		m_uboDescriptorPools.Clear();
 
 		for (auto& pool : m_liveCommandPools)
 		{
@@ -156,7 +165,8 @@ namespace PB
 		m_shaderModuleCache.Init(&m_device);
 
 		// Needed for pipelines, so we create these before the pipeline cache.
-		CreatePoolAndSetLayouts();
+		CreateSetLayouts();
+		CreateUBODescriptorPool();
 
 		m_pipelineCache.Init(this);
 
@@ -189,6 +199,7 @@ namespace PB
 		m_swapchainDesc = desc;
 		m_windowDesc = *windowDesc;
 		m_resetSwapchain = true;
+		m_validSwapchain = false;
 	}
 
 	Device* Renderer::GetDevice()
@@ -353,7 +364,7 @@ namespace PB
 		}
 	}
 
-	void Renderer::EndFrame(float& outStallTimeMs)
+	void Renderer::EndFrame(double& outStallTimeMs)
 	{
 		{
 			std::lock_guard<std::mutex> contextLock(m_threadContextLock);
@@ -377,7 +388,7 @@ namespace PB
 		std::chrono::time_point afterWait = std::chrono::high_resolution_clock::now();
 		vkResetFences(m_device.GetHandle(), 1, &curFrameInfo.m_frameFence);
 		auto waitTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(afterWait - beforeWait).count();
-		outStallTimeMs = float(double(waitTimeUs) / 1000.0f);
+		outStallTimeMs = double(waitTimeUs) / 1000.0;
 
 		// Reset frame...
 		{
@@ -402,11 +413,11 @@ namespace PB
 			curFrameInfo.m_deferredDeletions.Clear();
 		}
 
-		PB_ASSERT(curFrameInfo.m_frameSemaphore);
+		PB_ASSERT(m_frameSemaphores[curFrameInfo.m_presentImageIdx]);
 		if (m_validSwapchain)
 		{
 			VkResult res = vkAcquireNextImageKHR(m_device.GetHandle(), m_swapchain.GetHandle(), ~(0ULL), curFrameInfo.m_imageAcquireSempahore, VK_NULL_HANDLE, &curFrameInfo.m_presentImageIdx);
-			PB_ASSERT(res == VK_SUCCESS);
+			PB_ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR); // Suboptimal is fine, as we're probably recreating the swapchain very soon after.
 		}
 
 		SubmitFrame();
@@ -414,7 +425,7 @@ namespace PB
 		if(m_validSwapchain)
 			Present();
 
-		if (m_validSwapchain && m_resetSwapchain)
+		if (m_resetSwapchain)
 		{
 			WaitIdle();
 
@@ -423,7 +434,7 @@ namespace PB
 			{
 				vkDestroyFence(m_device.GetHandle(), m_frameInfos[i].m_frameFence, nullptr);
 				vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_imageAcquireSempahore, nullptr);
-				vkDestroySemaphore(m_device.GetHandle(), m_frameInfos[i].m_frameSemaphore, nullptr);
+				vkDestroySemaphore(m_device.GetHandle(), m_frameSemaphores[i], nullptr);
 			}
 
 			m_swapchain.Destroy();
@@ -438,6 +449,7 @@ namespace PB
 			m_framebufferCache.Init(&m_device);
 
 			m_resetSwapchain = false;
+			m_validSwapchain = true;
 		}
 
 		BeginNextFrame();
@@ -520,7 +532,7 @@ namespace PB
 
 	void Renderer::FreeBindingCache(IBindingCache* cache)
 	{
-		m_allocator.Free(cache);
+		m_allocator.Free(reinterpret_cast<BindingCache*>(cache));
 	}
 
 	void Renderer::FreeCommandList(ICommandList* list)
@@ -594,14 +606,27 @@ namespace PB
 		}
 
 		VkDescriptorSetAllocateInfo uboSetAllocInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr };
-		uboSetAllocInfo.descriptorPool = m_sharedDescPool;
+		uboSetAllocInfo.descriptorPool = m_uboDescriptorPools.Back();
 		uboSetAllocInfo.descriptorSetCount = 1;
 		uboSetAllocInfo.pSetLayouts = &chosenLayout;
 		uboSetAllocInfo.pNext = nullptr;
 		
 		VkDescriptorSet descSet = VK_NULL_HANDLE;
-		PB_ERROR_CHECK(vkAllocateDescriptorSets(m_device.GetHandle(), &uboSetAllocInfo, &descSet));
-		PB_BREAK_ON_ERROR;
+		VkResult res = vkAllocateDescriptorSets(m_device.GetHandle(), &uboSetAllocInfo, &descSet);
+		PB_ASSERT(res == VK_SUCCESS || res == VK_ERROR_OUT_OF_POOL_MEMORY);
+
+		if (res == VK_ERROR_OUT_OF_POOL_MEMORY)
+		{
+			PB_LOG("Creating new UBO descriptor pool.");
+
+			CreateUBODescriptorPool();
+			PB_LOG_FORMAT("%u Pools created.", m_uboDescriptorPools.Count());
+			uboSetAllocInfo.descriptorPool = m_uboDescriptorPools.Back();
+
+			res = vkAllocateDescriptorSets(m_device.GetHandle(), &uboSetAllocInfo, &descSet);
+			PB_ASSERT(res == VK_SUCCESS);
+		}
+
 		PB_ASSERT(descSet);
 		return descSet;
 	}
@@ -659,6 +684,18 @@ namespace PB
 
 		PB_ERROR_CHECK(vkCreateWin32SurfaceKHR(m_vkInstance.GetHandle(), &surfaceInfo, nullptr, &m_windowSurface));
 		PB_ASSERT(m_windowSurface);
+#elif PARABLIT_LINUX
+		VkXlibSurfaceCreateInfoKHR surfaceInfo =
+		{
+			VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+			nullptr,
+			0,
+			windowInfo->m_display,
+			windowInfo->m_window
+		};
+
+		PB_ERROR_CHECK(vkCreateXlibSurfaceKHR(m_vkInstance.GetHandle(), &surfaceInfo, nullptr, &m_windowSurface));
+		PB_ASSERT(m_windowSurface);
 #endif
 	}
 
@@ -667,45 +704,49 @@ namespace PB
 		VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT }; // Create fences already signalled, to indicate frames are not in-flight.
 		VkSemaphoreCreateInfo semaphoreInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0 };
 
-		m_frameInfos.SetCount(PB_FRAME_IN_FLIGHT_COUNT);
-		for (u32 i = 0; i < PB_FRAME_IN_FLIGHT_COUNT; ++i)
+		m_frameInfos.SetCount(PB_FRAME_IN_FLIGHT_COUNT + 1);
+		for (u32 i = 0; i < m_frameInfos.Count(); ++i)
 		{
 			FrameInfo& frameInfo = m_frameInfos[i];
 			vkCreateFence(m_device.GetHandle(), &fenceInfo, nullptr, &frameInfo.m_frameFence);
 			PB_ASSERT(frameInfo.m_frameFence);
 			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &frameInfo.m_imageAcquireSempahore);
 			PB_ASSERT(frameInfo.m_imageAcquireSempahore);
-			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &frameInfo.m_frameSemaphore);
-			PB_ASSERT(frameInfo.m_frameSemaphore);
+			vkCreateSemaphore(m_device.GetHandle(), &semaphoreInfo, nullptr, &m_frameSemaphores[i]);
+			PB_ASSERT(m_frameSemaphores[i]);
 		}
 	}
 
-	void Renderer::CreatePoolAndSetLayouts()
+	void Renderer::CreateUBODescriptorPool()
 	{
 		CLib::Vector<VkDescriptorPoolSize, 1> poolSizes;
 
 		VkDescriptorPoolSize& uboPoolSize = poolSizes.PushBack();
-		uboPoolSize.descriptorCount = MaxUBOBindings;
+		uboPoolSize.descriptorCount = MaxUBOBindings * MaxUBOSetsPerPool; // TODO: This is hacky and gross. Find out how many descriptors we actually need.
 		uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
 		if (m_device.GetDeviceLimitations()->m_supportRaytracing)
 		{
 			VkDescriptorPoolSize& asPoolSize = poolSizes.PushBack();
-			asPoolSize.descriptorCount = MaxAccelerationStructureBindings;
+			asPoolSize.descriptorCount = MaxAccelerationStructureBindings * MaxUBOSetsPerPool;
 			asPoolSize.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 		}
 
 		VkDescriptorPoolCreateInfo sharedPoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr };
 		sharedPoolInfo.flags = 0;
-		sharedPoolInfo.maxSets = (MaxUBOBindings + MaxAccelerationStructureBindings) * PB_FRAME_IN_FLIGHT_COUNT;
+		sharedPoolInfo.maxSets = MaxUBOSetsPerPool;
 
 		sharedPoolInfo.poolSizeCount = poolSizes.Count();
 		sharedPoolInfo.pPoolSizes = poolSizes.Data();
 
-		PB_ERROR_CHECK(vkCreateDescriptorPool(m_device.GetHandle(), &sharedPoolInfo, nullptr, &m_sharedDescPool));
+		VkDescriptorPool& newPool = m_uboDescriptorPools.PushBackInit();
+		PB_ERROR_CHECK(vkCreateDescriptorPool(m_device.GetHandle(), &sharedPoolInfo, nullptr, &newPool));
 		PB_BREAK_ON_ERROR;
-		PB_ASSERT(m_sharedDescPool);
+		PB_ASSERT(newPool);
+	}
 
+	void Renderer::CreateSetLayouts()
+	{
 		// UBO & acceleration structure sets may only be partially bound.
 		VkDescriptorBindingFlags bindingFlags[]
 		{
@@ -781,11 +822,9 @@ namespace PB
 
 	void Renderer::BeginNextFrame()
 	{
-		if (m_curFrameInfoIdx + 1u < m_swapchain.GetImageCount() && m_curFrameInfoIdx + 1u < PB_FRAME_IN_FLIGHT_COUNT)
-			++m_curFrameInfoIdx;
-		else
+		if (m_validSwapchain)
 		{
-			m_curFrameInfoIdx = 0;
+			m_curFrameInfoIdx = ++m_curFrameInfoIdx % m_swapchain.GetImageCount();
 		}
 
 		m_device.GetTempBufferAllocator().ResetFrame(m_curFrameInfoIdx);
@@ -826,7 +865,7 @@ namespace PB
 		submitInfo.commandBufferCount = curFrameInfo.m_enqueuedCmdBuffers.Count();
 		submitInfo.pCommandBuffers = curFrameInfo.m_enqueuedCmdBuffers.Data();
 		submitInfo.signalSemaphoreCount = m_validSwapchain ? 1 : 0;
-		submitInfo.pSignalSemaphores = &curFrameInfo.m_frameSemaphore;
+		submitInfo.pSignalSemaphores = &m_frameSemaphores[curFrameInfo.m_presentImageIdx];
 		submitInfo.waitSemaphoreCount = m_validSwapchain ? 1 : 0; // No need to wait on acquire when there is no Swapchain to acquire from.
 		submitInfo.pWaitSemaphores = &curFrameInfo.m_imageAcquireSempahore;
 
@@ -875,12 +914,12 @@ namespace PB
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = m_swapchain.GetHandlePtr();
 		presentInfo.pResults = nullptr;
-		presentInfo.pWaitSemaphores = &curFrameInfo.m_frameSemaphore;
+		presentInfo.pWaitSemaphores = &m_frameSemaphores[curFrameInfo.m_presentImageIdx];
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pImageIndices = &curFrameInfo.m_presentImageIdx;
 
 		VkResult res = vkQueuePresentKHR(m_presentQueue, &presentInfo);
-		PB_ASSERT(res == VK_SUCCESS || res == VK_ERROR_OUT_OF_DATE_KHR);
+		PB_ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR);
 
 		curFrameInfo.m_state = PB_FRAME_STATE_IN_FLIGHT;
 	}

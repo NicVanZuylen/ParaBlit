@@ -1,4 +1,8 @@
 #include "Camera.h"
+#include "Engine.Math/Scalar.h"
+#include "Engine.Math/Vector3.h"
+#include "Engine.Math/Vector4.h"
+#include "Engine.ParaBlit/ParaBlitDefs.h"
 #include "Utility/Input.h"
 #include "RenderGraphPasses/DebugLinePass.h"
 #include "GLFW/glfw3.h"
@@ -15,8 +19,6 @@ namespace Eng
 
 	Camera::Camera(const CreateDesc& desc) : EntityComponent(this)
 	{
-		m_transform = GetHost()->GetComponent<Transform>();
-
 		m_sensitivity = desc.m_sensitivity;
 		m_moveSpeed = desc.m_moveSpeed;
 		m_bLooking = false;
@@ -31,12 +33,12 @@ namespace Eng
 		m_lastMouseX = 0.0f;
 		m_lastMouseY = 0.0f;
 
-		Update();
 	}
 
 	void Camera::OnInitialize()
 	{
 		m_transform = GetHost()->GetComponent<Transform>();
+		Update();
 	}
 
 	void Camera::Update()
@@ -94,37 +96,37 @@ namespace Eng
 		// Strafe
 		if (m_bLooking)
 		{
-			if (input->GetKey(GLFW_KEY_W))
+			if (input->GetKey(KEYBOARD_KEY_W))
 			{
 				Vector3f forwardVec = -m_matrix[2];
 
 				position += forwardVec * m_moveSpeed * fDeltaTime;
 			}
-			if (input->GetKey(GLFW_KEY_A))
+			if (input->GetKey(KEYBOARD_KEY_A))
 			{
 				Vector3f leftVec = -m_matrix[0];
 
 				position += leftVec * m_moveSpeed * fDeltaTime;
 			}
-			if (input->GetKey(GLFW_KEY_S))
+			if (input->GetKey(KEYBOARD_KEY_S))
 			{
 				Vector3f backVec = m_matrix[2];
 
 				position += backVec * m_moveSpeed * fDeltaTime;
 			}
-			if (input->GetKey(GLFW_KEY_D))
+			if (input->GetKey(KEYBOARD_KEY_D))
 			{
 				Vector3f rightVec = m_matrix[0];
 
 				position += rightVec * m_moveSpeed * fDeltaTime;
 			}
-			if (input->GetKey(GLFW_KEY_SPACE))
+			if (input->GetKey(KEYBOARD_KEY_SPACE))
 			{
 				Vector3f upVec = m_matrix[1];
 
 				position += upVec * m_moveSpeed * fDeltaTime;
 			}
-			if (input->GetKey(GLFW_KEY_LEFT_CONTROL))
+			if (input->GetKey(KEYBOARD_KEY_LEFT_CONTROL))
 			{
 				Vector3f downVec = -m_matrix[1];
 
@@ -145,9 +147,10 @@ namespace Eng
 		axisCorrection[2][2] = 1.0f;
 		axisCorrection[3][3] = 1.0f;
 
+		float fovRadians = Math::ToRadians(m_fovY);
 		if (m_projectionType == EProjectionType::PERSPECTIVE)
 		{
-			return axisCorrection * glm::perspectiveFov<float>(m_fovY, m_width, m_height, m_zNear, m_zFar);
+			return axisCorrection * glm::perspectiveFov<float>(fovRadians, m_width, m_height, m_zNear, m_zFar);
 		}
 		else if (m_projectionType == EProjectionType::ORTHOGRAPHIC)
 		{
@@ -156,7 +159,7 @@ namespace Eng
 			return axisCorrection * glm::orthoZO(-halfWidth, halfWidth, -halfHeight, halfHeight, m_zNear, m_zFar);
 		}
 
-		return axisCorrection * glm::perspectiveFov<float>(m_fovY, m_width, m_height, m_zNear, m_zFar);
+		return axisCorrection * glm::perspectiveFov<float>(fovRadians, m_width, m_height, m_zNear, m_zFar);
 	}
 
 	Vector3f Camera::GetCursorNearPlaneWorldPosition(Vector2f cursorCoords)
@@ -190,9 +193,11 @@ namespace Eng
 
 		if (m_projectionType == EProjectionType::PERSPECTIVE)
 		{
-			const float nearFarHeight = nearDistance * Math::Tan(FovY() * 0.5f);
+			float fovRadians = Math::ToRadians(FovY());
+
+			const float nearFarHeight = nearDistance * Math::Tan(fovRadians * 0.5f);
 			const float nearFarWidth = nearFarHeight * Aspect();
-			const float halfFarHeight = farDistance * Math::Tan(FovY() * 0.5f);
+			const float halfFarHeight = farDistance * Math::Tan(fovRadians * 0.5f);
 			const float halfFarWidth = halfFarHeight * Aspect();
 
 			outFrustrum.m_nearTopLeft = nearCentre + (Up() * nearFarHeight) - (Right() * nearFarWidth);
@@ -302,14 +307,15 @@ namespace Eng
 		outFrustrum.m_farBottomRight = trans * Vector4f(outFrustrum.m_farBottomRight, 1.0f);
 	}
 
-	void Camera::GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, Vector3f position, Vector3f forward, float leftBound, float rightBound, float bottomBound, float topBound, float nearDistance, float farDistance)
+	void Camera::GetShadowCascadeFrustrum(CameraFrustrum& outFrustrum, Vector3f position, Vector3f forward, Vector3f trueUp, float leftBound, float rightBound, float bottomBound, float topBound, float nearDistance, float farDistance)
 	{
-		Vector3f right = -Normalize(Cross(forward, Vector3f(0.0f, 1.0f, 0.0f)));
-		Vector3f up = Cross(forward, right);
+		Vector3f right = Normalize(Cross(forward, trueUp));
+		Vector3f up = Cross(-forward, right);
 
 		const Vector3f nearCentre = position + (forward * nearDistance);
 		const Vector3f farCentre = position + (forward * farDistance);
 
+		// Calculate frustrum corners.
 		{
 			outFrustrum.m_nearTopLeft = nearCentre + (up * topBound) + (right * leftBound);
 			outFrustrum.m_nearTopRight = nearCentre + (up * topBound) + (right * rightBound);
@@ -322,70 +328,32 @@ namespace Eng
 			outFrustrum.m_farBottomRight = farCentre + (up * bottomBound) + (right * rightBound);
 		}
 
+		// No need for any cross products, as we're working with orthographic projection.
 		const Vector3f leftNormal = Normalize
 		(
-			Cross
-			(
-				outFrustrum.m_farBottomLeft - outFrustrum.m_nearBottomLeft,
-				outFrustrum.m_farTopLeft - outFrustrum.m_farBottomLeft
-			)
+			outFrustrum.m_farBottomRight - outFrustrum.m_farBottomLeft
 		);
-		const Vector3f rightNormal = Normalize
-		(
-			Cross
-			(
-				outFrustrum.m_farTopRight - outFrustrum.m_nearTopRight,
-				outFrustrum.m_farBottomRight - outFrustrum.m_farTopRight
-			)
-		);
+		const Vector3f rightNormal = -leftNormal;
 		const Vector3f topNormal = Normalize
 		(
-			Cross
-			(
-				outFrustrum.m_farTopLeft - outFrustrum.m_nearTopLeft,
-				outFrustrum.m_farTopRight - outFrustrum.m_farTopLeft
-			)
+			outFrustrum.m_farBottomLeft - outFrustrum.m_farTopLeft
 		);
-		const Vector3f bottomNormal = Normalize
-		(
-			Cross
-			(
-				outFrustrum.m_farBottomRight - outFrustrum.m_nearBottomRight,
-				outFrustrum.m_farBottomLeft - outFrustrum.m_farBottomRight
-			)
-		);
+		const Vector3f bottomNormal = -topNormal;
 
+		// Calculate frustrum planes.
 		{
-			outFrustrum.m_left = { -leftNormal, Dot(outFrustrum.m_farTopLeft, -leftNormal) };
-			outFrustrum.m_right = { -rightNormal, Dot(outFrustrum.m_farBottomRight, -rightNormal) };
+			outFrustrum.m_left = { leftNormal, Dot(outFrustrum.m_farBottomLeft, leftNormal) };
+			outFrustrum.m_right = { rightNormal, Dot(outFrustrum.m_farBottomRight, rightNormal) };
 
-			outFrustrum.m_top = { -topNormal, Dot(outFrustrum.m_farTopLeft, -topNormal) };
-			outFrustrum.m_bottom = { -bottomNormal, Dot(outFrustrum.m_farBottomLeft, -bottomNormal) };
+			outFrustrum.m_top = { topNormal, Dot(outFrustrum.m_farTopLeft, topNormal) };
+			outFrustrum.m_bottom = { bottomNormal, Dot(outFrustrum.m_farBottomLeft, bottomNormal) };
 
-			const float projectedNear = Dot(position + (forward * nearDistance), forward);
+			const float projectedNear = Dot(position - (forward * nearDistance), forward);
 			const float projectedFar = Dot(position - (forward * farDistance), forward);
 
-			outFrustrum.m_near = { forward, -projectedNear };
-			outFrustrum.m_far = { forward, projectedFar };
+			outFrustrum.m_near = { forward, projectedNear };
+			outFrustrum.m_far = { -forward, projectedFar };
 		}
-
-		Matrix4 noTranslate = Matrix4::Identity().Translate(position * Vector3f(2.0f, 2.0f, 2.0f));
-		Matrix4 axisCorrection; // Inverts the Y axis to match the OpenGL coordinate system.
-		axisCorrection[1][1] = -1.0f;
-		axisCorrection[2][2] = 1.0f;
-		axisCorrection[3][3] = 1.0f;
-
-		Matrix4 trans = noTranslate.Rotated(Math::Pi<float>(), Vector3f(0.0f, 1.0f, 0.0f)) * axisCorrection;
-
-		outFrustrum.m_nearTopLeft = trans * Vector4f(outFrustrum.m_nearTopLeft, 1.0f);
-		outFrustrum.m_nearTopRight = trans * Vector4f(outFrustrum.m_nearTopRight, 1.0f);
-		outFrustrum.m_nearBottomLeft = trans * Vector4f(outFrustrum.m_nearBottomLeft, 1.0f);
-		outFrustrum.m_nearBottomRight = trans * Vector4f(outFrustrum.m_nearBottomRight, 1.0f);
-
-		outFrustrum.m_farTopLeft = trans * Vector4f(outFrustrum.m_farTopLeft, 1.0f);
-		outFrustrum.m_farTopRight = trans * Vector4f(outFrustrum.m_farTopRight, 1.0f);
-		outFrustrum.m_farBottomLeft = trans * Vector4f(outFrustrum.m_farBottomLeft, 1.0f);
-		outFrustrum.m_farBottomRight = trans * Vector4f(outFrustrum.m_farBottomRight, 1.0f);
 	}
 
 	void Camera::DrawFrustrum(DebugLinePass* linePass, const CameraFrustrum& frustrum, Vector3f frustrumColor)
@@ -404,6 +372,27 @@ namespace Eng
 		linePass->DrawLine(frustrum.m_nearBottomLeft, frustrum.m_farBottomLeft, frustrumColor);
 		linePass->DrawLine(frustrum.m_nearTopRight, frustrum.m_farTopRight, frustrumColor);
 		linePass->DrawLine(frustrum.m_nearBottomRight, frustrum.m_farBottomRight, frustrumColor);
+
+		Vector3f planePositions[PB_ARRAY_LENGTH(frustrum.m_planes)]
+		{
+			(frustrum.m_nearTopLeft + frustrum.m_nearBottomLeft + frustrum.m_farTopLeft + frustrum.m_farBottomLeft) / 4, // Left
+			(frustrum.m_nearTopRight + frustrum.m_nearBottomRight + frustrum.m_farTopRight + frustrum.m_farBottomRight) / 4, // Right
+			(frustrum.m_nearTopLeft + frustrum.m_nearTopRight + frustrum.m_farTopLeft + frustrum.m_farTopRight) / 4, // Top
+			(frustrum.m_nearBottomLeft + frustrum.m_nearBottomRight + frustrum.m_farBottomLeft + frustrum.m_farBottomRight) / 4, // Bottom
+			(frustrum.m_nearTopLeft + frustrum.m_nearTopRight + frustrum.m_nearBottomLeft + frustrum.m_nearBottomRight) / 4, // Near
+			(frustrum.m_farTopLeft + frustrum.m_farTopRight + frustrum.m_farBottomLeft + frustrum.m_farBottomRight) / 4 // Far
+		};
+
+		for (uint32_t i = 0; i < PB_ARRAY_LENGTH(frustrum.m_planes); ++i)
+		{
+			auto& origin = planePositions[i];
+			auto& plane = frustrum.m_planes[i];
+
+			linePass->DrawCube(origin - Vector3f(0.1), Vector3f(0.2), Vector3f(1.0f, 0.0f, 0.0f));
+
+			linePass->DrawLine(origin, origin + (plane * 1), Vector3f(1.0f, 0.0f, 0.0f));
+		}
+
 	}
 
 	void Camera::SetWidth(float width)

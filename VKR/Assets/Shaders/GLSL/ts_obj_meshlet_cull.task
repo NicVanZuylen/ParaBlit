@@ -65,7 +65,7 @@ bool IsFrontFaceVisible(in vec3 meshletCenter, vec3 meanNormal, in float angular
     float sinConeAngle = sin(min(angularSpan, halfPi)); // Max 90 degrees.
     if(CULL_CONSTANTS.isOrthographic > 0)
     {
-        vec3 camForward = CULL_CONSTANTS.mainFrustrumPlanes[0].xyz; // Use the camera's forward vector instead (near plane vector), due to the parallel nature of orthographic projection.
+        vec3 camForward = CULL_CONSTANTS.mainFrustrumPlanes[0].xyz; // Orthographic projection can just use the camera's forward vector.
         return dot(meanNormal, camForward) < sinConeAngle;
     }
 

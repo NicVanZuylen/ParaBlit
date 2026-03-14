@@ -1,4 +1,6 @@
 #include "DebugLinePass.h"
+#include "Engine.ParaBlit/ParaBlitDefs.h"
+#include "Engine.ParaBlit/ParaBlitImplUtil.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Resource/Shader.h"
 
@@ -117,7 +119,7 @@ namespace Eng
 		m_targetResolution = targetResolution;
 
 		AttachmentDesc& targetDesc = nodeDesc.m_attachments.PushBackInit();
-		targetDesc.m_format = m_renderer->GetSwapchain()->GetImageFormat();
+		targetDesc.m_format = PB::Util::FormatToUnorm(m_renderer->GetSwapchain()->GetImageFormat());
 		targetDesc.m_width = nodeDesc.m_renderWidth;
 		targetDesc.m_height = nodeDesc.m_renderHeight;
 		targetDesc.m_name = "MergedOutput";
@@ -125,7 +127,7 @@ namespace Eng
 		targetDesc.m_flags = EAttachmentFlags::NONE;
 
 		AttachmentDesc& depthDesc = nodeDesc.m_attachments.PushBackInit();
-		depthDesc.m_format = PB::ETextureFormat::D24_UNORM_S8_UINT;
+		depthDesc.m_format = PB::ETextureFormat::D32_FLOAT;
 		depthDesc.m_width = nodeDesc.m_renderWidth;
 		depthDesc.m_height = nodeDesc.m_renderHeight;
 		depthDesc.m_name = "G_Depth";

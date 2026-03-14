@@ -12,6 +12,16 @@ set_target_properties(${_LIBRARY_} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${_CLIB_B
 set_target_properties(${_LIBRARY_} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${_CLIB_BUILD_DIR_})
 set_target_properties(${_LIBRARY_} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${_CLIB_BUILD_DIR_})
 
+# ------------------------- PREPROCESSOR DEFINITIONS -------------------------
+
+if (WIN32)
+add_compile_definitions(CLIB_CLIENT_WINDOWS)
+elseif (LINUX)
+add_compile_definitions(CLIB_CLIENT_LINUX)
+endif()
+
+# ----------------------------------------------------------------------------
+
 # --------------------------- FUNC ---------------------------
 function(add_source source_dir filter_name)
 

@@ -317,7 +317,7 @@ namespace PB
 		auto& colorAttachmentInfos = pass->m_colorAttachmentInfos;
 
 		bool hasDepthAttachment = false;
-		for (u32 i = 0; i < _countof(SubpassDesc::m_attachments); ++i)
+		for (u32 i = 0; i < PB_ARRAY_LENGTH(SubpassDesc::m_attachments); ++i)
 		{
 			auto& attachUsage = desc.m_subpasses[0].m_attachments[i];
 			auto& attach = desc.m_attachments[attachUsage.m_attachmentIdx];

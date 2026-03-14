@@ -1,4 +1,5 @@
 #include "Entity.h"
+#include "EntityHierarchy.h"
 
 namespace Eng
 {
@@ -33,5 +34,12 @@ namespace Eng
 			return true;
 		}
 		return false;
+	}
+
+	void Entity::SoftReload()
+	{
+		m_hierarchy->UncommitEntity(this);
+		m_hierarchy->CommitEntity(this);
+		m_hierarchy->UpdateTrees();
 	}
 };

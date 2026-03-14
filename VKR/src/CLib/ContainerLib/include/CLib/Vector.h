@@ -1,14 +1,30 @@
 #pragma once
-#include <memory>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
+#include <type_traits>
 
 namespace CLib
 {
-	static std::function<void* (unsigned long long)> vectorAllocFunc = malloc;
-	static std::function<void(void*)> vectorFreeFunc = free;
+	inline std::function<void* (unsigned long long)> vectorAllocFunc = malloc;
+	inline std::function<void(void*)> vectorFreeFunc = free;
 
-	// Standard Custom Vector class by Nicholas Van Zuylen. Unsafe to contain objects that own dynamic memory including other vectors.
-	template<typename T, unsigned int FixedCapacity = 1, unsigned int ExpandRate = 1>
+#define VECTOR_SELF_T Vector<T, FixedCapacity, ExpandRate, UseTypeSafety>
+#define VECTOR_OTHER_T Vector<T, OFixedCapacity, OExpandRate, OUseTypeSafety>
+#define VECTOR_OTHER_TEMPLATE template<unsigned int OFixedCapacity, unsigned int OExpandRate, bool OUseTypeSafety>
+
+	template <typename T>
+	concept VectorTCanCopyAssign = std::is_copy_assignable<T>::value || std::is_trivially_copyable<T>::value;
+
+	template <typename T>
+	concept VectorTSafeCompatible = std::is_default_constructible<T>::value && std::is_copy_constructible<T>::value;
+
+	template <typename T, bool UseTypeSafety>
+	concept VectorTypeSafe = (UseTypeSafety == false && VectorTCanCopyAssign<T>) || (UseTypeSafety == true && VectorTSafeCompatible<T>);
+
+	// Standard Custom Vector class by Nicholas Van Zuylen. Enable 'UseTypeSafety' to safely contain objects that are not trivially copyable.
+	template<typename T, unsigned int FixedCapacity = 0, unsigned int ExpandRate = 1, bool UseTypeSafety = false>
+	requires VectorTypeSafe<T, UseTypeSafety>
 	class Vector
 	{
 	public:
@@ -32,13 +48,13 @@ namespace CLib
 		}
 
 		// Copy constructor
-		Vector(const Vector<T, FixedCapacity, ExpandRate>& other) noexcept
+		Vector(const VECTOR_SELF_T& other) noexcept
 		{
 			CopyFrom(other);
 		}
 
 		// Move constructor
-		Vector(Vector<T, FixedCapacity, ExpandRate>&& other) noexcept
+		Vector(VECTOR_SELF_T&& other) noexcept
 		{
 			MoveFrom(other);
 		}
@@ -51,6 +67,8 @@ namespace CLib
 
 		~Vector()
 		{
+			DestructAllElements();
+
 			Free(m_contents);
 			m_count = 0;
 			m_capacity = 0;
@@ -83,7 +101,15 @@ namespace CLib
 			if (m_count + 1 > m_capacity)
 				SetCapacity(m_count + ExpandRate);
 
-			return m_contents[m_count++] = val;
+			if constexpr (UseTypeSafety == false)
+			{
+				return m_contents[m_count++] = val;
+			}
+			else
+			{
+				new (&m_contents[m_count]) T();
+				return m_contents[m_count++] = val;
+			}
 		}
 
 		inline T& PushBack()
@@ -91,13 +117,25 @@ namespace CLib
 			if (m_count + 1 > m_capacity)
 				SetCapacity(m_count + ExpandRate);
 
+			if constexpr (UseTypeSafety)
+			{
+				new (&m_contents[m_count]) T();
+			}
+
 			return m_contents[m_count++];
 		}
 
 		inline T& PopBack()
 		{
 			if (m_count > 0)
-				return m_contents[m_count-- - 1];
+			{
+				if constexpr (UseTypeSafety)
+				{
+					m_contents[m_count - 1].~T();
+				}
+
+				return m_contents[--m_count];
+			}
 
 			return m_contents[0];
 		}
@@ -109,11 +147,20 @@ namespace CLib
 			if (m_count + 1 > m_capacity)
 				SetCapacity(m_count + ExpandRate);
 
-			return m_contents[m_count++] = std::move(T(args...));
+			if constexpr (UseTypeSafety)
+			{
+				new (&m_contents[m_count]) T(args...);
+
+				return m_contents[m_count++];
+			}
+			else
+			{
+				return m_contents[m_count++] = std::move(T(args...));
+			}
 		}
 
-		template<typename T, unsigned int OCapacity, unsigned int OExpandRate>
-		inline void Append(const Vector<T, OCapacity, OExpandRate>& other)
+		VECTOR_OTHER_TEMPLATE
+		inline void Append(const VECTOR_OTHER_T& other)
 		{
 			unsigned int newCount = m_count + other.Count();
 			if (newCount > m_capacity)
@@ -122,46 +169,87 @@ namespace CLib
 				SetCapacity(m_capacity);
 			}
 
-			std::memcpy(&m_contents[m_count], other.Data(), sizeof(T) * other.Count());
+			memcpy(&m_contents[m_count], other.Data(), sizeof(T) * other.Count());
 			m_count = newCount;
 		}
 
 		inline void Reserve(const unsigned int& newCapacity) { SetCapacity(newCapacity); }
 		inline void SetCount(const unsigned int& newCount)
 		{
+			if constexpr (UseTypeSafety)
+			{
+				if (newCount < m_count)
+				{
+					for (unsigned int i = newCount; i < m_count; ++i)
+					{
+						m_contents[i].~T();
+					}
+				}
+			}
+
 			if (newCount > m_capacity)
 				SetCapacity(newCount);
+
+			if constexpr (UseTypeSafety)
+			{
+				if (newCount > m_count)
+				{
+					for (unsigned int i = m_count; i < newCount; ++i)
+					{
+						new (&m_contents[i]) T();
+					}
+				}
+			}
+
 			m_count = newCount;
 		}
-		inline void Clear() { m_count = 0; }
+
+		inline void Clear() 
+		{
+			DestructAllElements();
+
+			m_count = 0;
+		}
+
 		inline void Trim() { SetCapacity(FixedCapacity); }
 
 		// ---------------------------- Write Operators -------------------------------
 
 		// Copy assignment
-		inline Vector<T, FixedCapacity, ExpandRate>& operator = (const Vector<T, FixedCapacity, ExpandRate>& other)
+		inline VECTOR_SELF_T& operator = (const VECTOR_SELF_T& other)
 		{
+			if constexpr (UseTypeSafety)
+			{
+				Clear();
+			}
+
 			CopyFrom(other);
 			return *this;
 		}
 
 		// Move assignment
-		inline Vector<T, FixedCapacity, ExpandRate>& operator = (Vector<T, FixedCapacity, ExpandRate>&& other)
+		inline VECTOR_SELF_T& operator = (VECTOR_SELF_T&& other)
 		{
+			DestructAllElements();
 			MoveFrom(other);
 			return *this;
 		}
 
 		// Initializer list assignment
-		inline Vector<T, FixedCapacity, ExpandRate>& operator = (const std::initializer_list<T>& list)
+		inline VECTOR_SELF_T& operator = (const std::initializer_list<T>& list)
 		{
+			if constexpr (UseTypeSafety)
+			{
+				Clear();
+			}
+
 			CopyFromInitList(list);
 			return *this;
 		}
 
 		// Append operator
-		template<typename T, unsigned int OCapacity, unsigned int OExpandRate>
-		inline Vector<T, FixedCapacity, ExpandRate>& operator += (const Vector<T, OCapacity, OExpandRate>& other)
+		VECTOR_OTHER_TEMPLATE
+		inline VECTOR_SELF_T& operator += (const VECTOR_OTHER_T& other)
 		{
 			Append(other);
 			return *this;
@@ -169,8 +257,8 @@ namespace CLib
 
 	private:
 
-		template<typename T, unsigned int OCapacity, unsigned int OExpandRate>
-		inline void CopyFrom(const Vector<T, OCapacity, OExpandRate>& other)
+		VECTOR_OTHER_TEMPLATE
+		inline void CopyFrom(const VECTOR_OTHER_T& other)
 		{
 			m_count = other.Count();
 			if (m_capacity < m_count)
@@ -178,7 +266,19 @@ namespace CLib
 				m_capacity = m_count;
 				m_contents = Alloc(m_capacity);
 			}
-			memcpy(m_contents, other.Data(), sizeof(T) * m_count);
+
+			if constexpr (UseTypeSafety) 
+			{
+				for (unsigned int i = 0; i < m_count; ++i)
+				{
+					new (&m_contents[i]) T(other.m_contents[i]);
+				}
+			}
+			else
+			{
+
+				memcpy(m_contents, other.Data(), sizeof(T) * m_count);
+			}
 		}
 
 		inline void MoveFrom(Vector<T, FixedCapacity, ExpandRate>& other)
@@ -189,6 +289,8 @@ namespace CLib
 			}
 
 			m_count = other.m_count;
+
+			// Fixed contents cannot be moved, so copy the other vector if it is using them.
 			if (other.m_contents != reinterpret_cast<T*>(other.m_fixedContents))
 			{
 				m_contents = other.m_contents;
@@ -196,13 +298,27 @@ namespace CLib
 			}
 			else if (other.m_count <= FixedCapacity)
 			{
+				if constexpr (UseTypeSafety)
+				{
+					Clear();
+				}
+				
 				m_contents = reinterpret_cast<T*>(m_fixedContents);
-				std::memcpy(m_contents, other.m_contents, sizeof(T) * m_count);
+				m_capacity = FixedCapacity;
+
+				if constexpr (UseTypeSafety)
+				{
+					CopyFrom(other);
+				}
+				else
+				{
+					memcpy(m_contents, other.m_contents, sizeof(T) * m_count);
+				}
 			}
 			else
 			{
-				m_capacity = m_count;
-				m_contents = Alloc(m_capacity);
+				Clear();
+				CopyFrom(other);
 			}
 
 			other.m_capacity = 0;
@@ -212,15 +328,30 @@ namespace CLib
 
 		inline void CopyFromInitList(const std::initializer_list<T>& list)
 		{
-			SetCount(list.size());
-
 			// Copy list contents.
-			std::memcpy(m_contents, list.begin(), sizeof(T) * m_count);
+			if constexpr (UseTypeSafety)
+			{
+				m_count = list.size();
+				if (m_capacity < m_count)
+				{
+					m_capacity = m_count;
+					m_contents = Alloc(m_capacity);
+				}
+
+				for (unsigned int i = 0; i < m_count; ++i)
+				{
+					new (&m_contents[i]) T(list[i]);
+				}
+			}
+			else
+			{
+				SetCount(list.size());
+				memcpy(m_contents, list.begin(), sizeof(T) * m_count);
+			}
 		}
 
 		inline T* Alloc(const unsigned int& capacity)
 		{
-			//return new T[capacity];
 			return reinterpret_cast<T*>(vectorAllocFunc(sizeof(T) * capacity));
 		}
 
@@ -228,7 +359,6 @@ namespace CLib
 		{
 			if (mem != reinterpret_cast<T*>(m_fixedContents) && mem)
 			{
-				//delete mem;
 				vectorFreeFunc(mem);
 			}
 		}
@@ -241,8 +371,22 @@ namespace CLib
 
 			// Use fixed contents if the new capacity fits within the fixed capacity.
 			T* newContents = reinterpret_cast<T*>(m_fixedContents);
+
+			if constexpr (UseTypeSafety) // If type safe, destruct trimmed elements.
+			{
+				if (newCapacity < m_count)
+				{
+					for (unsigned int i = newCapacity; i < m_count; ++i)
+					{
+						m_contents[i].~T();
+					}
+				}
+			}
+
 			if (newCapacity <= FixedCapacity)
+			{
 				m_capacity = FixedCapacity;
+			}
 			else
 			{
 				m_capacity = newCapacity;
@@ -252,15 +396,57 @@ namespace CLib
 			if (m_count > m_capacity) // Trim old contents.
 				m_count = m_capacity;
 
-			memcpy(newContents, m_contents, sizeof(T) * m_count);
+			if constexpr (UseTypeSafety) // If type safe, copy construct new contents and destruct src elements.
+			{
+				if constexpr (std::is_move_constructible<T>::value == true) // Prefer move construction if available. It's much faster.
+				{
+					for (unsigned int i = 0; i < m_count; ++i)
+					{
+						new (&newContents[i]) T(std::move(m_contents[i]));
+					}
+				}
+				else // Copy construct.
+				{
+					for (unsigned int i = 0; i < m_count; ++i)
+					{
+						new (&newContents[i]) T(m_contents[i]);
+					}
+
+					DestructAllElements();
+				}
+			}
+			else if constexpr (std::is_trivially_copyable<T>::value == true)
+			{
+				memcpy(newContents, m_contents, sizeof(T) * m_count);
+			}
+			else
+			{
+				static_assert(std::is_copy_assignable<T>::value == true && "Vector element type is not copy assignable. No way to copy elements in this vector.");
+				for (unsigned int i = 0; i < m_count; ++i)
+				{
+					newContents[i] = m_contents[i];
+				}
+			}
 
 			Free(m_contents);
 			m_contents = newContents;
 		}
 
+		void DestructAllElements()
+		{
+			if constexpr (UseTypeSafety) 
+			{
+				for (unsigned int i = 0; i < m_count; ++i)
+				{
+					m_contents[i].~T();
+				}
+			}
+		}
+
 		T* m_contents = reinterpret_cast<T*>(m_fixedContents);
 		unsigned int m_count = 0;
 		unsigned int m_capacity = FixedCapacity;
-		char m_fixedContents[sizeof(void*) + (FixedCapacity * sizeof(T))]{};
+		char m_fixedContents[sizeof(void*[2]) + (FixedCapacity * sizeof(T))]{}; // By default - pad the size of the vector to 32, a predictable size with a matching natural alignment.
 	};
+	static_assert(sizeof(Vector<void*>) == 32);
 }
